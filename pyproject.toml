@@ -10,3 +10,10 @@ dependencies = [
     "python-dotenv>=1.2.2",
     "slack-sdk>=3.41.0",
 ]
+
+[dependency-groups]
+dev = [
+    "mypy>=1.20.0",
+    "pytest>=9.0.3",
+    "ruff>=0.15.10",
+]
