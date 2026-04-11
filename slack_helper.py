@@ -5,22 +5,26 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-client = WebClient(token=os.environ["SLACK_BOT_TOKEN"])
 
-CHANNELS = {
-    "pipeline":  os.environ["SLACK_PIPELINE_CHANNEL"],
-    "alerts":    os.environ["SLACK_ALERTS_CHANNEL"],
-    "architect": os.environ["SLACK_ARCHITECT_CHANNEL"],
-    "coder":     os.environ["SLACK_CODER_CHANNEL"],
-    "reviewer":  os.environ["SLACK_REVIEWER_CHANNEL"],
-    "tester":    os.environ["SLACK_TESTER_CHANNEL"],
-}
+def _get_client() -> WebClient:
+    return WebClient(token=os.environ.get("SLACK_BOT_TOKEN", ""))
+
+
+def _get_channels() -> dict[str, str]:
+    return {
+        "pipeline":  os.environ["SLACK_PIPELINE_CHANNEL"],
+        "alerts":    os.environ["SLACK_ALERTS_CHANNEL"],
+        "architect": os.environ["SLACK_ARCHITECT_CHANNEL"],
+        "coder":     os.environ["SLACK_CODER_CHANNEL"],
+        "reviewer":  os.environ["SLACK_REVIEWER_CHANNEL"],
+        "tester":    os.environ["SLACK_TESTER_CHANNEL"],
+    }
 
 def post(channel_key: str, message: str) -> str:
     """Post a message to a channel. Returns the message timestamp (ts)."""
     try:
-        result = client.chat_postMessage(
-            channel=CHANNELS[channel_key],
+        result = _get_client().chat_postMessage(
+            channel=_get_channels()[channel_key],
             text=message
         )
         return result["ts"]
@@ -46,7 +50,7 @@ def wait_for_approval(prompt: str, timeout_seconds: int = 3600) -> bool:
     while time.time() < deadline:
         time.sleep(10)  # poll every 10 seconds
         try:
-            result = client.conversations_history(
+            result = _get_client().conversations_history(
                 channel=channel_id,
                 oldest=last_checked,
                 limit=10
@@ -69,8 +73,8 @@ def wait_for_approval(prompt: str, timeout_seconds: int = 3600) -> bool:
 
 def _get_channel_id(channel_key: str) -> str:
     """Resolve channel name to ID for history lookups."""
-    name = CHANNELS[channel_key].lstrip("#")
-    result = client.conversations_list(types="private_channel,public_channel")
+    name = _get_channels()[channel_key].lstrip("#")
+    result = _get_client().conversations_list(types="private_channel,public_channel")
     for ch in result["channels"]:
         if ch["name"] == name:
             return ch["id"]
