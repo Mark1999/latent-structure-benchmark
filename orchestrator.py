@@ -8,6 +8,14 @@ load_dotenv()
 
 client = Anthropic()
 
+
+def extract_text(response) -> str:
+    """Safely extract text from an Anthropic response."""
+    for block in response.content:
+        if hasattr(block, "text"):
+            return block.text
+    return ""
+
 # --- State ---
 # This is the object that gets passed between every agent node.
 # Each agent reads from it and writes back to it.
@@ -35,7 +43,7 @@ Output a structured plan with numbered steps that the Coder can follow exactly."
         messages=[{"role": "user", "content": f"Decompose this task into an implementation plan:\n\n{state['task']}"}]
     )
 
-    notes = response.content[0].text
+    notes = extract_text(response)
     slack.post("architect", f"🏛 *Architect plan ready:*\n```{notes[:500]}...```")
 
     # Ask for human approval before handing off to Coder
@@ -58,7 +66,7 @@ Write clean, well-commented Python. Follow the architecture plan precisely.""",
         messages=[{"role": "user", "content": f"Implement this plan:\n\n{state['architecture_notes']}"}]
     )
 
-    implementation = response.content[0].text
+    implementation = extract_text(response)
     slack.post("coder", f"💻 *Coder done:*\n```{implementation[:500]}...```")
 
     return {**state, "implementation": implementation}
@@ -79,7 +87,7 @@ Output: PASS or FAIL, followed by specific notes.""",
         messages=[{"role": "user", "content": f"Review this implementation against the plan.\n\nPlan:\n{state['architecture_notes']}\n\nImplementation:\n{state['implementation']}"}]
     )
 
-    review = response.content[0].text
+    review = extract_text(response)
     slack.post("reviewer", f"🔍 *Review complete:*\n```{review[:500]}...```")
 
     return {**state, "review_notes": review}
@@ -98,7 +106,7 @@ Output working pytest code only.""",
         messages=[{"role": "user", "content": f"Write tests for this implementation:\n\n{state['implementation']}"}]
     )
 
-    tests = response.content[0].text
+    tests = extract_text(response)
     slack.post("tester", f"🧪 *Tests written:*\n```{tests[:500]}...```")
     slack.post("pipeline", f"✅ *Pipeline complete for task:*\n{state['task']}")
 
