@@ -1,5 +1,6 @@
 from typing import TypedDict
 from anthropic import Anthropic
+from anthropic.types import TextBlock
 from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv
 import slack_helper as slack
@@ -12,9 +13,10 @@ client = Anthropic()
 def extract_text(response) -> str:
     """Safely extract text from an Anthropic response."""
     for block in response.content:
-        if hasattr(block, "text"):
+        if isinstance(block, TextBlock):
             return block.text
     return ""
+
 
 # --- State ---
 # This is the object that gets passed between every agent node.
@@ -28,6 +30,7 @@ class PipelineState(TypedDict):
     test_results: str          # Tester's output
     approved: bool             # whether the human approved the plan
     errors: list[str]          # any errors accumulated along the way
+
 
 # --- Agent nodes ---
 
