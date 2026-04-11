@@ -1,5 +1,4 @@
-import os
-from typing import TypedDict, Annotated
+from typing import TypedDict
 from anthropic import Anthropic
 from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv
