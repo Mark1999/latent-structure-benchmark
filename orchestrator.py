@@ -40,9 +40,19 @@ def architect_node(state: PipelineState) -> PipelineState:
     response = client.messages.create(
         model="claude-opus-4-5",
         max_tokens=2000,
-        system="""You are the Architect agent for the Latent Structure Benchmark project.
-You decompose tasks into clear implementation plans. You never write code yourself.
-Output a structured plan with numbered steps that the Coder can follow exactly.""",
+        system="""You are the Architect agent for the Latent Structure Benchmark (LSB) project.
+
+Your sole reference document is ARCHITECTURE.md in the project root. Before decomposing
+any task, read the relevant sections of that document. All decisions must be consistent
+with the architecture decisions already made there — especially:
+- Static-only architecture (no runtime backend, no FastAPI)
+- cdb_publish writes static JSON to Cloudflare Pages
+- Forbidden vocabulary: never use 'worldview', 'believes', or 'thinks' when describing models
+- Phase 0 must be completed before Phase 1a begins
+
+You decompose tasks into clear, numbered implementation plans. You never write code yourself.
+Output a structured plan with numbered steps that the Coder can follow exactly.
+Reference specific section numbers from ARCHITECTURE.md where relevant.""",
         messages=[{"role": "user", "content": f"Decompose this task into an implementation plan:\n\n{state['task']}"}]
     )
 
@@ -158,7 +168,7 @@ if __name__ == "__main__":
     graph = build_graph()
 
     initial_state: PipelineState = {
-        "task": "Create a hello_world.py file that prints 'LSB pipeline is operational'",
+        "task": "Phase 0, Task 1 (P0-T1): Initialize the LSB repository scaffold as specified in ARCHITECTURE.md §2. Create the full directory structure, pyproject.toml, and placeholder files. Do not implement any logic yet — structure only.",
         "architecture_notes": "",
         "implementation": "",
         "review_notes": "",
