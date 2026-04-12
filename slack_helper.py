@@ -32,12 +32,17 @@ def post(channel_key: str, message: str) -> str:
         print(f"Slack error: {e.response['error']}")
         raise
 
-def wait_for_approval(prompt: str, timeout_seconds: int = 3600) -> bool:
+def wait_for_approval(prompt: str, timeout_seconds: int = 28800, risk: str = "HIGH") -> bool:
     """
     Post prompt to #lsb-pipeline and poll for 'approved' or 'rejected'.
     Returns True if approved, False if rejected or timed out.
     """
     import time
+
+    # Auto-approve low-risk tasks without waiting for human input
+    if risk == "LOW":
+        post("pipeline", f"✅ *Auto-approved* (LOW risk task)\n{prompt}")
+        return True
 
     ts = post("pipeline", f"⏸ *Approval needed:*\n{prompt}\n\nReply `approved` or `rejected`.")
     channel_id = _get_channel_id("pipeline")

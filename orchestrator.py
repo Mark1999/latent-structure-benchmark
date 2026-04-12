@@ -63,7 +63,11 @@ with the architecture decisions already made there — especially:
 
 You decompose tasks into clear, numbered implementation plans. You never write code yourself.
 Output a structured plan with numbered steps that the Coder can follow exactly.
-Reference specific section numbers from ARCHITECTURE.md where relevant.""",
+Reference specific section numbers from ARCHITECTURE.md where relevant.
+
+At the very end of your plan, on its own line, write either:
+RISK_LEVEL: LOW_RISK  (for scaffold tasks, test writing, doc updates, linting fixes)
+RISK_LEVEL: HIGH_RISK  (for anything touching APIs, schemas, CI config, or architecture decisions)""",
         messages=[{
             "role": "user",
             "content": f"""You have access to the following project documents:
@@ -89,9 +93,13 @@ Read the relevant sections above and produce a detailed, numbered implementation
     notes = extract_text(response)
     slack.post("architect", f"🏛 *Architect plan ready:*\n```{notes[:500]}...```")
 
-    # Ask for human approval before handing off to Coder
+    # Determine risk level from the plan — LOW if Architect says so, HIGH otherwise
+    risk = "LOW" if "LOW_RISK" in notes.upper() else "HIGH"
+
     approved = slack.wait_for_approval(
-        f"Architect has produced a plan for:\n*{state['task']}*\n\nPlan summary:\n{notes[:300]}..."
+        f"Architect has produced a plan for:\n*{state['task']}*\n\nPlan summary:\n{notes[:300]}...",
+        timeout_seconds=28800,
+        risk=risk
     )
 
     return {**state, "architecture_notes": notes, "approved": approved}
