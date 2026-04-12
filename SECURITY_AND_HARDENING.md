@@ -1,255 +1,628 @@
-# Phase 0 — Task Decomposition for Coder Agent
+# LSB Security and Hardening
 
-**Author:** Architect agent
-**Audience:** Coder agent (primary), Reviewer agent, Tester agent, Mark
-**Phase goal:** produce a working repo skeleton that every subsequent phase can build on, with no functional code beyond the core schema definitions and no external dependencies beyond what's needed to run CI.
-**Definition of done for Phase 0:** `uv run pytest` passes, `uv run ruff check` passes, `uv run mypy packages/` passes, CI runs green on a fresh clone, and `cdb_core` exposes all pydantic models from `ARCHITECTURE.md` §3 with passing round-trip tests.
+**Document name:** `SECURITY_AND_HARDENING.md`  
+**Version:** v0.1 (first draft, aligned with `ARCHITECTURE.md` v0.7)  
+**Status:** Binding for all security-sensitive work; the Reviewer agent enforces §9  
+**Audience:** Coder agent, Reviewer agent, Mark, anyone touching `apps/dashboard/`, `packages/cdb_collect/`, CI/CD configuration, or any account-level credential  
+**Companion docs:** `ARCHITECTURE.md` (especially §1 commitments 7 and 9, §6.3 secrets, §6.5 ethics), `HOSTING_AND_DEV_OPS.md` (where things run), `PHASE_0_TASKS.md` (P0-T9 security scaffolding)
 
----
+**Section reference contract.** This document's section numbering is **stable** because `ARCHITECTURE.md` cross-references specific sub-sections by number (§3.1 CSP, §3.3 LLM sanitization, §3.4 gitleaks, §5 account hardening, §6.5 SECURITY.md, §9 Reviewer rules, §10 future hardening). Changing these section numbers breaks the architecture doc's references and is not allowed without a coordinated update to `ARCHITECTURE.md`.
 
-## Ground rules for the Coder agent
-
-1. **Read `ARCHITECTURE.md` §1.5, §2, and §3 before touching any file.** The schemas in §3 are binding. §1.5 governs all generated text.
-2. **Do each task in isolation.** One PR per task. Do not bundle. Do not do extra work beyond the task's scope, even if it seems obviously helpful.
-3. **No real API calls.** Phase 0 produces no network I/O. Any adapter stub should have a docstring saying "implemented in Phase 1" and a `NotImplementedError`.
-4. **Use `uv` for Python environment management.** Not pip, not poetry, not conda.
-5. **Stop and ask Architect** if a task's acceptance criteria can't be met as written. Do not improvise.
+**Changelog:**
+- **v0.1** — first draft. Documents the threat model, the dashboard's CSP and security headers, the LLM-output sanitization rules, the secret-scanning configuration, the dependency security posture, account hardening (YubiKey, ProtonMail, password manager), the vulnerability disclosure process, the data protection posture, the Reviewer rules table, and the deferred-to-later hardening items (paid pentest, bug bounty, Cloudflare paid tier). Aligned with `ARCHITECTURE.md` v0.7 — includes the three Slack webhook env vars and the cryptographic provenance requirements from §1 commitment 7.
 
 ---
 
-## Task list
+## 1. Overview and threat model
 
-### P0-T1 — Initialize repository scaffold
+LSB is a small research project with a public dashboard, an open data bundle, and a single VPS that runs the collection pipeline. It is **not** a high-value target in any conventional sense — there's no user data, no financial data, no health data, no credentials worth selling, no proprietary IP that would matter to a state actor. But it makes public claims about named commercial AI products, it accepts contributions from external researchers, and its credibility depends on the integrity of the data it publishes. Those three things shape what LSB defends against and what it doesn't.
 
-**Inputs:** `ARCHITECTURE.md` §2 (repository layout).
+### 1.1 What LSB defends against
 
-**Outputs:**
-- `git init` in a clean directory
-- `pyproject.toml` configured for `uv` with Python 3.12+
-- `.gitignore` covering: `.env`, `.venv/`, `__pycache__/`, `*.pyc`, `data/raw/`, `data/processed/`, `node_modules/`, `dist/`, `.pytest_cache/`, `.mypy_cache/`, `.ruff_cache/`
-- `.env.example` with placeholder keys: `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `OPENROUTER_API_KEY`, `CDB_MAX_SPEND_USD`
-- Empty directory structure matching §2 exactly, each with a `.gitkeep` or a meaningful file
-- `data/raw/.gitkeep`, `data/processed/.gitkeep`, `data/results/.gitkeep`, `data/grounding/family/.gitkeep`
-- `README.md` stub containing only: project name, one-line description drawn from §1.5.1 (not the worldview phrasing), link to `ARCHITECTURE.md`, "Status: under development"
+| Threat | Why it matters | Mitigation |
+|---|---|---|
+| **API key compromise** | Stolen LLM provider keys can be used to run up bills against LSB's accounts before Mark notices | Single-location storage on `lsb-agent-01`, per-provider account caps as the Tier 2 spend defense, gitleaks pre-commit + GitHub secret scanning |
+| **Data tampering** | If someone alters `informants.jsonl` after the fact, LSB's findings become un-falsifiable and the project's credibility evaporates | Append-only JSONL, SHA256 manifest on every record, provider request ID as a second independent audit path, four-layer backup chain |
+| **Supply-chain attack via dependencies** | A compromised package in the dependency tree could exfiltrate keys, corrupt data, or inject content into the dashboard | Dependabot, `gitleaks`, minimal dependency footprint, lockfiles, no `unsafe-eval` in CSP |
+| **Researcher submission with PII** | A researcher contributing human grounding data could accidentally include subject names, emails, or other identifiers | CI runs `gitleaks` + a PII scan on every grounding submission PR; the CDA SME agent reviews; Mark merges only after both pass |
+| **XSS in LLM-generated content** | The lede generator emits text into the dashboard; a malicious or accidental injection could compromise visitors | Strict sanitization wrapper for all model-generated text rendered in the dashboard, no `dangerouslySetInnerHTML` without it, strict CSP `script-src` |
+| **Account takeover via phishing or credential reuse** | Compromise of the Cloudflare, GitHub, or B2 account would let an attacker push a malicious dashboard build, delete backups, or rotate the open data bundle | Two YubiKey 5C NFC keys on every critical account; dedicated ProtonMail address; password manager with unique credentials; recovery codes printed and stored in the fireproof safe |
+| **DDoS / abusive traffic on the dashboard** | A motivated attacker could make the dashboard expensive or unreachable | Cloudflare's free-tier DDoS protection is enabled by default; the static-files architecture has no backend to overwhelm; the spend-cap defense covers any operational consequence |
+| **Reputational attack via fake findings** | A bad actor could fabricate LSB-branded findings (fake screenshots, fake citations) | Out of LSB's technical control; mitigated by the SHA256 provenance on every published record, the open data bundle being trivially reproducible from raw, and clear public attribution at every display surface |
 
-**Acceptance criteria:**
-- `git status` shows a clean working tree after initial commit
-- `tree -L 3 -I 'node_modules|__pycache__'` output matches §2 exactly
-- `uv sync` runs successfully with an empty dependency list
-- `README.md` contains zero instances of "worldview," "believes," "thinks," or any other forbidden phrase from §1.5.4
+### 1.2 What LSB does not defend against
 
-**Dependencies:** none
-**Estimated size:** ~30 minutes of Coder time
+These are explicit non-goals for v1. Each is defensible for a research project at this scale; each becomes a real question if LSB grows into a higher-stakes deployment.
 
----
-
-### P0-T2 — Drop in root documentation files
-
-**Inputs:** `ARCHITECTURE.md` (already written), existing `CLAUDE.md` (already exists in Mark's workflow).
-
-**Outputs:**
-- `ARCHITECTURE.md` at repo root (copy of the current v0.2.1 document verbatim)
-- `CLAUDE.md` at repo root, with the project-specific addendum from `ARCHITECTURE.md` §5.2 appended beneath Mark's existing team-constitution content
-- `docs/PHASE_4C_CANDIDATE_SOURCES.md` copied into place for future reference
-
-**Acceptance criteria:**
-- All three files exist and are committed
-- `grep -r "worldview" CLAUDE.md ARCHITECTURE.md` returns zero matches *except* inside §1.5.4 where forbidden phrases are explicitly listed
-
-**Dependencies:** P0-T1
-**Estimated size:** ~10 minutes
+- **Nation-state adversaries.** LSB is not a hardened target. A motivated state actor with persistent access could cause real damage. Mitigation is to be small, transparent, and not interesting enough to attract that level of attention.
+- **Insider threats.** LSB has exactly one insider (Mark). If Mark is compromised, the project is compromised. There is no separation-of-duties for v1.
+- **Advanced supply-chain attacks** (typosquatting + delayed payload + selective targeting). LSB uses standard, well-known dependencies, but does not run independent dependency auditing beyond what Dependabot and `gitleaks` provide.
+- **Side-channel attacks** on the VPS or on Mark's local machines. Out of scope.
+- **Subpoena or legal compulsion.** LSB stores no user data, has no logs of dashboard visitors, and produces no records about individuals. There's nothing to compel.
+- **Physical compromise** of `lsb-agent-01`. Hetzner physical security is what it is; LSB does not run in a SCIF.
 
 ---
 
-### P0-T3 — Implement `cdb_core` package
+## 2. Scope of this document
 
-**Inputs:** `ARCHITECTURE.md` §3 (data model).
+**In scope:**
 
-**Outputs:**
-- `packages/cdb_core/__init__.py` exporting all public types
-- `packages/cdb_core/ids.py` implementing `run_id(model, domain, step, prompt_version, run_index) -> str` as a deterministic SHA256 truncated to 16 hex chars
-- `packages/cdb_core/schemas.py` containing every pydantic model from §3.2 exactly as specified, including the v0.2 additions (`BootstrapEllipse`, `GroundingRef`, and the updated `DomainResult`)
-- `packages/cdb_core/versioning.py` with `PROMPT_VERSION`, `DOMAIN_VERSION`, and `ANALYSIS_VERSION` module-level constants set to `"v1"`, `"v1"`, and `"0.1"` respectively, plus a `git_sha()` function that returns the current commit SHA or `"unknown"` if not in a git repo
-- `tests/unit/test_ids.py` verifying determinism: same inputs → same ID across 1000 calls
-- `tests/unit/test_schemas.py` verifying round-trip serialization (model → dict → model → dict) for every schema type, using fixture data
+- Web application security for the dashboard at `cogstructurelab.com`
+- Secret management for API keys, webhook URLs, and Backblaze keys
+- Account hardening for all critical accounts (GitHub, Cloudflare, B2, HuggingFace, Zenodo, the LLM providers, ProtonMail)
+- Dependency security via Dependabot and lockfiles
+- Provenance and integrity of collected data (the SHA256 manifest, the provider request ID, the append-only invariant)
+- Researcher submission PII handling
+- Vulnerability disclosure process
+- The Reviewer agent's enforcement responsibilities
+- Future hardening items deliberately deferred from v1
 
-**Acceptance criteria:**
-- Every pydantic model in §3.2 exists with the exact field names and types specified
-- `run_id` is deterministic and produces a 16-character lowercase hex string
-- `test_schemas.py` exercises every model with at least one valid instance and round-trips it without loss
-- `mypy packages/cdb_core/` passes with strict mode
-- `ruff check packages/cdb_core/` passes
-- No imports from other `cdb_*` packages (enforced by Reviewer agent — core has no dependencies on its siblings)
+**Out of scope:**
 
-**Dependencies:** P0-T1
-**Estimated size:** ~90 minutes
-
-**Reviewer watch-outs:**
-- Reviewer must confirm that `DomainResult` includes `mds_uncertainty`, `similarity_ci`, `consensus_ci`, and `grounding`. These are the v0.2 additions and are the easiest fields to overlook.
-- Reviewer must confirm no schema types are defined outside `schemas.py`.
+- Operational deployment details (those live in `HOSTING_AND_DEV_OPS.md`)
+- Architectural decisions about what data exists in the first place (those live in `ARCHITECTURE.md`)
+- Personal security hygiene unrelated to LSB (Mark's general password practices, his email security on personal accounts, his physical safety)
+- Legal compliance reviews — LSB does not collect personal data, does not target EU users specifically, does not handle health or financial data, and has no GDPR/CCPA/HIPAA obligations to manage. If that changes, this document and the project's posture both change.
 
 ---
 
-### P0-T4 — Scaffold sibling packages
+## 3. Web and code security
 
-**Inputs:** `ARCHITECTURE.md` §2, §4.
+### 3.1 Content Security Policy
 
-**Outputs:**
-- `packages/cdb_collect/__init__.py` containing only a module docstring describing the package's responsibility (collection layer, produces `RawResponse` records) and a comment listing allowed imports: `cdb_core`, stdlib, `httpx`, `pydantic`. Nothing else.
-- Same pattern for `packages/cdb_analyze/`, `packages/cdb_api/`, `packages/cdb_social/` — docstring + allowed-imports comment, no functional code
-- Each package directory contains a `README.md` one-pager summarizing its role from the corresponding section of `ARCHITECTURE.md` (§4.1 for collect, §4.2 for analyze, §4.4 for api, §4.6 for social)
+The LSB dashboard ships with a strict CSP enforced via `apps/dashboard/public/_headers` (Cloudflare Pages reads this file at deploy time per `HOSTING_AND_DEV_OPS.md` §2.3). The Reviewer agent rejects any PR that weakens the CSP without a documented architectural decision.
 
-**Acceptance criteria:**
-- `python -c "import cdb_collect, cdb_analyze, cdb_api, cdb_social"` runs without error
-- Each package's `__init__.py` docstring states its single responsibility in one sentence
-- Each package `README.md` links back to the relevant `ARCHITECTURE.md` section
-- No package imports from any other `cdb_*` sibling except `cdb_core`
-
-**Dependencies:** P0-T3
-**Estimated size:** ~30 minutes
-
----
-
-### P0-T5 — CI pipeline
-
-**Inputs:** nothing beyond the existing scaffold.
-
-**Outputs:**
-- `.github/workflows/ci.yml` running on push and PR:
-  - Install uv
-  - `uv sync`
-  - `uv run ruff check .`
-  - `uv run ruff format --check .`
-  - `uv run mypy packages/`
-  - `uv run pytest`
-- `.pre-commit-config.yaml` with hooks for ruff (check + format) and an optional mypy hook
-- `ruff.toml` or `pyproject.toml` tool section configuring ruff for line length 100, target Python 3.12, common rule set (E, F, I, B, UP, RUF)
-- `pyproject.toml` mypy section with `strict = true` for `packages/cdb_core` and `strict = false` elsewhere for now
-
-**Acceptance criteria:**
-- CI runs green on a fresh clone against the main branch
-- `pre-commit run --all-files` passes
-- Introducing a deliberate unused import fails both pre-commit and CI
-
-**Dependencies:** P0-T3, P0-T4
-**Estimated size:** ~45 minutes
-
----
-
-### P0-T6 — Tests directory scaffold
-
-**Inputs:** `ARCHITECTURE.md` §5.1 (Tester role).
-
-**Outputs:**
-- `tests/unit/__init__.py`, `tests/integration/__init__.py`
-- `tests/fixtures/README.md` explaining the fixture convention: every canned model response lives in `tests/fixtures/{provider}/{model}/{domain}/{step}/run_{n}.json` and is a pre-recorded valid `RawResponse` instance. No tests hit real APIs.
-- `tests/fixtures/anthropic/claude-opus-4-6/family/free_list/run_0.json` — one hand-crafted example file containing a plausible Claude free-listing response, for use as a test seed in Phase 1
-- `tests/conftest.py` with a `pytest` fixture `fixtures_dir` that resolves to the fixtures directory regardless of where pytest is invoked from
-
-**Acceptance criteria:**
-- `pytest tests/` runs (finds zero tests, exits 0 — the actual tests come from P0-T3's schema tests)
-- The hand-crafted fixture file parses as a valid `RawResponse` via `cdb_core`
-- Fixture README explicitly states: "No test in this repository may make a real network call to an LLM provider."
-
-**Dependencies:** P0-T3
-**Estimated size:** ~30 minutes
-
----
-
-### P0-T7 — Dashboard scaffold
-
-**Inputs:** `ARCHITECTURE.md` §4.5.
-
-**Outputs:**
-- `apps/dashboard/` initialized as a Vite + React + TypeScript project
-- Tailwind CSS configured
-- `apps/dashboard/src/App.tsx` renders a single `<h1>` with the project name and nothing else — no routing, no API calls, no viz components yet
-- `apps/dashboard/package.json` with scripts: `dev`, `build`, `lint`, `test`
-- `apps/dashboard/vitest.config.ts` configured for `vitest`
-- `apps/dashboard/src/App.test.tsx` with a single smoke test asserting the `<h1>` renders
-
-**Acceptance criteria:**
-- `npm install && npm run build` produces a dist directory without errors
-- `npm run test` passes the smoke test
-- `npm run lint` passes with no warnings
-- Bundle size under 200KB (sanity check — if it's bigger, something is wrong)
-
-**Dependencies:** P0-T1
-**Estimated size:** ~60 minutes
-
-**Note:** This is scaffolding only. No uncertainty-aware components yet. Those come in Phase 5 when there's real data to show. The §4.5 "no point estimates without uncertainty" rule applies from Phase 5 onward; Phase 0's smoke-test `<h1>` doesn't trigger it.
-
----
-
-### P0-T8 — Entry-point scripts
-
-**Inputs:** `ARCHITECTURE.md` §4.1.4, §4.2.4.
-
-**Outputs:**
-- `scripts/collect.py` — argparse stub accepting `--domain`, `--model`, `--runs`, `--dry-run`; prints "collect: not implemented (Phase 1)" and exits 0
-- `scripts/analyze.py` — argparse stub accepting `--domain`, `--all`, `--analysis-version`; prints "analyze: not implemented (Phase 3)" and exits 0
-- `scripts/publish.py` — prints "publish: not implemented (Phase 8)" and exits 0
-- `scripts/serve.py` — prints "serve: not implemented (Phase 5)" and exits 0
-- `scripts/cost_report.py` — prints "cost_report: not implemented (Phase 1)" and exits 0
-
-**Acceptance criteria:**
-- Each script is executable via `uv run python scripts/{name}.py --help` (for the ones with argparse)
-- Each script exits 0 on a bare invocation
-- Each script imports at least `cdb_core` to verify the package wiring works end-to-end
-
-**Dependencies:** P0-T3, P0-T4
-**Estimated size:** ~20 minutes
-
----
-
-## Task dependency graph
+**Full CSP header:**
 
 ```
-P0-T1 ─┬─► P0-T2
-       ├─► P0-T3 ─┬─► P0-T4 ─┐
-       │         ├─► P0-T6   ├─► P0-T5
-       │         └───────────┘
-       │                     ├─► P0-T8
-       └─► P0-T7
+Content-Security-Policy: default-src 'self';
+                          connect-src 'self';
+                          img-src 'self' data:;
+                          style-src 'self' 'unsafe-inline';
+                          script-src 'self';
+                          font-src 'self';
+                          frame-ancestors 'none';
+                          base-uri 'self';
+                          form-action 'self';
+                          object-src 'none';
+                          upgrade-insecure-requests;
 ```
 
-**Suggested execution order:** T1 → T2 → T3 → T4 → T6 → T7 → T8 → T5 (CI last, so it gates everything else).
+**Per-directive rationale:**
 
-**Total estimated Coder time:** ~5 hours across 8 tasks. Comfortably one focused session with the 4-agent pipeline, or two lighter sessions.
+| Directive | Value | Why |
+|---|---|---|
+| `default-src` | `'self'` | Default-deny everything not explicitly allowed |
+| `connect-src` | `'self'` | The dashboard fetches its data exclusively from same-origin static JSON files (`/data/...`). No third-party API calls, no telemetry, no fonts loaded from CDNs. This is the architectural commitment from `ARCHITECTURE.md` §4.5 ("static JSON only"). |
+| `img-src` | `'self' data:` | Same-origin images plus data URLs (used for inline SVG-to-data-URL exports, the watermark function). No external images. |
+| `style-src` | `'self' 'unsafe-inline'` | Tailwind CSS injects inline styles that the build can't fully eliminate. `'unsafe-inline'` for `style-src` only is accepted for v1 per resolved decision #22 in `ARCHITECTURE.md` §7. The Reviewer agent tracks this; if the build moves to fully external stylesheets, drop `'unsafe-inline'`. |
+| `script-src` | `'self'` | Same-origin scripts only. **No `'unsafe-inline'` and no `'unsafe-eval'`** — these are non-negotiable. Any PR that adds either is rejected. |
+| `font-src` | `'self'` | Same-origin fonts. The fonts named in `DESIGN_SYSTEM.md` §1 (Lato, JetBrains Mono) are bundled with the dashboard, not loaded from Google Fonts or any other CDN. |
+| `frame-ancestors` | `'none'` | The dashboard cannot be embedded in iframes by other sites. Prevents UI redress / clickjacking. |
+| `base-uri` | `'self'` | Prevents `<base>` tag injection. |
+| `form-action` | `'self'` | The dashboard has no forms in v1; this is defense in depth in case a form is added later without explicit submission destination. |
+| `object-src` | `'none'` | No Flash, no Java applets, no `<object>` of any kind. |
+| `upgrade-insecure-requests` | (flag) | Any HTTP URL is rewritten to HTTPS at the browser. |
+
+**No `report-uri` in v1.** A CSP report endpoint would require a server, and LSB has no server. If the dashboard graduates to a setup with a backend (per `ARCHITECTURE.md` §4.4.5 deferral), a `report-to` directive can be added then.
+
+### 3.2 Other security headers
+
+In addition to CSP, the `_headers` file sets:
+
+```
+X-Frame-Options: DENY
+X-Content-Type-Options: nosniff
+Referrer-Policy: strict-origin-when-cross-origin
+Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()
+```
+
+| Header | Why |
+|---|---|
+| `X-Frame-Options: DENY` | Backstop for `frame-ancestors 'none'` for older browsers |
+| `X-Content-Type-Options: nosniff` | Prevents MIME-type sniffing, which can turn a misclassified file into an XSS vector |
+| `Referrer-Policy: strict-origin-when-cross-origin` | Limits referer leakage when users click outbound links |
+| `Strict-Transport-Security` | Force-HTTPS for one year, including subdomains, with HSTS preload eligibility |
+| `Permissions-Policy` | Disables every permission-gated browser feature LSB does not use, including the Topics API (`interest-cohort`) for advertising-cohort participation (LSB is not an ad network) |
+
+### 3.3 LLM-output sanitization
+
+The dashboard renders a small amount of LLM-generated content — specifically the lede sentence (`ARCHITECTURE.md` §4.2.3) for each `DomainResult`. This is the only model-generated text the dashboard ever displays. **Every byte of LLM-generated content rendered in the dashboard must pass through the sanitization wrapper specified below.** The Reviewer agent rejects any component that renders model-generated text via `dangerouslySetInnerHTML` or via any equivalent React mechanism without this wrapper.
+
+**The sanitization wrapper.** A single React component, `SanitizedLLMText`, lives at `apps/dashboard/src/lib/sanitizeLLMText.tsx`. It accepts a string and renders it as plain text via React's normal text node rendering (which auto-escapes everything). It does **not** pass the text through any HTML parser. It does **not** support markdown rendering. It does **not** support hyperlinks embedded in the text. If a future feature needs richer LLM-text rendering, that feature ships with a hardened markdown parser (e.g., `marked` with `sanitize: true`, or `react-markdown` with `disallowedElements`) and a separate Reviewer rule.
+
+```tsx
+// apps/dashboard/src/lib/sanitizeLLMText.tsx
+import React from 'react';
+
+interface SanitizedLLMTextProps {
+  text: string;
+  className?: string;
+}
+
+/**
+ * Renders LLM-generated text as plain text only.
+ *
+ * No HTML, no markdown, no hyperlinks, no dangerouslySetInnerHTML.
+ * React's text node auto-escaping is the only sanitization needed
+ * because we never interpret the string as anything but plain text.
+ *
+ * Per SECURITY_AND_HARDENING.md §3.3, every piece of LLM-generated
+ * content rendered in the dashboard must use this component or an
+ * equivalently safe rendering path. Reviewer enforces.
+ */
+export function SanitizedLLMText({ text, className }: SanitizedLLMTextProps) {
+  return <span className={className}>{text}</span>;
+}
+```
+
+This is intentionally minimal. The whole point of LSB's sanitization story is that the dashboard never interprets LLM output as anything but plain text. There's no risk of XSS via `dangerouslySetInnerHTML` if you never use `dangerouslySetInnerHTML`.
+
+**Length cap.** The sanitization wrapper does not enforce a length cap, but the lede generator system prompt (`ARCHITECTURE.md` §4.2.3) instructs the model to produce a single declarative sentence. The Reviewer agent spot-checks lede outputs per release and the §1.5.4 language guardrails apply.
+
+**The §1.5.4 language guardrails are a separate concern from XSS.** They prevent the model from saying "Claude believes X" — that's a *content* policy enforced by the prompt and by Reviewer spot-checks. XSS prevention is a *rendering* policy enforced by the sanitization wrapper. Both apply to every piece of LLM-generated text.
+
+### 3.4 Secret scanning (`gitleaks`)
+
+LSB runs `gitleaks` as a pre-commit hook (configured in P0-T9 per `PHASE_0_TASKS.md`) and again as a GitHub Actions check on every push and PR. GitHub's own secret scanning is the third layer.
+
+**Configuration (`.gitleaks.toml`):**
+
+The default `gitleaks` ruleset catches the obvious patterns: AWS access keys, generic API keys, JWT tokens, SSH private keys, Google API keys, Slack webhook URLs, and so on. LSB adds project-specific rules:
+
+- **Anthropic API key pattern:** matches `sk-ant-[a-zA-Z0-9_-]{50,}` to catch keys that the default ruleset might miss
+- **OpenRouter API key pattern:** matches `sk-or-v1-[a-zA-Z0-9]{60,}`
+- **Hugging Face token pattern:** matches `hf_[a-zA-Z0-9]{30,}`
+- **Backblaze application key pattern:** matches the B2 key ID format
+- **LSB Slack webhook pattern:** matches `https://hooks.slack.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[a-zA-Z0-9]+` (the Slack webhook URL format)
+
+**Allow rules:**
+
+- `.env.example` is allowed to contain placeholder strings that look like keys (the placeholder pattern is `<your-key-here>` or `sk-ant-PLACEHOLDER`, never a real-looking key shape)
+- `tests/fixtures/` is allowed to contain plausible-but-fake values inside `RawResponse` fixtures, as long as no value matches a real key pattern
+- The architecture and design system documents are allowed to mention Slack webhook URL *patterns* (e.g., `https://hooks.slack.com/services/...` with literal ellipsis) but never a real-looking webhook ID
+
+**Pre-commit installation:**
+
+```bash
+cd /home/markd/Documents/Projects/lsb
+pre-commit install
+# from now on, every commit runs gitleaks before the commit lands
+```
+
+**CI integration.** `.github/workflows/ci.yml` runs `gitleaks detect --source . --no-banner --redact` after the test suite. CI failure blocks merge.
+
+**GitHub secret scanning.** Enabled in the repository settings. If gitleaks misses something and a key reaches `main`, GitHub secret scanning catches it within minutes and notifies Mark via email and the repository security tab. Mark rotates the key immediately per the procedure in §6.3.
+
+### 3.5 The `cdb_analyze` no-LLM-imports static check
+
+Not strictly a "security" check in the conventional sense, but a binding architectural constraint that the Reviewer agent enforces (`ARCHITECTURE.md` §1 commitment 6, §4.2 binding constraint, §5.1 Reviewer rule 2). Implemented as `scripts/check_no_llm_imports.py` per `PHASE_0_TASKS.md` P0-T6.
+
+The check rejects any `import` or `from` statement in `packages/cdb_analyze/` that references: `anthropic`, `openai`, `google.generativeai`, `huggingface_hub.InferenceClient`, `litellm`, `langchain`, `llama_index`, or any other LLM client library. Listed here in §3.5 because the check is enforced by the same CI pipeline that enforces the other security rules and shares the same "Reviewer rejects on failure" pattern.
 
 ---
 
-## Phase 0 exit criteria (all must be true)
+## 4. Dependency security
 
-1. `git clone` → `uv sync` → `uv run pytest` → green, from zero.
-2. `cdb_core` exposes every schema from `ARCHITECTURE.md` §3 and round-trips all of them in tests.
-3. CI passes on the main branch.
-4. `README.md`, `ARCHITECTURE.md`, `CLAUDE.md`, and `docs/PHASE_4C_CANDIDATE_SOURCES.md` all exist at the correct paths.
-5. No real API calls anywhere in the codebase.
-6. No forbidden §1.5.4 phrases in any committed text file.
-7. The dashboard scaffold builds without errors.
-8. Every `cdb_*` package has a one-sentence single-responsibility docstring and an allowed-imports comment.
+### 4.1 Dependabot
 
-When all eight are true, the Architect agent signs off and Phase 1 begins.
+Configuration lives at `.github/dependabot.yml` (created in P0-T9). Two ecosystems:
+
+```yaml
+version: 2
+updates:
+  - package-ecosystem: "pip"  # uv reads pip-compatible metadata
+    directory: "/"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "python"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+
+  - package-ecosystem: "npm"
+    directory: "/apps/dashboard"
+    schedule:
+      interval: "weekly"
+      day: "monday"
+    labels:
+      - "dependencies"
+      - "npm"
+    open-pull-requests-limit: 5
+    rebase-strategy: "auto"
+```
+
+Dependabot opens PRs for security updates immediately and for non-security updates weekly. Each PR runs through the standard `ci.yml` pipeline; the Reviewer agent reviews and Mark merges.
+
+### 4.2 Lockfiles
+
+- `uv.lock` for Python — committed
+- `apps/dashboard/package-lock.json` for npm — committed
+
+Both lockfiles are mandatory. The Reviewer agent rejects any PR that touches `pyproject.toml` or `package.json` without a corresponding lockfile update.
+
+### 4.3 Minimal dependency footprint
+
+LSB deliberately keeps its dependency footprint small to reduce attack surface. The Coder agent should not add a dependency just for convenience; every new dependency is a small architectural decision.
+
+**Approved Python dependencies for v1** (the list is exhaustive — adding anything else requires Architect sign-off):
+
+- `pydantic` (schemas)
+- `httpx` (HTTP client for the LLM adapters; replaces both `requests` and provider-specific SDKs where reasonable)
+- `anthropic` (the official Anthropic SDK, for the Anthropic adapter only — the Reviewer's `cdb_analyze` no-LLM-imports check is what keeps this from leaking into the analysis layer)
+- `numpy`, `scipy`, `scikit-learn`, `pandas` (analysis pipeline)
+- `networkx` (graph operations for the analysis layer)
+- `matplotlib` (only as a sanity-check tool; the dashboard does its own rendering with D3 and Plotly, so matplotlib is not user-facing)
+- `pyvis` (only if needed for offline visualization debugging)
+- `click` (CLI for `scripts/`)
+- `python-dotenv` (loading `.env`)
+- `b2sdk` (Backblaze B2 client)
+- `pytest` (testing)
+- `ruff`, `mypy`, `pre-commit` (dev tooling)
+
+**Approved npm dependencies for `apps/dashboard/` v1:**
+
+- `react`, `react-dom`
+- `typescript`
+- `vite`
+- `tailwindcss`, `postcss`, `autoprefixer`
+- `d3` (visualization)
+- `plotly.js-dist-min` (visualization)
+- `vitest`, `@testing-library/react` (testing)
+
+Anything outside these lists requires Architect sign-off.
+
+### 4.4 Supply-chain hygiene posture
+
+LSB does not currently run independent supply-chain attack detection beyond Dependabot and `gitleaks`. Per §1.2, advanced supply-chain attacks are out of scope for v1. If LSB grows to a scale where this matters, the additions would be:
+
+- A signing/verification system for releases (e.g., `sigstore`)
+- A SBOM generation pipeline (e.g., `syft`)
+- Restricting package installation to a curated mirror
+
+These are deferred to the §10 future hardening section.
 
 ---
 
-## What Phase 0 deliberately does NOT include
+## 5. Account hardening
 
-Listing these so the Coder agent does not drift into them:
+LSB has a small number of critical accounts. Each one is hardened identically per the procedure below. The procedure is binding — every account in the table must complete every step before that account holds live LSB data.
 
-- No actual model adapters (Phase 1)
-- No prompt templates (Phase 1)
-- No CDA protocol implementation (Phases 1–2)
-- No analysis code (Phase 3)
-- No API routes (Phase 5)
-- No dashboard visualizations (Phase 5)
-- No grounding data loading (Phase 4c)
-- No bootstrap module (Phase 4d)
-- No social pipeline (Phase 7)
+### 5.1 Account inventory
 
-If the Coder is tempted to "just add a quick X" while working on a Phase 0 task, the answer is no. Stop, commit the current task, and raise it with Architect.
+| Account | Provider | Purpose | Holds live data? |
+|---|---|---|---|
+| GitHub (`AILLM1999` or LSB org) | GitHub | Source code, CI/CD, issue tracking, researcher submission PRs | Yes (after first commit) |
+| Cloudflare | Cloudflare | DNS, registrar, dashboard hosting (Pages), TLS certificates | Yes (after first deploy) |
+| Anthropic | Anthropic | Claude API access | Yes (when collection starts) |
+| OpenRouter | OpenRouter | Multi-provider routing for OpenAI, Google, DeepSeek, Mistral, etc. | Yes (when collection starts) |
+| Hugging Face (`AILLM1999`) | Hugging Face | Inference Providers + Datasets mirror | Yes (when collection starts and when first dataset is published) |
+| Backblaze B2 | Backblaze | Backup storage, open data distribution | Yes (after first nightly backup) |
+| Zenodo | Zenodo | DOI minting for the open data bundle | Yes (after Phase 4 validation) |
+| ProtonMail | Proton | Dedicated `security@cogstructurelab.ai` security contact (and standalone account before the domain is live) | Yes from day 1 |
+| Hetzner Cloud | Hetzner | `lsb-agent-01` VPS | Yes (after first provisioning) |
+| 1Password (or chosen password manager) | — | Credential storage | Yes from day 1 |
+
+### 5.2 The hardening procedure (run for every account in §5.1)
+
+For each account:
+
+1. **Create the account** with a strong, unique password generated by the password manager. Never reuse a password from another service.
+2. **Enroll two YubiKey 5C NFC keys** as the WebAuthn / FIDO2 second factors. Both keys are enrolled before the account holds any live data. One key on Mark's keychain (daily-carry); one key in the fireproof safe with the backup drives (cold-storage).
+3. **Disable any weaker second factors** (SMS, TOTP, email codes) wherever the provider allows. WebAuthn / FIDO2 only.
+4. **Generate and store recovery codes.** Print them to paper and put the printout in the fireproof safe. Also store them in the password manager vault. Recovery codes are the failsafe if both YubiKeys are lost.
+5. **Set the account's recovery email to the dedicated ProtonMail address** (`security@cogstructurelab.ai` post-domain; the standalone ProtonMail account before the domain is live). Never the personal email.
+6. **Enable login notifications** wherever the provider supports them. New-device login notifications go to the dedicated ProtonMail address.
+7. **Document the account in the password manager** with the username, the recovery email, the recovery code location ("fireproof safe + 1Password vault"), and the hardening completion date.
+
+After this procedure, no account in the §5.1 table is logged into without a YubiKey present. There is no SMS-second-factor option enabled anywhere.
+
+### 5.3 Why YubiKey, why two
+
+- **YubiKey blocks credential phishing.** A WebAuthn assertion is bound to the legitimate origin; phishing sites can't replay it. SMS, TOTP, and email codes are all replayable.
+- **Two keys** because losing one without a backup means losing the account. Cold-storage in the fireproof safe is the backstop. Three or more keys is overkill at LSB's scale.
+- **5C NFC** specifically because it covers desktop USB-C, mobile NFC, and recent iPhones via NFC — the broadest device support without needing a separate model.
+- **Hardware tokens, not authenticator apps.** Authenticator apps on a phone are vulnerable to phone compromise, OS-level malware, and SIM-swap-adjacent attacks. Hardware tokens are not.
+
+### 5.4 ProtonMail security contact
+
+The dedicated ProtonMail address is `security@cogstructurelab.ai` once the domain is live. Before the domain is live, a standalone ProtonMail account is used. The address is **not connected to Mark's personal email** in any way — separate password, separate recovery, separate device sessions.
+
+This address is used for:
+
+- All security-related disclosures (vulnerability reports, secret scanning alerts, dependabot security advisories)
+- All provider account registrations (so a compromise of Mark's personal email doesn't cascade into LSB's operational accounts)
+- The `SECURITY.md` contact field at the repo root
+- Account recovery emails for every entry in the §5.1 table
+
+The address is not used for:
+
+- General project correspondence (use a separate `hello@` or `contact@` address for that, or a Discussion on the GitHub repo)
+- Newsletters or marketing
+- Anything that would dilute the signal-to-noise ratio of a security-only inbox
+
+### 5.5 Password manager
+
+- **Choice:** 1Password, Bitwarden, or KeePassXC. Mark picks based on personal workflow; the project does not mandate one.
+- **Vault:** dedicated LSB vault, separate from Mark's personal vault, so that LSB credentials can be revoked or shared independently of personal ones.
+- **Master password:** strong, memorized, never written down except in the fireproof safe printout (which is kept *only* as a last-resort recovery for catastrophic memory loss).
+- **Vault export:** monthly export to an encrypted file stored on the USB SSD in the fireproof safe. This is the last-resort credential restore path if the password manager's cloud sync is lost.
+- **Recovery codes for every account:** stored in the vault as attachments to each account entry, AND printed to paper in the fireproof safe.
+
+### 5.6 The fireproof safe
+
+Physical security of last resort. Holds:
+
+- One of the two YubiKey 5C NFC keys
+- The USB SSD with the encrypted backup snapshots and the password manager export
+- A printed sheet with all recovery codes for all critical accounts
+- A printed sheet with the password manager master password (sealed envelope, only for catastrophic memory loss)
+
+The safe is rated for the storage type (paper + electronics). Physical access is Mark only. Combined with the second YubiKey on Mark's keychain and the password manager, this gives the project a credible disaster-recovery posture without becoming operationally heavy.
 
 ---
 
-*End of Phase 0 task decomposition. Ready for Coder agent pickup after Mark's sign-off.*
+## 6. Vulnerability disclosure
+
+### 6.1 Where reports go
+
+Security disclosures go to **`security@cogstructurelab.ai`** (the dedicated ProtonMail address from §5.4). Before the domain is live, the address is published as the standalone ProtonMail account.
+
+### 6.2 What LSB commits to
+
+LSB is a small project with one maintainer. The disclosure SLA reflects that.
+
+| Severity | Acknowledgment | Mitigation target |
+|---|---|---|
+| Critical (active exploitation, data tampering, key compromise) | Within 24 hours | As fast as possible; Mark drops other work |
+| High (exploitable vulnerability, no active exploitation yet) | Within 72 hours | Within 7 days |
+| Medium (vulnerability requires unusual conditions) | Within 7 days | Within 30 days |
+| Low (theoretical or low-impact) | Within 14 days | Best-effort, included in the next release cycle |
+
+LSB does not pay bounties in v1 (per resolved decision #20 in `ARCHITECTURE.md` §7). LSB does credit reporters by name in release notes if they want credit, or keep them anonymous if they prefer.
+
+### 6.3 What happens after a credible report
+
+1. Mark acknowledges receipt within the SLA window above.
+2. Mark and the reporter agree on a coordinated disclosure timeline, typically 90 days for non-active issues and "as fast as possible" for active issues.
+3. Mark investigates, develops a fix, and tests it. If the issue requires changes to data already on the dashboard or in the open data bundle, Mark pulls the affected data immediately and re-publishes after the fix.
+4. Mark publishes the fix and a security advisory in the GitHub repo's Security tab. The advisory describes the issue, the fix, the affected versions, and credit to the reporter.
+5. Any credentials potentially exposed by the issue are rotated per the rotation procedure below.
+
+### 6.4 Credential rotation procedure
+
+When a credential may have been exposed:
+
+1. **Immediately revoke the existing credential** at the provider's dashboard. Do not wait for the new one to be ready.
+2. **Generate a new credential** with the minimum necessary scope.
+3. **Update the new credential everywhere it's used** — `lsb-agent-01:.env`, GitHub Actions secrets, the password manager. Use the password manager's "find usages" feature to make sure no location is missed.
+4. **Restart any running processes** that loaded the old credential into memory.
+5. **Audit recent activity** at the provider's dashboard for any usage of the old credential between the time of suspected compromise and the revocation.
+6. **Document the rotation** in the password manager with the date, the reason, and the audit findings.
+7. If the rotation was triggered by a confirmed compromise (not just a suspicion), file a security advisory per §6.3.
+
+### 6.5 `SECURITY.md` at the repo root
+
+The `SECURITY.md` file at the repo root has a fixed minimal format:
+
+```markdown
+# Security Policy
+
+## Supported versions
+
+Only the `main` branch is supported pre-launch. After the v1 dashboard launches, the most recent release tag is supported.
+
+## Reporting a vulnerability
+
+Please report security vulnerabilities by email to:
+
+**security@cogstructurelab.ai**
+
+Do not open public GitHub issues for security vulnerabilities.
+
+We will acknowledge your report within 72 hours (sooner for critical issues).
+We will work with you on a coordinated disclosure timeline, typically 90 days
+for non-active issues.
+
+LSB does not currently offer bug bounties. We do credit reporters by name in
+release notes if you want credit, or keep your report anonymous if you prefer.
+
+For full details see SECURITY_AND_HARDENING.md §6 in this repository.
+```
+
+The Reviewer agent rejects any PR that materially weakens this file (e.g., points the contact at a non-ProtonMail address, removes the "Do not open public issues" line, or removes the SLA commitment).
+
+---
+
+## 7. Data integrity and provenance
+
+This section is the security expression of `ARCHITECTURE.md` §1 commitment 7 ("cryptographic provenance for every collection run") and §1 commitment 9 ("open data for researchers"). Both commitments depend on the data being verifiably untampered.
+
+### 7.1 The append-only invariant
+
+`data/raw/informants.jsonl` is **append-only by convention and by tooling**. New runs append; existing records are never edited or deleted. This is a binding architectural commitment per `ARCHITECTURE.md` §4.3.
+
+**Enforcement mechanisms:**
+
+1. **The collection runner** (`cdb_collect/runner.py`) opens the file in append mode (`"a"`) and never seeks. There is no code path in `cdb_collect` that opens the file for writing in any other mode.
+2. **A pre-commit hook in CI** (added in P0-T6) checks any PR that modifies `data/raw/informants.jsonl` and rejects modifications that touch existing lines — only additions at the end are allowed. This catches the case where a Coder accidentally edits the file by hand.
+3. **The nightly backup to Backblaze B2** uses content-addressable upload. If a previously-backed-up line is later modified, the backup catches the divergence on the next run.
+4. **The four-layer backup strategy** (`HOSTING_AND_DEV_OPS.md` §4) means a tampered version of the file can be compared against earlier backed-up versions and the tampering identified.
+
+### 7.2 The SHA256 manifest
+
+Every `InformantRecord` carries a `sha256_manifest` dict per `ARCHITECTURE.md` §3.2 and `docs/DATA_DICTIONARY.md` §1.5. The manifest hashes eight required pieces of the record:
+
+- The verbatim prompt and verbatim response for each of the three CDA steps (six entries)
+- The request parameters (one entry, JSON-canonicalized)
+- The full serialized `InformantRecord` minus the manifest field itself (one entry)
+
+The manifest is computed at write time by `cdb_collect/runner.py` and stored alongside the raw record. Any later challenge to the record's authenticity is answered by recomputing the SHA256 and comparing.
+
+**Manifest verification tool.** `scripts/verify_manifest.py` (Phase 1 deliverable) reads an `InformantRecord` from a file or from stdin, recomputes all eight manifest entries, and reports any mismatches. Researchers using the open data bundle can run this against any record they want to verify.
+
+### 7.3 The provider request ID as a second audit path
+
+Every `InformantRecord` also stores `provider_request_id` — the request ID returned by the LLM provider in the response (Anthropic's `x-request-id`, OpenAI's `id`, etc.). This is the **independent audit path through the provider's logs**. A researcher who suspects tampering can:
+
+1. Locally recompute the SHA256 manifest and verify the verbatim fields (the local audit path)
+2. Send the `provider_request_id` to the provider's support team and ask them to confirm the request and response from their logs (the independent audit path)
+
+The two paths together give two independent ways to verify a record's authenticity. Tampering would have to compromise both — local files and provider logs simultaneously — to go undetected.
+
+### 7.4 Researcher submission PII handling
+
+When a researcher submits human grounding data via the GitHub PR workflow (`ARCHITECTURE.md` §4.2.5, `docs/grounding_submission_template.md`), the CI pipeline runs three checks:
+
+1. **`gitleaks` scan** — catches accidentally-committed API keys, OAuth tokens, or other credential-shaped strings
+2. **PII scan** — a custom check that looks for patterns suggesting subject-identifying content: email addresses (other than the submitter's contact), phone numbers, full names in unexpected fields, free-text demographic identifiers in the per-subject CSV. Implemented as `scripts/check_grounding_pii.py` (Phase 6 deliverable, listed in `PHASE_0_TASKS.md` only as a placeholder until then)
+3. **Schema validation** — confirms `grounding_ref.json` validates against the `GroundingRef` schema, which has no field for a subject-identifying string and so structurally constrains submissions
+
+**The CDA SME agent reviews** the submission for methodological soundness (`ARCHITECTURE.md` §5.1). The combination of automated PII scanning and human-in-the-loop review is the project's protection against accidentally publishing subject identifiers.
+
+**If PII is discovered post-merge** (e.g., a researcher inadvertently included a subject's name in a `source.md` paragraph that the PII scan missed), the procedure is: pull the file from `main` immediately, post a security advisory, file a Zenodo retraction request for any release that included the file, and notify the researcher.
+
+---
+
+## 8. Operational secrets
+
+### 8.1 What counts as a secret
+
+For LSB, a secret is anything that grants access to a billed account, a write-capable API surface, or a private data store. The full list:
+
+- **LLM provider API keys** — `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `HUGGINGFACE_API_KEY`, optionally `OPENAI_API_KEY` and `GOOGLE_API_KEY`
+- **Backblaze B2 credentials** — `B2_KEY_ID`, `B2_APPLICATION_KEY`
+- **Slack webhook URLs** — `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`. Webhook URLs are themselves credentials — anyone with the URL can post to the channel — and must be treated like API keys.
+- **Cloudflare API token** — only used if Phase 6 moves the publish flow to a Cloudflare API call rather than git-push (currently not used)
+- **GitHub Actions secrets** — managed via the GitHub repo settings, never copy-pasted out of the GitHub UI
+- **SSH private keys** — Mark's main SSH key for `lsb-agent-01`, the rsync-only key for the Synology NAS
+- **Password manager master password** — the meta-secret
+
+### 8.2 Where secrets live
+
+| Secret | Lives in | Lives nowhere else |
+|---|---|---|
+| LLM provider API keys | `lsb-agent-01:/home/lsb/lsb/.env`, mode 600, owned by the `lsb` user | Not on Mark's local machine, not in any GitHub Actions secret, not in any cloud sync |
+| B2 credentials | Same as above | Same |
+| Slack alerts webhook URL | Both `lsb-agent-01:/home/lsb/lsb/.env` AND GitHub Actions secrets (because both `qa_check.py` on the VPS and `weekly-cost-alert.yml` on GitHub Actions need it) | Nowhere else |
+| Slack CDA SME webhook URL | Mark's local Claude Code environment (the agent runtime reads it from there) | Not on the VPS |
+| Slack UI/UX webhook URL | Mark's local Claude Code environment | Not on the VPS |
+| SSH private keys | Mark's local `~/.ssh/` directory, encrypted at rest by the OS keychain | The matching public keys are in `~/.ssh/authorized_keys` on the VPS and on the NAS |
+| Password manager master password | In Mark's head | Plus a sealed-envelope printout in the fireproof safe (last resort) |
+
+The principle is **single-location storage by default**. A secret should live in exactly one place unless there's a specific reason for it to live in two places (which is true for the alerts webhook URL because it's read by two different runtimes).
+
+### 8.3 What never goes near secrets
+
+- **No secret is ever committed to git.** `.env` is in `.gitignore`; `.env.example` is the tracked template with placeholder values.
+- **No secret is ever logged.** The adapter base class scrubs keys from any request payload before writing to the raw lake (`ARCHITECTURE.md` §6.3). Custom logging in `cdb_collect` must not log raw request headers.
+- **No secret is ever included in an error message displayed to a user.** The dashboard does not error-message at users; CLI error messages on `lsb-agent-01` go to journald and are not surfaced to the dashboard or to Slack.
+- **No secret is ever sent to a third-party service** (no error tracking SaaS, no APM, no log aggregation outside what's already trusted).
+
+### 8.4 Rotation cadence
+
+Secrets are rotated:
+
+- **Immediately** on any suspected compromise per the §6.4 procedure
+- **Every 12 months** as a hygiene practice, even with no suspected compromise. Rotation is calendared on Mark's personal calendar with a 30-day reminder.
+- **Whenever a credential leaves Mark's exclusive control** (e.g., if the password manager's cloud sync is suspected of being accessed by anyone else)
+
+The 12-month hygiene rotation is best-effort, not a hard rule. The immediate-on-compromise rotation is a hard rule.
+
+---
+
+## 9. Reviewer agent rules table
+
+The Reviewer agent enforces the following rules on every PR. This table is **the canonical reference** for what the Reviewer is checking; if a rule is not listed here, the Reviewer is not enforcing it. Rules are numbered for easy citation in PR review comments.
+
+| # | Rule | Where defined |
+|---|---|---|
+| **R1** | **No secret in any committed file.** `gitleaks` is the mechanical enforcement; the Reviewer agent backs it up by visually scanning any file containing key-shaped strings. | §3.4, §8 |
+| **R2** | **No `dangerouslySetInnerHTML`** (or React equivalent) **anywhere in the dashboard.** All LLM-generated text uses the `SanitizedLLMText` wrapper from §3.3. | §3.3 |
+| **R3** | **No CSP weakening.** Any change to `apps/dashboard/public/_headers` that adds `'unsafe-eval'`, removes `frame-ancestors 'none'`, removes the script-src restriction, or otherwise broadens the CSP requires Architect sign-off and a noted architectural decision in `ARCHITECTURE.md`. | §3.1 |
+| **R4** | **No edits to existing lines in `data/raw/informants.jsonl`.** The append-only check in CI is the mechanical enforcement; the Reviewer agent backs it up by rejecting any diff that modifies pre-existing lines. | §7.1 |
+| **R5** | **No new dependency without Architect sign-off.** Any change to `pyproject.toml`, `uv.lock`, `apps/dashboard/package.json`, or `apps/dashboard/package-lock.json` that adds a new top-level dependency requires Architect sign-off and an entry in §4.3. | §4.3 |
+| **R6** | **No LLM client imports in `cdb_analyze/`.** The static check in CI is the mechanical enforcement; the Reviewer agent backs it up by rejecting any PR that imports an LLM client library inside `packages/cdb_analyze/`. | §3.5, `ARCHITECTURE.md` §1 commitment 6 |
+| **R7** | **`InformantRecord` and `GroundingRef` schema changes co-update `docs/DATA_DICTIONARY.md`.** Any PR that touches these schemas in `cdb_core/schemas.py` must include a matching update to the data dictionary in the same PR. | `ARCHITECTURE.md` §5.1 Reviewer rule 5 |
+| **R8** | **Frontend PRs carry a UI/UX agent verdict.** Any PR touching `apps/dashboard/`, `DESIGN_SYSTEM.md`, or any visual component must have a UI/UX agent PASS or PASS-WITH-NOTES verdict in `#lsb-ui-ux` linked from the PR description. | `ARCHITECTURE.md` §5.1 Reviewer rule 6 |
+| **R9** | **Researcher grounding submission PRs run the full validation suite.** CI must run schema check, format check, item-intersection report, `gitleaks`, AND the PII scan (`scripts/check_grounding_pii.py`) on every PR that adds files under `data/grounding/`. The CDA SME agent must also have reviewed and posted a verdict to `#lsb-cda-sme`. | §7.4, `ARCHITECTURE.md` §4.2.5 |
+| **R10** | **Webhook URL secrets are never committed.** Specific case of R1, listed separately because Slack webhook URLs are easy to mistake for non-secret configuration. | §8.1 |
+| **R11** | **`SECURITY.md` at the repo root cannot be materially weakened.** Changes to the contact email, the SLA, or the disclosure process require Architect sign-off. | §6.5 |
+| **R12** | **The §1.5.4 language guardrails apply to every piece of generated text.** This is enforced by both the CDA SME agent (during plan review) and the Reviewer agent (during PR review). The Reviewer specifically checks generated ledes, social posts, dashboard copy, README content, commit messages, and PR descriptions. | `ARCHITECTURE.md` §1.5.4 |
+
+A FAIL on any of R1–R12 blocks merge. PASS-WITH-NOTES is acceptable as long as the notes are addressed in a follow-up commit before merge. PASS is the only verdict that allows merge unmodified.
+
+---
+
+## 10. Future hardening (deferred from v1)
+
+These are real security improvements that LSB does not adopt in v1. Each has a defensible reason for deferral and a trigger condition that would make it worth revisiting.
+
+### 10.1 Paid penetration test
+
+**v1 status:** deferred. Friendly review only — Mark or a trusted collaborator walks through the dashboard and the deployment looking for obvious issues. Per resolved decision #19 in `ARCHITECTURE.md` §7.
+
+**Trigger to revisit:** the project gets significant traction (sustained traffic in the high four-figure / low five-figure unique visitors per month), or a high-profile finding draws specific adversarial attention.
+
+**Estimated cost when triggered:** $5K–15K for a focused web application pentest from a reputable firm. Higher for a broader engagement.
+
+### 10.2 Bug bounty program
+
+**v1 status:** deferred. Per resolved decision #20.
+
+**Trigger to revisit:** sustained traffic that justifies the operational overhead of triaging reports, or a security incident that suggests structured external review would help.
+
+**Cost when triggered:** typically a flat platform fee plus per-bounty payouts. HackerOne and Bugcrowd are the established platforms; Bountysource is the open-source-friendly option.
+
+### 10.3 Cloudflare paid tier (WAF, bot management, image optimization)
+
+**v1 status:** deferred. Free tier covers v1 traffic per resolved decision #21.
+
+**Trigger to revisit:** sustained reputational attacks (abusive traffic, scraping, distributed credential stuffing against any future auth surface), or growth past the free tier's traffic envelope.
+
+**Cost when triggered:** $20/month for Cloudflare Pro, more for Business or Enterprise tiers depending on what features become necessary.
+
+### 10.4 Eliminate `'unsafe-inline'` from `style-src`
+
+**v1 status:** deferred. Tailwind forces `'unsafe-inline'` for styles per resolved decision #22; LSB accepts this for v1 with Reviewer tracking.
+
+**Trigger to revisit:** the dashboard build moves to fully external stylesheets (Tailwind compiles to a single CSS bundle and the inline-style usage is eliminated), or a CSP-related vulnerability emerges that makes eliminating inline styles worth the build complexity.
+
+**Effort when triggered:** moderate — requires a Tailwind build configuration change and verification that no component is using inline styles via `style={...}` props.
+
+### 10.5 Independent supply-chain attack detection
+
+**v1 status:** deferred. Dependabot + `gitleaks` are the v1 defense; per §1.2 advanced supply-chain attacks are explicitly out of scope.
+
+**Trigger to revisit:** a confirmed supply-chain compromise of a Python or npm package LSB depends on (transitively or directly), or general LSB visibility growing to the point where supply-chain attackers might target the project specifically.
+
+**When triggered:** add `sigstore` for release signing, `syft` for SBOM generation, and a curated package-mirror policy. Significant operational overhead; not justified at v1 scale.
+
+### 10.6 Hardened observability stack
+
+**v1 status:** deferred. Structured logging to journald + the QA_Runner alert path are sufficient per `ARCHITECTURE.md` §6.4.
+
+**Trigger to revisit:** sustained operational issues that require historical metric analysis (e.g., latency degradation over time across providers, slow drift in collection success rates).
+
+**When triggered:** add Prometheus + Grafana on `lsb-agent-01`, or a hosted alternative. Avoid Datadog and other commercial observability SaaS for cost reasons.
+
+### 10.7 Multi-region hosting
+
+**v1 status:** deferred. Single Helsinki VPS is fine.
+
+**Trigger to revisit:** the project has SLA commitments that single-region deployment can't meet, or the Helsinki region has sustained reliability issues.
+
+**When triggered:** add a second VPS in a different region, set up active-passive replication for `data/raw/`, switch DNS to a load-balancing or failover configuration. Significant operational overhead.
+
+---
+
+## 11. The security posture in one paragraph
+
+LSB is a small research project that makes public claims about commercial AI products and accepts contributions from external researchers. Its security posture is built around three commitments: data integrity (append-only canonical raw data with cryptographic provenance and a four-layer backup chain), credential isolation (single-location secret storage, no SMS-second-factor anywhere, two YubiKeys on every critical account, dedicated security email separate from Mark's personal life), and small attack surface (static dashboard with strict CSP, no LLM-generated HTML, no realtime backend, minimal dependency footprint, single-VPS collection runner). The project does not defend against nation-state adversaries, insider threats, or advanced supply-chain attacks. It does defend against the realistic threats: credential phishing, accidental key commits, dependency vulnerabilities, LLM-output XSS, researcher submissions with PII, and tampering with the raw data lake. The Reviewer agent enforces twelve specific rules on every PR; the §10 deferred items are real improvements that v1 doesn't need yet.
+
+---
+
+*End of `SECURITY_AND_HARDENING.md` v0.1. Section numbering is stable per the contract at the top — `ARCHITECTURE.md` cross-references depend on it. The Reviewer agent enforces §9. The §10 deferred items are revisited if the trigger conditions in each subsection are met.*
