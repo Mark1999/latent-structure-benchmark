@@ -5,6 +5,7 @@ from anthropic.types import TextBlock
 from langgraph.graph import StateGraph, END
 from dotenv import load_dotenv
 import slack_helper as slack
+import task_manager
 
 load_dotenv()
 
@@ -205,21 +206,33 @@ def build_graph():
 if __name__ == "__main__":
     graph = build_graph()
 
-    initial_state: PipelineState = {
-        "task": "Execute P0-T1 as specified in PHASE_0_TASKS.md. Initialize the LSB repository scaffold exactly as described — directory structure, pyproject.toml, .gitignore, .env.example, and README.md stub. Nothing beyond P0-T1 scope.",
-        "architecture_notes": "",
-        "implementation": "",
-        "review_notes": "",
-        "test_results": "",
-        "approved": False,
-        "errors": []
-    }
+    next_task = task_manager.get_next_task()
 
-    print("Starting LSB pipeline...")
-    slack.post("pipeline", "🚀 *LSB pipeline starting* — smoke test task running.")
+    if next_task is None:
+        print("All tasks complete. Nothing to do.")
+        slack.post("pipeline", "🏁 *All tasks complete — pipeline idle.*")
+    else:
+        task_id = next_task["id"]
+        description = next_task["description"]
 
-    result = graph.invoke(initial_state)
+        print(f"Starting task: {task_id} — {description}")
+        slack.post("pipeline", f"🚀 *Pipeline starting task {task_id}:* {description}")
 
-    print("\n--- Pipeline complete ---")
-    print(f"Task: {result['task']}")
-    print(f"Approved: {result['approved']}")
+        initial_state: PipelineState = {
+            "task": f"Execute {task_id} as specified in PHASE_0_TASKS.md. Task: {description}. Follow the acceptance criteria exactly. Nothing beyond {task_id} scope.",
+            "architecture_notes": "",
+            "implementation": "",
+            "review_notes": "",
+            "test_results": "",
+            "approved": False,
+            "errors": []
+        }
+
+        result = graph.invoke(initial_state)
+
+        if result.get("approved"):
+            task_manager.mark_task_done(task_id)
+            print(f"Task {task_id} complete and marked done.")
+            slack.post("pipeline", f"✅ *{task_id} complete.* Restart the service to begin next task.")
+        else:
+            print(f"Task {task_id} was not approved — not marked done.")
