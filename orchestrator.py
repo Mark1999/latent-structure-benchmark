@@ -1,3 +1,4 @@
+import os
 from typing import TypedDict
 from anthropic import Anthropic
 from anthropic.types import TextBlock
@@ -16,6 +17,16 @@ def extract_text(response) -> str:
         if isinstance(block, TextBlock):
             return block.text
     return ""
+
+
+def read_doc(filename: str) -> str:
+    """Read a companion doc from the project directory."""
+    path = os.path.join(os.path.dirname(__file__), filename)
+    try:
+        with open(path, "r") as f:
+            return f.read()
+    except FileNotFoundError:
+        return f"[{filename} not found]"
 
 
 # --- State ---
@@ -53,7 +64,26 @@ with the architecture decisions already made there — especially:
 You decompose tasks into clear, numbered implementation plans. You never write code yourself.
 Output a structured plan with numbered steps that the Coder can follow exactly.
 Reference specific section numbers from ARCHITECTURE.md where relevant.""",
-        messages=[{"role": "user", "content": f"Decompose this task into an implementation plan:\n\n{state['task']}"}]
+        messages=[{
+            "role": "user",
+            "content": f"""You have access to the following project documents:
+
+--- ARCHITECTURE.md ---
+{read_doc('ARCHITECTURE.md')}
+
+--- PHASE_0_TASKS.md ---
+{read_doc('PHASE_0_TASKS.md')}
+
+--- SECURITY_AND_HARDENING.md ---
+{read_doc('SECURITY_AND_HARDENING.md')}
+
+--- HOSTING_AND_DEV_OPS.md ---
+{read_doc('HOSTING_AND_DEV_OPS.md')}
+
+Your task: {state['task']}
+
+Read the relevant sections above and produce a detailed, numbered implementation plan for the Coder agent."""
+        }]
     )
 
     notes = extract_text(response)
@@ -168,7 +198,7 @@ if __name__ == "__main__":
     graph = build_graph()
 
     initial_state: PipelineState = {
-        "task": "Phase 0, Task 1 (P0-T1): Initialize the LSB repository scaffold as specified in ARCHITECTURE.md §2. Create the full directory structure, pyproject.toml, and placeholder files. Do not implement any logic yet — structure only.",
+        "task": "Execute P0-T1 as specified in PHASE_0_TASKS.md. Initialize the LSB repository scaffold exactly as described — directory structure, pyproject.toml, .gitignore, .env.example, and README.md stub. Nothing beyond P0-T1 scope.",
         "architecture_notes": "",
         "implementation": "",
         "review_notes": "",
