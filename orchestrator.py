@@ -1,4 +1,5 @@
 import os
+import time
 from typing import TypedDict
 from anthropic import Anthropic
 from anthropic.types import TextBlock
@@ -277,29 +278,35 @@ if __name__ == "__main__":
         print("All tasks complete. Nothing to do.")
         slack.post("pipeline", "🏁 *All tasks complete — pipeline idle.*")
     else:
-        task_id = next_task["id"]
-        description = next_task["description"]
+        while next_task is not None:
+            task_id = next_task["id"]
+            description = next_task["description"]
 
-        print(f"Starting task: {task_id} — {description}")
-        slack.post("pipeline", f"🚀 *Pipeline starting task {task_id}:* {description}")
+            print(f"Starting task: {task_id} — {description}")
+            slack.post("pipeline", f"🚀 *Pipeline starting task {task_id}:* {description}")
 
-        initial_state: PipelineState = {
-            "task": f"Execute {task_id} as specified in PHASE_0_TASKS.md. Task: {description}. Follow the acceptance criteria exactly. Nothing beyond {task_id} scope.",
-            "architecture_notes": "",
-            "sme_review": "",
-            "sme_approved": False,
-            "implementation": "",
-            "review_notes": "",
-            "test_results": "",
-            "approved": False,
-            "errors": []
-        }
+            initial_state: PipelineState = {
+                "task": f"Execute {task_id} as specified in PHASE_0_TASKS.md. Task: {description}. Follow the acceptance criteria exactly. Nothing beyond {task_id} scope.",
+                "architecture_notes": "",
+                "sme_review": "",
+                "sme_approved": False,
+                "implementation": "",
+                "review_notes": "",
+                "test_results": "",
+                "approved": False,
+                "errors": []
+            }
 
-        result = graph.invoke(initial_state)
+            result = graph.invoke(initial_state)
 
-        if result.get("approved") and result.get("sme_approved"):
-            task_manager.mark_task_done(task_id)
-            print(f"Task {task_id} complete and marked done.")
-            slack.post("pipeline", f"✅ *{task_id} complete.* Restart the service to begin next task.")
-        else:
-            print(f"Task {task_id} was not approved — not marked done.")
+            if result.get("approved") and result.get("sme_approved"):
+                task_manager.mark_task_done(task_id)
+                print(f"Task {task_id} complete and marked done.")
+                slack.post("pipeline", f"✅ *{task_id} complete.* Starting next task in 5 seconds...")
+                time.sleep(5)
+                next_task = task_manager.get_next_task()
+                if next_task is None:
+                    slack.post("pipeline", "🏁 *All Phase 0 tasks complete — pipeline idle.*")
+            else:
+                print(f"Task {task_id} was not approved — not marked done.")
+                break
