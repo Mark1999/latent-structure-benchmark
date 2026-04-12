@@ -1,12 +1,13 @@
 # Latent Structure Benchmark (LSB) — System Architecture
 
 **Project name:** Latent Structure Benchmark (LSB)
-**Public-facing site:** Cognitive Structure Lab — `cogstructurelab.ai`
-**Status:** Draft v0.4 — handoff document for the Claude Code development team
+**Public-facing site:** Cognitive Structure Lab — `cogstructurelab.com`
+**Status:** Draft v0.5 — handoff document for the Claude Code development team
 **Audience:** Architect / Coder / Reviewer / Tester agents + human reviewer (Mark)
 **Companion docs:** `CDB_Briefing_Opus46.docx` (product vision), `CLAUDE.md` (team constitution), `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_4C_CANDIDATE_SOURCES.md`, `PHASE_0_TASKS.md`
 
 **Changelog:**
+- **v0.5** removes Mac Mini / local mirror architecture. Phase 1a/1b split collapsed into unified Phase 1 using three API endpoints: Anthropic, OpenRouter, HuggingFace. Production URL corrected to cogstructurelab.com (.ai owned, will redirect). `collection_method` values updated accordingly.
 - **v0.4** is the major revision following the 24-decision pass. Resolves all Open Decisions in §7. Renames the project from "CDB" to "Latent Structure Benchmark (LSB)" and introduces the website name "Cognitive Structure Lab" at `cogstructurelab.ai` (new §1.6). Collapses the FastAPI layer to static JSON files served by Cloudflare Pages — `cdb_api` is renamed to `cdb_publish` (new §4.4, repo layout §2 updated). Locks in the 12-model slate with three-axis filtering (origin, openness, collection method) and adds local mirror collection for open-weight models via the Mac Mini M5 Max post-June 2026 (§3.2 ModelRef schema, §4.1 collection layer, §5.3 Phase 1 split). Locks in family→holidays→food domain order, $300/mo spend cap with three-tier defense, 8-variant sensitivity study, Apache 2.0 / CC-BY-4.0 / CC0 licensing, Cloudflare Pages hosting, Backblaze B2 + fireproof safe backup, dedicated ProtonMail security contact, two YubiKey 5C NFC enrollment, friendly review pre-launch (no paid pentest). Adds Phase 0 tasks P0-T9 (security scaffolding) and P0-T10 (CSP and headers) per `SECURITY_AND_HARDENING.md`. The `LSB` abbreviation is used informally; the Least Significant Bit collision is acknowledged and accepted — full name "Latent Structure Benchmark" is canonical in citation contexts.
 - v0.3.1 reframes §1.5.6 to lead with "the website is the artifact" positively rather than defining the project by what it doesn't ship. Adds explicit guidance on acknowledging academic forebears on the methodology page and elevates the methodology page to a first-class Phase 5/6 deliverable.
 - v0.3 removes academic publication framing throughout. The project ships as a benchmark + dashboard + social pipeline + open data/code only. No ArXiv preprint, no methods paper, no journal submission. Phase 8 renamed and rescoped.
@@ -28,12 +29,12 @@ The guiding principle: **the benchmark is a data pipeline with a pretty face and
 ```
 ┌──────────────────────────────────────────────────────────────────────┐
 │              LATENT STRUCTURE BENCHMARK (LSB)                        │
-│              served at cogstructurelab.ai                            │
+│              served at cogstructurelab.com                           │
 │                                                                      │
 │  ┌───────────────┐    ┌──────────────┐    ┌─────────────────────┐    │
 │  │  COLLECTION   │───▶│   ANALYSIS   │───▶│   RESULTS STORE     │    │
-│  │ (API + local) │    │ (MDS/clust./ │    │ (versioned JSON +   │    │
-│  │               │    │  bootstrap)  │    │  Parquet + SQLite)  │    │
+│  │ (Anthropic /  │    │ (MDS/clust./ │    │ (versioned JSON +   │    │
+│  │ OpenRouter/HF)│    │  bootstrap)  │    │  Parquet + SQLite)  │    │
 │  └───────┬───────┘    └──────────────┘    └──────────┬──────────┘    │
 │          │                                           │               │
 │          ▼                                           ▼               │
@@ -151,7 +152,7 @@ The project intentionally uses **two distinct names** for two distinct jobs. Thi
 
 **Benchmark name: Latent Structure Benchmark (LSB).** This is the methodologically descriptive name used in citation contexts, methodology pages, schema fields, repository identifiers, and academic-style references. It is precise, defensible, and on-message with §1.5: it names what is actually measured (latent categorical structure) without overclaiming worldview, belief, or cognition. The full phrase "Latent Structure Benchmark" is canonical; "LSB" is the casual abbreviation. The Least Significant Bit / Linux Standard Base namespace collision on "LSB" is acknowledged and accepted — anyone confused by the abbreviation can disambiguate via the full name in two seconds, and the full name has no competing AI/ML benchmark currently using it.
 
-**Website name: Cognitive Structure Lab.** This is the brandable, evocative name used on the public-facing site, in social posts, in headlines, and as the URL. It signals research seriousness ("Lab") while staying consistent with §1.5 vocabulary ("Cognitive Structure" rather than "Cognitive Worldview" or "Cognitive Belief"). It is hosted at **`cogstructurelab.ai`**. The `.ai` TLD signals the AI domain to first-time visitors and is the contemporary default for AI research projects.
+**Website name: Cognitive Structure Lab.** This is the brandable, evocative name used on the public-facing site, in social posts, in headlines, and as the URL. It signals research seriousness ("Lab") while staying consistent with §1.5 vocabulary ("Cognitive Structure" rather than "Cognitive Worldview" or "Cognitive Belief"). The public site is served at **`cogstructurelab.com`**. The project also owns **`cogstructurelab.ai`**; that domain will redirect to **`cogstructurelab.com`** so legacy links and email-adjacent branding still resolve cleanly.
 
 **Why the split:**
 
@@ -161,7 +162,7 @@ The project intentionally uses **two distinct names** for two distinct jobs. Thi
 | Headline on a dashboard for casual visitors | ✗ "Latent Structure Benchmark" reads as dry | ✓ "Cognitive Structure Lab" reads as a place of inquiry |
 | Methodology defense | ✓ Names the construct precisely | ✗ Brand names defend nothing |
 | Memorability for journalists | ✗ Hard to remember as a phrase | ✓ Three short words, easy to type |
-| URL discoverability | ✗ Long, ugly URL | ✓ Short, brandable, .ai TLD |
+| URL discoverability | ✗ Long, ugly URL | ✓ Short, brandable `.com` (with `.ai` owned and redirecting) |
 
 Forcing one name to do both jobs was the cause of multiple failed naming attempts during the v0.4 decision pass. The split unlocks both decisions simultaneously by letting each name optimize for its actual purpose.
 
@@ -197,8 +198,8 @@ cdb/
 │   │   │   ├── anthropic.py
 │   │   │   ├── openai.py
 │   │   │   ├── google.py
-│   │   │   ├── openrouter.py      # for Chinese + long-tail models
-│   │   │   └── ollama.py          # local models (your Surface/Mac Mini)
+│   │   │   ├── openrouter.py      # frontier + open-weight via OpenRouter
+│   │   │   └── huggingface.py     # Hugging Face Inference API (specialist open models)
 │   │   ├── protocol/              # the CDA pipeline as code
 │   │   │   ├── free_list.py
 │   │   │   ├── pile_sort.py
@@ -298,33 +299,31 @@ def run_id(model: str, domain: str, step: str,
 ```python
 class ModelRef(BaseModel):
     provider: Literal["anthropic","openai","google","xai","cohere",
-                       "openrouter","ollama","local"]
+                       "openrouter","huggingface"]
     model_id: str             # exact API string, e.g. "claude-opus-4-6"
     family: str               # e.g. "claude", "gpt", "qwen", "llama"
     origin: Literal["us","eu","ca","cn","other"]  # ca = Canada (Cohere)
     open_weights: bool        # True if weights are publicly downloadable
-    collection_method: Literal["api","local"]  # how this entry was collected
+    collection_method: Literal["anthropic_api","openrouter","huggingface"]  # which API surface collected this run
     quantization: str | None  # e.g. "q8_0", "q4_K_M", None for API
     release_date: date
     version_label: str        # for drift analysis, e.g. "4.6"
     source_notes: str = ""    # license nuances, mixed-openness cases, etc.
 
 # Schema notes (binding for Coder and Reviewer agents):
-# - The same underlying model collected via API and locally produces TWO
-#   distinct ModelRef entries with different collection_method values. This
-#   is intentional — they may produce different outputs (API providers can
-#   apply system prompts, content filters, or other transformations not
-#   present in raw weights), and surfacing those differences is one of the
-#   project's analytical goals (see §4.1.2 and SECURITY_AND_HARDENING.md §10).
+# - collection_method records which of the three remote integration points
+#   was used: Anthropic API, OpenRouter, or Hugging Face Inference API. The
+#   same logical model may appear more than once if invoked through different
+#   gateways; those rows differ by collection_method and/or model_id string.
 # - The open_weights field is a strict Boolean. License nuances (Llama's
 #   commercial restrictions, Mistral's mixed open/closed model line, etc.)
 #   are handled via source_notes rather than expanding the field into an
 #   enum. If a model's openness is genuinely ambiguous, set open_weights
 #   True if the weights are downloadable at all and document restrictions
 #   in source_notes.
-# - The quantization field is None for API-served models and a non-empty
-#   string (the GGUF quant tag) for local models. The Reviewer agent rejects
-#   local entries without an explicit quantization tag.
+# - The quantization field is None when the provider does not expose a
+#   meaningful quant label in the API response; set when HF or another path
+#   returns an explicit precision tag useful for provenance.
 # - origin covers four production regions plus "other"; the four regions
 #   correspond to populated clusters in the v1 model slate (US, EU, Canada,
 #   China). New origin values require an architecture decision, not an
@@ -448,7 +447,7 @@ Prompt: prompts/v1/pile_sort.md with {{items}} substituted
 Constraint: response must be valid JSON matching {piles: [[str, ...], ...]}
 ```
 
-Use structured output / JSON mode where available (Anthropic, OpenAI, Gemini, OpenRouter for most). For models without JSON mode (Ollama local), use a robust parser + retry-on-parse-failure up to 3 attempts.
+Use structured output / JSON mode where available (Anthropic, OpenAI, Gemini, OpenRouter, Hugging Face Inference for most). For models without JSON mode, use a robust parser + retry-on-parse-failure up to 3 attempts.
 
 **Step 3: Pile interview** (`protocol/pile_interview.py`)
 
@@ -479,7 +478,7 @@ The briefing mentions "multiple runs per model per domain to distinguish signal 
 - **Temperature:** 0.7 for free listing (we want variance to surface salience distribution), 0.3 for pile sorting (we want the model's modal categorization).
 - **Seed variation:** where the provider supports it, use distinct seeds per run. Where it doesn't, variance comes from sampling temperature alone.
 - **Prompt-sensitivity study (Phase 4b validation gate):** 8 prompt variants per step on 2 reference models (Claude Opus + GPT flagship) to estimate within-model variance for the G1 gate (§5.3). Cost is bounded — see §6.2 for the spend cap mechanics.
-- **Local stretch sensitivity (Phase 1b+):** once the Mac Mini M5 Max is operational and local mirror collection is running, the prompt-sensitivity study scales to 16 or 32 variants on locally-served open-weight models without API budget impact. Surfacing API-vs-local variance differences is itself a finding-generation strategy.
+- **Extended sensitivity (optional):** 16–32 prompt variants on selected open-weight models via OpenRouter and/or Hugging Face Inference API within the monthly spend cap — useful for comparing provider-routing variance without any local inference layer.
 - **Spend cap.** Collection runs honor a hard monthly cap (default `CDB_MAX_SPEND_USD=300`) and halt cleanly when reached. See §6.2 for the three-tier defense (runtime cap, per-provider account caps, weekly cost reports).
 
 At analysis time, per-run data is aggregated into a consensus free list and a consensus co-occurrence matrix per `(model, domain)`. This is the standard CDA move when multiple informants (here, runs) represent the same "culture" (here, the model).
@@ -502,7 +501,7 @@ python scripts/cost_report.py --month current
 
 #### 4.1.5 Open decisions
 
-**RESOLVED in v0.4.** All Phase 1 collection-layer decisions are resolved in §7 (Resolved decisions log). Key resolutions: 12-model slate locked in (origin × openness × collection-method axes); local mirror collection added for open-weight models post-Mac Mini (Phase 1b); $300/month spend cap with hard halt at threshold; 8-variant sensitivity study at the API gate, 16+ for local stretch studies. See §7 for the full log and rationale pointers.
+**RESOLVED in v0.4 / v0.5.** Phase 1 collection uses three remote API surfaces only (Anthropic, OpenRouter, Hugging Face Inference API) on project VPS — no Mac Mini and no local Ollama mirror (v0.5). See §7 for the resolved-decisions log; `ModelRef.collection_method` values are `anthropic_api`, `openrouter`, and `huggingface`.
 
 ---
 
@@ -697,7 +696,7 @@ git push
 
 **CI trigger (Phase 6+):** a GitHub Actions workflow fires `publish.py` automatically whenever a new `data/results/` file is committed to main. The dashboard update is fully automated after analysis runs.
 
-**Cloudflare Pages deployment:** Cloudflare Pages is configured to build from the `apps/dashboard/` directory. The build command is `npm run build`; the output directory is `apps/dashboard/dist/`. Because `public/data/` is inside the Vite build root, all JSON files are included verbatim in the dist bundle and served at `cogstructurelab.ai/data/...` with Cloudflare's global CDN caching automatically applied.
+**Cloudflare Pages deployment:** Cloudflare Pages is configured to build from the `apps/dashboard/` directory. The build command is `npm run build`; the output directory is `apps/dashboard/dist/`. Because `public/data/` is inside the Vite build root, all JSON files are included verbatim in the dist bundle and served at `cogstructurelab.com/data/...` with Cloudflare's global CDN caching automatically applied.
 
 #### 4.4.4 Caching
 
@@ -715,7 +714,7 @@ If v2 needs realtime collection status, a write path, or user accounts, re-intro
 
 React + Vite + TypeScript. Tailwind for styling. No Next.js — the app is a pure SPA served as static files.
 
-**Data access — static JSON only.** The dashboard fetches data exclusively from the static JSON files written by `cdb_publish` (§4.4) at `cogstructurelab.ai/data/...`. There are no runtime API calls to a backend, no WebSocket connections, and no third-party data endpoints. All fetch calls are same-origin — the JSON files are served from the same Cloudflare Pages deployment as the app itself.
+**Data access — static JSON only.** The dashboard fetches data exclusively from the static JSON files written by `cdb_publish` (§4.4) at `cogstructurelab.com/data/...`. There are no runtime API calls to a backend, no WebSocket connections, and no third-party data endpoints. All fetch calls are same-origin — the JSON files are served from the same Cloudflare Pages deployment as the app itself.
 
 **Content Security Policy.** The dashboard must ship with a strict CSP header. The `connect-src` directive is `'self'` only — no external hosts. This is enforced in `apps/dashboard/public/_headers` (Cloudflare Pages header file). See `SECURITY_AND_HARDENING.md` §3.1 for the full CSP spec and §3.3 for LLM-output sanitization rules that apply to lede text and any other model-generated content rendered in the dashboard. The Reviewer agent must reject any component that renders model-generated text via `dangerouslySetInnerHTML` or equivalent without the sanitization wrapper specified in §3.3.
 
@@ -843,25 +842,30 @@ This is sized to be workable across a few focused sessions with your agent pipel
 - CI: ruff + mypy + pytest on push
 - See `PHASE_0_TASKS.md` for the full 10-task decomposition (P0-T1 through P0-T10), acceptance criteria, and dependency graph.
 
-**Phase 1a — Collection for one model, one domain (one session) — pre-Mac Mini**
+**Phase 1 — Collection layer (unified; VPS + remote APIs only)**
 
-Phase 1 is split by hardware availability. Phase 1a covers everything that can be done before the Mac Mini M5 Max arrives in June 2026. Phase 1b adds the local open-weight collection layer once it does.
+All collection runs use **three API endpoints** — no local inference mirror, no Ollama, no Mac-class edge hardware:
+
+1. **Anthropic API** — Claude models (direct first-party integration).
+2. **OpenRouter** — frontier closed models and many open-weight models through a single HTTP API (including long-tail and regional routes where applicable).
+3. **Hugging Face Inference API** — specialist open models when OpenRouter is not the right fit.
+
+The runner and adapters live on ordinary project VPS / CI infrastructure; scaling is by concurrency limits and the spend cap, not by adding on-prem GPUs.
+
+**Milestone A — smallest vertical slice (one session)**
 
 - Anthropic adapter only (Claude Opus 4.6)
 - Family domain only
 - Free-list step only
 - Raw JSONL write, basic parser
 - Test with a fixture so the Coder doesn't burn the API budget
-- `scripts/cost_report.py` wired up with basic per-run cost tracking (the full three-tier defense is Phase 1a's exit criterion — see §6.2)
+- `scripts/cost_report.py` wired up with basic per-run cost tracking (the full three-tier defense is Phase 1's exit criterion for this milestone — see §6.2)
 - Spend cap enforcement: `CDB_MAX_SPEND_USD` env var read by the runner; hard halt at 100%, warning logged at 80%
 
-**Phase 1b — Multi-provider adapters + local mirror collection (post-June 2026)**
+**Milestone B — full multi-provider collection (follow-on)**
 
-Begins when the Mac Mini M5 Max is operational and Ollama is confirmed running.
-
-- OpenAI, Google AI Studio, and OpenRouter adapters
-- Ollama local adapter for open-weight models (Llama 3, Qwen 2.5, DeepSeek-V3, Mistral — exact slate per §3.2 `ModelRef` schema and the locked 12-model list in §7)
-- Local mirror collection: open-weight models collected via both API (OpenRouter) and local inference, with `collection_method` field set to `"api"` vs. `"local_mirror"` to distinguish the two provenance paths
+- OpenRouter adapter and Hugging Face Inference adapter wired for the full 12-model slate (exact IDs per §3.2 `ModelRef` and the locked list in §7)
+- `collection_method` on each `ModelRef` set to `anthropic_api`, `openrouter`, or `huggingface` according to which integration point served that run
 - Per-provider account caps configured on each provider dashboard (~$100–150 each) as the second tier of the three-tier spend defense
 
 **Phase 2 — Full protocol for one model (one session)**
@@ -878,9 +882,9 @@ Begins when the Mac Mini M5 Max is operational and Ollama is confirmed running.
 
 This phase is a formal scientific gate, not a build step. Nothing downstream ships until Phase 4 passes. The gate has three quantitative criteria, each of which must be met before Phase 5 begins.
 
-*4a. Multi-model collection.* Using the Phase 1b adapters, run the full family domain across the 12-model slate with N=5 runs each. This produces the first real dataset. Local mirror runs (via Ollama) add API-vs-local variance measurement as a bonus finding.
+*4a. Multi-model collection.* Using the Phase 1 adapters (Anthropic, OpenRouter, Hugging Face Inference as needed), run the full family domain across the 12-model slate with N=5 runs each. This produces the first real dataset.
 
-*4b. Prompt-sensitivity study (`sensitivity.py`).* Generate 8 paraphrased variants of the free-list and pile-sort prompts (semantically equivalent, lexically different). Run 2 reference models (Claude Opus 4.6 and the current GPT flagship) across all 8 variants with N=5 each. Compute within-model variance (across prompt variants) and between-model variance (across the 12 models from 4a). For locally-served open-weight models, extend to 16 or 32 variants without additional API cost as the "local stretch" sensitivity study.
+*4b. Prompt-sensitivity study (`sensitivity.py`).* Generate 8 paraphrased variants of the free-list and pile-sort prompts (semantically equivalent, lexically different). Run 2 reference models (Claude Opus 4.6 and the current GPT flagship) across all 8 variants with N=5 each. Compute within-model variance (across prompt variants) and between-model variance (across the 12 models from 4a). Optionally extend to 16 or 32 variants on selected open-weight models via OpenRouter and/or Hugging Face Inference within the monthly spend cap.
 
 *4c. Human baseline acquisition.* Mark acquires a licensed, peer-reviewed human CDA dataset for family terms from the published anthropological literature (see §4.2.5 and `PHASE_4C_CANDIDATE_SOURCES.md` for sourcing policy and candidate sources). Extract the published similarity or co-occurrence matrix into `data/grounding/family/cooccurrence.csv` with full citation in `source.md`. ~3 hours of Mark's hands-on time for the literature pull. If no suitable published source is available, v1 ships without grounding and the benchmark makes relative claims only.
 
@@ -919,7 +923,7 @@ This phase is a formal scientific gate, not a build step. Nothing downstream shi
 - `SECURITY.md` at repo root with responsible disclosure policy and the dedicated ProtonMail security contact address
 - HuggingFace dataset release (raw responses + processed results under CC-BY-4.0)
 - GitHub repo set to public
-- Dashboard launched at `cogstructurelab.ai` via Cloudflare Pages production deployment
+- Dashboard launched at `cogstructurelab.com` via Cloudflare Pages production deployment
 - Methodology page finalized: names the CDA tradition, cites Romney, D'Andrade, Weller, Borgatti, and Batchelder, links to free-access originals where available, and acknowledges the grounding source (Romney et al. 1996) in full
 - First batch of social posts queued and published via the Phase 7 pipeline
 
@@ -987,7 +991,7 @@ LSB uses a split licensing model. The license applied depends on the type of con
 | Source code | **Apache 2.0** | All `.py`, `.ts`, `.tsx`, `.js`, `.yml`, `.toml` files; `scripts/`; `packages/`; `apps/dashboard/src/`; CI configs |
 | Prompts and domain definitions | **CC0 1.0 Universal** (public domain dedication) | `prompts/`; `data/domains/` |
 | Raw responses, processed results, grounding data | **CC-BY-4.0** | `data/raw/`; `data/processed/`; `data/results/`; `data/grounding/`; HuggingFace dataset release |
-| Documentation and methodology text | **CC-BY-4.0** | `docs/`; `README.md`; `ARCHITECTURE.md`; methodology page on `cogstructurelab.ai` |
+| Documentation and methodology text | **CC-BY-4.0** | `docs/`; `README.md`; `ARCHITECTURE.md`; methodology page on `cogstructurelab.com` |
 
 **Why Apache 2.0 for code, not MIT:** Apache 2.0 includes an explicit patent grant, which matters if the project's methodology is novel enough to attract patent claims from commercial actors. The practical difference for users is negligible; the protection for the project is real.
 
@@ -1017,18 +1021,18 @@ All open decisions from §7 of v0.3.1 are resolved as of v0.4. The table below r
 |---|---|---|---|
 | 1 | **Hosting.** Cloudflare Pages vs. Vercel vs. self-host. | **Cloudflare Pages.** Free tier, global CDN, auto-deploy from main branch, `_headers` file for CSP enforcement. No Cloudflare Workers needed — the static publish architecture eliminates any server-side compute requirement. | §4.4, §4.4.3, §4.4.4 |
 | 2 | **Budget cap for collection runs.** What's the monthly ceiling? | **$300/month** with three-tier defense: (1) `CDB_MAX_SPEND_USD=300` runtime cap with hard halt at 100% and warning at 80%, (2) per-provider account caps of ~$100–150 each on every provider dashboard, (3) weekly `cost_report.py` run with projected-spend alerting. | §4.1.3, §6.2 |
-| 3 | **Model inclusion list for v1.** How many models, which ones? | **12-model slate** filtered on three axes: origin (US, EU, China), openness (closed-weight, open-weight), and collection method (API, local mirror). US closed: Claude Opus 4.6, Claude Sonnet 4.6, GPT flagship, Gemini 2.5 Pro. EU open: Mistral Large. China closed: DeepSeek V3 (API). China open: Qwen 2.5 72B, DeepSeek-V3 (local mirror). US open: Llama 3.3 70B (API + local mirror). Additional local-only models added in Phase 1b as Mac Mini capacity allows. | §3.2 ModelRef schema, §4.1.3, §5.3 Phase 1b |
+| 3 | **Model inclusion list for v1.** How many models, which ones? | **12-model slate** filtered on three axes: origin (US, EU, China), openness (closed-weight, open-weight), and collection method (`anthropic_api`, `openrouter`, `huggingface`). Models are reached only via the three remote APIs in §5.3 Phase 1 — no local mirror. Exact model IDs per §3.2 and the locked list in this table's era. | §3.2 ModelRef schema, §4.1.3, §5.3 Phase 1 |
 | 4 | **Domain order.** Which domains ship in v1, in what order? | **family → holidays → food.** Family is the most interpretable and is grounded (Romney 1996). Holidays has the most visually obvious finding for a journalist. Food produces strong cross-model divergence. These three constitute a credible v1. | §5.3 Phase 4a, Phase 6 |
-| 5 | **Benchmark name.** "Cultural Domain Benchmark" is unmemorable. | **Latent Structure Benchmark (LSB)** for the benchmark; **Cognitive Structure Lab** for the website at `cogstructurelab.ai`. Two-name split intentional — each name optimizes for its job. | §1.6 |
+| 5 | **Benchmark name.** "Cultural Domain Benchmark" is unmemorable. | **Latent Structure Benchmark (LSB)** for the benchmark; **Cognitive Structure Lab** for the website at `cogstructurelab.com` (with `cogstructurelab.ai` owned and redirecting — v0.5). Two-name split intentional — each name optimizes for its job. | §1.6 |
 | 6 | **Licensing.** Code: MIT or Apache 2.0? Data: CC-BY? Prompts: CC0? | **Apache 2.0** (code), **CC-BY-4.0** (data + docs), **CC0** (prompts). Three license files at repo root. Romney 1996 grounding data carries an additional attribution requirement in `data/grounding/family/source.md`. | §6.6 |
-| 7 | **Local model inclusion.** Include Ollama models? How labeled? | **Yes.** Open-weight models collected via both API (OpenRouter) and local Ollama mirror post-Mac Mini. `ModelRef.collection_method` field distinguishes `"api"` from `"local_mirror"`. API-vs-local variance is itself a finding. | §3.2 ModelRef schema, §4.1.3, §5.3 Phase 1b |
+| 7 | **Local model inclusion.** Include Ollama models? How labeled? | **Superseded (v0.5).** No Ollama; no on-prem inference. Open-weight models use **OpenRouter** and/or **Hugging Face Inference API** only. `ModelRef.collection_method` is `openrouter` or `huggingface` (or `anthropic_api` for Claude). | §3.2 ModelRef schema, §4.1.3, §5.3 Phase 1 |
 | 8 | **ArXiv timing.** When does the paper go up? | **REMOVED (v0.3).** No paper. The dashboard's methodology page is the canonical reference. | §1.5.6 |
 | 9 | **Grounding data source for family terms.** | **RESOLVED (v0.2.1).** Licensed, peer-reviewed published data only. Primary source: Romney et al. (1996), PNAS, PMC free full text. See `PHASE_4C_CANDIDATE_SOURCES.md`. | §4.2.5, §6.6 |
-| 10 | **Prompt-sensitivity variant count.** 4 variants enough? | **8 variants** at the API gate (Phase 4b). 16–32 variants as a local stretch study on open-weight models post-Mac Mini. | §4.1.3, §5.3 Phase 4b |
+| 10 | **Prompt-sensitivity variant count.** 4 variants enough? | **8 variants** at the API gate (Phase 4b). 16–32 variants optionally on open-weight models via OpenRouter/Hugging Face within budget (v0.5 — no local stretch). | §4.1.3, §5.3 Phase 4b |
 | 11 | **FastAPI vs. static JSON.** Retain FastAPI for the drift endpoint? | **Static JSON only.** The drift join is done at publish time by `cdb_publish/build.py`. No server. `cdb_api` renamed to `cdb_publish`. | §4.4, §4.4.5 |
 | 12 | **Cloudflare Pages build config.** Build command, output directory, branch triggers? | Build: `npm run build`. Output: `apps/dashboard/dist/`. Auto-deploy on push to `main`. | §4.4.3 |
 | 13 | **Sensitivity study model selection.** Which 2 reference models for Phase 4b? | **Claude Opus 4.6** and the **current GPT flagship.** Maximizes origin × provider spread for the stability claim. | §5.3 Phase 4b |
-| 14 | **Local mirror hardware.** When does local collection start? | **Post-June 2026** when the Mac Mini M5 Max arrives. Phase 1a = API-only. Phase 1b adds local mirror. `ModelRef.collection_method` is in the schema from Phase 0 — no migration needed. | §5.3 Phase 1a/1b |
+| 14 | **Local mirror hardware.** When does local collection start? | **Removed (v0.5).** No local mirror hardware milestone. Collection is VPS + Anthropic / OpenRouter / Hugging Face Inference APIs only. | §5.3 Phase 1 |
 | 15 | **`cdb_api` package rename.** | Renamed to `cdb_publish`. Repo layout, CLAUDE.md, P0-T4, and all internal references updated. | §2, §4.4, §5.2 |
 | 16 | **Security contact email.** What email goes in `SECURITY.md` before the domain is live? | **Dedicated standalone ProtonMail account** pre-launch; replaced by `security@cogstructurelab.ai` once the domain is live. | §6.3, `SECURITY_AND_HARDENING.md` §5 |
 | 17 | **YubiKey purchase.** Two YubiKey 5C NFC, worth it? | **Yes.** Two keys enrolled on every critical account before any live data is stored. | §6.3 |
@@ -1068,25 +1072,26 @@ Listing these to keep the Coder agent from scope-creep:
 - **Run** — one execution of one CDA step for one `(model, domain)` pair. There are N runs per tuple.
 - **Informant** — in CDA, the person being studied. Here, the model. Each run is treated as an independent informant observation.
 - **LSB / Latent Structure Benchmark** — the methodologically precise name for this project. Used in citation contexts, methodology pages, schema fields, and the repository name. The full phrase is canonical; "LSB" is the casual abbreviation. See §1.6.
-- **Cognitive Structure Lab** — the public-facing website name and brand, hosted at `cogstructurelab.ai`. Used in social posts, headlines, and the URL. Not a synonym for "LSB" — the two names have different jobs. See §1.6.
-- **cogstructurelab.ai** — the production URL for the dashboard. `.ai` TLD chosen to signal the AI domain to first-time visitors.
+- **Cognitive Structure Lab** — the public-facing website name and brand, hosted at **`cogstructurelab.com`**. Used in social posts, headlines, and the URL. Not a synonym for "LSB" — the two names have different jobs. See §1.6.
+- **cogstructurelab.com** — primary production URL for the dashboard.
+- **cogstructurelab.ai** — also owned; parked / redirects to **`cogstructurelab.com`** so legacy links and `.ai`-branded materials still resolve.
 - **Validation gate (G1 / G2 / G3)** — the three quantitative pass/fail criteria at the end of Phase 4. G1 = stability (within-model variance < between-model variance); G2 = signal (similarity matrix distinguishable from random, p < 0.01); G3 = replication (cluster structure reproduces across independent runs, Rand index ≥ 0.7). All three must pass before Phase 5 begins. See §5.3.
 - **Bootstrap ellipse** — the 95% confidence ellipse drawn around each model's MDS point, derived by resampling runs with replacement B=500 times. Every MDS plot in the dashboard renders these ellipses; bare point estimates are forbidden. See §4.2.6.
 - **GroundingRef** — the pydantic schema type that tracks the human CDA baseline injected as a virtual informant into the analysis pipeline. Fields include source citation, year, n_informants, MDS coordinates, and distance to nearest model. See §3.2.
-- **Phase 1a / Phase 1b** — the two sub-phases of collection. Phase 1a: pre-Mac Mini; Anthropic adapter only; API collection only. Phase 1b: post-June 2026; all adapters including Ollama local mirror; full 12-model slate. See §5.3.
-- **Three-axis filtering** — the model-selection and display filter applied to the 12-model slate: origin (US / EU / China) × openness (closed-weight / open-weight) × collection method (API / local mirror). The dashboard's `ModelFilter` component exposes all three axes. See §3.2, §4.5.
+- **Phase 1 (collection)** — unified phase: remote APIs only (Anthropic API, OpenRouter, Hugging Face Inference API) on project VPS; milestones A then B within §5.3. No Phase 1a/1b hardware split.
+- **Three-axis filtering** — the model-selection and display filter applied to the 12-model slate: origin (US / EU / China) × openness (closed-weight / open-weight) × collection method (`anthropic_api` / `openrouter` / `huggingface`). The dashboard's `ModelFilter` component exposes all three axes. See §3.2, §4.5.
 - **Spend cap three-tier defense** — the layered cost control: (1) `CDB_MAX_SPEND_USD` runtime cap in the collection runner, (2) per-provider account caps set in each provider's billing dashboard, (3) weekly `cost_report.py` run with projected-spend alerting. See §6.2.
 - **`cdb_publish`** — the Python package responsible for reading `data/results/` and writing pre-shaped static JSON files to `apps/dashboard/public/data/` at build time. Replaces the former `cdb_api` FastAPI service. See §4.4.
 
 ---
 
-*End of architecture document v0.4. Document is complete. Hand off to Architect agent to begin Phase 0.*
+*End of architecture document v0.5. Document is complete. Hand off to Architect agent to begin Phase 0.*
 
 ---
 
 ## v0.4 REVISION — PENDING EDITS CHECKLIST
 
-**Status of this document:** ✅ **v0.4 COMPLETE.** All sections are fully revised. Safe to hand to the Architect agent.
+**Status of this document:** ✅ **v0.5 current;** v0.4 checklist below retained for history. Safe to hand to the Architect agent.
 
 **Completed in the partial revision (already in this file when this session began):**
 
@@ -1105,14 +1110,14 @@ Listing these to keep the Coder agent from scope-creep:
 - [x] §4.4 — full rewrite of "API layer (`cdb_api`)" → "Publish layer (`cdb_publish`)"
 - [x] §4.5 Frontend — static JSON fetch note, CSP requirement (`connect-src 'self'`), reference to `SECURITY_AND_HARDENING.md` §3.1 and §3.3
 - [x] §5.2 CLAUDE.md additions — references to all five companion docs added
-- [x] §5.3 Phase plan — Phase 1 split into 1a/1b; Phase 5 FastAPI reference replaced with publish-layer + CSP; Phase 8 deliverables updated with license files, SECURITY.md, methodology page, cogstructurelab.ai deployment
+- [x] §5.3 Phase plan — Phase 1 unified (v0.5: Anthropic / OpenRouter / HF APIs); Phase 5 FastAPI reference replaced with publish-layer + CSP; Phase 8 deliverables updated with license files, SECURITY.md, methodology page, cogstructurelab.com deployment
 - [x] §6.2 Cost tracking — three-tier defense described in full
 - [x] §6.3 Secrets — YubiKey 5C NFC enrollment, ProtonMail security contact, password manager + recovery codes in fireproof safe
 - [x] NEW §6.6 — Licensing section with file-by-file table, Romney attribution requirement, three license files at repo root
 - [x] §7 — converted to Resolved decisions log; all 24 decisions marked resolved with resolution and implementation pointer
-- [x] §9 Glossary — added: LSB / Latent Structure Benchmark, Cognitive Structure Lab, cogstructurelab.ai, Validation Gate (G1/G2/G3), Bootstrap ellipse, GroundingRef, Phase 1a / Phase 1b, Three-axis filtering, Spend cap three-tier defense, `cdb_publish`
+- [x] §9 Glossary — added: LSB / Latent Structure Benchmark, Cognitive Structure Lab, cogstructurelab.com / .ai redirect, Validation Gate (G1/G2/G3), Bootstrap ellipse, GroundingRef, Phase 1 (unified collection), Three-axis filtering, Spend cap three-tier defense, `cdb_publish`
 
 **Companion docs to update after the architecture doc is complete:**
 
 - [ ] `PHASE_0_TASKS.md` — add P0-T9 (security scaffolding) and P0-T10 (CSP and security headers); add LICENSE file creation to P0-T2
-- [ ] `README.md` — does not yet exist; create stub with project name, one-paragraph description, license summary, link to `cogstructurelab.ai`
+- [ ] `README.md` — does not yet exist; create stub with project name, one-paragraph description, license summary, link to `cogstructurelab.com`
