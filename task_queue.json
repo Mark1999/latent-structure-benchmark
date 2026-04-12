@@ -1,12 +1,54 @@
 {
   "tasks": [
-    {"id": "P0-T1", "status": "done", "description": "Initialize repository scaffold"},
-    {"id": "P0-T2", "status": "pending", "description": "Drop in root documentation files"},
-    {"id": "P0-T3", "status": "pending", "description": "Implement cdb_core package"},
-    {"id": "P0-T4", "status": "pending", "description": "Scaffold sibling packages"},
-    {"id": "P0-T5", "status": "pending", "description": "CI pipeline"},
-    {"id": "P0-T6", "status": "pending", "description": "Tests directory scaffold"},
-    {"id": "P0-T7", "status": "pending", "description": "Dashboard scaffold"},
-    {"id": "P0-T8", "status": "pending", "description": "Entry-point scripts"}
+    {
+      "id": "P0-T1",
+      "status": "done",
+      "description": "Initialize repository scaffold"
+    },
+    {
+      "id": "P0-T2",
+      "status": "done",
+      "description": "Drop in root documentation files"
+    },
+    {
+      "id": "P0-T3",
+      "status": "done",
+      "description": "Implement cdb_core package"
+    },
+    {
+      "id": "P0-T4",
+      "status": "pending",
+      "description": "Scaffold sibling packages"
+    },
+    {
+      "id": "P0-T5",
+      "status": "pending",
+      "description": "CI pipeline"
+    },
+    {
+      "id": "P0-T6",
+      "status": "pending",
+      "description": "Tests directory scaffold"
+    },
+    {
+      "id": "P0-T7",
+      "status": "pending",
+      "description": "Dashboard scaffold"
+    },
+    {
+      "id": "P0-T8",
+      "status": "pending",
+      "description": "Entry-point scripts"
+    },
+    {
+      "id": "P0-T9",
+      "status": "pending",
+      "description": "Define InformantRecord schema and full data provenance architecture. Add to ARCHITECTURE.md §3.2. Covers: model identity record, collection conditions, verbatim prompt + response storage, SHA256 immutability hashing, pile sort matrix, pile interview transcript storage, and separation of raw vs derived data directories. This schema must be reviewed by CDA SME before Coder implements."
+    },
+    {
+      "id": "P0-T10",
+      "status": "pending",
+      "description": "Extend MVP collect.py with full InformantRecord provenance. Add pilesort.py and interview.py scripts implementing the complete three-step CDA protocol with immutable raw storage and SHA256 verification."
+    }
   ]
 }
