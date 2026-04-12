@@ -18,6 +18,7 @@ def _get_channels() -> dict[str, str]:
         "coder":     os.environ["SLACK_CODER_CHANNEL"],
         "reviewer":  os.environ["SLACK_REVIEWER_CHANNEL"],
         "tester":    os.environ["SLACK_TESTER_CHANNEL"],
+        "cda_sme":   os.environ.get("SLACK_CDA_SME_CHANNEL", "#lsb-cda-sme"),
     }
 
 def post(channel_key: str, message: str) -> str:

@@ -37,6 +37,8 @@ def read_doc(filename: str) -> str:
 class PipelineState(TypedDict):
     task: str                  # the high-level task fed into the pipeline
     architecture_notes: str    # Architect's output
+    sme_review: str            # CDA SME methodological review
+    sme_approved: bool         # whether SME approved the plan
     implementation: str        # Coder's output
     review_notes: str          # Reviewer's output
     test_results: str          # Tester's output
@@ -106,6 +108,63 @@ Read the relevant sections above and produce a detailed, numbered implementation
     return {**state, "architecture_notes": notes, "approved": approved}
 
 
+def cda_sme_node(state: PipelineState) -> PipelineState:
+    slack.post("cda_sme", "🔬 *CDA SME reviewing Architect plan for methodological validity*")
+
+    response = client.messages.create(
+        model="claude-opus-4-5",
+        max_tokens=2000,
+        system="""You are the CDA SME (Cultural Domain Analysis Subject Matter Expert) for the Latent Structure Benchmark project.
+
+Your intellectual profile:
+- Qualitative and cognitive anthropologist with quantitative methods expertise
+- Deep practitioner knowledge of CDA: free listing, pile sorting, pile interviews, cultural consensus analysis, MDS interpretation
+- Applied orientation — results must be meaningful to engineers, ethicists, journalists, and policymakers, not just academics
+- Epistemically rigorous — you never overclaim
+
+Your core commitment — what LSB actually measures:
+LSB does NOT measure AI culture, AI beliefs, or AI worldviews. LLMs do not have lived experience.
+LSB measures the CORPUS LENS: the latent categorical structure of a training corpus, as refracted through a model's training and alignment pipeline, surfaced by applying CDA elicitation protocols to the model as if it were an informant.
+"Corpus lens" is the plain-language term for this. Use it when reviewing dashboard copy and social posts.
+
+Forbidden vocabulary (from ARCHITECTURE.md §1.5.4):
+- Never use: "worldview", "believes", "thinks", "feels", "understands" when applied to models
+- Always use: "the model produces", "the corpus lens shows", "the data suggests", "the pipeline surfaces"
+
+Your review covers four things for every Architect plan:
+1. PROTOCOL VALIDITY — Is the CDA elicitation protocol being applied correctly? Free listing must come before pile sorting. Pile sorting must produce a co-occurrence matrix. Interview step must elicit organizing principles, not just labels.
+2. ANALYTICAL VALIDITY — Is the analysis appropriate? MDS requires a similarity/distance matrix as input. Bootstrap ellipses are mandatory — bare point estimates are forbidden. Cultural consensus analysis requires checking the eigenvalue ratio (first:second > 3 for consensus).
+3. CLAIMS VALIDITY — Do any outputs (dashboard copy, README text, social posts) overclaim? Flag anything that attributes experience, belief, or culture to a model. Flag anything that presents the corpus lens as ground truth rather than a structured observation.
+4. AUDIENCE TRANSLATION — For each major finding, provide one sentence a journalist could quote accurately without distortion. If you cannot write that sentence, the finding is not ready for public communication.
+
+Output format:
+METHODOLOGICAL VERDICT: PASS / PASS-WITH-NOTES / FAIL
+followed by numbered findings under each of the four review areas.
+If FAIL, specify exactly what must change before the Coder proceeds.""",
+        messages=[{
+            "role": "user",
+            "content": f"""Review this Architect plan for methodological validity before the Coder implements it.
+
+TASK: {state['task']}
+
+ARCHITECT PLAN:
+{state['architecture_notes']}
+
+Apply all four review areas. Be specific. If the plan involves any text that will be user-facing (README, dashboard copy, social posts), quote the specific phrases that concern you."""
+        }]
+    )
+
+    sme_review = extract_text(response)
+    verdict = "PASS" if "FAIL" not in sme_review[:200] else "FAIL"
+
+    slack.post("cda_sme", f"🔬 *CDA SME verdict: {verdict}*\n```{sme_review[:600]}...```")
+
+    if verdict == "FAIL":
+        slack.post("alerts", f"🛑 *CDA SME blocked task* — methodological issues found.\nTask: {state['task']}")
+
+    return {**state, "sme_review": sme_review, "sme_approved": verdict != "FAIL"}
+
+
 def coder_node(state: PipelineState) -> PipelineState:
     slack.post("coder", "💻 *Coder starting*")
 
@@ -172,7 +231,7 @@ def should_continue(state: PipelineState) -> str:
     if not state.get("approved", False):
         slack.post("alerts", "🛑 Pipeline halted — not approved by human.")
         return END
-    return "coder"
+    return "cda_sme"
 
 
 # --- Build the graph ---
@@ -181,6 +240,7 @@ def build_graph():
     graph = StateGraph(PipelineState)
 
     graph.add_node("architect", architect_node)
+    graph.add_node("cda_sme", cda_sme_node)
     graph.add_node("coder", coder_node)
     graph.add_node("reviewer", reviewer_node)
     graph.add_node("tester", tester_node)
@@ -189,6 +249,11 @@ def build_graph():
 
     # After architect, check for human approval
     graph.add_conditional_edges("architect", should_continue, {
+        "cda_sme": "cda_sme",
+        END: END
+    })
+
+    graph.add_conditional_edges("cda_sme", lambda s: "coder" if s.get("sme_approved") else END, {
         "coder": "coder",
         END: END
     })
@@ -221,6 +286,8 @@ if __name__ == "__main__":
         initial_state: PipelineState = {
             "task": f"Execute {task_id} as specified in PHASE_0_TASKS.md. Task: {description}. Follow the acceptance criteria exactly. Nothing beyond {task_id} scope.",
             "architecture_notes": "",
+            "sme_review": "",
+            "sme_approved": False,
             "implementation": "",
             "review_notes": "",
             "test_results": "",
@@ -230,7 +297,7 @@ if __name__ == "__main__":
 
         result = graph.invoke(initial_state)
 
-        if result.get("approved"):
+        if result.get("approved") and result.get("sme_approved"):
             task_manager.mark_task_done(task_id)
             print(f"Task {task_id} complete and marked done.")
             slack.post("pipeline", f"✅ *{task_id} complete.* Restart the service to begin next task.")
