@@ -1,0 +1,14 @@
+# LSB Dashboard Security Headers
+# Source of truth: SECURITY_AND_HARDENING.md §3.1 and §3.2
+#
+# Note: 'unsafe-inline' in style-src is accepted for v1 per resolved decision #22
+# in ARCHITECTURE.md §7. Tailwind CSS injects inline styles that the build can't
+# fully eliminate. If the build moves to fully external stylesheets, drop 'unsafe-inline'.
+
+/*
+  Content-Security-Policy: default-src 'self'; connect-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; font-src 'self'; frame-ancestors 'none'; base-uri 'self'; form-action 'self'; object-src 'none'; upgrade-insecure-requests
+  X-Frame-Options: DENY
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+  Strict-Transport-Security: max-age=31536000; includeSubDomains; preload
+  Permissions-Policy: camera=(), microphone=(), geolocation=(), interest-cohort=()

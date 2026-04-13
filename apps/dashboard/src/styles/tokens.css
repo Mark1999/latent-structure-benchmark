@@ -1,0 +1,94 @@
+/*
+ * LSB Design Tokens
+ * Source of truth: DESIGN_SYSTEM.md §1
+ * All visual decisions derive from these tokens.
+ * No hardcoded colors, font sizes, or spacing values anywhere in the codebase.
+ */
+
+:root {
+  /* ===== 1.1 Typography ===== */
+  --font-body: 'Lato', sans-serif;
+  --font-mono: 'JetBrains Mono', monospace;
+
+  --font-size-xs:   12px;
+  --font-size-sm:   14px;
+  --font-size-base: 16px;
+  --font-size-lg:   18px;
+  --font-size-xl:   24px;
+  --font-size-2xl:  32px;
+  --font-size-3xl:  48px;
+
+  --font-weight-regular: 400;
+  --font-weight-medium:  500;
+  --font-weight-bold:    700;
+
+  --line-height-tight: 1.3;
+  --line-height-body:  1.7;
+  --line-height-data:  1.4;
+
+  --max-prose-width: 680px;
+  --max-chart-width: 900px;
+
+  /* ===== 1.2 Color Palette ===== */
+
+  /* Primary data colors — encode meaning, never decorative */
+  --color-model-1: #3360a9;
+  --color-model-2: #c0392b;
+  --color-model-3: #e67e22;
+  --color-model-4: #27ae60;
+  --color-model-5: #8e44ad;
+  --color-model-6: #16a085;
+
+  /* Origin encoding (secondary, used alongside model colors) */
+  --color-origin-us: #3360a9;
+  --color-origin-eu: #27ae60;
+  --color-origin-cn: #c0392b;
+
+  /* Human baseline markers */
+  --color-baseline-published:  #2c3e50;
+  --color-baseline-researcher: #7f8c8d;
+
+  /* Uncertainty */
+  --color-ellipse-fill:   rgba(51, 96, 169, 0.08);
+  --color-ellipse-stroke: rgba(51, 96, 169, 0.25);
+
+  /* UI chrome */
+  --color-text-primary:   #2c3e50;
+  --color-text-secondary: #7f8c8d;
+  --color-text-muted:     #bdc3c7;
+  --color-border:         #dde1e7;
+  --color-background:     #ffffff;
+  --color-surface:        #f8f9fa;
+  --color-surface-hover:  #f0f2f5;
+
+  /* Semantic */
+  --color-success: #27ae60;
+  --color-warning: #f39c12;
+  --color-error:   #c0392b;
+  --color-info:    #3360a9;
+
+  /* ===== 1.3 Spacing ===== */
+  --space-1:   4px;
+  --space-2:   8px;
+  --space-3:   12px;
+  --space-4:   16px;
+  --space-6:   24px;
+  --space-8:   32px;
+  --space-10:  40px;
+  --space-12:  48px;
+  --space-16:  64px;
+  --space-20:  80px;
+  --space-24:  96px;
+
+  /* ===== 1.4 Elevation and Borders ===== */
+  --border-radius-sm: 4px;
+  --border-radius-md: 8px;
+  --border-radius-lg: 12px;
+
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.06);
+  --shadow-md: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --shadow-lg: 0 8px 24px rgba(0, 0, 0, 0.10);
+
+  --border-width: 1px;
+  --border-color: var(--color-border);
+}
