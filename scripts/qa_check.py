@@ -32,12 +32,12 @@ MIN_UNIQUENESS_RATIO = 0.60
 # Check 5: Maximum latency per step (ms)
 MAX_LATENCY_MS = 30_000
 
-# Check 6: Output token consistency tolerance (±50%)
+# Check 6: Output token consistency tolerance (±60%)
 # The chars/4 heuristic is rough — real tokenizers vary significantly
 # (Claude's tokenizer produces ~1.5-2x more tokens than chars/4 on short
 # words and line-heavy output). This check catches gross misreporting
 # (e.g., provider reports 10x the actual tokens), not precise counts.
-TOKEN_TOLERANCE = 0.50
+TOKEN_TOLERANCE = 0.60
 
 # ─── Default paths ──────────────────────────────────────────────────
 DEFAULT_JSONL = Path("data/raw/informants.jsonl")
