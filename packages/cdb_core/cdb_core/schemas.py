@@ -231,6 +231,7 @@ class PileSortRecord(BaseModel):
     stop_reason: str
     parsed_piles: list[list[str]]
     parsed_matrix: list[list[int]]
+    item_source: str = "own_freelist"
 
 
 class InterviewRecord(BaseModel):
@@ -281,6 +282,7 @@ class InformantRecord(BaseModel):
 
     # ── Collection conditions ──
     collection_method: Literal["anthropic_api", "openrouter", "huggingface"]
+    collection_mode: Literal["single_pass", "two_pass", "baseline_items"] = "single_pass"
     api_endpoint: str
     api_version: str
     temperature: float

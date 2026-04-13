@@ -420,3 +420,106 @@ def test_informant_record_sha256_manifest_keys():
         qa_passed=True,
     )
     assert set(obj.sha256_manifest.keys()) == expected_keys
+
+
+def test_pilesort_item_source_default():
+    """PileSortRecord.item_source defaults to 'own_freelist'."""
+    obj = _pilesort_record()
+    assert obj.item_source == "own_freelist"
+
+
+def test_pilesort_item_source_consensus():
+    obj = PileSortRecord(
+        prompt_verbatim="test",
+        prompt_version="v1",
+        response_verbatim="test",
+        response_object_json={},
+        input_tokens=10,
+        output_tokens=10,
+        latency_ms=100,
+        stop_reason="end_turn",
+        parsed_piles=[["a", "b"]],
+        parsed_matrix=[[1, 1], [1, 1]],
+        item_source="consensus:claude-opus-4-6",
+    )
+    assert obj.item_source == "consensus:claude-opus-4-6"
+    json_str = obj.model_dump_json()
+    restored = PileSortRecord.model_validate_json(json_str)
+    assert restored.item_source == "consensus:claude-opus-4-6"
+
+
+def test_informant_record_collection_mode_default():
+    """InformantRecord.collection_mode defaults to 'single_pass'."""
+    obj = InformantRecord(
+        informant_id="test",
+        domain_slug="family",
+        run_index=0,
+        collection_date=datetime(2026, 1, 1),
+        model_id="test-model",
+        model_version_returned="test-model-v1",
+        family="test",
+        provider="anthropic",
+        provider_request_id="req_test",
+        knowledge_cutoff=None,
+        open_weights=False,
+        origin_country="us",
+        alignment_method=None,
+        collection_method="anthropic_api",
+        api_endpoint="https://api.anthropic.com/v1/messages",
+        api_version="2023-06-01",
+        temperature=0.7,
+        top_p=None,
+        max_tokens=4096,
+        system_prompt="",
+        freelist=_freelist_record(),
+        pile_sort=_pilesort_record(),
+        interview=_interview_record(),
+        sha256_manifest={k: "0" * 64 for k in [
+            "freelist_prompt", "freelist_response",
+            "pilesort_prompt", "pilesort_response",
+            "interview_prompt", "interview_response",
+            "request_params", "informant_record_total",
+        ]},
+        qa_passed=True,
+    )
+    assert obj.collection_mode == "single_pass"
+
+
+def test_informant_record_collection_mode_two_pass():
+    obj = InformantRecord(
+        informant_id="test",
+        domain_slug="family",
+        run_index=0,
+        collection_date=datetime(2026, 1, 1),
+        model_id="test-model",
+        model_version_returned="test-model-v1",
+        family="test",
+        provider="anthropic",
+        provider_request_id="req_test",
+        knowledge_cutoff=None,
+        open_weights=False,
+        origin_country="us",
+        alignment_method=None,
+        collection_method="anthropic_api",
+        collection_mode="two_pass",
+        api_endpoint="https://api.anthropic.com/v1/messages",
+        api_version="2023-06-01",
+        temperature=0.7,
+        top_p=None,
+        max_tokens=4096,
+        system_prompt="",
+        freelist=_freelist_record(),
+        pile_sort=_pilesort_record(),
+        interview=_interview_record(),
+        sha256_manifest={k: "0" * 64 for k in [
+            "freelist_prompt", "freelist_response",
+            "pilesort_prompt", "pilesort_response",
+            "interview_prompt", "interview_response",
+            "request_params", "informant_record_total",
+        ]},
+        qa_passed=True,
+    )
+    assert obj.collection_mode == "two_pass"
+    json_str = obj.model_dump_json()
+    restored = InformantRecord.model_validate_json(json_str)
+    assert restored.collection_mode == "two_pass"

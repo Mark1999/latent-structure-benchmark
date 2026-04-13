@@ -67,6 +67,7 @@ The bundle is hosted on Backblaze B2, mirrored to HuggingFace Datasets, and DOI-
 | Field | Type | Required | Semantics |
 |---|---|---|---|
 | `collection_method` | `Literal` | Yes | One of `anthropic_api`, `openrouter`, `huggingface`. Which of the three remote integration points served this run. The same logical model may appear under multiple methods if invoked through multiple gateways; those rows differ by `collection_method` and possibly by `model_id`. |
+| `collection_mode` | `Literal` | No | One of `single_pass`, `two_pass`, `baseline_items`. Default `single_pass`. Specifies the collection strategy: `single_pass` = each run generates and sorts its own free list items (end-to-end model behavior); `two_pass` = free lists are collected first, aggregated into a consensus item list via Smith's S, then pile sorts use that consensus list (standard CDA methodology per Borgatti); `baseline_items` = pile sort uses items from a human baseline (e.g., Romney 1996) for direct model-to-human comparison. |
 | `api_endpoint` | `str` | Yes | Full URL of the endpoint actually called. Includes the path. |
 | `api_version` | `str` | Yes | Provider API version header. Anthropic example: `2023-06-01`. |
 | `temperature` | `float` | Yes | Sampling temperature used. LSB uses `0.7` for free listing and `0.3` for pile sorting per `ARCHITECTURE.md` §4.1.3. |
@@ -114,7 +115,7 @@ The free listing step asks the model to enumerate every item it can think of in 
 
 ### 1.3 PileSortRecord (CDA Step 2)
 
-The pile sort step asks the model to group the items from the free list into similarity-based piles. The model receives the truncated salient list from Step 1 (same run) and is asked to sort it.
+The pile sort step asks the model to group items into similarity-based piles. The items may come from the model's own free list (single-pass), a consensus free list aggregated across multiple free-list runs (two-pass), or a human baseline item set (baseline-items mode). The `item_source` field records which source was used.
 
 | Field | Type | Required | Semantics |
 |---|---|---|---|
@@ -128,6 +129,7 @@ The pile sort step asks the model to group the items from the free list into sim
 | `stop_reason` | `str` | Yes | Same semantics. |
 | `parsed_piles` | `list[list[str]]` | Yes | Each inner list is one pile. Item order within a pile is not significant. The union of all inner lists must equal the input item set (the model is required to put every item somewhere). |
 | `parsed_matrix` | `list[list[int]]` | Yes | Binary symmetric item × item co-occurrence matrix derived from `parsed_piles`. `matrix[i][j] == 1` iff items `i` and `j` are in the same pile. Diagonal is `1`. Symmetric. |
+| `item_source` | `str` | No | Default `own_freelist`. Records where the pile sort items came from. Values: `own_freelist` (single-pass: items from this run's free list), `consensus:{model_id}` (two-pass: items from the consensus free list of that model's free-list runs, ranked by Smith's S), `baseline:{baseline_id}` (items from a human baseline's `items.txt`, e.g., `baseline:romney_1996`). |
 
 ### 1.4 InterviewRecord (CDA Step 3)
 
