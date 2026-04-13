@@ -43,9 +43,16 @@ def build_cooccurrence_matrix(
             )
 
     # Collect the union of all items across runs (sorted for determinism)
+    # Use freelist items when available, fall back to pile sort items
+    # (two-pass/baseline records have placeholder free lists)
     all_items: set[str] = set()
     for r in records:
-        all_items.update(r.freelist.parsed_items)
+        if r.freelist.parsed_items:
+            all_items.update(r.freelist.parsed_items)
+        else:
+            # Extract items from pile sort piles
+            for pile in r.pile_sort.parsed_piles:
+                all_items.update(pile)
     items = sorted(all_items)
 
     n_items = len(items)
@@ -55,12 +62,15 @@ def build_cooccurrence_matrix(
     present_count = [[0] * n_items for _ in range(n_items)]
 
     for r in records:
-        # Build a set of item indices present in this run
-        run_items = set(r.freelist.parsed_items)
+        # Build the item list for this run from freelist or pile sort
+        if r.freelist.parsed_items:
+            run_item_list = r.freelist.parsed_items
+        else:
+            run_item_list = []
+            for pile in r.pile_sort.parsed_piles:
+                run_item_list.extend(pile)
 
-        # For each pair of items present in this run,
-        # check if they co-occur in the pile sort matrix
-        run_item_list = r.freelist.parsed_items
+        run_items = set(run_item_list)
         run_idx_map = {item: i for i, item in enumerate(run_item_list)}
 
         for i_global, item_i in enumerate(items):

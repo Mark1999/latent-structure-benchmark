@@ -64,7 +64,10 @@ class QAFailure:
 
 
 def check_1_freelist_count(record: InformantRecord) -> QAFailure | None:
-    """Free-list item count >= MIN_FREELIST_ITEMS."""
+    """Free-list item count >= MIN_FREELIST_ITEMS. Skips if free list not collected."""
+    # In two-pass/baseline modes, pile-sort-phase records have placeholder free lists
+    if record.freelist.stop_reason == "not_collected":
+        return None
     count = len(record.freelist.parsed_items)
     if count < MIN_FREELIST_ITEMS:
         return QAFailure(
