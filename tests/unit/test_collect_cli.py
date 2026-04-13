@@ -4,51 +4,21 @@ from __future__ import annotations
 
 import asyncio
 import tempfile
+from datetime import datetime
 from pathlib import Path
 from unittest.mock import AsyncMock, patch
 
-from scripts.collect import collect
+from cdb_core import FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord
+
+# Reuse model registry from collect.py
+from scripts.collect import MODEL_REGISTRY, collect_single_pass
 
 
-def test_dry_run(capsys):
-    result = asyncio.run(
-        collect(
-            model_id="claude-opus-4-6",
-            domain_slug="family",
-            runs=3,
-            dry_run=True,
-        )
-    )
-    assert result == 0
-    captured = capsys.readouterr()
-    assert "DRY RUN" in captured.out
-    assert "claude-opus-4-6" in captured.out
-    assert "family" in captured.out
-
-
-def test_unknown_model(capsys):
-    result = asyncio.run(
-        collect(
-            model_id="nonexistent-model-xyz",
-            domain_slug="family",
-            runs=1,
-        )
-    )
-    assert result == 0
-    captured = capsys.readouterr()
-    assert "Unknown model" in captured.err
-
-
-def test_collect_with_mock_adapter(capsys):
-    """Test that collect runs the runner the correct number of times."""
-    from datetime import datetime
-
-    from cdb_core import FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord
-
-    mock_record = InformantRecord(
-        informant_id="test_0",
+def _mock_record(run_index: int = 0) -> InformantRecord:
+    return InformantRecord(
+        informant_id=f"test_{run_index}",
         domain_slug="family",
-        run_index=0,
+        run_index=run_index,
         collection_date=datetime(2026, 4, 13),
         model_id="claude-opus-4-6",
         model_version_returned="claude-opus-4-6-20260401",
@@ -64,7 +34,7 @@ def test_collect_with_mock_adapter(capsys):
         api_version="2023-06-01",
         temperature=0.7,
         top_p=None,
-        max_tokens=4096,
+        max_tokens=16384,
         system_prompt="",
         freelist=FreelistRecord(
             prompt_verbatim="test",
@@ -79,16 +49,19 @@ def test_collect_with_mock_adapter(capsys):
             parsed_raw_order=[f"item{i}" for i in range(15)],
         ),
         pile_sort=PileSortRecord(
-            prompt_verbatim="", prompt_version="v1",
-            response_verbatim="", response_object_json={},
-            input_tokens=0, output_tokens=0, latency_ms=0,
-            stop_reason="not_collected", parsed_piles=[], parsed_matrix=[],
+            prompt_verbatim="test", prompt_version="v1",
+            response_verbatim="test", response_object_json={},
+            input_tokens=50, output_tokens=20, latency_ms=300,
+            stop_reason="end_turn",
+            parsed_piles=[["item0", "item1"], ["item2"]],
+            parsed_matrix=[[1, 1, 0], [1, 1, 0], [0, 0, 1]],
         ),
         interview=InterviewRecord(
-            prompt_verbatim="", prompt_version="v1",
-            response_verbatim="", response_object_json={},
-            input_tokens=0, output_tokens=0, latency_ms=0,
-            stop_reason="not_collected", parsed_pile_labels=[],
+            prompt_verbatim="test", prompt_version="v1",
+            response_verbatim="test", response_object_json={},
+            input_tokens=30, output_tokens=10, latency_ms=150,
+            stop_reason="end_turn",
+            parsed_pile_labels=["Group A", "Group B"],
         ),
         sha256_manifest={k: "a" * 64 for k in [
             "freelist_prompt", "freelist_response",
@@ -100,21 +73,46 @@ def test_collect_with_mock_adapter(capsys):
         qa_notes="",
     )
 
+
+def test_single_pass_with_mock():
+    from cdb_collect.adapters.anthropic import AnthropicAdapter
+    adapter = AnthropicAdapter(MODEL_REGISTRY["claude-opus-4-6"], api_key="test")
+
     with tempfile.TemporaryDirectory() as td:
         output = Path(td) / "test.jsonl"
-
         with patch(
             "scripts.collect.run_informant",
             new_callable=AsyncMock,
-            return_value=mock_record,
+            return_value=_mock_record(),
         ):
             result = asyncio.run(
-                collect(
-                    model_id="claude-opus-4-6",
-                    domain_slug="family",
-                    runs=2,
-                    output_path=output,
-                )
+                collect_single_pass(adapter, "family", 2, output)
             )
-
     assert result == 2
+
+
+def test_cli_dry_run(capsys):
+    """Test that --dry-run prints plan without API calls."""
+    import sys
+    with patch.object(sys, "argv", [
+        "collect.py", "--domain", "family", "--dry-run",
+    ]):
+        from scripts.collect import main
+        code = main()
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "DRY RUN" in captured.out
+    assert "single_pass" in captured.out
+
+
+def test_cli_dry_run_two_pass(capsys):
+    import sys
+    with patch.object(sys, "argv", [
+        "collect.py", "--domain", "family",
+        "--mode", "two_pass", "--dry-run",
+    ]):
+        from scripts.collect import main
+        code = main()
+    assert code == 0
+    captured = capsys.readouterr()
+    assert "two_pass" in captured.out

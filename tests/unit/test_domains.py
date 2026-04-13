@@ -12,7 +12,7 @@ def test_load_family_domain():
     assert domain.version == "v1"
     assert domain.display_name == "Family Terms"
     assert domain.prompt_seed == "type of family relationship or family member"
-    assert domain.truncation_k == 25
+    assert domain.truncation_k == 50
 
 
 def test_load_nonexistent_domain():

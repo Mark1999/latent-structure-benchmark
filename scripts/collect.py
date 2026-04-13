@@ -3,8 +3,9 @@
 See ARCHITECTURE.md §4.1.
 
 Usage:
-    python scripts/collect.py --domain family --runs 5
-    python scripts/collect.py --model claude-opus-4-6 --domain family
+    python scripts/collect.py --domain family --runs 10
+    python scripts/collect.py --domain family --mode two_pass --free-lists 10 --pile-sorts 10
+    python scripts/collect.py --domain family --mode baseline --baseline romney_1996 --pile-sorts 10
     python scripts/collect.py --domain family --dry-run
 """
 
@@ -18,9 +19,10 @@ from datetime import date
 from pathlib import Path
 
 from cdb_collect.adapters.anthropic import AnthropicAdapter
+from cdb_collect.baselines import load_baseline_items
 from cdb_collect.domains import load_domain
 from cdb_collect.jsonl import append_failure, append_record
-from cdb_collect.runner import run_informant
+from cdb_collect.runner import run_baseline_sort, run_informant, run_two_pass
 from cdb_collect.spend import check_spend, get_monthly_spend
 from cdb_core import ModelRef
 from dotenv import load_dotenv
@@ -28,7 +30,6 @@ from dotenv import load_dotenv
 try:
     from scripts.qa_check import check_record
 except ModuleNotFoundError:
-    # When run directly as `python scripts/collect.py`, adjust the path
     import importlib.util
     _spec = importlib.util.spec_from_file_location(
         "qa_check", Path(__file__).parent / "qa_check.py",
@@ -44,7 +45,6 @@ logger = logging.getLogger(__name__)
 DEFAULT_JSONL = Path("data/raw/informants.jsonl")
 FAILURES_JSONL = Path("data/raw/failures.jsonl")
 
-# Milestone A: single model definition
 MODEL_REGISTRY: dict[str, ModelRef] = {
     "claude-opus-4-6": ModelRef(
         provider="anthropic",
@@ -60,91 +60,142 @@ MODEL_REGISTRY: dict[str, ModelRef] = {
 }
 
 
-async def collect(
-    model_id: str,
+async def collect_single_pass(
+    adapter: AnthropicAdapter,
     domain_slug: str,
     runs: int,
-    dry_run: bool = False,
-    output_path: Path = DEFAULT_JSONL,
+    output_path: Path,
 ) -> int:
-    """Run collection for the given model and domain.
-
-    Returns the number of successful runs.
-    """
-    model_ref = MODEL_REGISTRY.get(model_id)
-    if model_ref is None:
-        print(f"Unknown model: {model_id}", file=sys.stderr)
-        print(f"Available: {', '.join(MODEL_REGISTRY.keys())}", file=sys.stderr)
-        return 0
-
+    """Single-pass collection: each run generates and sorts its own items."""
     domain = load_domain(domain_slug)
-
-    if dry_run:
-        print(f"DRY RUN — would collect {runs} run(s)")
-        print(f"  Model:  {model_id}")
-        print(f"  Domain: {domain_slug} ({domain.display_name})")
-        print(f"  Prompt seed: {domain.prompt_seed!r}")
-        print(f"  Truncation K: {domain.truncation_k}")
-        print(f"  Output: {output_path}")
-
-        monthly = get_monthly_spend(output_path)
-        status = check_spend(monthly)
-        print(f"  Monthly spend: ${monthly:.2f} (status: {status})")
-        return 0
-
-    adapter = AnthropicAdapter(model_ref)
     successful = 0
 
     for run_index in range(runs):
-        # Check spend cap before each run
         monthly = get_monthly_spend(output_path)
         status = check_spend(monthly)
-
         if status == "halt":
-            print(
-                f"SPEND CAP REACHED (${monthly:.2f}). Halting collection.",
-                file=sys.stderr,
-            )
+            print(f"SPEND CAP REACHED (${monthly:.2f}).", file=sys.stderr)
             break
-
         if status == "warning":
-            logger.warning(
-                "Spend at 80%%+ of cap: $%.2f", monthly,
-            )
+            logger.warning("Spend at 80%%+ of cap: $%.2f", monthly)
 
         print(
             f"Run {run_index + 1}/{runs} — "
-            f"{model_id} × {domain_slug}...",
-            end=" ",
-            flush=True,
+            f"{adapter.model.model_id} × {domain_slug}...",
+            end=" ", flush=True,
         )
 
         try:
-            record = await run_informant(
-                adapter, domain, run_index,
-            )
+            record = await run_informant(adapter, domain, run_index)
             append_record(record, output_path)
-
-            # Run QA check
             qa_passed = check_record(record)
             status_str = "PASS" if qa_passed else "QA_FAIL"
-            print(
-                f"{status_str} — "
-                f"{len(record.freelist.parsed_items)} items, "
-                f"{record.freelist.latency_ms}ms"
-            )
+            n_items = len(record.freelist.parsed_items)
+            n_piles = len(record.pile_sort.parsed_piles)
+            print(f"{status_str} — {n_items} items, {n_piles} piles")
             successful += 1
-
         except Exception as e:
             print(f"ERROR: {e}", file=sys.stderr)
-            logger.exception("Collection failed for run %d", run_index)
-            append_failure(
-                e,
-                {"model_id": model_id, "domain": domain_slug, "run_index": run_index},
-                FAILURES_JSONL,
-            )
+            logger.exception("Run %d failed", run_index)
+            append_failure(e, {
+                "model_id": adapter.model.model_id,
+                "domain": domain_slug, "run_index": run_index,
+            }, FAILURES_JSONL)
 
-    print(f"\nDone: {successful}/{runs} runs completed.")
+    return successful
+
+
+async def collect_two_pass(
+    adapter: AnthropicAdapter,
+    domain_slug: str,
+    n_free_lists: int,
+    n_pile_sorts: int,
+    output_path: Path,
+) -> int:
+    """Two-pass collection: free lists → consensus → pile sorts."""
+    domain = load_domain(domain_slug)
+    total = n_free_lists + n_pile_sorts
+
+    print(
+        f"TWO-PASS MODE: {n_free_lists} free lists → consensus → "
+        f"{n_pile_sorts} pile sorts"
+    )
+    print(f"  Model:  {adapter.model.model_id}")
+    print(f"  Domain: {domain_slug} ({domain.display_name})")
+    print(f"  Truncation K: {domain.truncation_k}")
+    print()
+
+    try:
+        records = await run_two_pass(
+            adapter, domain,
+            n_free_lists=n_free_lists,
+            n_pile_sorts=n_pile_sorts,
+        )
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        logger.exception("Two-pass collection failed")
+        append_failure(e, {
+            "model_id": adapter.model.model_id,
+            "domain": domain_slug, "mode": "two_pass",
+        }, FAILURES_JSONL)
+        return 0
+
+    successful = 0
+    for record in records:
+        append_record(record, output_path)
+        qa_passed = check_record(record)
+        mode_label = "FL" if record.pile_sort.stop_reason == "not_collected" else "PS"
+        status_str = "PASS" if qa_passed else "QA_FAIL"
+        print(f"  [{mode_label}] {record.informant_id} — {status_str}")
+        successful += 1
+
+    print(f"\nDone: {successful}/{total} records written.")
+    return successful
+
+
+async def collect_baseline(
+    adapter: AnthropicAdapter,
+    domain_slug: str,
+    baseline_id: str,
+    n_sorts: int,
+    output_path: Path,
+) -> int:
+    """Baseline collection: sort human baseline items."""
+    domain = load_domain(domain_slug)
+    items = load_baseline_items(domain_slug, baseline_id)
+
+    print(f"BASELINE MODE: sorting {len(items)} items from {baseline_id}")
+    print(f"  Model:  {adapter.model.model_id}")
+    print(f"  Domain: {domain_slug}")
+    print(f"  Items:  {items[:5]}{'...' if len(items) > 5 else ''}")
+    print()
+
+    try:
+        records = await run_baseline_sort(
+            adapter, domain,
+            items=items,
+            baseline_id=baseline_id,
+            n_sorts=n_sorts,
+        )
+    except Exception as e:
+        print(f"ERROR: {e}", file=sys.stderr)
+        logger.exception("Baseline collection failed")
+        append_failure(e, {
+            "model_id": adapter.model.model_id,
+            "domain": domain_slug, "baseline": baseline_id,
+        }, FAILURES_JSONL)
+        return 0
+
+    successful = 0
+    for record in records:
+        append_record(record, output_path)
+        qa_passed = check_record(record)
+        status_str = "PASS" if qa_passed else "QA_FAIL"
+        n_piles = len(record.pile_sort.parsed_piles)
+        print(f"  {record.informant_id} — {status_str} ({n_piles} piles)")
+        successful += 1
+
+    print(f"\nDone: {successful}/{n_sorts} records written.")
     return successful
 
 
@@ -160,7 +211,24 @@ def main() -> int:
         help="Model ID (default: claude-opus-4-6)",
     )
     parser.add_argument(
-        "--runs", type=int, default=5, help="Number of runs (default: 5)",
+        "--mode", choices=["single_pass", "two_pass", "baseline"],
+        default="single_pass", help="Collection mode",
+    )
+    parser.add_argument(
+        "--runs", type=int, default=10,
+        help="Number of runs for single_pass mode (default: 10)",
+    )
+    parser.add_argument(
+        "--free-lists", type=int, default=10,
+        help="Number of free lists for two_pass mode (default: 10)",
+    )
+    parser.add_argument(
+        "--pile-sorts", type=int, default=10,
+        help="Number of pile sorts for two_pass/baseline mode (default: 10)",
+    )
+    parser.add_argument(
+        "--baseline", type=str, default=None,
+        help="Baseline ID for baseline mode (e.g., romney_1996)",
     )
     parser.add_argument(
         "--dry-run", action="store_true",
@@ -178,17 +246,54 @@ def main() -> int:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    result = asyncio.run(
-        collect(
-            model_id=args.model,
-            domain_slug=args.domain,
-            runs=args.runs,
-            dry_run=args.dry_run,
-            output_path=args.output,
-        )
-    )
+    model_ref = MODEL_REGISTRY.get(args.model)
+    if model_ref is None:
+        print(f"Unknown model: {args.model}", file=sys.stderr)
+        print(f"Available: {', '.join(MODEL_REGISTRY.keys())}", file=sys.stderr)
+        return 1
 
-    return 0 if result >= 0 else 1
+    domain = load_domain(args.domain)
+
+    if args.dry_run:
+        print(f"DRY RUN — mode: {args.mode}")
+        print(f"  Model:  {args.model}")
+        print(f"  Domain: {args.domain} ({domain.display_name})")
+        print(f"  Truncation K: {domain.truncation_k}")
+        if args.mode == "single_pass":
+            print(f"  Runs: {args.runs}")
+        elif args.mode == "two_pass":
+            print(f"  Free lists: {args.free_lists}")
+            print(f"  Pile sorts: {args.pile_sorts}")
+        elif args.mode == "baseline":
+            print(f"  Baseline: {args.baseline}")
+            print(f"  Pile sorts: {args.pile_sorts}")
+        monthly = get_monthly_spend(args.output)
+        status = check_spend(monthly)
+        print(f"  Monthly spend: ${monthly:.2f} (status: {status})")
+        return 0
+
+    if args.mode == "baseline" and not args.baseline:
+        print("--baseline is required for baseline mode", file=sys.stderr)
+        return 1
+
+    adapter = AnthropicAdapter(model_ref)
+
+    if args.mode == "single_pass":
+        result = asyncio.run(collect_single_pass(
+            adapter, args.domain, args.runs, args.output,
+        ))
+    elif args.mode == "two_pass":
+        result = asyncio.run(collect_two_pass(
+            adapter, args.domain, args.free_lists, args.pile_sorts, args.output,
+        ))
+    elif args.mode == "baseline":
+        result = asyncio.run(collect_baseline(
+            adapter, args.domain, args.baseline, args.pile_sorts, args.output,
+        ))
+    else:
+        return 1
+
+    return 0 if result > 0 else 1
 
 
 if __name__ == "__main__":
