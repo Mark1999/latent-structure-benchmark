@@ -1,0 +1,6 @@
+[project]
+name = "cdb-collect"
+version = "0.1.0"
+description = "Data collection layer for LSB"
+requires-python = ">=3.11"
+dependencies = []

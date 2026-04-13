@@ -1,0 +1,6 @@
+[project]
+name = "cdb-publish"
+version = "0.1.0"
+description = "Static JSON build layer for the LSB dashboard"
+requires-python = ">=3.11"
+dependencies = []

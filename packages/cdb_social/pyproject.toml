@@ -1,0 +1,6 @@
+[project]
+name = "cdb-social"
+version = "0.1.0"
+description = "Social publishing pipeline for LSB"
+requires-python = ">=3.11"
+dependencies = []

@@ -1,14 +1,23 @@
 [project]
-name = "lsb-agent"
+name = "lsb"
 version = "0.1.0"
-description = "Add your description here"
+description = "Latent Structure Benchmark — corpus lens analysis of LLMs via Cultural Domain Analysis"
 readme = "README.md"
-requires-python = ">=3.12"
+requires-python = ">=3.11"
 dependencies = [
+    # Scratch-file dependencies (orchestrator.py, main.py, slack_helper.py).
+    # These predate the formal architecture and will be cleaned up
+    # when scratch files are migrated or removed post-Phase 0.
     "anthropic>=0.94.0",
     "langgraph>=1.1.6",
     "python-dotenv>=1.2.2",
     "slack-sdk>=3.41.0",
+    # Workspace packages
+    "cdb-core",
+    "cdb-collect",
+    "cdb-analyze",
+    "cdb-publish",
+    "cdb-social",
 ]
 
 [dependency-groups]
@@ -17,3 +26,32 @@ dev = [
     "pytest>=9.0.3",
     "ruff>=0.15.10",
 ]
+
+[tool.uv.workspace]
+members = [
+    "packages/cdb_core",
+    "packages/cdb_collect",
+    "packages/cdb_analyze",
+    "packages/cdb_publish",
+    "packages/cdb_social",
+]
+
+[tool.uv.sources]
+cdb-core = { workspace = true }
+cdb-collect = { workspace = true }
+cdb-analyze = { workspace = true }
+cdb-publish = { workspace = true }
+cdb-social = { workspace = true }
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "UP", "B", "SIM"]
+
+[tool.mypy]
+python_version = "3.11"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = false

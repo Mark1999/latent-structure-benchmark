@@ -1,0 +1,6 @@
+[project]
+name = "cdb-analyze"
+version = "0.1.0"
+description = "Analysis layer for LSB (no LLM calls — see ARCHITECTURE.md §4.2)"
+requires-python = ">=3.11"
+dependencies = []

@@ -1,14 +1,35 @@
-# Python-generated files
+# Python
 __pycache__/
-*.py[oc]
+*.py[cod]
+*.egg-info/
 build/
 dist/
 wheels/
-*.egg-info
-.env
-.venv/
-*.pyc
-*.pyo
-.DS_Store
+*.egg
+
 # Virtual environments
-.venv
+.venv/
+
+# Environment
+.env
+
+# Data — raw and processed are git-ignored; results and grounding are tracked
+data/raw/
+data/processed/
+
+# Note: data/cost_reports/*.txt is NOT ignored (git-tracked per ARCHITECTURE.md §6.2)
+
+# Dashboard build artifacts
+apps/dashboard/dist/
+apps/dashboard/.vite/
+node_modules/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# IDE
+.idea/
+*.swp
+*.swo
+*~
