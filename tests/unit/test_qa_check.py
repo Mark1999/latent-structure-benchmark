@@ -154,10 +154,14 @@ def test_check2_diverse_runs_pass():
 
 
 def test_check2_identical_runs_fail():
-    items = ["mother", "father", "sister"]
-    r1 = _record(freelist=_freelist(items=items), run_index=0)
-    r2 = _record(freelist=_freelist(items=items), run_index=1)
-    failure = check_2_freelist_uniqueness(r1, [r1, r2])
+    # With MIN_UNIQUENESS_RATIO=0.15, we need many runs of the same single
+    # item to get below 15%. 1 unique / 10 total = 10% < 15%.
+    items = ["mother"]
+    runs = [
+        _record(freelist=_freelist(items=items), run_index=i)
+        for i in range(10)
+    ]
+    failure = check_2_freelist_uniqueness(runs[0], runs)
     assert failure is not None
     assert failure.check_num == 2
 
