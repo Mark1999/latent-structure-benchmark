@@ -763,7 +763,7 @@ End every test output with a TESTER VERDICT line per the user instructions.""",
         # because the test code itself is the deliverable. Default to PASS but log it.
         slack.post(
             "tester",
-            f"⚠️ *Tester produced no parseable verdict* — defaulting to PASS. Mark should review."
+            "⚠️ *Tester produced no parseable verdict* — defaulting to PASS. Mark should review."
         )
         approved = True
 
@@ -829,8 +829,8 @@ def route_after_sme(state: PipelineState) -> str:
     if any(signal in task_lower for signal in _FRONTEND_KEYWORDS):
         slack.post(
             "ui_ux",
-            f"⚠️ Architect did not declare TASK_TYPE: FRONTEND, but task description "
-            f"suggests it's a frontend task. Routing through UI/UX gate as a precaution."
+            "⚠️ Architect did not declare TASK_TYPE: FRONTEND, but task description "
+            "suggests it's a frontend task. Routing through UI/UX gate as a precaution."
         )
         return "ui_ux"
 
