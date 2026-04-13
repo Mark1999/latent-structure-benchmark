@@ -1,4 +1,9 @@
-"""Collection orchestrator — runs the three-step CDA protocol for a (model, domain) pair.
+"""Collection orchestrator — runs the CDA protocol for a (model, domain) pair.
+
+Supports three collection modes:
+- single_pass: each run generates and sorts its own items (end-to-end model behavior)
+- two_pass: free lists first → consensus item list → pile sorts on consensus items
+- baseline_items: pile sorts on a provided human baseline item list
 
 See ARCHITECTURE.md §4.1.
 """
@@ -8,10 +13,11 @@ from __future__ import annotations
 import hashlib
 import logging
 from datetime import datetime
+from typing import Literal
 
-from cdb_core import Domain, InformantRecord
+from cdb_core import Domain, FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord
 
-from cdb_collect.adapters.base import ModelAdapter
+from cdb_collect.adapters.base import AdapterResult, ModelAdapter
 from cdb_collect.manifest import compute_manifest
 from cdb_collect.protocol.free_list import run_free_list
 from cdb_collect.protocol.pile_interview import run_pile_interview
@@ -28,62 +34,50 @@ def _informant_id(
     return hashlib.sha256(key.encode("utf-8")).hexdigest()[:16]
 
 
-async def run_informant(
+def _placeholder_freelist() -> tuple[FreelistRecord, AdapterResult]:
+    """Placeholder for two-pass/baseline modes where free list is not run."""
+    record = FreelistRecord(
+        prompt_verbatim="",
+        prompt_version="v1",
+        response_verbatim="",
+        response_object_json={},
+        input_tokens=0,
+        output_tokens=0,
+        latency_ms=0,
+        stop_reason="not_collected",
+        parsed_items=[],
+        parsed_raw_order=[],
+    )
+    result = AdapterResult(
+        text="", raw_response={}, latency_ms=0, cost_usd=0.0,
+        input_tokens=0, output_tokens=0, provider_request_id="",
+        model_version_returned="", stop_reason="not_collected",
+    )
+    return record, result
+
+
+def _assemble_record(
     adapter: ModelAdapter,
     domain: Domain,
     run_index: int,
-    *,
+    freelist_record: FreelistRecord,
+    freelist_result: AdapterResult,
+    pilesort_record: PileSortRecord,
+    interview_record: InterviewRecord,
+    collection_mode: Literal["single_pass", "two_pass", "baseline_items"],
     prompt_version: str = "v1",
     system_prompt: str = "",
 ) -> InformantRecord:
-    """Run the full CDA protocol and assemble an InformantRecord.
-
-    Executes all three steps sequentially, chaining data between them:
-    1. Free listing → parsed items
-    2. Pile sorting (using free list items) → piles + binary matrix
-    3. Pile interview (using piles) → pile labels
-
-    Args:
-        adapter: The model adapter to use.
-        domain: The domain definition.
-        run_index: The 0-based run index.
-        prompt_version: Prompt template version.
-        system_prompt: System prompt used for all steps.
-
-    Returns:
-        A fully populated InformantRecord.
-    """
+    """Assemble an InformantRecord from step records."""
     now = datetime.now()
     collection_date_str = now.strftime("%Y-%m-%dT%H:%M:%S")
 
-    # Step 1: Free listing (temperature 0.7)
-    freelist_record, freelist_result = await run_free_list(
-        adapter, domain, run_index, prompt_version=prompt_version,
-    )
-
-    # Step 2: Pile sorting (temperature 0.3) — receives items from Step 1
-    pilesort_record, pilesort_result = await run_pile_sort(
-        adapter,
-        items=freelist_record.parsed_items,
-        domain_seed=domain.prompt_seed,
-        run_index=run_index,
-        prompt_version=prompt_version,
-    )
-
-    # Step 3: Pile interview (temperature 0.3) — receives piles from Step 2
-    interview_record, interview_result = await run_pile_interview(
-        adapter,
-        piles=pilesort_record.parsed_piles,
-        run_index=run_index,
-        prompt_version=prompt_version,
-    )
-
-    # Compute SHA256 manifest
     request_params = {
         "model_id": adapter.model.model_id,
         "domain_slug": domain.slug,
         "run_index": run_index,
         "prompt_version": prompt_version,
+        "collection_mode": collection_mode,
         "temperature_freelist": 0.7,
         "temperature_pilesort": 0.3,
         "temperature_interview": 0.3,
@@ -103,26 +97,35 @@ async def run_informant(
         adapter.model.model_id, domain.slug, run_index, collection_date_str,
     )
 
+    # Use freelist result for model version when available, fall back to model_id
+    model_version = freelist_result.model_version_returned
+    provider_req_id = freelist_result.provider_request_id
+    if not model_version:
+        model_version = adapter.model.model_id
+    if not provider_req_id:
+        provider_req_id = f"two_pass_{run_index}"
+
     return InformantRecord(
         informant_id=informant_id,
         domain_slug=domain.slug,
         run_index=run_index,
         collection_date=now,
         model_id=adapter.model.model_id,
-        model_version_returned=freelist_result.model_version_returned,
+        model_version_returned=model_version,
         family=adapter.model.family,
         provider=adapter.model.provider,
-        provider_request_id=freelist_result.provider_request_id,
+        provider_request_id=provider_req_id,
         knowledge_cutoff=None,
         open_weights=adapter.model.open_weights,
         origin_country=adapter.model.origin,
         alignment_method=None,
         collection_method=adapter.model.collection_method,
+        collection_mode=collection_mode,
         api_endpoint="https://api.anthropic.com/v1/messages",
         api_version="2023-06-01",
         temperature=0.7,
         top_p=None,
-        max_tokens=4096,
+        max_tokens=16384,
         system_prompt=system_prompt,
         freelist=freelist_record,
         pile_sort=pilesort_record,
@@ -131,3 +134,210 @@ async def run_informant(
         qa_passed=True,
         qa_notes="",
     )
+
+
+async def run_informant(
+    adapter: ModelAdapter,
+    domain: Domain,
+    run_index: int,
+    *,
+    prompt_version: str = "v1",
+    system_prompt: str = "",
+) -> InformantRecord:
+    """Run the full single-pass CDA protocol and assemble an InformantRecord.
+
+    Each run generates its own free list, sorts its own items, and names
+    its own piles. This captures end-to-end model behavior.
+    """
+    freelist_record, freelist_result = await run_free_list(
+        adapter, domain, run_index, prompt_version=prompt_version,
+    )
+
+    pilesort_record, _ = await run_pile_sort(
+        adapter,
+        items=freelist_record.parsed_items,
+        domain_seed=domain.prompt_seed,
+        run_index=run_index,
+        prompt_version=prompt_version,
+    )
+
+    interview_record, _ = await run_pile_interview(
+        adapter,
+        piles=pilesort_record.parsed_piles,
+        run_index=run_index,
+        prompt_version=prompt_version,
+    )
+
+    return _assemble_record(
+        adapter, domain, run_index,
+        freelist_record, freelist_result,
+        pilesort_record, interview_record,
+        collection_mode="single_pass",
+        prompt_version=prompt_version,
+        system_prompt=system_prompt,
+    )
+
+
+async def run_two_pass(
+    adapter: ModelAdapter,
+    domain: Domain,
+    n_free_lists: int = 10,
+    n_pile_sorts: int = 10,
+    *,
+    prompt_version: str = "v1",
+    system_prompt: str = "",
+) -> list[InformantRecord]:
+    """Run two-pass CDA protocol: free lists → consensus → pile sorts.
+
+    Pass 1: Collect n_free_lists free lists to build a consensus item list.
+    Pass 2: Run n_pile_sorts pile sort + interview calls using the consensus items.
+
+    This is the standard CDA methodology (Borgatti): all pile sorts use the
+    same item list, enabling clean cross-run aggregation.
+
+    Returns:
+        List of InformantRecords (n_free_lists + n_pile_sorts total).
+        Free-list-only records have collection_mode="two_pass" and placeholder
+        pile sort/interview. Pile sort records have the consensus items.
+    """
+    from cdb_analyze.consensus import compute_consensus_free_list
+
+    # ── Pass 1: Collect free lists ──────────────────────────────────
+    freelist_records: list[tuple[FreelistRecord, AdapterResult]] = []
+    all_informant_records: list[InformantRecord] = []
+
+    for i in range(n_free_lists):
+        fl_record, fl_result = await run_free_list(
+            adapter, domain, i, prompt_version=prompt_version,
+        )
+        freelist_records.append((fl_record, fl_result))
+
+        # Create a free-list-only InformantRecord for provenance
+        placeholder_ps = PileSortRecord(
+            prompt_verbatim="", prompt_version=prompt_version,
+            response_verbatim="", response_object_json={},
+            input_tokens=0, output_tokens=0, latency_ms=0,
+            stop_reason="not_collected",
+            parsed_piles=[], parsed_matrix=[],
+            item_source="own_freelist",
+        )
+        placeholder_iv = InterviewRecord(
+            prompt_verbatim="", prompt_version=prompt_version,
+            response_verbatim="", response_object_json={},
+            input_tokens=0, output_tokens=0, latency_ms=0,
+            stop_reason="not_collected",
+            parsed_pile_labels=[],
+        )
+
+        record = _assemble_record(
+            adapter, domain, i,
+            fl_record, fl_result,
+            placeholder_ps, placeholder_iv,
+            collection_mode="two_pass",
+            prompt_version=prompt_version,
+            system_prompt=system_prompt,
+        )
+        all_informant_records.append(record)
+
+    # ── Compute consensus item list ─────────────────────────────────
+    consensus = compute_consensus_free_list(all_informant_records)
+    consensus_items = [item for item, _ in consensus[:domain.truncation_k]]
+
+    item_source = f"consensus:{adapter.model.model_id}"
+    logger.info(
+        "Consensus free list: %d items (from %d free lists, top %d by Smith's S)",
+        len(consensus_items), n_free_lists, domain.truncation_k,
+    )
+
+    # ── Pass 2: Pile sorts on consensus items ───────────────────────
+    for i in range(n_pile_sorts):
+        run_idx = n_free_lists + i  # Offset to avoid ID collision
+
+        pilesort_record, ps_result = await run_pile_sort(
+            adapter,
+            items=consensus_items,
+            domain_seed=domain.prompt_seed,
+            run_index=run_idx,
+            prompt_version=prompt_version,
+        )
+        # Set item_source on the pile sort record
+        pilesort_record = pilesort_record.model_copy(
+            update={"item_source": item_source},
+        )
+
+        interview_record, _ = await run_pile_interview(
+            adapter,
+            piles=pilesort_record.parsed_piles,
+            run_index=run_idx,
+            prompt_version=prompt_version,
+        )
+
+        # Use placeholder free list (free lists were in pass 1)
+        fl_placeholder, fl_result_placeholder = _placeholder_freelist()
+
+        record = _assemble_record(
+            adapter, domain, run_idx,
+            fl_placeholder, ps_result,
+            pilesort_record, interview_record,
+            collection_mode="two_pass",
+            prompt_version=prompt_version,
+            system_prompt=system_prompt,
+        )
+        all_informant_records.append(record)
+
+    return all_informant_records
+
+
+async def run_baseline_sort(
+    adapter: ModelAdapter,
+    domain: Domain,
+    items: list[str],
+    baseline_id: str,
+    n_sorts: int = 10,
+    *,
+    prompt_version: str = "v1",
+    system_prompt: str = "",
+) -> list[InformantRecord]:
+    """Run pile sorts on a provided baseline item list.
+
+    The model sorts items from a human baseline (e.g., Romney 1996) to
+    enable direct model-to-human structural comparison.
+
+    Returns:
+        List of n_sorts InformantRecords with collection_mode="baseline_items".
+    """
+    item_source = f"baseline:{baseline_id}"
+    records: list[InformantRecord] = []
+
+    for i in range(n_sorts):
+        pilesort_record, ps_result = await run_pile_sort(
+            adapter,
+            items=items,
+            domain_seed=domain.prompt_seed,
+            run_index=i,
+            prompt_version=prompt_version,
+        )
+        pilesort_record = pilesort_record.model_copy(
+            update={"item_source": item_source},
+        )
+
+        interview_record, _ = await run_pile_interview(
+            adapter,
+            piles=pilesort_record.parsed_piles,
+            run_index=i,
+            prompt_version=prompt_version,
+        )
+
+        fl_placeholder, fl_result_placeholder = _placeholder_freelist()
+
+        record = _assemble_record(
+            adapter, domain, i,
+            fl_placeholder, ps_result,
+            pilesort_record, interview_record,
+            collection_mode="baseline_items",
+            prompt_version=prompt_version,
+            system_prompt=system_prompt,
+        )
+        records.append(record)
+
+    return records
