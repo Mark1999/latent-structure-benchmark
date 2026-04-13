@@ -25,6 +25,8 @@ dev = [
     "mypy>=1.20.0",
     "pytest>=9.0.3",
     "ruff>=0.15.10",
+    "types-PyYAML>=6.0",
+    "types-requests>=2.31.0",
 ]
 
 [tool.uv.workspace]
