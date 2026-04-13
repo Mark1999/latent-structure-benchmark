@@ -1,1 +1,219 @@
 """CDA Step 2 — pile sorting. See ARCHITECTURE.md §4.1.1."""
+
+from __future__ import annotations
+
+import json
+import logging
+import re
+from pathlib import Path
+
+from cdb_core import PileSortRecord
+
+from cdb_collect.adapters.base import AdapterResult, ModelAdapter
+
+logger = logging.getLogger(__name__)
+
+_PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
+
+# Max retries on JSON parse failure per ARCHITECTURE.md §4.1.1
+_MAX_PARSE_RETRIES = 3
+
+
+def load_prompt(
+    items: list[str], domain_seed: str, version: str = "v1",
+) -> str:
+    """Load and substitute the pile-sort prompt template."""
+    path = _PROMPTS_DIR / version / "pile_sort.md"
+    template = path.read_text()
+    items_text = "\n".join(f"- {item}" for item in items)
+    prompt = template.replace("{{items}}", items_text)
+    prompt = prompt.replace("{{item_count}}", str(len(items)))
+    prompt = prompt.replace("{{domain_seed}}", domain_seed)
+    return prompt
+
+
+def _extract_json(text: str) -> dict:
+    """Extract JSON from response text, handling markdown fences."""
+    # Try direct parse first
+    text = text.strip()
+    try:
+        return json.loads(text)
+    except json.JSONDecodeError:
+        pass
+
+    # Try extracting from markdown code blocks
+    match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
+    if match:
+        try:
+            return json.loads(match.group(1).strip())
+        except json.JSONDecodeError:
+            pass
+
+    # Try finding JSON object in the text
+    brace_start = text.find("{")
+    brace_end = text.rfind("}")
+    if brace_start >= 0 and brace_end > brace_start:
+        try:
+            return json.loads(text[brace_start:brace_end + 1])
+        except json.JSONDecodeError:
+            pass
+
+    raise ValueError(f"Could not extract valid JSON from response: {text[:200]}")
+
+
+def parse_pile_sort(
+    text: str, expected_items: list[str],
+) -> tuple[list[list[str]], list[list[int]]]:
+    """Parse pile sort JSON response into piles and binary matrix.
+
+    Args:
+        text: Raw response text (may contain JSON or markdown-wrapped JSON).
+        expected_items: The items that should appear in the piles.
+
+    Returns:
+        (piles, matrix) where piles is list of lists of item strings and
+        matrix is a binary co-occurrence matrix.
+
+    Raises:
+        ValueError: If JSON is invalid, items are missing, or items are duplicated.
+    """
+    data = _extract_json(text)
+
+    if "piles" not in data:
+        raise ValueError("JSON missing 'piles' key")
+
+    raw_piles = data["piles"]
+    if not isinstance(raw_piles, list):
+        raise ValueError("'piles' must be a list")
+
+    # Normalize item names for matching
+    expected_lower = {item.lower().strip(): item for item in expected_items}
+
+    # Normalize and validate piles
+    piles: list[list[str]] = []
+    seen: set[str] = set()
+
+    for pile in raw_piles:
+        if not isinstance(pile, list):
+            raise ValueError(f"Each pile must be a list, got {type(pile)}")
+
+        normalized_pile: list[str] = []
+        for raw_item in pile:
+            item = str(raw_item).lower().strip()
+
+            # Try exact match first, then fuzzy
+            if item in expected_lower:
+                canonical = expected_lower[item]
+            else:
+                # Try stripping punctuation for matching
+                stripped = re.sub(r"[^\w\s-]", "", item).strip()
+                if stripped in expected_lower:
+                    canonical = expected_lower[stripped]
+                else:
+                    raise ValueError(
+                        f"Unexpected item in pile sort: {raw_item!r}"
+                    )
+
+            if canonical.lower() in seen:
+                raise ValueError(f"Duplicate item in pile sort: {raw_item!r}")
+
+            seen.add(canonical.lower())
+            normalized_pile.append(canonical)
+
+        piles.append(normalized_pile)
+
+    # Check all items are accounted for
+    missing = set(expected_lower.keys()) - seen
+    if missing:
+        raise ValueError(f"Items missing from pile sort: {missing}")
+
+    # Build binary matrix
+    matrix = build_binary_matrix(piles, expected_items)
+
+    return piles, matrix
+
+
+def build_binary_matrix(
+    piles: list[list[str]], items: list[str],
+) -> list[list[int]]:
+    """Build a binary co-occurrence matrix from pile assignments.
+
+    matrix[i][j] = 1 if items[i] and items[j] appear in the same pile.
+    Diagonal = 1. Symmetric.
+    """
+    n = len(items)
+    item_to_idx = {item.lower(): i for i, item in enumerate(items)}
+
+    matrix = [[0] * n for _ in range(n)]
+
+    # Set diagonal
+    for i in range(n):
+        matrix[i][i] = 1
+
+    # Set co-occurrence for items in same pile
+    for pile in piles:
+        pile_indices = [
+            item_to_idx[item.lower()]
+            for item in pile
+            if item.lower() in item_to_idx
+        ]
+        for a in pile_indices:
+            for b in pile_indices:
+                matrix[a][b] = 1
+
+    return matrix
+
+
+async def run_pile_sort(
+    adapter: ModelAdapter,
+    items: list[str],
+    domain_seed: str,
+    run_index: int,
+    prompt_version: str = "v1",
+    max_retries: int = _MAX_PARSE_RETRIES,
+) -> tuple[PileSortRecord, AdapterResult]:
+    """Execute the pile-sort step of the CDA protocol.
+
+    Uses temperature 0.3 for modal categorization per ARCHITECTURE.md §4.1.3.
+    Retries up to max_retries times on JSON parse failure.
+
+    Returns:
+        (PileSortRecord, AdapterResult) tuple.
+
+    Raises:
+        ValueError: If parsing fails after all retries.
+    """
+    prompt = load_prompt(items, domain_seed, version=prompt_version)
+    last_error: Exception | None = None
+
+    for attempt in range(max_retries):
+        # Temperature 0.3 per ARCHITECTURE.md §4.1.3
+        result = await adapter.complete(prompt, temperature=0.3)
+
+        try:
+            piles, matrix = parse_pile_sort(result.text, items)
+
+            record = PileSortRecord(
+                prompt_verbatim=prompt,
+                prompt_version=prompt_version,
+                response_verbatim=result.text,
+                response_object_json=result.raw_response,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                latency_ms=result.latency_ms,
+                stop_reason=result.stop_reason,
+                parsed_piles=piles,
+                parsed_matrix=matrix,
+            )
+            return record, result
+
+        except ValueError as e:
+            last_error = e
+            logger.warning(
+                "Pile sort parse failed (attempt %d/%d): %s",
+                attempt + 1, max_retries, e,
+            )
+
+    raise ValueError(
+        f"Pile sort parsing failed after {max_retries} attempts: {last_error}"
+    )
