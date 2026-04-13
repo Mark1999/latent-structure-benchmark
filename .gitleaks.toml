@@ -1,0 +1,37 @@
+title = "LSB gitleaks configuration"
+
+# See SECURITY_AND_HARDENING.md §3.4
+
+# ── Custom rules for LSB-specific secrets ──
+
+[[rules]]
+id = "anthropic-api-key"
+description = "Anthropic API key"
+regex = '''sk-ant-[a-zA-Z0-9_-]{50,}'''
+tags = ["key", "anthropic"]
+
+[[rules]]
+id = "openrouter-api-key"
+description = "OpenRouter API key"
+regex = '''sk-or-v1-[a-zA-Z0-9]{60,}'''
+tags = ["key", "openrouter"]
+
+[[rules]]
+id = "huggingface-token"
+description = "Hugging Face token"
+regex = '''hf_[a-zA-Z0-9]{30,}'''
+tags = ["key", "huggingface"]
+
+[[rules]]
+id = "slack-webhook-url"
+description = "Slack webhook URL"
+regex = '''https://hooks\.slack\.com/services/T[A-Z0-9]+/B[A-Z0-9]+/[a-zA-Z0-9]+'''
+tags = ["webhook", "slack"]
+
+# ── Allow rules ──
+
+[allowlist]
+paths = [
+    '''.env\.example''',
+    '''tests/fixtures/''',
+]
