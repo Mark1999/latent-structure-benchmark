@@ -96,7 +96,7 @@ class AnthropicAdapter:
 
         kwargs: dict = {
             "model": self.model.model_id,
-            "max_tokens": 4096,
+            "max_tokens": 16384,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }

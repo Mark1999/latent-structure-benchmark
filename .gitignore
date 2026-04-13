@@ -24,6 +24,9 @@ apps/dashboard/dist/
 apps/dashboard/.vite/
 node_modules/
 
+# Reference materials (PDFs, local copies of papers — not suitable for git)
+docs/references/
+
 # OS
 .DS_Store
 Thumbs.db
