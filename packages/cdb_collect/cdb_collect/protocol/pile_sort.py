@@ -6,6 +6,7 @@ import json
 import logging
 import re
 from pathlib import Path
+from typing import Any
 
 from cdb_core import PileSortRecord
 
@@ -32,12 +33,13 @@ def load_prompt(
     return prompt
 
 
-def _extract_json(text: str) -> dict:
+def _extract_json(text: str) -> dict[str, Any]:
     """Extract JSON from response text, handling markdown fences."""
     # Try direct parse first
     text = text.strip()
     try:
-        return json.loads(text)
+        result: dict[str, Any] = json.loads(text)
+        return result
     except json.JSONDecodeError:
         pass
 
@@ -45,7 +47,8 @@ def _extract_json(text: str) -> dict:
     match = re.search(r"```(?:json)?\s*\n?(.*?)\n?```", text, re.DOTALL)
     if match:
         try:
-            return json.loads(match.group(1).strip())
+            result = json.loads(match.group(1).strip())
+            return result
         except json.JSONDecodeError:
             pass
 
@@ -54,7 +57,8 @@ def _extract_json(text: str) -> dict:
     brace_end = text.rfind("}")
     if brace_start >= 0 and brace_end > brace_start:
         try:
-            return json.loads(text[brace_start:brace_end + 1])
+            result = json.loads(text[brace_start:brace_end + 1])
+            return result
         except json.JSONDecodeError:
             pass
 
