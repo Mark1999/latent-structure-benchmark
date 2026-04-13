@@ -1,1 +1,5 @@
-# Phase 1 deliverable
+slug: family
+version: v1
+display_name: Family Terms
+prompt_seed: "type of family relationship or family member"
+truncation_k: 25
