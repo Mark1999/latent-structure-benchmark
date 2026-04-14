@@ -36,6 +36,9 @@ PRICING: dict[str, tuple[float, float]] = {
     "qwen/qwen-2.5-72b-instruct": (0.40, 0.40),
     # OpenRouter — xAI
     "x-ai/grok-2": (2.00, 10.0),
+    # HuggingFace Inference Providers (model IDs use HF repo format)
+    "Qwen/Qwen2.5-72B-Instruct": (0.35, 0.40),
+    "mistralai/Mixtral-8x22B-Instruct-v0.1": (0.65, 0.65),
 }
 
 # Fallback pricing for unknown models
