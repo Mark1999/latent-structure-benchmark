@@ -97,27 +97,27 @@ MODEL_REGISTRY: dict[str, ModelRef] = {
         release_date=date(2025, 3, 25),
         version_label="2.5-pro",
     ),
-    "x-ai/grok-2": ModelRef(
+    "x-ai/grok-3": ModelRef(
         provider="openrouter",
-        model_id="x-ai/grok-2",
+        model_id="x-ai/grok-3",
         family="grok",
         origin="us",
         open_weights=False,
         collection_method="openrouter",
         quantization=None,
         release_date=date(2025, 2, 17),
-        version_label="2",
+        version_label="3",
     ),
-    "cohere/command-r-plus": ModelRef(
+    "cohere/command-r-plus-08-2024": ModelRef(
         provider="openrouter",
-        model_id="cohere/command-r-plus",
+        model_id="cohere/command-r-plus-08-2024",
         family="command",
         origin="ca",
         open_weights=False,
         collection_method="openrouter",
         quantization=None,
-        release_date=date(2025, 4, 2),
-        version_label="r-plus",
+        release_date=date(2024, 8, 1),
+        version_label="r-plus-08-2024",
     ),
     # ── OpenRouter — open-weight ────────────────────────────────────────
     "meta-llama/llama-3.1-70b-instruct": ModelRef(
@@ -131,16 +131,16 @@ MODEL_REGISTRY: dict[str, ModelRef] = {
         release_date=date(2025, 7, 23),
         version_label="3.1-70b-instruct",
     ),
-    "meta-llama/llama-3.1-405b-instruct": ModelRef(
+    "meta-llama/llama-4-maverick": ModelRef(
         provider="openrouter",
-        model_id="meta-llama/llama-3.1-405b-instruct",
+        model_id="meta-llama/llama-4-maverick",
         family="llama",
         origin="us",
         open_weights=True,
         collection_method="openrouter",
         quantization=None,
-        release_date=date(2025, 7, 23),
-        version_label="3.1-405b-instruct",
+        release_date=date(2025, 4, 5),
+        version_label="4-maverick",
     ),
     "mistralai/mistral-large": ModelRef(
         provider="openrouter",
@@ -153,16 +153,16 @@ MODEL_REGISTRY: dict[str, ModelRef] = {
         release_date=date(2025, 7, 24),
         version_label="large",
     ),
-    "mistralai/mistral-small": ModelRef(
+    "mistralai/mistral-small-3.2-24b-instruct": ModelRef(
         provider="openrouter",
-        model_id="mistralai/mistral-small",
+        model_id="mistralai/mistral-small-3.2-24b-instruct",
         family="mistral",
         origin="eu",
         open_weights=True,
         collection_method="openrouter",
         quantization=None,
         release_date=date(2025, 3, 7),
-        version_label="small",
+        version_label="small-3.2-24b",
     ),
     # ── OpenRouter — China-origin ───────────────────────────────────────
     "qwen/qwen-2.5-72b-instruct": ModelRef(

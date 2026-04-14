@@ -95,7 +95,7 @@ class HuggingFaceAdapter:
 
         payload: dict = {
             "model": self.model.model_id,
-            "max_tokens": 16384,
+            "max_tokens": 8192,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
