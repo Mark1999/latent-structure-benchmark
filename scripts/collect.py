@@ -18,7 +18,12 @@ import sys
 from datetime import date
 from pathlib import Path
 
-from cdb_collect.adapters.anthropic import AnthropicAdapter
+from cdb_collect.adapters import (
+    AnthropicAdapter,
+    HuggingFaceAdapter,
+    ModelAdapter,
+    OpenRouterAdapter,
+)
 from cdb_collect.baselines import load_baseline_items
 from cdb_collect.domains import load_domain
 from cdb_collect.jsonl import append_failure, append_record
@@ -46,6 +51,7 @@ DEFAULT_JSONL = Path("data/raw/informants.jsonl")
 FAILURES_JSONL = Path("data/raw/failures.jsonl")
 
 MODEL_REGISTRY: dict[str, ModelRef] = {
+    # ── Anthropic (direct) ──────────────────────────────────────────────
     "claude-opus-4-6": ModelRef(
         provider="anthropic",
         model_id="claude-opus-4-6",
@@ -57,11 +63,151 @@ MODEL_REGISTRY: dict[str, ModelRef] = {
         release_date=date(2026, 3, 1),
         version_label="4.6",
     ),
+    "claude-sonnet-4-6": ModelRef(
+        provider="anthropic",
+        model_id="claude-sonnet-4-6",
+        family="claude",
+        origin="us",
+        open_weights=False,
+        collection_method="anthropic_api",
+        quantization=None,
+        release_date=date(2026, 3, 1),
+        version_label="4.6",
+    ),
+    # ── OpenRouter — closed-weight ──────────────────────────────────────
+    "openai/gpt-4o": ModelRef(
+        provider="openrouter",
+        model_id="openai/gpt-4o",
+        family="gpt",
+        origin="us",
+        open_weights=False,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 5, 13),
+        version_label="4o",
+    ),
+    "google/gemini-2.5-pro": ModelRef(
+        provider="openrouter",
+        model_id="google/gemini-2.5-pro",
+        family="gemini",
+        origin="us",
+        open_weights=False,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 3, 25),
+        version_label="2.5-pro",
+    ),
+    "x-ai/grok-2": ModelRef(
+        provider="openrouter",
+        model_id="x-ai/grok-2",
+        family="grok",
+        origin="us",
+        open_weights=False,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 2, 17),
+        version_label="2",
+    ),
+    "cohere/command-r-plus": ModelRef(
+        provider="openrouter",
+        model_id="cohere/command-r-plus",
+        family="command",
+        origin="ca",
+        open_weights=False,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 4, 2),
+        version_label="r-plus",
+    ),
+    # ── OpenRouter — open-weight ────────────────────────────────────────
+    "meta-llama/llama-3.1-70b-instruct": ModelRef(
+        provider="openrouter",
+        model_id="meta-llama/llama-3.1-70b-instruct",
+        family="llama",
+        origin="us",
+        open_weights=True,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 7, 23),
+        version_label="3.1-70b-instruct",
+    ),
+    "meta-llama/llama-3.1-405b-instruct": ModelRef(
+        provider="openrouter",
+        model_id="meta-llama/llama-3.1-405b-instruct",
+        family="llama",
+        origin="us",
+        open_weights=True,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 7, 23),
+        version_label="3.1-405b-instruct",
+    ),
+    "mistralai/mistral-large": ModelRef(
+        provider="openrouter",
+        model_id="mistralai/mistral-large",
+        family="mistral",
+        origin="eu",
+        open_weights=False,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 7, 24),
+        version_label="large",
+    ),
+    "mistralai/mistral-small": ModelRef(
+        provider="openrouter",
+        model_id="mistralai/mistral-small",
+        family="mistral",
+        origin="eu",
+        open_weights=True,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 3, 7),
+        version_label="small",
+    ),
+    # ── OpenRouter — China-origin ───────────────────────────────────────
+    "qwen/qwen-2.5-72b-instruct": ModelRef(
+        provider="openrouter",
+        model_id="qwen/qwen-2.5-72b-instruct",
+        family="qwen",
+        origin="cn",
+        open_weights=True,
+        collection_method="openrouter",
+        quantization=None,
+        release_date=date(2025, 9, 19),
+        version_label="2.5-72b-instruct",
+    ),
+    # ── HuggingFace Inference Providers ─────────────────────────────────
+    "Qwen/Qwen2.5-72B-Instruct": ModelRef(
+        provider="huggingface",
+        model_id="Qwen/Qwen2.5-72B-Instruct",
+        family="qwen",
+        origin="cn",
+        open_weights=True,
+        collection_method="huggingface",
+        quantization=None,
+        release_date=date(2025, 9, 19),
+        version_label="2.5-72b-instruct",
+        source_notes="Same model as qwen/qwen-2.5-72b-instruct via OpenRouter; "
+        "HF route used for provider-routing variance comparison.",
+    ),
 }
 
 
+def _create_adapter(model_ref: ModelRef) -> ModelAdapter:
+    """Route a ModelRef to the correct adapter based on collection_method."""
+    method = model_ref.collection_method
+    if method == "anthropic_api":
+        return AnthropicAdapter(model_ref)
+    if method == "openrouter":
+        return OpenRouterAdapter(model_ref)
+    if method == "huggingface":
+        return HuggingFaceAdapter(model_ref)
+    msg = f"Unknown collection_method: {method}"
+    raise ValueError(msg)
+
+
 async def collect_single_pass(
-    adapter: AnthropicAdapter,
+    adapter: ModelAdapter,
     domain_slug: str,
     runs: int,
     output_path: Path,
@@ -106,7 +252,7 @@ async def collect_single_pass(
 
 
 async def collect_two_pass(
-    adapter: AnthropicAdapter,
+    adapter: ModelAdapter,
     domain_slug: str,
     n_free_lists: int,
     n_pile_sorts: int,
@@ -154,7 +300,7 @@ async def collect_two_pass(
 
 
 async def collect_baseline(
-    adapter: AnthropicAdapter,
+    adapter: ModelAdapter,
     domain_slug: str,
     baseline_id: str,
     n_sorts: int,
@@ -276,7 +422,7 @@ def main() -> int:
         print("--baseline is required for baseline mode", file=sys.stderr)
         return 1
 
-    adapter = AnthropicAdapter(model_ref)
+    adapter = _create_adapter(model_ref)
 
     if args.mode == "single_pass":
         result = asyncio.run(collect_single_pass(
