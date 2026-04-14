@@ -126,7 +126,15 @@ class OpenRouterAdapter:
         latency_ms = int((time.monotonic() - start) * 1000)
 
         choice = data["choices"][0]
-        text = choice["message"]["content"] or ""
+        message = choice["message"]
+        text = message.get("content") or ""
+
+        # Extract thinking/reasoning traces from OpenRouter responses.
+        # Different providers surface these differently:
+        # - Grok: "reasoning_content" field on the message
+        # - DeepSeek: "reasoning_content" field on the message
+        # - Gemini: may appear in "reasoning" or nested content blocks
+        thinking_text = message.get("reasoning_content") or message.get("reasoning") or ""
 
         usage = data.get("usage", {})
         input_tokens = usage.get("prompt_tokens", 0)
@@ -145,6 +153,7 @@ class OpenRouterAdapter:
             provider_request_id=data.get("id", ""),
             model_version_returned=data.get("model", self.model.model_id),
             stop_reason=choice.get("finish_reason") or "unknown",
+            thinking_text=thinking_text,
         )
 
 

@@ -21,9 +21,11 @@ PRICING: dict[str, tuple[float, float]] = {
     # OpenRouter — OpenAI
     "openai/gpt-4o": (2.50, 10.0),
     "openai/gpt-4-turbo": (10.0, 30.0),
-    # OpenRouter — Google
+    # Google (direct and via OpenRouter)
     "google/gemini-2.5-pro": (1.25, 10.0),
+    "gemini-2.5-pro": (1.25, 10.0),
     "google/gemini-2.5-flash": (0.15, 0.60),
+    "gemini-2.5-flash": (0.15, 0.60),
     # OpenRouter — Meta
     "meta-llama/llama-3.1-70b-instruct": (0.40, 0.40),
     "meta-llama/llama-3.1-405b-instruct": (2.00, 2.00),

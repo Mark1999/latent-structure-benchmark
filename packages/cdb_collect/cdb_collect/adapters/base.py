@@ -24,6 +24,7 @@ class AdapterResult:
     provider_request_id: str
     model_version_returned: str
     stop_reason: str
+    thinking_text: str = ""
 
 
 class ModelAdapter(Protocol):

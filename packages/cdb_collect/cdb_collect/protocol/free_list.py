@@ -103,6 +103,7 @@ async def run_free_list(
         prompt_verbatim=prompt,
         prompt_version=prompt_version,
         response_verbatim=result.text,
+        thinking_verbatim=result.thinking_text,
         response_object_json=result.raw_response,
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,

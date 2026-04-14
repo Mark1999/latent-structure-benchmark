@@ -106,9 +106,12 @@ class AnthropicAdapter:
         latency_ms = int((time.monotonic() - start) * 1000)
 
         text = ""
+        thinking_text = ""
         for block in response.content:
             if block.type == "text":
                 text += block.text
+            elif block.type == "thinking":
+                thinking_text += block.thinking
 
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
@@ -127,6 +130,7 @@ class AnthropicAdapter:
             provider_request_id=response.id,
             model_version_returned=response.model,
             stop_reason=response.stop_reason or "unknown",
+            thinking_text=thinking_text,
         )
 
 

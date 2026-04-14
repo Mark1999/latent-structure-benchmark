@@ -66,7 +66,7 @@ class ModelRef(BaseModel):
     family: str
     origin: Literal["us", "eu", "ca", "cn", "other"]
     open_weights: bool
-    collection_method: Literal["anthropic_api", "openrouter", "huggingface"]
+    collection_method: Literal["anthropic_api", "openrouter", "huggingface", "google_ai"]
     quantization: str | None
     release_date: date
     version_label: str
@@ -210,6 +210,7 @@ class FreelistRecord(BaseModel):
     prompt_verbatim: str
     prompt_version: str
     response_verbatim: str
+    thinking_verbatim: str = ""
     response_object_json: dict
     input_tokens: int
     output_tokens: int
@@ -224,6 +225,7 @@ class PileSortRecord(BaseModel):
     prompt_verbatim: str
     prompt_version: str
     response_verbatim: str
+    thinking_verbatim: str = ""
     response_object_json: dict
     input_tokens: int
     output_tokens: int
@@ -239,6 +241,7 @@ class InterviewRecord(BaseModel):
     prompt_verbatim: str
     prompt_version: str
     response_verbatim: str
+    thinking_verbatim: str = ""
     response_object_json: dict
     input_tokens: int
     output_tokens: int
@@ -281,8 +284,12 @@ class InformantRecord(BaseModel):
     alignment_method: str | None
 
     # ── Collection conditions ──
-    collection_method: Literal["anthropic_api", "openrouter", "huggingface"]
-    collection_mode: Literal["single_pass", "two_pass", "baseline_items", "cross_model_consensus"] = "single_pass"
+    collection_method: Literal[
+        "anthropic_api", "openrouter", "huggingface", "google_ai",
+    ]
+    collection_mode: Literal[
+        "single_pass", "two_pass", "baseline_items", "cross_model_consensus",
+    ] = "single_pass"
     api_endpoint: str
     api_version: str
     temperature: float

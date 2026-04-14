@@ -66,8 +66,8 @@ The bundle is hosted on Backblaze B2, mirrored to HuggingFace Datasets, and DOI-
 
 | Field | Type | Required | Semantics |
 |---|---|---|---|
-| `collection_method` | `Literal` | Yes | One of `anthropic_api`, `openrouter`, `huggingface`. Which of the three remote integration points served this run. The same logical model may appear under multiple methods if invoked through multiple gateways; those rows differ by `collection_method` and possibly by `model_id`. |
-| `collection_mode` | `Literal` | No | One of `single_pass`, `two_pass`, `baseline_items`. Default `single_pass`. Specifies the collection strategy: `single_pass` = each run generates and sorts its own free list items (end-to-end model behavior); `two_pass` = free lists are collected first, aggregated into a consensus item list via Smith's S, then pile sorts use that consensus list (standard CDA methodology per Borgatti); `baseline_items` = pile sort uses items from a human baseline (e.g., Romney 1996) for direct model-to-human comparison. |
+| `collection_method` | `Literal` | Yes | One of `anthropic_api`, `openrouter`, `huggingface`, `google_ai`. Which of the four remote integration points served this run. The same logical model may appear under multiple methods if invoked through multiple gateways; those rows differ by `collection_method` and possibly by `model_id`. |
+| `collection_mode` | `Literal` | No | One of `single_pass`, `two_pass`, `baseline_items`, `cross_model_consensus`. Default `single_pass`. Specifies the collection strategy: `single_pass` = each run generates and sorts its own free list items (end-to-end model behavior); `two_pass` = free lists are collected first, aggregated into a consensus item list via Smith's S, then pile sorts use that consensus list (standard CDA methodology per Borgatti); `baseline_items` = pile sort uses items from a human baseline (e.g., Romney 1996) for direct model-to-human comparison; `cross_model_consensus` = pile sort uses items from a cross-model consensus free list pooled across all models. |
 | `api_endpoint` | `str` | Yes | Full URL of the endpoint actually called. Includes the path. |
 | `api_version` | `str` | Yes | Provider API version header. Anthropic example: `2023-06-01`. |
 | `temperature` | `float` | Yes | Sampling temperature used. LSB uses `0.7` for free listing and `0.3` for pile sorting per `ARCHITECTURE.md` §4.1.3. |
@@ -105,6 +105,7 @@ The free listing step asks the model to enumerate every item it can think of in 
 | `prompt_verbatim` | `str` | Yes | The exact text sent to the model after template substitution. Stored verbatim — the same prompt across runs of the same `prompt_version` should be byte-identical. |
 | `prompt_version` | `str` | Yes | Semantic version of the prompt template, e.g. `v1`, `v1.1`. Bumps when the template changes per `ARCHITECTURE.md` §5.2 rule 8. |
 | `response_verbatim` | `str` | Yes | The exact text returned by the model. Stored verbatim — never normalized, never trimmed. |
+| `thinking_verbatim` | `str` | No (default `""`) | The verbatim reasoning/thinking trace produced by the model, if the model supports extended thinking (e.g., Claude's thinking blocks, Grok's extended thinking, Gemini's thinking mode). Empty string for models that do not produce thinking traces. Stored verbatim — never normalized, never trimmed. This is part of the raw record and is analytically valuable: how a model reasons about categorization is data. |
 | `response_object_json` | `dict` | Yes | The full provider response object, including all metadata fields the provider returned (token counts, stop reason, model version string, request IDs, etc.). Stored as a JSON object. |
 | `input_tokens` | `int` | Yes | Provider-reported input token count. |
 | `output_tokens` | `int` | Yes | Provider-reported output token count. |
@@ -122,6 +123,7 @@ The pile sort step asks the model to group items into similarity-based piles. Th
 | `prompt_verbatim` | `str` | Yes | Same semantics as `FreelistRecord.prompt_verbatim`. |
 | `prompt_version` | `str` | Yes | Same semantics. |
 | `response_verbatim` | `str` | Yes | Same semantics. |
+| `thinking_verbatim` | `str` | No | Same semantics as `FreelistRecord.thinking_verbatim`. |
 | `response_object_json` | `dict` | Yes | Same semantics. |
 | `input_tokens` | `int` | Yes | Same semantics. |
 | `output_tokens` | `int` | Yes | Same semantics. |
@@ -140,6 +142,7 @@ The pile interview step asks the model to name each pile from Step 2. This is th
 | `prompt_verbatim` | `str` | Yes | Same semantics as the prior records. |
 | `prompt_version` | `str` | Yes | Same. |
 | `response_verbatim` | `str` | Yes | Same. |
+| `thinking_verbatim` | `str` | No | Same semantics as `FreelistRecord.thinking_verbatim`. |
 | `response_object_json` | `dict` | Yes | Same. |
 | `input_tokens` | `int` | Yes | Same. |
 | `output_tokens` | `int` | Yes | Same. |

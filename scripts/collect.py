@@ -6,7 +6,8 @@ Usage:
     python scripts/collect.py --domain family --runs 10
     python scripts/collect.py --domain family --mode two_pass --free-lists 10 --pile-sorts 10
     python scripts/collect.py --domain family --mode cross_model --pile-sorts 10
-    python scripts/collect.py --domain family --mode cross_model --models claude-opus-4-6 openai/gpt-4o --pile-sorts 10
+    python scripts/collect.py --domain family --mode cross_model \
+        --models claude-opus-4-6 openai/gpt-4o --pile-sorts 10
     python scripts/collect.py --domain family --mode baseline --baseline romney_1996 --pile-sorts 10
     python scripts/collect.py --domain family --dry-run
 """
@@ -22,6 +23,7 @@ from pathlib import Path
 
 from cdb_collect.adapters import (
     AnthropicAdapter,
+    GeminiAdapter,
     HuggingFaceAdapter,
     ModelAdapter,
     OpenRouterAdapter,
@@ -89,12 +91,12 @@ MODEL_REGISTRY: dict[str, ModelRef] = {
         version_label="4o",
     ),
     "google/gemini-2.5-pro": ModelRef(
-        provider="openrouter",
+        provider="google",
         model_id="google/gemini-2.5-pro",
         family="gemini",
         origin="us",
         open_weights=False,
-        collection_method="openrouter",
+        collection_method="google_ai",
         quantization=None,
         release_date=date(2025, 3, 25),
         version_label="2.5-pro",
@@ -200,6 +202,8 @@ def _create_adapter(model_ref: ModelRef) -> ModelAdapter:
     method = model_ref.collection_method
     if method == "anthropic_api":
         return AnthropicAdapter(model_ref)
+    if method == "google_ai":
+        return GeminiAdapter(model_ref)
     if method == "openrouter":
         return OpenRouterAdapter(model_ref)
     if method == "huggingface":
@@ -345,7 +349,7 @@ async def collect_cross_model(
     n_models = len(records_by_model)
     n_free_lists = sum(len(recs) for recs in records_by_model.values())
 
-    print(f"CROSS-MODEL CONSENSUS MODE:")
+    print("CROSS-MODEL CONSENSUS MODE:")
     print(f"  Domain:       {domain_slug} ({domain.display_name})")
     print(f"  Models:       {n_models} ({', '.join(sorted(records_by_model.keys()))})")
     print(f"  Free lists:   {n_free_lists} total")
