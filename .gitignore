@@ -16,6 +16,7 @@ wheels/
 # Data — raw and processed are git-ignored; results and grounding are tracked
 data/raw/
 data/processed/
+data/transcripts/
 
 # Note: data/cost_reports/*.txt is NOT ignored (git-tracked per ARCHITECTURE.md §6.2)
 
