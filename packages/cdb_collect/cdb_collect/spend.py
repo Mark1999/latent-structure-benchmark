@@ -14,9 +14,28 @@ logger = logging.getLogger(__name__)
 # Per-million-token pricing (input, output) by model family.
 # Update when providers change pricing.
 PRICING: dict[str, tuple[float, float]] = {
+    # Anthropic (direct)
     "claude-opus-4-6": (15.0, 75.0),
     "claude-sonnet-4-6": (3.0, 15.0),
     "claude-haiku-4-5": (0.80, 4.0),
+    # OpenRouter — OpenAI
+    "openai/gpt-4o": (2.50, 10.0),
+    "openai/gpt-4-turbo": (10.0, 30.0),
+    # OpenRouter — Google
+    "google/gemini-2.5-pro": (1.25, 10.0),
+    "google/gemini-2.5-flash": (0.15, 0.60),
+    # OpenRouter — Meta
+    "meta-llama/llama-3.1-70b-instruct": (0.40, 0.40),
+    "meta-llama/llama-3.1-405b-instruct": (2.00, 2.00),
+    # OpenRouter — Mistral
+    "mistralai/mistral-large": (2.00, 6.00),
+    "mistralai/mistral-small": (0.10, 0.30),
+    # OpenRouter — Cohere
+    "cohere/command-r-plus": (2.50, 10.0),
+    # OpenRouter — Qwen
+    "qwen/qwen-2.5-72b-instruct": (0.40, 0.40),
+    # OpenRouter — xAI
+    "x-ai/grok-2": (2.00, 10.0),
 }
 
 # Fallback pricing for unknown models

@@ -1,0 +1,21 @@
+{
+  "id": "gen-1234567890abcdef",
+  "object": "chat.completion",
+  "created": 1712000000,
+  "model": "meta-llama/llama-3.1-70b-instruct:nitro",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Grandmother\n6. Grandfather\n7. Aunt\n8. Uncle\n9. Cousin\n10. Niece\n11. Nephew\n12. Daughter\n13. Son\n14. Wife\n15. Husband\n16. Mother-in-law\n17. Father-in-law\n18. Sister-in-law\n19. Brother-in-law\n20. Godparent"
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 92,
+    "completion_tokens": 148,
+    "total_tokens": 240
+  }
+}
