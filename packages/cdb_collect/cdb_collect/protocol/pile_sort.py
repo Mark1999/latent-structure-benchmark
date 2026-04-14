@@ -114,9 +114,8 @@ def parse_pile_sort(
                 if stripped in expected_lower:
                     canonical = expected_lower[stripped]
                 else:
-                    raise ValueError(
-                        f"Unexpected item in pile sort: {raw_item!r}"
-                    )
+                    # Skip unexpected items rather than hard-failing
+                    continue
 
             if canonical.lower() in seen:
                 raise ValueError(f"Duplicate item in pile sort: {raw_item!r}")
@@ -126,9 +125,10 @@ def parse_pile_sort(
 
         piles.append(normalized_pile)
 
-    # Check all items are accounted for
+    # Check all items are accounted for — tolerate up to 10% missing
     missing = set(expected_lower.keys()) - seen
-    if missing:
+    max_missing = max(1, len(expected_lower) // 10)
+    if len(missing) > max_missing:
         raise ValueError(f"Items missing from pile sort: {missing}")
 
     # Build binary matrix

@@ -54,7 +54,17 @@ def parse_pile_interview(
         line = line.strip()
 
         # Skip lines that look like meta-commentary rather than labels
-        if not line or line.lower().startswith("here are"):
+        line_lower = line.lower()
+        if not line or any(line_lower.startswith(p) for p in (
+            "here is", "here are", "here's", "below is", "below are",
+            "the following", "these are", "this is", "i ",
+            "sure", "certainly", "of course", "absolutely",
+            "note:", "note that", "please note",
+            "let me know", "feel free", "hope this",
+        )):
+            continue
+        # Skip lines that are clearly sentences, not labels (>80 chars)
+        if len(line) > 80:
             continue
 
         # Strip surrounding quotes if present

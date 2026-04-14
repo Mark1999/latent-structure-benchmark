@@ -74,3 +74,32 @@ def test_parse_paren_numbering():
     text = "1) Mother\n2) Father\n3) Sister"
     items, raw = parse_free_list(text, truncation_k=25)
     assert items == ["mother", "father", "sister"]
+
+
+def test_parse_strips_preamble():
+    """Preamble lines from chatty models should be filtered out."""
+    text = (
+        "Here is a list of family relationships and family members:\n"
+        "1. Mother\n"
+        "2. Father\n"
+        "3. Sister\n"
+        "Sure, I can help with that!\n"
+        "4. Brother\n"
+        "Note: These are common Western family terms."
+    )
+    items, raw = parse_free_list(text, truncation_k=25)
+    assert items == ["mother", "father", "sister", "brother"]
+    assert "here is a list of family relationships and family members" not in items
+
+
+def test_parse_skips_long_sentences():
+    """Lines >60 chars are likely explanatory sentences, not items."""
+    text = (
+        "1. Mother\n"
+        "2. Father\n"
+        "This is a very long explanatory sentence that a model might "
+        "output about family relationships\n"
+        "3. Sister\n"
+    )
+    items, raw = parse_free_list(text, truncation_k=25)
+    assert items == ["mother", "father", "sister"]

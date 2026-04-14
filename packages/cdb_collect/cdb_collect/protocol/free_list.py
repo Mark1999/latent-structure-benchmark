@@ -42,6 +42,19 @@ def parse_free_list(text: str, truncation_k: int = 25) -> tuple[list[str], list[
         if not line:
             continue
 
+        # Skip preamble/postamble lines (common model output artifacts)
+        line_lower = line.lower()
+        if any(line_lower.startswith(p) for p in (
+            "here is", "here are", "here's", "below is", "below are",
+            "the following", "these are", "this is", "i ",
+            "sure", "certainly", "of course", "absolutely",
+            "note:", "note that", "please note",
+        )):
+            continue
+        # Skip lines that are clearly sentences, not items (>60 chars)
+        if len(line) > 60:
+            continue
+
         # Normalize: lowercase, strip trailing punctuation, collapse whitespace
         item = line.lower()
         item = re.sub(r"[,;\.!?]+$", "", item)

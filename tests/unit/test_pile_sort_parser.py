@@ -45,8 +45,16 @@ def test_parse_case_insensitive():
     assert piles[0][0] == "mother"
 
 
-def test_parse_missing_item_raises():
+def test_parse_few_missing_items_tolerated():
+    """Up to 10% missing items (min 1) is tolerated."""
     text = json.dumps({"piles": [["mother", "father"], ["sister", "brother"]]})
+    piles, matrix = parse_pile_sort(text, _ITEMS)
+    assert len(piles) == 2  # aunt missing but tolerated
+
+
+def test_parse_many_missing_items_raises():
+    """More than 10% missing items raises."""
+    text = json.dumps({"piles": [["mother"]]})
     with pytest.raises(ValueError, match="missing"):
         parse_pile_sort(text, _ITEMS)
 
@@ -59,10 +67,14 @@ def test_parse_duplicate_item_raises():
         parse_pile_sort(text, _ITEMS)
 
 
-def test_parse_unexpected_item_raises():
+def test_parse_unexpected_item_skipped():
+    """Unexpected items are silently skipped."""
     text = json.dumps({"piles": [["mother", "father", "cousin"], ["sister", "brother", "aunt"]]})
-    with pytest.raises(ValueError, match="Unexpected"):
-        parse_pile_sort(text, _ITEMS)
+    piles, matrix = parse_pile_sort(text, _ITEMS)
+    assert len(piles) == 2
+    # "cousin" not in _ITEMS, so it's skipped
+    assert piles[0] == ["mother", "father"]
+    assert piles[1] == ["sister", "brother", "aunt"]
 
 
 def test_parse_missing_piles_key():

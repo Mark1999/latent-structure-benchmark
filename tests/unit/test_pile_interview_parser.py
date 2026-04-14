@@ -52,6 +52,29 @@ def test_parse_fixture_file():
     assert labels[7] == "Half-siblings"
 
 
+def test_parse_strips_chatty_postamble():
+    """Chatty model postamble should be filtered out."""
+    text = (
+        "1. Nuclear family\n"
+        "2. Extended family\n"
+        "3. In-laws\n"
+        "Let me know if you'd like me to adjust any of these!"
+    )
+    labels = parse_pile_interview(text, expected_count=3)
+    assert labels == ["Nuclear family", "Extended family", "In-laws"]
+
+
+def test_parse_strips_preamble():
+    """Preamble lines should be filtered out."""
+    text = (
+        "Here are the labels for each group:\n"
+        "1. Nuclear family\n"
+        "2. Extended family\n"
+    )
+    labels = parse_pile_interview(text, expected_count=2)
+    assert labels == ["Nuclear family", "Extended family"]
+
+
 def test_load_prompt_formats_piles():
     piles = [["mother", "father"], ["aunt", "uncle"]]
     prompt = load_prompt(piles)
