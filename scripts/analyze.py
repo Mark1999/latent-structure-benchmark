@@ -53,6 +53,10 @@ def main() -> int:
         help="Output directory for results JSON",
     )
     parser.add_argument(
+        "--mode", default=None,
+        help="Filter to collection mode (e.g., cross_model_consensus)",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Print plan without running analysis",
     )
@@ -64,7 +68,9 @@ def main() -> int:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
-    records = load_records(args.input, args.domain)
+    records = load_records(
+        args.input, args.domain, collection_mode=args.mode,
+    )
 
     if not records:
         print(

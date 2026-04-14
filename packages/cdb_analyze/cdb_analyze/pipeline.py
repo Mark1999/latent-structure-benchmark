@@ -35,6 +35,7 @@ def load_records(
     domain_slug: str,
     *,
     qa_only: bool = True,
+    collection_mode: str | None = None,
 ) -> list[InformantRecord]:
     """Load InformantRecords for a domain from the JSONL file.
 
@@ -42,6 +43,8 @@ def load_records(
         jsonl_path: Path to informants.jsonl.
         domain_slug: Filter to this domain.
         qa_only: If True, skip records with qa_passed=False.
+        collection_mode: If set, filter to this collection mode only
+            (e.g., "cross_model_consensus" for comparable cross-model data).
 
     Returns:
         List of validated InformantRecord objects.
@@ -56,6 +59,8 @@ def load_records(
             if data.get("domain_slug") != domain_slug:
                 continue
             if qa_only and not data.get("qa_passed", False):
+                continue
+            if collection_mode and data.get("collection_mode") != collection_mode:
                 continue
             records.append(InformantRecord(**data))
     return records

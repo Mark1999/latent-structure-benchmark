@@ -1,0 +1,1321 @@
+{
+  "domain_slug": "family",
+  "analysis_version": "0.2",
+  "models": [
+    {
+      "provider": "huggingface",
+      "model_id": "Qwen/Qwen2.5-72B-Instruct",
+      "family": "qwen",
+      "origin": "cn",
+      "open_weights": true,
+      "collection_method": "huggingface",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "qwen/qwen-2.5-72b-instruct",
+      "source_notes": ""
+    },
+    {
+      "provider": "anthropic",
+      "model_id": "claude-opus-4-6",
+      "family": "claude",
+      "origin": "us",
+      "open_weights": false,
+      "collection_method": "anthropic_api",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "claude-opus-4-6",
+      "source_notes": ""
+    },
+    {
+      "provider": "anthropic",
+      "model_id": "claude-sonnet-4-6",
+      "family": "claude",
+      "origin": "us",
+      "open_weights": false,
+      "collection_method": "anthropic_api",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "claude-sonnet-4-6",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "cohere/command-r-plus-08-2024",
+      "family": "command",
+      "origin": "ca",
+      "open_weights": false,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "cohere/command-r-plus-08-2024",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "google/gemini-2.5-pro",
+      "family": "gemini",
+      "origin": "us",
+      "open_weights": false,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "google/gemini-2.5-pro",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "meta-llama/llama-3.1-70b-instruct",
+      "family": "llama",
+      "origin": "us",
+      "open_weights": true,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "meta-llama/llama-3.1-70b-instruct",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "meta-llama/llama-4-maverick",
+      "family": "llama",
+      "origin": "us",
+      "open_weights": true,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "meta-llama/llama-4-maverick-17b-128e-instruct",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "mistralai/mistral-large",
+      "family": "mistral",
+      "origin": "eu",
+      "open_weights": false,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "mistralai/mistral-large",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "mistralai/mistral-small-3.2-24b-instruct",
+      "family": "mistral",
+      "origin": "eu",
+      "open_weights": true,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "mistralai/mistral-small-3.2-24b-instruct-2506",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "openai/gpt-4o",
+      "family": "gpt",
+      "origin": "us",
+      "open_weights": false,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "openai/gpt-4o",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "qwen/qwen-2.5-72b-instruct",
+      "family": "qwen",
+      "origin": "cn",
+      "open_weights": true,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "qwen/qwen-2.5-72b-instruct",
+      "source_notes": ""
+    },
+    {
+      "provider": "openrouter",
+      "model_id": "x-ai/grok-3",
+      "family": "grok",
+      "origin": "us",
+      "open_weights": false,
+      "collection_method": "openrouter",
+      "quantization": null,
+      "release_date": "2026-04-14",
+      "version_label": "x-ai/grok-3",
+      "source_notes": ""
+    }
+  ],
+  "free_lists": {
+    "claude-opus-4-6": {
+      "run_id": "consensus_claude-opus-4-6",
+      "model": {
+        "provider": "anthropic",
+        "model_id": "claude-opus-4-6",
+        "family": "claude",
+        "origin": "us",
+        "open_weights": false,
+        "collection_method": "anthropic_api",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "claude-opus-4-6",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "claude-sonnet-4-6": {
+      "run_id": "consensus_claude-sonnet-4-6",
+      "model": {
+        "provider": "anthropic",
+        "model_id": "claude-sonnet-4-6",
+        "family": "claude",
+        "origin": "us",
+        "open_weights": false,
+        "collection_method": "anthropic_api",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "claude-sonnet-4-6",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "openai/gpt-4o": {
+      "run_id": "consensus_openai/gpt-4o",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "openai/gpt-4o",
+        "family": "gpt",
+        "origin": "us",
+        "open_weights": false,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "openai/gpt-4o",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "google/gemini-2.5-pro": {
+      "run_id": "consensus_google/gemini-2.5-pro",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "google/gemini-2.5-pro",
+        "family": "gemini",
+        "origin": "us",
+        "open_weights": false,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "google/gemini-2.5-pro",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "x-ai/grok-3": {
+      "run_id": "consensus_x-ai/grok-3",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "x-ai/grok-3",
+        "family": "grok",
+        "origin": "us",
+        "open_weights": false,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "x-ai/grok-3",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "cohere/command-r-plus-08-2024": {
+      "run_id": "consensus_cohere/command-r-plus-08-2024",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "cohere/command-r-plus-08-2024",
+        "family": "command",
+        "origin": "ca",
+        "open_weights": false,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "cohere/command-r-plus-08-2024",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "meta-llama/llama-3.1-70b-instruct": {
+      "run_id": "consensus_meta-llama/llama-3.1-70b-instruct",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "meta-llama/llama-3.1-70b-instruct",
+        "family": "llama",
+        "origin": "us",
+        "open_weights": true,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "meta-llama/llama-3.1-70b-instruct",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "meta-llama/llama-4-maverick": {
+      "run_id": "consensus_meta-llama/llama-4-maverick",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "meta-llama/llama-4-maverick",
+        "family": "llama",
+        "origin": "us",
+        "open_weights": true,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "meta-llama/llama-4-maverick-17b-128e-instruct",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "mistralai/mistral-large": {
+      "run_id": "consensus_mistralai/mistral-large",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "mistralai/mistral-large",
+        "family": "mistral",
+        "origin": "eu",
+        "open_weights": false,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "mistralai/mistral-large",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "mistralai/mistral-small-3.2-24b-instruct": {
+      "run_id": "consensus_mistralai/mistral-small-3.2-24b-instruct",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "mistralai/mistral-small-3.2-24b-instruct",
+        "family": "mistral",
+        "origin": "eu",
+        "open_weights": true,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "mistralai/mistral-small-3.2-24b-instruct-2506",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "qwen/qwen-2.5-72b-instruct": {
+      "run_id": "consensus_qwen/qwen-2.5-72b-instruct",
+      "model": {
+        "provider": "openrouter",
+        "model_id": "qwen/qwen-2.5-72b-instruct",
+        "family": "qwen",
+        "origin": "cn",
+        "open_weights": true,
+        "collection_method": "openrouter",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "qwen/qwen-2.5-72b-instruct",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    },
+    "Qwen/Qwen2.5-72B-Instruct": {
+      "run_id": "consensus_Qwen/Qwen2.5-72B-Instruct",
+      "model": {
+        "provider": "huggingface",
+        "model_id": "Qwen/Qwen2.5-72B-Instruct",
+        "family": "qwen",
+        "origin": "cn",
+        "open_weights": true,
+        "collection_method": "huggingface",
+        "quantization": null,
+        "release_date": "2026-04-14",
+        "version_label": "qwen/qwen-2.5-72b-instruct",
+        "source_notes": ""
+      },
+      "domain_slug": "family",
+      "items": [],
+      "raw_order": []
+    }
+  },
+  "mds_coordinates": {
+    "Qwen/Qwen2.5-72B-Instruct": [
+      0.03451481311853179,
+      0.2026355147153228
+    ],
+    "claude-opus-4-6": [
+      -0.1823754726970038,
+      -0.09086962728686562
+    ],
+    "claude-sonnet-4-6": [
+      -0.10086261509891949,
+      -0.16547075534659292
+    ],
+    "cohere/command-r-plus-08-2024": [
+      0.04030969326396678,
+      -0.07970292965827508
+    ],
+    "google/gemini-2.5-pro": [
+      -0.15279134532123204,
+      -0.04889291438226029
+    ],
+    "meta-llama/llama-3.1-70b-instruct": [
+      0.1321596025393121,
+      0.12725915063826962
+    ],
+    "meta-llama/llama-4-maverick": [
+      -0.10993590311745327,
+      -0.1617321904960918
+    ],
+    "mistralai/mistral-large": [
+      -0.016216629966756966,
+      -0.12649739592832676
+    ],
+    "mistralai/mistral-small-3.2-24b-instruct": [
+      0.21993125944053651,
+      0.036802106114071184
+    ],
+    "openai/gpt-4o": [
+      -0.015665689562482866,
+      -0.012462643095120162
+    ],
+    "qwen/qwen-2.5-72b-instruct": [
+      -0.06442650852536845,
+      0.24782773727332075
+    ],
+    "x-ai/grok-3": [
+      0.21535879592687027,
+      0.07110394745254825
+    ]
+  },
+  "mds_uncertainty": {
+    "Qwen/Qwen2.5-72B-Instruct": {
+      "center": [
+        0.034514813118531794,
+        0.20263551471532293
+      ],
+      "semi_major": 0.21069097130248668,
+      "semi_minor": 0.0725718885724295,
+      "rotation_rad": 1.992300286126509,
+      "n_bootstrap": 500
+    },
+    "claude-opus-4-6": {
+      "center": [
+        -0.18237547269700388,
+        -0.09086962728686561
+      ],
+      "semi_major": 0.2731802217521304,
+      "semi_minor": 0.05776829953469807,
+      "rotation_rad": 2.7508139535730014,
+      "n_bootstrap": 500
+    },
+    "claude-sonnet-4-6": {
+      "center": [
+        -0.10086261509891951,
+        -0.16547075534659297
+      ],
+      "semi_major": 0.2857649756384904,
+      "semi_minor": 0.0612966309262108,
+      "rotation_rad": 1.93683822266134,
+      "n_bootstrap": 500
+    },
+    "cohere/command-r-plus-08-2024": {
+      "center": [
+        0.04030969326396676,
+        -0.07970292965827508
+      ],
+      "semi_major": 0.36682777666418537,
+      "semi_minor": 0.029907513396740724,
+      "rotation_rad": 2.3503147330234064,
+      "n_bootstrap": 500
+    },
+    "google/gemini-2.5-pro": {
+      "center": [
+        -0.15279134532123198,
+        -0.04889291438226028
+      ],
+      "semi_major": 0.3781713371219472,
+      "semi_minor": 0.060376716564674,
+      "rotation_rad": 2.5067649127671663,
+      "n_bootstrap": 500
+    },
+    "meta-llama/llama-3.1-70b-instruct": {
+      "center": [
+        0.13215960253931214,
+        0.1272591506382697
+      ],
+      "semi_major": 0.13040711567923088,
+      "semi_minor": 0.10687653674399217,
+      "rotation_rad": 1.234432200580646,
+      "n_bootstrap": 500
+    },
+    "meta-llama/llama-4-maverick": {
+      "center": [
+        -0.10993590311745331,
+        -0.16173219049609178
+      ],
+      "semi_major": 0.28628088954350434,
+      "semi_minor": 0.11636150158014917,
+      "rotation_rad": -3.023801905641466,
+      "n_bootstrap": 500
+    },
+    "mistralai/mistral-large": {
+      "center": [
+        -0.016216629966756976,
+        -0.12649739592832673
+      ],
+      "semi_major": 0.4526733040046497,
+      "semi_minor": 0.04770570731320454,
+      "rotation_rad": 2.2200553903060123,
+      "n_bootstrap": 500
+    },
+    "mistralai/mistral-small-3.2-24b-instruct": {
+      "center": [
+        0.21993125944053624,
+        0.036802106114071205
+      ],
+      "semi_major": 0.25299832863141897,
+      "semi_minor": 0.07127332361771534,
+      "rotation_rad": 2.6537117570478035,
+      "n_bootstrap": 500
+    },
+    "openai/gpt-4o": {
+      "center": [
+        -0.015665689562482852,
+        -0.012462643095120159
+      ],
+      "semi_major": 0.15182142623640427,
+      "semi_minor": 0.09003412092066389,
+      "rotation_rad": 2.9996076692125686,
+      "n_bootstrap": 500
+    },
+    "qwen/qwen-2.5-72b-instruct": {
+      "center": [
+        -0.0644265085253685,
+        0.24782773727332055
+      ],
+      "semi_major": 0.4232782593801134,
+      "semi_minor": 0.06299247039044115,
+      "rotation_rad": 2.2602741552922376,
+      "n_bootstrap": 500
+    },
+    "x-ai/grok-3": {
+      "center": [
+        0.21535879592687013,
+        0.07110394745254825
+      ],
+      "semi_major": 0.26337476583844016,
+      "semi_minor": 0.21971630839038386,
+      "rotation_rad": -2.971532512054281,
+      "n_bootstrap": 500
+    }
+  },
+  "similarity_matrix": [
+    [
+      1.0,
+      0.5958173091814918,
+      0.5850346627416694,
+      0.6165581328557858,
+      0.5955531763961596,
+      0.7805527918207528,
+      0.5647791241756072,
+      0.5859416337715639,
+      0.656761645732164,
+      0.6278382068210833,
+      0.7890314998848773,
+      0.6538945569575274
+    ],
+    [
+      0.5958173091814918,
+      1.0,
+      0.7010201092246144,
+      0.6200846563056538,
+      0.8019987404912937,
+      0.574977302609891,
+      0.7288712285763455,
+      0.6071078698179383,
+      0.5492349836373716,
+      0.6808880357561627,
+      0.5619616624746767,
+      0.5665086437705249
+    ],
+    [
+      0.5850346627416694,
+      0.7010201092246144,
+      1.0,
+      0.7068784510516782,
+      0.6601572675722627,
+      0.5944851640923193,
+      0.6742732528043517,
+      0.7386391198695091,
+      0.6017803834337664,
+      0.6236730644870031,
+      0.5614878152073229,
+      0.5405690057160919
+    ],
+    [
+      0.6165581328557858,
+      0.6200846563056538,
+      0.7068784510516782,
+      1.0,
+      0.6151271123351518,
+      0.6405444856683633,
+      0.650904985148612,
+      0.7751957875713458,
+      0.6539828974126703,
+      0.6741721774448067,
+      0.5609934465060664,
+      0.5817600909350862
+    ],
+    [
+      0.5955531763961596,
+      0.8019987404912937,
+      0.6601572675722627,
+      0.6151271123351518,
+      1.0,
+      0.5759001269652271,
+      0.7184954562803239,
+      0.6206740864740484,
+      0.5483142290114208,
+      0.7067480457107339,
+      0.5450852609653388,
+      0.5818685644173284
+    ],
+    [
+      0.7805527918207528,
+      0.574977302609891,
+      0.5944851640923193,
+      0.6405444856683633,
+      0.5759001269652271,
+      1.0,
+      0.5983364267853403,
+      0.6025541961829531,
+      0.7297224788958142,
+      0.670339025749731,
+      0.5370566877106713,
+      0.6910805958644902
+    ],
+    [
+      0.5647791241756072,
+      0.7288712285763455,
+      0.6742732528043517,
+      0.650904985148612,
+      0.7184954562803239,
+      0.5983364267853403,
+      1.0,
+      0.630952539138484,
+      0.5700183069136212,
+      0.6659694238471875,
+      0.5080375237148247,
+      0.6017418566049144
+    ],
+    [
+      0.5859416337715639,
+      0.6071078698179383,
+      0.7386391198695091,
+      0.7751957875713458,
+      0.6206740864740484,
+      0.6025541961829531,
+      0.630952539138484,
+      1.0,
+      0.6044967378984761,
+      0.6861364919553117,
+      0.5763908526437768,
+      0.5680457131857365
+    ],
+    [
+      0.656761645732164,
+      0.5492349836373716,
+      0.6017803834337664,
+      0.6539828974126703,
+      0.5483142290114208,
+      0.7297224788958142,
+      0.5700183069136212,
+      0.6044967378984761,
+      1.0,
+      0.6228694455786868,
+      0.5390899901587257,
+      0.7763113717975213
+    ],
+    [
+      0.6278382068210833,
+      0.6808880357561627,
+      0.6236730644870031,
+      0.6741721774448067,
+      0.7067480457107339,
+      0.670339025749731,
+      0.6659694238471875,
+      0.6861364919553117,
+      0.6228694455786868,
+      1.0,
+      0.5598919054891549,
+      0.6375558026630903
+    ],
+    [
+      0.7890314998848773,
+      0.5619616624746767,
+      0.5614878152073229,
+      0.5609934465060664,
+      0.5450852609653388,
+      0.5370566877106713,
+      0.5080375237148247,
+      0.5763908526437768,
+      0.5390899901587257,
+      0.5598919054891549,
+      1.0,
+      0.5207471656045932
+    ],
+    [
+      0.6538945569575274,
+      0.5665086437705249,
+      0.5405690057160919,
+      0.5817600909350862,
+      0.5818685644173284,
+      0.6910805958644902,
+      0.6017418566049144,
+      0.5680457131857365,
+      0.7763113717975213,
+      0.6375558026630903,
+      0.5207471656045932,
+      1.0
+    ]
+  ],
+  "similarity_ci": [
+    [
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.5744159708020693,
+        0.6117276502465369
+      ],
+      [
+        0.5673073001629508,
+        0.5982453800398485
+      ],
+      [
+        0.5850112565663425,
+        0.6325221417103315
+      ],
+      [
+        0.5646777911122953,
+        0.6157189699348458
+      ],
+      [
+        0.6052340555936726,
+        0.9359193834290546
+      ],
+      [
+        0.5160779850819583,
+        0.6130359201795796
+      ],
+      [
+        0.568339873575396,
+        0.602429128273868
+      ],
+      [
+        0.5581447382006373,
+        0.7439449777364886
+      ],
+      [
+        0.5640467265732378,
+        0.6955949209737913
+      ],
+      [
+        0.62219359493186,
+        0.9022286853006751
+      ],
+      [
+        0.5595774986122878,
+        0.7273319650366544
+      ]
+    ],
+    [
+      [
+        0.5744159708020693,
+        0.6117276502465369
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.6960794869047271,
+        0.7086911986234634
+      ],
+      [
+        0.606303041151018,
+        0.6325119959701991
+      ],
+      [
+        0.7426792642637002,
+        0.8506670078243219
+      ],
+      [
+        0.5559098559549237,
+        0.5821023445677088
+      ],
+      [
+        0.7019320427119868,
+        0.7628256166959612
+      ],
+      [
+        0.5903106429727538,
+        0.6128936992601675
+      ],
+      [
+        0.5250559911358691,
+        0.5645113401388349
+      ],
+      [
+        0.6143369410043474,
+        0.7084494972832808
+      ],
+      [
+        0.5469942054777143,
+        0.5742737062393113
+      ],
+      [
+        0.5645215797703551,
+        0.5677840608989795
+      ]
+    ],
+    [
+      [
+        0.5673073001629508,
+        0.5982453800398485
+      ],
+      [
+        0.6960794869047271,
+        0.7086911986234634
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.6812667649369627,
+        0.7296856872668085
+      ],
+      [
+        0.640354123970174,
+        0.6827060903836051
+      ],
+      [
+        0.5832150240684082,
+        0.6039071610693892
+      ],
+      [
+        0.6447294745982749,
+        0.706636851667252
+      ],
+      [
+        0.6957192907799219,
+        0.7542385394224487
+      ],
+      [
+        0.5732827460400447,
+        0.6379767264653451
+      ],
+      [
+        0.5841479437714149,
+        0.6487360080236669
+      ],
+      [
+        0.5514396924104722,
+        0.5702576299979851
+      ],
+      [
+        0.5348198633412641,
+        0.5486339217673363
+      ]
+    ],
+    [
+      [
+        0.5850112565663425,
+        0.6325221417103315
+      ],
+      [
+        0.606303041151018,
+        0.6325119959701991
+      ],
+      [
+        0.6812667649369627,
+        0.7296856872668085
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.6003464993485957,
+        0.6283828338375668
+      ],
+      [
+        0.6170378523175678,
+        0.6559995574302283
+      ],
+      [
+        0.6277915630921986,
+        0.6779366620674039
+      ],
+      [
+        0.7249551962370436,
+        0.810095259149219
+      ],
+      [
+        0.6330453977792564,
+        0.6726245872655153
+      ],
+      [
+        0.653424997205913,
+        0.6851652714687609
+      ],
+      [
+        0.5532756311038145,
+        0.5675668874094966
+      ],
+      [
+        0.5692790096315146,
+        0.5882801595392954
+      ]
+    ],
+    [
+      [
+        0.5646777911122953,
+        0.6157189699348458
+      ],
+      [
+        0.7426792642637002,
+        0.8506670078243219
+      ],
+      [
+        0.640354123970174,
+        0.6827060903836051
+      ],
+      [
+        0.6003464993485957,
+        0.6283828338375668
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.5499735773440463,
+        0.5929210700370526
+      ],
+      [
+        0.6752260943353662,
+        0.7673411661892605
+      ],
+      [
+        0.6016734267869482,
+        0.6318281859723728
+      ],
+      [
+        0.5347974670218019,
+        0.5617297692191192
+      ],
+      [
+        0.6272484218843852,
+        0.7463840487613368
+      ],
+      [
+        0.5217740843477134,
+        0.5639843594105272
+      ],
+      [
+        0.5701256030718049,
+        0.5922714986636466
+      ]
+    ],
+    [
+      [
+        0.6052340555936726,
+        0.9359193834290546
+      ],
+      [
+        0.5559098559549237,
+        0.5821023445677088
+      ],
+      [
+        0.5832150240684082,
+        0.6039071610693892
+      ],
+      [
+        0.6170378523175678,
+        0.6559995574302283
+      ],
+      [
+        0.5499735773440463,
+        0.5929210700370526
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.5757748974967882,
+        0.6223482742356353
+      ],
+      [
+        0.5765127125770275,
+        0.6282726625445141
+      ],
+      [
+        0.6705984124289371,
+        0.7660207012228835
+      ],
+      [
+        0.5983279527238515,
+        0.7348397171505934
+      ],
+      [
+        0.524075739639636,
+        0.54988619762479
+      ],
+      [
+        0.6342937754267806,
+        0.7230798490387486
+      ]
+    ],
+    [
+      [
+        0.5160779850819583,
+        0.6130359201795796
+      ],
+      [
+        0.7019320427119868,
+        0.7628256166959612
+      ],
+      [
+        0.6447294745982749,
+        0.706636851667252
+      ],
+      [
+        0.6277915630921986,
+        0.6779366620674039
+      ],
+      [
+        0.6752260943353662,
+        0.7673411661892605
+      ],
+      [
+        0.5757748974967882,
+        0.6223482742356353
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.601123406075803,
+        0.656172053894795
+      ],
+      [
+        0.5531712640489513,
+        0.5857042250876934
+      ],
+      [
+        0.601900823094895,
+        0.7247893418396381
+      ],
+      [
+        0.4870029999339957,
+        0.5330874981052744
+      ],
+      [
+        0.5809780632960805,
+        0.6236009242315816
+      ]
+    ],
+    [
+      [
+        0.568339873575396,
+        0.602429128273868
+      ],
+      [
+        0.5903106429727538,
+        0.6128936992601675
+      ],
+      [
+        0.6957192907799219,
+        0.7542385394224487
+      ],
+      [
+        0.7249551962370436,
+        0.810095259149219
+      ],
+      [
+        0.6016734267869482,
+        0.6318281859723728
+      ],
+      [
+        0.5765127125770275,
+        0.6282726625445141
+      ],
+      [
+        0.601123406075803,
+        0.656172053894795
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.5821451912365899,
+        0.6246209302887434
+      ],
+      [
+        0.6388795993248184,
+        0.705848292994863
+      ],
+      [
+        0.560235834965718,
+        0.5910042161322707
+      ],
+      [
+        0.5558732591603496,
+        0.5772662868137646
+      ]
+    ],
+    [
+      [
+        0.5581447382006373,
+        0.7439449777364886
+      ],
+      [
+        0.5250559911358691,
+        0.5645113401388349
+      ],
+      [
+        0.5732827460400447,
+        0.6379767264653451
+      ],
+      [
+        0.6330453977792564,
+        0.6726245872655153
+      ],
+      [
+        0.5347974670218019,
+        0.5617297692191192
+      ],
+      [
+        0.6705984124289371,
+        0.7660207012228835
+      ],
+      [
+        0.5531712640489513,
+        0.5857042250876934
+      ],
+      [
+        0.5821451912365899,
+        0.6246209302887434
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.5536347136656935,
+        0.6946315619349466
+      ],
+      [
+        0.5244981349493401,
+        0.5566651301895551
+      ],
+      [
+        0.7147025500618768,
+        0.8062633303590392
+      ]
+    ],
+    [
+      [
+        0.5640467265732378,
+        0.6955949209737913
+      ],
+      [
+        0.6143369410043474,
+        0.7084494972832808
+      ],
+      [
+        0.5841479437714149,
+        0.6487360080236669
+      ],
+      [
+        0.653424997205913,
+        0.6851652714687609
+      ],
+      [
+        0.6272484218843852,
+        0.7463840487613368
+      ],
+      [
+        0.5983279527238515,
+        0.7348397171505934
+      ],
+      [
+        0.601900823094895,
+        0.7247893418396381
+      ],
+      [
+        0.6388795993248184,
+        0.705848292994863
+      ],
+      [
+        0.5536347136656935,
+        0.6946315619349466
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.5475071928062197,
+        0.5702033453325679
+      ],
+      [
+        0.5718657312128916,
+        0.6973459137280973
+      ]
+    ],
+    [
+      [
+        0.62219359493186,
+        0.9022286853006751
+      ],
+      [
+        0.5469942054777143,
+        0.5742737062393113
+      ],
+      [
+        0.5514396924104722,
+        0.5702576299979851
+      ],
+      [
+        0.5532756311038145,
+        0.5675668874094966
+      ],
+      [
+        0.5217740843477134,
+        0.5639843594105272
+      ],
+      [
+        0.524075739639636,
+        0.54988619762479
+      ],
+      [
+        0.4870029999339957,
+        0.5330874981052744
+      ],
+      [
+        0.560235834965718,
+        0.5910042161322707
+      ],
+      [
+        0.5244981349493401,
+        0.5566651301895551
+      ],
+      [
+        0.5475071928062197,
+        0.5702033453325679
+      ],
+      [
+        1.0,
+        1.0
+      ],
+      [
+        0.5117584460732804,
+        0.5308083379547811
+      ]
+    ],
+    [
+      [
+        0.5595774986122878,
+        0.7273319650366544
+      ],
+      [
+        0.5645215797703551,
+        0.5677840608989795
+      ],
+      [
+        0.5348198633412641,
+        0.5486339217673363
+      ],
+      [
+        0.5692790096315146,
+        0.5882801595392954
+      ],
+      [
+        0.5701256030718049,
+        0.5922714986636466
+      ],
+      [
+        0.6342937754267806,
+        0.7230798490387486
+      ],
+      [
+        0.5809780632960805,
+        0.6236009242315816
+      ],
+      [
+        0.5558732591603496,
+        0.5772662868137646
+      ],
+      [
+        0.7147025500618768,
+        0.8062633303590392
+      ],
+      [
+        0.5718657312128916,
+        0.6973459137280973
+      ],
+      [
+        0.5117584460732804,
+        0.5308083379547811
+      ],
+      [
+        1.0,
+        1.0
+      ]
+    ]
+  ],
+  "consensus_score": 0.6286889513404103,
+  "consensus_ci": [
+    0.530940616920892,
+    0.7837323073447995
+  ],
+  "groundings": [],
+  "selected_baseline_id": null,
+  "generated_lede": "",
+  "generated_at": "2026-04-14T20:18:36.354615Z"
+}
