@@ -5,6 +5,8 @@ See ARCHITECTURE.md §4.1.
 Usage:
     python scripts/collect.py --domain family --runs 10
     python scripts/collect.py --domain family --mode two_pass --free-lists 10 --pile-sorts 10
+    python scripts/collect.py --domain family --mode cross_model --pile-sorts 10
+    python scripts/collect.py --domain family --mode cross_model --models claude-opus-4-6 openai/gpt-4o --pile-sorts 10
     python scripts/collect.py --domain family --mode baseline --baseline romney_1996 --pile-sorts 10
     python scripts/collect.py --domain family --dry-run
 """
@@ -27,7 +29,7 @@ from cdb_collect.adapters import (
 from cdb_collect.baselines import load_baseline_items
 from cdb_collect.domains import load_domain
 from cdb_collect.jsonl import append_failure, append_record
-from cdb_collect.runner import run_baseline_sort, run_informant, run_two_pass
+from cdb_collect.runner import run_baseline_sort, run_cross_model_sort, run_informant, run_two_pass
 from cdb_collect.spend import check_spend, get_monthly_spend
 from cdb_core import ModelRef
 from dotenv import load_dotenv
@@ -263,12 +265,11 @@ async def collect_two_pass(
     total = n_free_lists + n_pile_sorts
 
     print(
-        f"TWO-PASS MODE: {n_free_lists} free lists → consensus → "
+        f"TWO-PASS MODE: {n_free_lists} free lists → consensus (elbow) → "
         f"{n_pile_sorts} pile sorts"
     )
     print(f"  Model:  {adapter.model.model_id}")
     print(f"  Domain: {domain_slug} ({domain.display_name})")
-    print(f"  Truncation K: {domain.truncation_k}")
     print()
 
     try:
@@ -295,6 +296,98 @@ async def collect_two_pass(
         print(f"  [{mode_label}] {record.informant_id} — {status_str}")
         successful += 1
 
+    print(f"\nDone: {successful}/{total} records written.")
+    return successful
+
+
+async def collect_cross_model(
+    adapters: list[ModelAdapter],
+    domain_slug: str,
+    n_pile_sorts: int,
+    output_path: Path,
+) -> int:
+    """Cross-model consensus collection.
+
+    Loads existing free list records from output_path, pools them across
+    all models, computes cross-model consensus via Smith's S + elbow
+    detection, then has each model pile sort the shared item list.
+    """
+    import json
+
+    from cdb_analyze.consensus import (
+        compute_cross_model_consensus,
+        find_salience_elbow,
+    )
+
+    domain = load_domain(domain_slug)
+
+    # ── Load existing free list records ────────────────────────────
+    records_by_model: dict[str, list] = {}
+    with open(output_path) as f:
+        for line in f:
+            rec_dict = json.loads(line.strip())
+            if rec_dict.get("domain_slug") != domain_slug:
+                continue
+            from cdb_core import InformantRecord
+            rec = InformantRecord(**rec_dict)
+            if rec.freelist.output_tokens > 0:
+                records_by_model.setdefault(rec.model_id, []).append(rec)
+
+    if not records_by_model:
+        print("ERROR: No free list records found. Run two_pass first.", file=sys.stderr)
+        return 0
+
+    # ── Compute cross-model consensus ──────────────────────────────
+    consensus = compute_cross_model_consensus(records_by_model)
+    elbow_k = find_salience_elbow(consensus)
+    consensus_items = [item for item, _ in consensus[:elbow_k]]
+
+    n_models = len(records_by_model)
+    n_free_lists = sum(len(recs) for recs in records_by_model.values())
+
+    print(f"CROSS-MODEL CONSENSUS MODE:")
+    print(f"  Domain:       {domain_slug} ({domain.display_name})")
+    print(f"  Models:       {n_models} ({', '.join(sorted(records_by_model.keys()))})")
+    print(f"  Free lists:   {n_free_lists} total")
+    print(f"  Unique items: {len(consensus)}")
+    print(f"  Elbow at:     {elbow_k} items")
+    print(f"  Pile sorts:   {n_pile_sorts} per model")
+    print()
+    print(f"  Consensus items ({elbow_k}):")
+    for i, (item, s) in enumerate(consensus[:elbow_k]):
+        print(f"    {i+1:3d}. {item:35s} S={s:.4f}")
+    print()
+
+    # ── Pile sort each model on the shared list ────────────────────
+    successful = 0
+    for adapter in adapters:
+        print(f"  Sorting: {adapter.model.model_id}...")
+        try:
+            records = await run_cross_model_sort(
+                adapter, domain,
+                consensus_items=consensus_items,
+                n_pile_sorts=n_pile_sorts,
+            )
+        except Exception as e:
+            print(f"    ERROR: {e}", file=sys.stderr)
+            logger.exception(
+                "Cross-model sort failed for %s", adapter.model.model_id,
+            )
+            append_failure(e, {
+                "model_id": adapter.model.model_id,
+                "domain": domain_slug, "mode": "cross_model_consensus",
+            }, FAILURES_JSONL)
+            continue
+
+        for record in records:
+            append_record(record, output_path)
+            qa_passed = check_record(record)
+            status_str = "PASS" if qa_passed else "QA_FAIL"
+            n_piles = len(record.pile_sort.parsed_piles)
+            print(f"    {record.informant_id} — {status_str} ({n_piles} piles)")
+            successful += 1
+
+    total = len(adapters) * n_pile_sorts
     print(f"\nDone: {successful}/{total} records written.")
     return successful
 
@@ -354,10 +447,15 @@ def main() -> int:
     )
     parser.add_argument(
         "--model", default="claude-opus-4-6",
-        help="Model ID (default: claude-opus-4-6)",
+        help="Model ID for single/two_pass/baseline modes (default: claude-opus-4-6)",
     )
     parser.add_argument(
-        "--mode", choices=["single_pass", "two_pass", "baseline"],
+        "--models", nargs="+", default=None,
+        help="Model IDs for cross_model mode (space-separated). "
+        "If omitted, uses all models in the registry.",
+    )
+    parser.add_argument(
+        "--mode", choices=["single_pass", "two_pass", "baseline", "cross_model"],
         default="single_pass", help="Collection mode",
     )
     parser.add_argument(
@@ -402,9 +500,12 @@ def main() -> int:
 
     if args.dry_run:
         print(f"DRY RUN — mode: {args.mode}")
-        print(f"  Model:  {args.model}")
+        if args.mode == "cross_model":
+            model_ids = args.models or list(MODEL_REGISTRY.keys())
+            print(f"  Models: {', '.join(model_ids)}")
+        else:
+            print(f"  Model:  {args.model}")
         print(f"  Domain: {args.domain} ({domain.display_name})")
-        print(f"  Truncation K: {domain.truncation_k}")
         if args.mode == "single_pass":
             print(f"  Runs: {args.runs}")
         elif args.mode == "two_pass":
@@ -413,6 +514,8 @@ def main() -> int:
         elif args.mode == "baseline":
             print(f"  Baseline: {args.baseline}")
             print(f"  Pile sorts: {args.pile_sorts}")
+        elif args.mode == "cross_model":
+            print(f"  Pile sorts: {args.pile_sorts} per model")
         monthly = get_monthly_spend(args.output)
         status = check_spend(monthly)
         print(f"  Monthly spend: ${monthly:.2f} (status: {status})")
@@ -422,22 +525,34 @@ def main() -> int:
         print("--baseline is required for baseline mode", file=sys.stderr)
         return 1
 
-    adapter = _create_adapter(model_ref)
-
-    if args.mode == "single_pass":
-        result = asyncio.run(collect_single_pass(
-            adapter, args.domain, args.runs, args.output,
-        ))
-    elif args.mode == "two_pass":
-        result = asyncio.run(collect_two_pass(
-            adapter, args.domain, args.free_lists, args.pile_sorts, args.output,
-        ))
-    elif args.mode == "baseline":
-        result = asyncio.run(collect_baseline(
-            adapter, args.domain, args.baseline, args.pile_sorts, args.output,
+    if args.mode == "cross_model":
+        model_ids = args.models or list(MODEL_REGISTRY.keys())
+        adapters = []
+        for mid in model_ids:
+            ref = MODEL_REGISTRY.get(mid)
+            if ref is None:
+                print(f"Unknown model: {mid}", file=sys.stderr)
+                return 1
+            adapters.append(_create_adapter(ref))
+        result = asyncio.run(collect_cross_model(
+            adapters, args.domain, args.pile_sorts, args.output,
         ))
     else:
-        return 1
+        adapter = _create_adapter(model_ref)
+        if args.mode == "single_pass":
+            result = asyncio.run(collect_single_pass(
+                adapter, args.domain, args.runs, args.output,
+            ))
+        elif args.mode == "two_pass":
+            result = asyncio.run(collect_two_pass(
+                adapter, args.domain, args.free_lists, args.pile_sorts, args.output,
+            ))
+        elif args.mode == "baseline":
+            result = asyncio.run(collect_baseline(
+                adapter, args.domain, args.baseline, args.pile_sorts, args.output,
+            ))
+        else:
+            return 1
 
     return 0 if result > 0 else 1
 

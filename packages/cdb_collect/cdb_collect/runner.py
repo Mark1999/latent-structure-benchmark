@@ -64,7 +64,7 @@ def _assemble_record(
     freelist_result: AdapterResult,
     pilesort_record: PileSortRecord,
     interview_record: InterviewRecord,
-    collection_mode: Literal["single_pass", "two_pass", "baseline_items"],
+    collection_mode: Literal["single_pass", "two_pass", "baseline_items", "cross_model_consensus"],
     prompt_version: str = "v1",
     system_prompt: str = "",
 ) -> InformantRecord:
@@ -200,7 +200,7 @@ async def run_two_pass(
         Free-list-only records have collection_mode="two_pass" and placeholder
         pile sort/interview. Pile sort records have the consensus items.
     """
-    from cdb_analyze.consensus import compute_consensus_free_list
+    from cdb_analyze.consensus import compute_consensus_free_list, find_salience_elbow
 
     # ── Pass 1: Collect free lists ──────────────────────────────────
     freelist_records: list[tuple[FreelistRecord, AdapterResult]] = []
@@ -241,12 +241,13 @@ async def run_two_pass(
 
     # ── Compute consensus item list ─────────────────────────────────
     consensus = compute_consensus_free_list(all_informant_records)
-    consensus_items = [item for item, _ in consensus[:domain.truncation_k]]
+    elbow_k = find_salience_elbow(consensus)
+    consensus_items = [item for item, _ in consensus[:elbow_k]]
 
     item_source = f"consensus:{adapter.model.model_id}"
     logger.info(
-        "Consensus free list: %d items (from %d free lists, top %d by Smith's S)",
-        len(consensus_items), n_free_lists, domain.truncation_k,
+        "Consensus free list: %d items (from %d free lists, elbow at %d by Smith's S)",
+        len(consensus_items), n_free_lists, elbow_k,
     )
 
     # ── Pass 2: Pile sorts on consensus items ───────────────────────
@@ -286,6 +287,66 @@ async def run_two_pass(
         all_informant_records.append(record)
 
     return all_informant_records
+
+
+async def run_cross_model_sort(
+    adapter: ModelAdapter,
+    domain: Domain,
+    consensus_items: list[str],
+    n_pile_sorts: int = 10,
+    *,
+    prompt_version: str = "v1",
+    system_prompt: str = "",
+) -> list[InformantRecord]:
+    """Run pile sorts on a cross-model consensus item list.
+
+    This is the CDA cultural consensus method: all models sort the same
+    shared item list (derived from pooling all models' free lists),
+    making their similarity matrices directly comparable.
+
+    The consensus_items should come from compute_cross_model_consensus()
+    + find_salience_elbow() — computed externally so the caller controls
+    which records are pooled.
+
+    Returns:
+        List of n_pile_sorts InformantRecords with
+        collection_mode="cross_model_consensus".
+    """
+    item_source = "cross_model_consensus"
+    records: list[InformantRecord] = []
+
+    for i in range(n_pile_sorts):
+        pilesort_record, ps_result = await run_pile_sort(
+            adapter,
+            items=consensus_items,
+            domain_seed=domain.prompt_seed,
+            run_index=i,
+            prompt_version=prompt_version,
+        )
+        pilesort_record = pilesort_record.model_copy(
+            update={"item_source": item_source},
+        )
+
+        interview_record, _ = await run_pile_interview(
+            adapter,
+            piles=pilesort_record.parsed_piles,
+            run_index=i,
+            prompt_version=prompt_version,
+        )
+
+        fl_placeholder, fl_result_placeholder = _placeholder_freelist()
+
+        record = _assemble_record(
+            adapter, domain, i,
+            fl_placeholder, ps_result,
+            pilesort_record, interview_record,
+            collection_mode="cross_model_consensus",
+            prompt_version=prompt_version,
+            system_prompt=system_prompt,
+        )
+        records.append(record)
+
+    return records
 
 
 async def run_baseline_sort(

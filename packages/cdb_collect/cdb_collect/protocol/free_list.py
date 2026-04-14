@@ -19,13 +19,14 @@ def load_prompt(domain: Domain, version: str = "v1") -> str:
     return template.replace("{{domain_seed}}", domain.prompt_seed)
 
 
-def parse_free_list(text: str, truncation_k: int = 25) -> tuple[list[str], list[str]]:
+def parse_free_list(text: str) -> tuple[list[str], list[str]]:
     """Parse a free-list response into normalized items.
 
     Returns:
-        (parsed_items, raw_order) where parsed_items is deduplicated and
-        truncated to truncation_k, and raw_order is all items before
-        dedup/truncation.
+        (parsed_items, raw_order) where parsed_items is deduplicated
+        (preserving first-occurrence order), and raw_order is all items
+        before dedup. No truncation is applied here — truncation is
+        data-driven via salience elbow detection after consensus pooling.
     """
     raw_order: list[str] = []
 
@@ -71,9 +72,6 @@ def parse_free_list(text: str, truncation_k: int = 25) -> tuple[list[str], list[
             seen.add(item)
             parsed_items.append(item)
 
-    # Truncate to truncation_k most salient (first-mentioned)
-    parsed_items = parsed_items[:truncation_k]
-
     return parsed_items, raw_order
 
 
@@ -99,9 +97,7 @@ async def run_free_list(
     # Free listing uses temperature 0.7 per ARCHITECTURE.md §4.1.3
     result = await adapter.complete(prompt, temperature=0.7)
 
-    parsed_items, raw_order = parse_free_list(
-        result.text, truncation_k=domain.truncation_k,
-    )
+    parsed_items, raw_order = parse_free_list(result.text)
 
     record = FreelistRecord(
         prompt_verbatim=prompt,
