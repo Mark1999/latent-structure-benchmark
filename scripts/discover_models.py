@@ -67,7 +67,7 @@ FAMILY_CONFIG: dict[str, dict] = {
         "open_weights": False,
         "max_tiers": 2,  # pro, flash
         "preferred_adapter": "google_ai",
-        "direct_env_key": "GEMINI_API_KEY",
+        "direct_env_key": "GOOGLE_API_KEY",
     },
     "grok": {
         "prefixes": ["x-ai/grok"],
