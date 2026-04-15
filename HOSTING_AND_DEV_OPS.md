@@ -120,15 +120,14 @@ The VPS is **not** an inference host. There is no Ollama, no llama.cpp, no on-pr
 ### 3.3 Filesystem layout
 
 ```
-/home/lsb/                          # the lsb user's home
-├── lsb/                            # the LSB monorepo, cloned from GitHub
-│   ├── packages/
-│   ├── scripts/
-│   ├── data/
-│   │   ├── raw/                    # the canonical informants.jsonl + per-call atoms
-│   │   ├── processed/
-│   │   └── results/
-│   └── .env                        # secrets, never committed, mode 600
+/opt/lsb-agent/                     # the LSB monorepo, cloned from GitHub
+├── packages/
+├── scripts/
+├── data/
+│   ├── raw/                        # the canonical informants.jsonl + per-call atoms
+│   ├── processed/
+│   └── results/
+├── .env                            # secrets, never committed, mode 600
 ├── backups/                        # local backup snapshots before push to B2 (kept for 7 days)
 └── logs/                           # systemd journal output, log rotation via journald
 ```
@@ -164,7 +163,7 @@ LSB takes the backup story seriously because losing the raw data means losing th
 
 | Layer | Lives where | Cadence | Failure mode this layer catches |
 |---|---|---|---|
-| **1 — Local on VPS** | `lsb-agent-01:/home/lsb/lsb/data/raw/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup |
+| **1 — Local on VPS** | `lsb-agent-01:/opt/lsb-agent/data/raw/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup |
 | **2 — Synology DS1522+ NAS** | Mark's home network, NAS pull via rsync over SSH | Nightly 03:00 local time (after the VPS-to-B2 push completes) | VPS hardware failure, accidental `rm`, ransomware on the VPS |
 | **3 — Backblaze B2** | Backblaze B2 bucket `lsb-backups`, region US-West | Nightly 02:00 UTC, push from VPS | Hetzner regional outage, full home network loss, theft of the NAS |
 | **4 — Fireproof safe** | USB SSD physically stored in Mark's fireproof safe at home | Manually refreshed every 90 days | Backblaze account compromise, US-wide cloud provider outage, "everything is on fire" scenarios |
@@ -178,7 +177,7 @@ The four layers fail differently. Layer 2 catches the most common failure (VPS m
 - **Bucket name for open data:** `lsb-open-data` (public, for the open bundle distribution per `ARCHITECTURE.md` §6.7)
 - **Lifecycle policy on `lsb-backups`:** versioned files retained for 90 days; older versions removed automatically
 - **Lifecycle policy on `lsb-open-data`:** no automatic deletion (open data is never retracted)
-- **Application key:** scoped to read+write on `lsb-backups` only, stored in `lsb-agent-01:/home/lsb/lsb/.env` as `B2_KEY_ID` and `B2_APPLICATION_KEY`. Never committed.
+- **Application key:** scoped to read+write on `lsb-backups` only, stored in `lsb-agent-01:/opt/lsb-agent/.env` as `B2_KEY_ID` and `B2_APPLICATION_KEY`. Never committed.
 - **Cost:** $0.005/GB/month storage + $0.01/GB egress over the free 1GB/day allowance. Expected v1 monthly cost: ~$5 for backups + ~$0–2 for open data egress depending on traffic.
 
 ### 4.3 Synology NAS configuration
@@ -235,7 +234,7 @@ The following secrets must be configured in the GitHub repository settings (Sett
 | `B2_APPLICATION_KEY` | (none in v1; Phase 6) | Backblaze B2 |
 | `CLOUDFLARE_API_TOKEN` | (none in v1; Cloudflare Pages auto-deploys without an API token) | — |
 
-GitHub Actions does **not** need any LLM API keys, because no GitHub Actions job ever calls an LLM directly. The collection runner only ever runs on `lsb-agent-01`. This is a deliberate security simplification: the LLM API keys live in exactly one place (`lsb-agent-01:/home/lsb/lsb/.env`) and never travel.
+GitHub Actions does **not** need any LLM API keys, because no GitHub Actions job ever calls an LLM directly. The collection runner only ever runs on `lsb-agent-01`. This is a deliberate security simplification: the LLM API keys live in exactly one place (`lsb-agent-01:/opt/lsb-agent/.env`) and never travel.
 
 ### 5.3 Branch protection on `main`
 
@@ -267,7 +266,7 @@ LSB has three operational Slack channels per `ARCHITECTURE.md` §5.4. All three 
 
 | Channel | Posted by | Webhook env var | Where the env var is configured |
 |---|---|---|---|
-| `#lsb-alerts` | `scripts/qa_check.py` running on `lsb-agent-01`; `weekly-cost-alert.yml` running on GitHub Actions | `LSB_ALERTS_WEBHOOK_URL` | Both `lsb-agent-01:/home/lsb/lsb/.env` and GitHub Actions secrets |
+| `#lsb-alerts` | `scripts/qa_check.py` running on `lsb-agent-01`; `weekly-cost-alert.yml` running on GitHub Actions | `LSB_ALERTS_WEBHOOK_URL` | Both `lsb-agent-01:/opt/lsb-agent/.env` and GitHub Actions secrets |
 | `#lsb-cda-sme` | The CDA SME agent (Opus) running in the Claude Code agent runtime | `LSB_CDA_SME_WEBHOOK_URL` | Mark's local Claude Code environment |
 | `#lsb-ui-ux` | The UI/UX agent (Sonnet) running in the Claude Code agent runtime | `LSB_UI_UX_WEBHOOK_URL` | Mark's local Claude Code environment |
 
