@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-15T14:07:05",
+  "updated_at": "2026-04-15T14:41:23",
   "families": [
     "claude",
     "gpt",
@@ -26,7 +26,7 @@
       "pricing_output_per_m": 15.0,
       "supports_reasoning": true,
       "openrouter_created": 1771342990,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Anthropic: Claude Sonnet 4.6",
       "records": 32
     },
@@ -41,7 +41,7 @@
       "pricing_output_per_m": 25.0,
       "supports_reasoning": true,
       "openrouter_created": 1770219050,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Anthropic: Claude Opus 4.6",
       "records": 82
     },
@@ -56,7 +56,7 @@
       "pricing_output_per_m": 10.0,
       "supports_reasoning": true,
       "openrouter_created": 1750169544,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Google: Gemini 2.5 Pro",
       "records": 30
     },
@@ -71,7 +71,7 @@
       "pricing_output_per_m": 0.6,
       "supports_reasoning": false,
       "openrouter_created": 1743881822,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Meta: Llama 4 Maverick",
       "records": 10
     },
@@ -86,7 +86,7 @@
       "pricing_output_per_m": 25.0,
       "supports_reasoning": true,
       "openrouter_created": 1764010580,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Anthropic: Claude Opus 4.5",
       "records": 0
     },
@@ -101,7 +101,7 @@
       "pricing_output_per_m": 10.0,
       "supports_reasoning": false,
       "openrouter_created": 1741894342,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Cohere: Command A",
       "records": 0
     },
@@ -116,7 +116,7 @@
       "pricing_output_per_m": 0.38,
       "supports_reasoning": true,
       "openrouter_created": 1764594642,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "DeepSeek: DeepSeek V3.2",
       "records": 0
     },
@@ -131,7 +131,7 @@
       "pricing_output_per_m": 0.75,
       "supports_reasoning": true,
       "openrouter_created": 1755779628,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "DeepSeek: DeepSeek V3.1",
       "records": 0
     },
@@ -146,7 +146,7 @@
       "pricing_output_per_m": 2.5,
       "supports_reasoning": true,
       "openrouter_created": 1750172488,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Google: Gemini 2.5 Flash",
       "records": 0
     },
@@ -161,7 +161,7 @@
       "pricing_output_per_m": 0.35,
       "supports_reasoning": true,
       "openrouter_created": 1775227989,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Google: Gemma 4 26B A4B ",
       "records": 0
     },
@@ -176,7 +176,7 @@
       "pricing_output_per_m": 3.15,
       "supports_reasoning": true,
       "openrouter_created": 1775578025,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Z.ai: GLM 5.1",
       "records": 0
     },
@@ -185,13 +185,13 @@
       "family": "gpt",
       "origin": "us",
       "open_weights": false,
-      "collection_method": "openrouter",
+      "collection_method": "openai_api",
       "context_length": 400000,
       "pricing_input_per_m": 0.75,
       "pricing_output_per_m": 4.5,
       "supports_reasoning": true,
       "openrouter_created": 1773748178,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "OpenAI: GPT-5.4 Mini",
       "records": 0
     },
@@ -200,13 +200,13 @@
       "family": "gpt",
       "origin": "us",
       "open_weights": false,
-      "collection_method": "openrouter",
+      "collection_method": "openai_api",
       "context_length": 1050000,
       "pricing_input_per_m": 2.5,
       "pricing_output_per_m": 15.0,
       "supports_reasoning": true,
       "openrouter_created": 1772734352,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "OpenAI: GPT-5.4",
       "records": 0
     },
@@ -215,13 +215,13 @@
       "family": "gpt",
       "origin": "us",
       "open_weights": false,
-      "collection_method": "openrouter",
+      "collection_method": "openai_api",
       "context_length": 400000,
       "pricing_input_per_m": 1.75,
       "pricing_output_per_m": 14.0,
       "supports_reasoning": true,
       "openrouter_created": 1765389775,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "OpenAI: GPT-5.2",
       "records": 0
     },
@@ -236,7 +236,7 @@
       "pricing_output_per_m": 6.0,
       "supports_reasoning": true,
       "openrouter_created": 1774979019,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "xAI: Grok 4.20",
       "records": 0
     },
@@ -251,7 +251,7 @@
       "pricing_output_per_m": 15.0,
       "supports_reasoning": true,
       "openrouter_created": 1752087689,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "xAI: Grok 4",
       "records": 0
     },
@@ -266,7 +266,7 @@
       "pricing_output_per_m": 0.3,
       "supports_reasoning": false,
       "openrouter_created": 1743881519,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Meta: Llama 4 Scout",
       "records": 0
     },
@@ -281,7 +281,7 @@
       "pricing_output_per_m": 0.6,
       "supports_reasoning": true,
       "openrouter_created": 1773695685,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Mistral: Mistral Small 4",
       "records": 0
     },
@@ -296,7 +296,7 @@
       "pricing_output_per_m": 1.5,
       "supports_reasoning": false,
       "openrouter_created": 1764624472,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Mistral: Mistral Large 3 2512",
       "records": 0
     },
@@ -311,7 +311,7 @@
       "pricing_output_per_m": 0.14,
       "supports_reasoning": false,
       "openrouter_created": 1736489872,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Microsoft: Phi 4",
       "records": 0
     },
@@ -326,7 +326,7 @@
       "pricing_output_per_m": 1.95,
       "supports_reasoning": true,
       "openrouter_created": 1775133557,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Qwen: Qwen3.6 Plus",
       "records": 0
     },
@@ -341,7 +341,7 @@
       "pricing_output_per_m": 0.15,
       "supports_reasoning": true,
       "openrouter_created": 1773152396,
-      "discovered_at": "2026-04-15T14:07:05",
+      "discovered_at": "2026-04-15T14:41:23",
       "display_name": "Qwen: Qwen3.5-9B",
       "records": 0
     }
