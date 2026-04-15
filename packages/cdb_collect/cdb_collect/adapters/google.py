@@ -38,10 +38,13 @@ class GeminiAdapter:
 
         self.model = model
         self._semaphore = asyncio.Semaphore(max_concurrent)
+        # GOOGLE_API_KEY is the canonical env var (aligned with .env.example
+        # and discover_models.py). GEMINI_API_KEY kept as fallback for one
+        # release cycle — remove once all deployments have renamed.
         self._api_key = (
             api_key
-            or os.environ.get("GEMINI_API_KEY", "")
             or os.environ.get("GOOGLE_API_KEY", "")
+            or os.environ.get("GEMINI_API_KEY", "")
         )
         self._client = genai.Client(api_key=self._api_key)
         # Map our model_id (e.g. "google/gemini-2.5-pro") to Google's
