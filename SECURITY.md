@@ -2,13 +2,13 @@
 
 ## Supported versions
 
-Only the `main` branch is supported pre-launch. After the v1 dashboard launches, the most recent release tag is supported.
+Only the `master` branch is supported pre-launch. After the v1 dashboard launches, the most recent release tag is supported.
 
 ## Reporting a vulnerability
 
 Please report security vulnerabilities by email to:
 
-**security@cogstructurelab.ai**
+**security@cogstructurelab.com**
 
 Do not open public GitHub issues for security vulnerabilities.
 

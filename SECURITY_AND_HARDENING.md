@@ -505,9 +505,9 @@ For LSB, a secret is anything that grants access to a billed account, a write-ca
 
 | Secret | Lives in | Lives nowhere else |
 |---|---|---|
-| LLM provider API keys | `lsb-agent-01:/home/lsb/lsb/.env`, mode 600, owned by the `lsb` user | Not on Mark's local machine, not in any GitHub Actions secret, not in any cloud sync |
+| LLM provider API keys | `lsb-agent-01:/opt/lsb-agent/.env`, mode 600 | Not on Mark's local machine, not in any GitHub Actions secret, not in any cloud sync |
 | B2 credentials | Same as above | Same |
-| Slack alerts webhook URL | Both `lsb-agent-01:/home/lsb/lsb/.env` AND GitHub Actions secrets (because both `qa_check.py` on the VPS and `weekly-cost-alert.yml` on GitHub Actions need it) | Nowhere else |
+| Slack alerts webhook URL | Both `lsb-agent-01:/opt/lsb-agent/.env` AND GitHub Actions secrets (because both `qa_check.py` on the VPS and `weekly-cost-alert.yml` on GitHub Actions need it) | Nowhere else |
 | Slack CDA SME webhook URL | Mark's local Claude Code environment (the agent runtime reads it from there) | Not on the VPS |
 | Slack UI/UX webhook URL | Mark's local Claude Code environment | Not on the VPS |
 | SSH private keys | Mark's local `~/.ssh/` directory, encrypted at rest by the OS keychain | The matching public keys are in `~/.ssh/authorized_keys` on the VPS and on the NAS |

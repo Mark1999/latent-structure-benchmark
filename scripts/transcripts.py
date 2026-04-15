@@ -102,8 +102,8 @@ def render_transcript(rec: dict) -> str:
         lines.append(f"## {step_title}")
         lines.append("")
         lines.append(
-            f"| Prompt version | Tokens in | Tokens out "
-            f"| Latency (ms) | Stop reason |"
+            "| Prompt version | Tokens in | Tokens out "
+            "| Latency (ms) | Stop reason |"
         )
         lines.append("|---|---|---|---|---|")
         lines.append(
@@ -173,7 +173,7 @@ def main() -> None:
 
     written = 0
     with open(JSONL_PATH) as f:
-        for line_num, line in enumerate(f, 1):
+        for _line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line:
                 continue
