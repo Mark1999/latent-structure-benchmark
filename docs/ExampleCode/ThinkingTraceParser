@@ -1,0 +1,61 @@
+import re
+from typing import List, Dict
+from datetime import datetime
+
+def extract_grok_thinking_trace(full_response: str) -> List[Dict]:
+    """
+    Extracts ALL agents' thinking statements + reasoning steps from a Grok response.
+    Works on both web UI text and API text output.
+    """
+    thoughts: List[Dict] = []
+    
+    # 1. Multi-agent blocks (Harper, Benjamin, Lucas, Grok, etc.)
+    agent_pattern = r'(?:^|\n)(?:\[)?(\w+)(?:\])?\s*[:\-—]\s*(.+?)(?=\n(?:\[?\w+\]?\s*[:\-—]|\Z))'
+    for match in re.finditer(agent_pattern, full_response, re.DOTALL | re.MULTILINE):
+        agent = match.group(1).strip()
+        content = match.group(2).strip()
+        if len(content) > 20 and agent.lower() not in ["final", "answer"]:
+            thoughts.append({
+                "agent": agent,
+                "type": "agent_thinking",
+                "timestamp": datetime.now().isoformat(),
+                "content": content
+            })
+
+    # 2. Visible reasoning / step-by-step / "Thinking:" blocks
+    reasoning_pattern = r'(?:Thinking:|Reasoning:|Step \d+[:.]|Chain of Thought:)(.+?)(?=\n\n(?:Step \d+|Final Answer|Conclusion|✅)|\Z)'
+    for match in re.finditer(reasoning_pattern, full_response, re.DOTALL | re.IGNORECASE):
+        content = match.group(1).strip()
+        if content:
+            thoughts.append({
+                "agent": "Grok",
+                "type": "reasoning_step",
+                "timestamp": datetime.now().isoformat(),
+                "content": content
+            })
+
+    # 3. <thinking> tags (if Grok ever uses them)
+    tag_pattern = r'<thinking>(.+?)</thinking>'
+    for match in re.finditer(tag_pattern, full_response, re.DOTALL | re.IGNORECASE):
+        thoughts.append({
+            "agent": "Grok",
+            "type": "thinking_tag",
+            "timestamp": datetime.now().isoformat(),
+            "content": match.group(1).strip()
+        })
+
+    return thoughts
+
+
+# ── Example usage ──
+if __name__ == "__main__":
+    sample_response = """[paste the entire Grok response text here]"""
+    trace = extract_grok_thinking_trace(sample_response)
+    
+    for item in trace:
+        print(f"[{item['agent']}] {item['type']}: {item['content'][:150]}...")
+    
+    # Save to JSON
+    import json
+    with open(f"grok_thinking_{datetime.now().strftime('%Y%m%d_%H%M%S')}.json", "w") as f:
+        json.dump(trace, f, indent=2)

@@ -66,7 +66,7 @@ The bundle is hosted on Backblaze B2, mirrored to HuggingFace Datasets, and DOI-
 
 | Field | Type | Required | Semantics |
 |---|---|---|---|
-| `collection_method` | `Literal` | Yes | One of `anthropic_api`, `openrouter`, `huggingface`, `google_ai`. Which of the four remote integration points served this run. The same logical model may appear under multiple methods if invoked through multiple gateways; those rows differ by `collection_method` and possibly by `model_id`. |
+| `collection_method` | `Literal` | Yes | One of `anthropic_api`, `openrouter`, `huggingface`, `google_ai`, `xai_api`, `openai_api`, `deepseek_api`, `mistral_api`. Which remote integration point served this run. Direct API methods (`*_api`) are preferred over OpenRouter where available — they provide better thinking trace capture and lower latency. The same logical model may appear under multiple methods if invoked through multiple gateways; those rows differ by `collection_method` and possibly by `model_id`. |
 | `collection_mode` | `Literal` | No | One of `single_pass`, `two_pass`, `baseline_items`, `cross_model_consensus`. Default `single_pass`. Specifies the collection strategy: `single_pass` = each run generates and sorts its own free list items (end-to-end model behavior); `two_pass` = free lists are collected first, aggregated into a consensus item list via Smith's S, then pile sorts use that consensus list (standard CDA methodology per Borgatti); `baseline_items` = pile sort uses items from a human baseline (e.g., Romney 1996) for direct model-to-human comparison; `cross_model_consensus` = pile sort uses items from a cross-model consensus free list pooled across all models. |
 | `api_endpoint` | `str` | Yes | Full URL of the endpoint actually called. Includes the path. |
 | `api_version` | `str` | Yes | Provider API version header. Anthropic example: `2023-06-01`. |
@@ -512,7 +512,7 @@ The `build_db.py` script is intentionally minimal — pure stdlib + `sqlite3` + 
 - The four `irb_status` values are stable. Adding a new value requires an architecture decision.
 - The seven `provider` values are stable. Adding a new value requires an architecture decision.
 - The five `origin_country` values are stable. Adding a new value requires an architecture decision.
-- The three `collection_method` values are stable. Adding a new value requires an architecture decision (this would correspond to LSB integrating a fourth API surface).
+- The eight `collection_method` values are stable. Adding a new value requires an architecture decision (this would correspond to LSB integrating a new API surface). Direct API methods (`openai_api`, `xai_api`, `deepseek_api`, `mistral_api`) are preferred over `openrouter` for providers that support them.
 - The two `baseline_kind` values (`published`, `researcher`) are stable. Future work may add a third (e.g., `synthetic` for synthetically generated CDA data, if such a thing becomes useful), but that requires an architecture decision.
 
 **What happens if you're using an older version of the bundle.** Each Zenodo DOI corresponds to one data dictionary version. If you're using a v0.1 bundle and the current data dictionary is v0.3, the v0.1 dictionary is the authoritative spec for *your* bundle — pull the matching version from the Zenodo entry rather than reading the latest version of this file. The latest version of this file describes the latest schema; older bundles use older schemas. Both are valid.

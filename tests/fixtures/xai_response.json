@@ -1,0 +1,35 @@
+{
+  "id": "chatcmpl-abc123def456",
+  "object": "chat.completion",
+  "created": 1713200000,
+  "model": "grok-3",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Grandmother\n6. Grandfather\n7. Aunt\n8. Uncle\n9. Cousin\n10. Niece\n11. Nephew\n12. Daughter\n13. Son\n14. Wife\n15. Husband\n16. Mother-in-law\n17. Father-in-law\n18. Sister-in-law\n19. Brother-in-law\n20. Stepfather",
+        "reasoning_content": "The user is asking me to list types of family members. I should think broadly about different family relationships including immediate family, extended family, and in-laws. Let me organize this systematically.\n\nImmediate family: mother, father, sister, brother, daughter, son\nExtended: grandmother, grandfather, aunt, uncle, cousin, niece, nephew\nBy marriage: wife, husband, mother-in-law, father-in-law, sister-in-law, brother-in-law\nBlended: stepfather\n\nThat gives me 20 items which is a good comprehensive list.",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 87,
+    "completion_tokens": 152,
+    "total_tokens": 539,
+    "prompt_tokens_details": {
+      "text_tokens": 87,
+      "audio_tokens": 0,
+      "image_tokens": 0,
+      "cached_tokens": 0
+    },
+    "completion_tokens_details": {
+      "reasoning_tokens": 300,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "system_fingerprint": "fp_grok3_20250217"
+}

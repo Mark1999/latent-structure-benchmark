@@ -66,7 +66,10 @@ class ModelRef(BaseModel):
     family: str
     origin: Literal["us", "eu", "ca", "cn", "other"]
     open_weights: bool
-    collection_method: Literal["anthropic_api", "openrouter", "huggingface", "google_ai"]
+    collection_method: Literal[
+        "anthropic_api", "openrouter", "huggingface", "google_ai",
+        "xai_api", "openai_api", "deepseek_api", "mistral_api",
+    ]
     quantization: str | None
     release_date: date
     version_label: str
@@ -286,6 +289,7 @@ class InformantRecord(BaseModel):
     # ── Collection conditions ──
     collection_method: Literal[
         "anthropic_api", "openrouter", "huggingface", "google_ai",
+        "xai_api", "openai_api", "deepseek_api", "mistral_api",
     ]
     collection_mode: Literal[
         "single_pass", "two_pass", "baseline_items", "cross_model_consensus",

@@ -42,7 +42,7 @@ class HuggingFaceAdapter:
         self.model = model
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._api_key = api_key or os.environ.get("HUGGINGFACE_API_KEY", "")
-        self._client = httpx.AsyncClient(timeout=120.0)
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(600.0))
 
     async def complete(
         self,
@@ -95,7 +95,7 @@ class HuggingFaceAdapter:
 
         payload: dict = {
             "model": self.model.model_id,
-            "max_tokens": 8192,
+            "max_tokens": 16384,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }

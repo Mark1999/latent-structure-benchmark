@@ -1,0 +1,53 @@
+from pydantic import BaseModel, Field
+from typing import List, Optional
+import json
+
+# ── Define the exact structure you want ──
+class AgentThinking(BaseModel):
+    agent: str = Field(..., description="Agent name e.g. Grok, Harper, Benjamin, Lucas")
+    timestamp: str = Field(..., description="ISO timestamp when this thought was generated")
+    content: str = Field(..., description="The full thinking statement / reasoning from that agent")
+
+class GrokThinkingTrace(BaseModel):
+    conversation_id: Optional[str] = None
+    thinking_trace: List[AgentThinking] = Field(..., description="All agents' thinking statements")
+    final_answer: str = Field(..., description="The final response after all thinking")
+    overall_summary: Optional[str] = Field(None, description="Optional one-sentence summary of the entire reasoning")
+
+# ── System prompt to force structured output ──
+SYSTEM_PROMPT = """
+You are Grok. When responding, you MUST always output in the following JSON format (no extra text outside the JSON):
+
+{
+  "thinking_trace": [
+    {
+      "agent": "AgentName",
+      "timestamp": "2026-04-15T07:00:00Z",
+      "content": "full thinking statement here..."
+    },
+    ...
+  ],
+  "final_answer": "your final answer here",
+  "overall_summary": "optional short summary"
+}
+
+Use the exact field names above. Never deviate from this schema.
+"""
+
+# Example usage with xAI SDK (or OpenAI client)
+def call_grok_with_thinking_trace(user_message: str, client):
+    response = client.chat.completions.create(
+        model="grok-4.20-reasoning",          # or whichever reasoning model you use
+        messages=[
+            {"role": "system", "content": SYSTEM_PROMPT},
+            {"role": "user", "content": user_message}
+        ],
+        response_format={"type": "json_schema", "json_schema": GrokThinkingTrace.model_json_schema()},
+        temperature=0.3
+    )
+    
+    # Parse the structured thinking trace
+    thinking_data = json.loads(response.choices[0].message.content)
+    trace = GrokThinkingTrace.model_validate(thinking_data)
+    
+    return trace  # ← this is what you save to file/DB

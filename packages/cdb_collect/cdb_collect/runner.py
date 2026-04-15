@@ -18,12 +18,29 @@ from typing import Literal
 from cdb_core import Domain, FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord
 
 from cdb_collect.adapters.base import AdapterResult, ModelAdapter
+from cdb_collect.adapters.openai_compat import PROVIDER_CONFIGS
 from cdb_collect.manifest import compute_manifest
 from cdb_collect.protocol.free_list import run_free_list
 from cdb_collect.protocol.pile_interview import run_pile_interview
 from cdb_collect.protocol.pile_sort import run_pile_sort
 
 logger = logging.getLogger(__name__)
+
+
+_ENDPOINT_MAP: dict[str, str] = {
+    "anthropic_api": "https://api.anthropic.com/v1/messages",
+    "google_ai": "https://generativelanguage.googleapis.com/v1beta/models",
+    "openrouter": "https://openrouter.ai/api/v1/chat/completions",
+    "huggingface": "https://router.huggingface.co/v1/chat/completions",
+}
+# Merge OpenAI-compatible provider endpoints
+for _method, _cfg in PROVIDER_CONFIGS.items():
+    _ENDPOINT_MAP[_method] = _cfg["base_url"]
+
+
+def _resolve_endpoint(collection_method: str) -> str:
+    """Return the API endpoint URL for a given collection method."""
+    return _ENDPOINT_MAP.get(collection_method, collection_method)
 
 
 def _informant_id(
@@ -121,8 +138,8 @@ def _assemble_record(
         alignment_method=None,
         collection_method=adapter.model.collection_method,
         collection_mode=collection_mode,
-        api_endpoint="https://api.anthropic.com/v1/messages",
-        api_version="2023-06-01",
+        api_endpoint=_resolve_endpoint(adapter.model.collection_method),
+        api_version="",
         temperature=0.7,
         top_p=None,
         max_tokens=16384,

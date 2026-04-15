@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import argparse
 import asyncio
+import json
 import logging
 import sys
 from datetime import date
@@ -26,11 +27,13 @@ from cdb_collect.adapters import (
     GeminiAdapter,
     HuggingFaceAdapter,
     ModelAdapter,
+    OpenAICompatAdapter,
     OpenRouterAdapter,
 )
 from cdb_collect.baselines import load_baseline_items
 from cdb_collect.domains import load_domain
 from cdb_collect.jsonl import append_failure, append_record
+from cdb_collect.model_ids import to_direct_id
 from cdb_collect.runner import run_baseline_sort, run_cross_model_sort, run_informant, run_two_pass
 from cdb_collect.spend import check_spend, get_monthly_spend
 from cdb_core import ModelRef
@@ -53,148 +56,91 @@ logger = logging.getLogger(__name__)
 
 DEFAULT_JSONL = Path("data/raw/informants.jsonl")
 FAILURES_JSONL = Path("data/raw/failures.jsonl")
+REGISTRY_PATH = Path("data/models/registry.json")
 
-MODEL_REGISTRY: dict[str, ModelRef] = {
-    # ── Anthropic (direct) ──────────────────────────────────────────────
-    "claude-opus-4-6": ModelRef(
-        provider="anthropic",
-        model_id="claude-opus-4-6",
-        family="claude",
-        origin="us",
-        open_weights=False,
-        collection_method="anthropic_api",
-        quantization=None,
-        release_date=date(2026, 3, 1),
-        version_label="4.6",
-    ),
-    "claude-sonnet-4-6": ModelRef(
-        provider="anthropic",
-        model_id="claude-sonnet-4-6",
-        family="claude",
-        origin="us",
-        open_weights=False,
-        collection_method="anthropic_api",
-        quantization=None,
-        release_date=date(2026, 3, 1),
-        version_label="4.6",
-    ),
-    # ── OpenRouter — closed-weight ──────────────────────────────────────
-    "openai/gpt-4o": ModelRef(
-        provider="openrouter",
-        model_id="openai/gpt-4o",
-        family="gpt",
-        origin="us",
-        open_weights=False,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2025, 5, 13),
-        version_label="4o",
-    ),
-    "google/gemini-2.5-pro": ModelRef(
-        provider="google",
-        model_id="google/gemini-2.5-pro",
-        family="gemini",
-        origin="us",
-        open_weights=False,
-        collection_method="google_ai",
-        quantization=None,
-        release_date=date(2025, 3, 25),
-        version_label="2.5-pro",
-    ),
-    "x-ai/grok-3": ModelRef(
-        provider="openrouter",
-        model_id="x-ai/grok-3",
-        family="grok",
-        origin="us",
-        open_weights=False,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2025, 2, 17),
-        version_label="3",
-    ),
-    "cohere/command-r-plus-08-2024": ModelRef(
-        provider="openrouter",
-        model_id="cohere/command-r-plus-08-2024",
-        family="command",
-        origin="ca",
-        open_weights=False,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2024, 8, 1),
-        version_label="r-plus-08-2024",
-    ),
-    # ── OpenRouter — open-weight ────────────────────────────────────────
-    "meta-llama/llama-3.1-70b-instruct": ModelRef(
-        provider="openrouter",
-        model_id="meta-llama/llama-3.1-70b-instruct",
-        family="llama",
-        origin="us",
-        open_weights=True,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2025, 7, 23),
-        version_label="3.1-70b-instruct",
-    ),
-    "meta-llama/llama-4-maverick": ModelRef(
-        provider="openrouter",
-        model_id="meta-llama/llama-4-maverick",
-        family="llama",
-        origin="us",
-        open_weights=True,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2025, 4, 5),
-        version_label="4-maverick",
-    ),
-    "mistralai/mistral-large": ModelRef(
-        provider="openrouter",
-        model_id="mistralai/mistral-large",
-        family="mistral",
-        origin="eu",
-        open_weights=False,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2025, 7, 24),
-        version_label="large",
-    ),
-    "mistralai/mistral-small-3.2-24b-instruct": ModelRef(
-        provider="openrouter",
-        model_id="mistralai/mistral-small-3.2-24b-instruct",
-        family="mistral",
-        origin="eu",
-        open_weights=True,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2025, 3, 7),
-        version_label="small-3.2-24b",
-    ),
-    # ── OpenRouter — China-origin ───────────────────────────────────────
-    "qwen/qwen-2.5-72b-instruct": ModelRef(
-        provider="openrouter",
-        model_id="qwen/qwen-2.5-72b-instruct",
-        family="qwen",
-        origin="cn",
-        open_weights=True,
-        collection_method="openrouter",
-        quantization=None,
-        release_date=date(2025, 9, 19),
-        version_label="2.5-72b-instruct",
-    ),
-    # ── HuggingFace Inference Providers ─────────────────────────────────
-    "Qwen/Qwen2.5-72B-Instruct": ModelRef(
-        provider="huggingface",
-        model_id="Qwen/Qwen2.5-72B-Instruct",
-        family="qwen",
-        origin="cn",
-        open_weights=True,
-        collection_method="huggingface",
-        quantization=None,
-        release_date=date(2025, 9, 19),
-        version_label="2.5-72b-instruct",
-        source_notes="Same model as qwen/qwen-2.5-72b-instruct via OpenRouter; "
-        "HF route used for provider-routing variance comparison.",
-    ),
+# Adapter method → provider string for ModelRef
+_METHOD_TO_PROVIDER: dict[str, str] = {
+    "anthropic_api": "anthropic",
+    "google_ai": "google",
+    "xai_api": "xai",
+    "openrouter": "openrouter",
+    "huggingface": "huggingface",
 }
+
+
+def _load_registry() -> dict[str, ModelRef]:
+    """Load the model registry from registry.json.
+
+    Returns a dict mapping model_id → ModelRef. For direct-API models,
+    also indexes under the provider-specific short ID.
+    """
+    if not REGISTRY_PATH.exists():
+        logger.warning(
+            "Registry not found at %s. Run: python scripts/discover_models.py --update-registry",
+            REGISTRY_PATH,
+        )
+        return {}
+
+    data = json.loads(REGISTRY_PATH.read_text())
+    registry: dict[str, ModelRef] = {}
+
+    for entry in data.get("models", []):
+        model_id = entry["model_id"]
+        method = entry["collection_method"]
+        provider = _METHOD_TO_PROVIDER.get(method, "openrouter")
+
+        # For direct-API models, use the provider-specific short ID
+        effective_id = to_direct_id(model_id)
+
+        # Extract version label from model ID
+        parts = model_id.split("/")
+        version_label = parts[-1] if len(parts) > 1 else model_id
+
+        # Estimate release date from openrouter_created timestamp
+        created_ts = entry.get("openrouter_created")
+        release = date.fromtimestamp(created_ts) if created_ts else date.today()
+
+        ref = ModelRef(
+            provider=provider,
+            model_id=effective_id,
+            family=entry["family"],
+            origin=entry["origin"],
+            open_weights=entry["open_weights"],
+            collection_method=method,
+            quantization=None,
+            release_date=release,
+            version_label=version_label,
+        )
+
+        # Index under both the registry ID and the effective ID
+        registry[model_id] = ref
+        if effective_id != model_id:
+            registry[effective_id] = ref
+
+    return registry
+
+
+def _load_collected_model_ids(jsonl_path: Path) -> set[str]:
+    """Return the set of model_ids already collected in informants.jsonl."""
+    ids: set[str] = set()
+    if not jsonl_path.exists():
+        return ids
+    with open(jsonl_path) as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            mid = record.get("model_id", "")
+            if mid:
+                ids.add(mid)
+    return ids
+
+
+MODEL_REGISTRY = _load_registry()
 
 
 def _create_adapter(model_ref: ModelRef) -> ModelAdapter:
@@ -204,6 +150,8 @@ def _create_adapter(model_ref: ModelRef) -> ModelAdapter:
         return AnthropicAdapter(model_ref)
     if method == "google_ai":
         return GeminiAdapter(model_ref)
+    if method in ("openai_api", "xai_api", "deepseek_api", "mistral_api"):
+        return OpenAICompatAdapter(model_ref)
     if method == "openrouter":
         return OpenRouterAdapter(model_ref)
     if method == "huggingface":
@@ -217,6 +165,8 @@ async def collect_single_pass(
     domain_slug: str,
     runs: int,
     output_path: Path,
+    *,
+    prompt_version: str = "v1",
 ) -> int:
     """Single-pass collection: each run generates and sorts its own items."""
     domain = load_domain(domain_slug)
@@ -238,7 +188,7 @@ async def collect_single_pass(
         )
 
         try:
-            record = await run_informant(adapter, domain, run_index)
+            record = await run_informant(adapter, domain, run_index, prompt_version=prompt_version)
             append_record(record, output_path)
             qa_passed = check_record(record)
             status_str = "PASS" if qa_passed else "QA_FAIL"
@@ -263,6 +213,8 @@ async def collect_two_pass(
     n_free_lists: int,
     n_pile_sorts: int,
     output_path: Path,
+    *,
+    prompt_version: str = "v1",
 ) -> int:
     """Two-pass collection: free lists → consensus → pile sorts."""
     domain = load_domain(domain_slug)
@@ -281,6 +233,7 @@ async def collect_two_pass(
             adapter, domain,
             n_free_lists=n_free_lists,
             n_pile_sorts=n_pile_sorts,
+            prompt_version=prompt_version,
         )
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -309,6 +262,8 @@ async def collect_cross_model(
     domain_slug: str,
     n_pile_sorts: int,
     output_path: Path,
+    *,
+    prompt_version: str = "v1",
 ) -> int:
     """Cross-model consensus collection.
 
@@ -371,6 +326,7 @@ async def collect_cross_model(
                 adapter, domain,
                 consensus_items=consensus_items,
                 n_pile_sorts=n_pile_sorts,
+                prompt_version=prompt_version,
             )
         except Exception as e:
             print(f"    ERROR: {e}", file=sys.stderr)
@@ -402,6 +358,8 @@ async def collect_baseline(
     baseline_id: str,
     n_sorts: int,
     output_path: Path,
+    *,
+    prompt_version: str = "v1",
 ) -> int:
     """Baseline collection: sort human baseline items."""
     domain = load_domain(domain_slug)
@@ -419,6 +377,7 @@ async def collect_baseline(
             items=items,
             baseline_id=baseline_id,
             n_sorts=n_sorts,
+            prompt_version=prompt_version,
         )
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
@@ -447,7 +406,7 @@ def main() -> int:
         description="Run CDA collection protocol. See ARCHITECTURE.md §4.1.",
     )
     parser.add_argument(
-        "--domain", required=True, help="Domain slug (e.g., family)",
+        "--domain", required=False, help="Domain slug (e.g., family)",
     )
     parser.add_argument(
         "--model", default="claude-opus-4-6",
@@ -479,12 +438,25 @@ def main() -> int:
         help="Baseline ID for baseline mode (e.g., romney_1996)",
     )
     parser.add_argument(
+        "--prompt-version", default="v1",
+        help="Prompt template version directory (default: v1). "
+        "Use v1_s1..v1_s8 for sensitivity variants.",
+    )
+    parser.add_argument(
         "--dry-run", action="store_true",
         help="Print plan without making API calls",
     )
     parser.add_argument(
         "--output", type=Path, default=DEFAULT_JSONL,
         help="Output JSONL path",
+    )
+    parser.add_argument(
+        "--skip-collected", action="store_true",
+        help="Skip models that already have records in informants.jsonl",
+    )
+    parser.add_argument(
+        "--list-models", action="store_true",
+        help="List all models in the registry and exit",
     )
 
     args = parser.parse_args()
@@ -494,11 +466,53 @@ def main() -> int:
         format="%(asctime)s %(name)s %(levelname)s %(message)s",
     )
 
+    if not MODEL_REGISTRY:
+        print(
+            "No models in registry. Run:\n"
+            "  python scripts/discover_models.py --update-registry",
+            file=sys.stderr,
+        )
+        return 1
+
+    if args.list_models:
+        collected = _load_collected_model_ids(args.output)
+        # Deduplicate — some models are indexed under two keys
+        seen: set[str] = set()
+        for mid, ref in MODEL_REGISTRY.items():
+            if ref.model_id in seen:
+                continue
+            seen.add(ref.model_id)
+            is_collected = ref.model_id in collected
+            status = "collected" if is_collected else "NEW"
+            print(f"  {mid:55s} {ref.family:10s} {ref.collection_method:15s} {status}")
+        return 0
+
+    if not args.domain:
+        print("--domain is required for collection", file=sys.stderr)
+        return 1
+
     model_ref = MODEL_REGISTRY.get(args.model)
     if model_ref is None:
         print(f"Unknown model: {args.model}", file=sys.stderr)
-        print(f"Available: {', '.join(MODEL_REGISTRY.keys())}", file=sys.stderr)
+        # Show unique model IDs only
+        seen_ids: set[str] = set()
+        available = []
+        for mid, ref in MODEL_REGISTRY.items():
+            if ref.model_id not in seen_ids:
+                seen_ids.add(ref.model_id)
+                available.append(mid)
+        print(f"Available: {', '.join(available)}", file=sys.stderr)
         return 1
+
+    # Skip already-collected models if requested
+    if args.skip_collected:
+        collected = _load_collected_model_ids(args.output)
+        if model_ref.model_id in collected:
+            print(
+                f"Skipping {model_ref.model_id} — already collected. "
+                "Use without --skip-collected to re-run.",
+            )
+            return 0
 
     domain = load_domain(args.domain)
 
@@ -510,6 +524,7 @@ def main() -> int:
         else:
             print(f"  Model:  {args.model}")
         print(f"  Domain: {args.domain} ({domain.display_name})")
+        print(f"  Prompts: {args.prompt_version}")
         if args.mode == "single_pass":
             print(f"  Runs: {args.runs}")
         elif args.mode == "two_pass":
@@ -531,29 +546,42 @@ def main() -> int:
 
     if args.mode == "cross_model":
         model_ids = args.models or list(MODEL_REGISTRY.keys())
+        collected = _load_collected_model_ids(args.output) if args.skip_collected else set()
         adapters = []
+        seen_refs: set[str] = set()
         for mid in model_ids:
             ref = MODEL_REGISTRY.get(mid)
             if ref is None:
                 print(f"Unknown model: {mid}", file=sys.stderr)
                 return 1
+            # Deduplicate refs indexed under multiple keys
+            if ref.model_id in seen_refs:
+                continue
+            seen_refs.add(ref.model_id)
+            if args.skip_collected and ref.model_id in collected:
+                print(f"  Skipping {ref.model_id} — already collected")
+                continue
             adapters.append(_create_adapter(ref))
         result = asyncio.run(collect_cross_model(
             adapters, args.domain, args.pile_sorts, args.output,
+            prompt_version=args.prompt_version,
         ))
     else:
         adapter = _create_adapter(model_ref)
         if args.mode == "single_pass":
             result = asyncio.run(collect_single_pass(
                 adapter, args.domain, args.runs, args.output,
+                prompt_version=args.prompt_version,
             ))
         elif args.mode == "two_pass":
             result = asyncio.run(collect_two_pass(
                 adapter, args.domain, args.free_lists, args.pile_sorts, args.output,
+                prompt_version=args.prompt_version,
             ))
         elif args.mode == "baseline":
             result = asyncio.run(collect_baseline(
                 adapter, args.domain, args.baseline, args.pile_sorts, args.output,
+                prompt_version=args.prompt_version,
             ))
         else:
             return 1

@@ -11,40 +11,58 @@ from typing import Literal
 
 logger = logging.getLogger(__name__)
 
-# Per-million-token pricing (input, output) by model family.
-# Update when providers change pricing.
-PRICING: dict[str, tuple[float, float]] = {
-    # Anthropic (direct)
+REGISTRY_PATH = Path("data/models/registry.json")
+
+# Fallback pricing for models not in the registry (per million tokens).
+# Only used for legacy/historical models that predate the registry.
+_LEGACY_PRICING: dict[str, tuple[float, float]] = {
     "claude-opus-4-6": (15.0, 75.0),
     "claude-sonnet-4-6": (3.0, 15.0),
     "claude-haiku-4-5": (0.80, 4.0),
-    # OpenRouter — OpenAI
     "openai/gpt-4o": (2.50, 10.0),
-    "openai/gpt-4-turbo": (10.0, 30.0),
-    # Google (direct and via OpenRouter)
     "google/gemini-2.5-pro": (1.25, 10.0),
     "gemini-2.5-pro": (1.25, 10.0),
-    "google/gemini-2.5-flash": (0.15, 0.60),
-    "gemini-2.5-flash": (0.15, 0.60),
-    # OpenRouter — Meta
-    "meta-llama/llama-3.1-70b-instruct": (0.40, 0.40),
-    "meta-llama/llama-3.1-405b-instruct": (2.00, 2.00),
-    # OpenRouter — Mistral
-    "mistralai/mistral-large": (2.00, 6.00),
-    "mistralai/mistral-small": (0.10, 0.30),
-    # OpenRouter — Cohere
-    "cohere/command-r-plus": (2.50, 10.0),
-    # OpenRouter — Qwen
-    "qwen/qwen-2.5-72b-instruct": (0.40, 0.40),
-    # OpenRouter — xAI
+    "x-ai/grok-3": (3.00, 15.0),
     "x-ai/grok-2": (2.00, 10.0),
-    # HuggingFace Inference Providers (model IDs use HF repo format)
+    "meta-llama/llama-3.1-70b-instruct": (0.40, 0.40),
+    "mistralai/mistral-large": (2.00, 6.00),
+    "cohere/command-r-plus": (2.50, 10.0),
+    "cohere/command-r-plus-08-2024": (2.50, 10.0),
+    "qwen/qwen-2.5-72b-instruct": (0.40, 0.40),
     "Qwen/Qwen2.5-72B-Instruct": (0.35, 0.40),
     "mistralai/Mixtral-8x22B-Instruct-v0.1": (0.65, 0.65),
+    "mistralai/mistral-small-3.2-24b-instruct": (0.10, 0.30),
 }
 
-# Fallback pricing for unknown models
+# Default pricing for completely unknown models — conservative estimate
 DEFAULT_PRICING: tuple[float, float] = (15.0, 75.0)
+
+# Module-level cache: loaded once from registry on first use
+_registry_pricing: dict[str, tuple[float, float]] | None = None
+
+
+def _load_registry_pricing() -> dict[str, tuple[float, float]]:
+    """Load pricing from registry.json. Cached after first call."""
+    global _registry_pricing
+    if _registry_pricing is not None:
+        return _registry_pricing
+
+    _registry_pricing = {}
+    if not REGISTRY_PATH.exists():
+        return _registry_pricing
+
+    try:
+        data = json.loads(REGISTRY_PATH.read_text())
+        for entry in data.get("models", []):
+            model_id = entry.get("model_id", "")
+            price_in = entry.get("pricing_input_per_m", 0)
+            price_out = entry.get("pricing_output_per_m", 0)
+            if model_id and (price_in or price_out):
+                _registry_pricing[model_id] = (price_in, price_out)
+    except (json.JSONDecodeError, OSError) as e:
+        logger.warning("Failed to load registry pricing: %s", e)
+
+    return _registry_pricing
 
 
 def get_cap() -> float:
@@ -63,6 +81,11 @@ def compute_cost(
 ) -> float:
     """Compute the USD cost for a single API call.
 
+    Pricing lookup order:
+    1. Registry (data/models/registry.json) — current, auto-updated
+    2. Legacy dict — historical models predating the registry
+    3. Default ($15/$75 per M) — conservative fallback for unknown models
+
     Args:
         input_tokens: Number of input tokens.
         output_tokens: Number of output tokens.
@@ -71,12 +94,24 @@ def compute_cost(
     Returns:
         Cost in USD.
     """
-    price_in, price_out = DEFAULT_PRICING
-    for prefix, (pi, po) in PRICING.items():
-        if model_id.startswith(prefix):
-            price_in, price_out = pi, po
-            break
+    # 1. Check registry (exact match)
+    registry = _load_registry_pricing()
+    if model_id in registry:
+        price_in, price_out = registry[model_id]
+        return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
 
+    # 2. Check registry (prefix match — handles version suffixes)
+    for prefix, (pi, po) in registry.items():
+        if model_id.startswith(prefix):
+            return (input_tokens * pi + output_tokens * po) / 1_000_000
+
+    # 3. Check legacy pricing (for historical models)
+    for prefix, (pi, po) in _LEGACY_PRICING.items():
+        if model_id.startswith(prefix):
+            return (input_tokens * pi + output_tokens * po) / 1_000_000
+
+    # 4. Default
+    price_in, price_out = DEFAULT_PRICING
     return (input_tokens * price_in + output_tokens * price_out) / 1_000_000
 
 

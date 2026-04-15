@@ -7,7 +7,9 @@ from cdb_collect.adapters.anthropic import AnthropicAdapter
 from cdb_collect.adapters.base import AdapterResult, ModelAdapter
 from cdb_collect.adapters.google import GeminiAdapter
 from cdb_collect.adapters.huggingface import HuggingFaceAdapter
+from cdb_collect.adapters.openai_compat import OpenAICompatAdapter
 from cdb_collect.adapters.openrouter import OpenRouterAdapter
+from cdb_collect.adapters.xai import XAIAdapter
 
 __all__ = [
     "AdapterResult",
@@ -15,5 +17,7 @@ __all__ = [
     "GeminiAdapter",
     "HuggingFaceAdapter",
     "ModelAdapter",
+    "OpenAICompatAdapter",
     "OpenRouterAdapter",
+    "XAIAdapter",
 ]

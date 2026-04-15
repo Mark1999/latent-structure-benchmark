@@ -43,7 +43,9 @@ class OpenRouterAdapter:
         self.model = model
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
-        self._client = httpx.AsyncClient(timeout=120.0)
+        # 600s timeout: reasoning models (DeepSeek, Qwen, etc.) via
+        # OpenRouter can take several minutes for complex prompts
+        self._client = httpx.AsyncClient(timeout=httpx.Timeout(600.0))
 
     async def complete(
         self,
@@ -94,6 +96,12 @@ class OpenRouterAdapter:
     ) -> AdapterResult:
         start = time.monotonic()
 
+        # OpenRouter routing note: We send a single "model" string, which
+        # means OpenRouter's MODEL fallback (substituting a different model)
+        # never triggers — that requires an explicit "models" array.
+        # PROVIDER fallback (same model, different host) is left enabled;
+        # same weights, just different serving infra, improves uptime.
+        # model_version_returned captures whatever actually responded.
         payload: dict = {
             "model": self.model.model_id,
             "max_tokens": 16384,
