@@ -77,9 +77,9 @@ def test_single_item():
 
 # ── Cross-model consensus tests ────────────────────────────────────
 
-from datetime import date, datetime
+from datetime import date, datetime  # noqa: E402 — section-scoped imports for cross-model tests
 
-from cdb_core import FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord
+from cdb_core import FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord  # noqa: E402
 
 
 def _make_record(
