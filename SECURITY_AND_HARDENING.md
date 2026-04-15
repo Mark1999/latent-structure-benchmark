@@ -21,7 +21,7 @@ LSB is a small research project with a public dashboard, an open data bundle, an
 
 | Threat | Why it matters | Mitigation |
 |---|---|---|
-| **API key compromise** | Stolen LLM provider keys can be used to run up bills against LSB's accounts before Mark notices | Single-location storage on `lsb-agent-01`, per-provider account caps as the Tier 2 spend defense, gitleaks pre-commit + GitHub secret scanning |
+| **API key compromise** | Stolen LLM provider keys can be used to run up bills against LSB's accounts before Mark notices | Single-location storage on `lsb-agent-01` (`/opt/lsb-agent/.env`, mode 600, owned `lsb:lsb`), per-provider account caps as the Tier 2 spend defense, gitleaks pre-commit + GitHub secret scanning |
 | **Data tampering** | If someone alters `informants.jsonl` after the fact, LSB's findings become un-falsifiable and the project's credibility evaporates | Append-only JSONL, SHA256 manifest on every record, provider request ID as a second independent audit path, four-layer backup chain |
 | **Supply-chain attack via dependencies** | A compromised package in the dependency tree could exfiltrate keys, corrupt data, or inject content into the dashboard | Dependabot, `gitleaks`, minimal dependency footprint, lockfiles, no `unsafe-eval` in CSP |
 | **Researcher submission with PII** | A researcher contributing human grounding data could accidentally include subject names, emails, or other identifiers | CI runs `gitleaks` + a PII scan on every grounding submission PR; the CDA SME agent reviews; Mark merges only after both pass |
@@ -505,7 +505,7 @@ For LSB, a secret is anything that grants access to a billed account, a write-ca
 
 | Secret | Lives in | Lives nowhere else |
 |---|---|---|
-| LLM provider API keys | `lsb-agent-01:/opt/lsb-agent/.env`, mode 600 | Not on Mark's local machine, not in any GitHub Actions secret, not in any cloud sync |
+| LLM provider API keys | `lsb-agent-01:/opt/lsb-agent/.env`, mode 600, owned `lsb:lsb` | Not on Mark's local machine, not in any GitHub Actions secret, not in any cloud sync |
 | B2 credentials | Same as above | Same |
 | Slack alerts webhook URL | Both `lsb-agent-01:/opt/lsb-agent/.env` AND GitHub Actions secrets (because both `qa_check.py` on the VPS and `weekly-cost-alert.yml` on GitHub Actions need it) | Nowhere else |
 | Slack CDA SME webhook URL | Mark's local Claude Code environment (the agent runtime reads it from there) | Not on the VPS |
