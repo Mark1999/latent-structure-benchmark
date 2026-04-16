@@ -1,7 +1,7 @@
 # LSB Hosting and DevOps
 
 **Document name:** `HOSTING_AND_DEV_OPS.md`  
-**Version:** v0.1 (first draft, aligned with `ARCHITECTURE.md` v0.7)  
+**Version:** v0.1.1 (reality alignment pass, aligned with `ARCHITECTURE.md` v0.7.1)  
 **Status:** Operational reference for the Coder agent and Mark  
 **Audience:** Coder agent, Mark, anyone who needs to understand how LSB is deployed and where its data lives  
 **Companion docs:** `ARCHITECTURE.md` (especially §4.4 publish layer, §4.3 storage, §6.7 open data, §7 resolved decisions), `SECURITY_AND_HARDENING.md` (account hardening, secret management), `PHASE_0_TASKS.md` (P0-T10 dashboard scaffold)
@@ -11,6 +11,7 @@
 **Stability.** Changes to this document require Architect sign-off if they affect cost, latency, availability, or backup integrity. Cosmetic or clarifying changes do not.
 
 **Changelog:**
+- **v0.1.1** (2026-04-15) — Reality alignment pass. §3.1: SSH alias connects as `lsb` user. §3.2: note that processes run as `lsb`, note planned-vs-active services. §3.3: removed aspirational `backups/` directory, added `lsb:lsb` ownership. §3.4: documented parked `lsb-agent.service` (`ExecStart=/bin/false`), marked all systemd timers as planned. §3.5: documented SSH hardening (root login disabled, password auth disabled, key-only as `lsb` user), verified ufw active state. §4.1: added Status column — only layer 1 (working copy) is active; layers 2–4 are planned.
 - **v0.1** — first draft. Documents Cloudflare Pages hosting, the `lsb-agent-01` Hetzner VPS, the four-layer backup strategy (Synology + Backblaze B2 + fireproof safe + Zenodo), the GitHub Actions CI/CD pipeline, the three Slack webhooks, and the cost summary. Aligned with `ARCHITECTURE.md` v0.7 — no Mac Mini, no on-prem GPU, no local inference layer.
 
 ---
@@ -102,8 +103,8 @@ Every PR against `main` gets an automatic preview deployment at a Cloudflare-gen
 - **Instance type:** CPX32 — 4 vCPU (AMD), 8 GB RAM, 160 GB NVMe SSD, 20 TB included egress
 - **OS:** Ubuntu 24.04 LTS
 - **Cost:** approximately €11.90 / month at the time of writing (~$12 USD), billed by the hour
-- **SSH alias:** `ssh lsb` (resolves to `lsb-agent-01` in Mark's local `~/.ssh/config`)
-- **Cursor Remote-SSH:** the host is accessible from Cursor via Remote-SSH for editing and debugging (see Mark's Cursor configuration)
+- **SSH alias:** `ssh lsb` (resolves to the `lsb` user on `lsb-agent-01` in Mark's local `~/.ssh/config`)
+- **Cursor Remote-SSH:** the host is accessible from Cursor via Remote-SSH, connecting as the `lsb` user (see Mark's Cursor configuration)
 
 ### 3.2 What runs on the VPS
 
@@ -115,42 +116,58 @@ Every PR against `main` gets an automatic preview deployment at a Cloudflare-gen
 | `cdb_social/runner.py` | Drafts social posts from new findings and writes them to `data/social_queue/pending/` for Mark to review | Cron, post-publish only |
 | Backup sync | Pushes new content from `data/raw/`, `data/processed/`, and `data/results/` to Backblaze B2 | Cron, nightly at 02:00 UTC |
 
+All VPS processes run as the `lsb` user (uid 999), not root. The `lsb-agent.service` systemd unit enforces `User=lsb`, `Group=lsb`. Claude Code runs from `/home/lsb/.local/bin/claude` under the `lsb` user.
+
+**Note:** The cost report cron, social runner cron, and backup sync listed above are the target design. As of 2026-04-15, only `runner.py` and `qa_check.py` are active; the others are planned (see §3.4 and §4.1 for status).
+
 The VPS is **not** an inference host. There is no Ollama, no llama.cpp, no on-prem GPU. All model inference happens via the three remote API surfaces. The VPS just orchestrates calls and stores results.
 
 ### 3.3 Filesystem layout
 
 ```
-/opt/lsb-agent/                     # the LSB monorepo, cloned from GitHub
+/opt/lsb-agent/                     # the LSB monorepo, cloned from GitHub; owned lsb:lsb
 ├── packages/
 ├── scripts/
 ├── data/
 │   ├── raw/                        # the canonical informants.jsonl + per-call atoms
 │   ├── processed/
 │   └── results/
-├── .env                            # secrets, never committed, mode 600
-├── backups/                        # local backup snapshots before push to B2 (kept for 7 days)
+├── .env                            # secrets, never committed, mode 600, owned lsb:lsb
 └── logs/                           # systemd journal output, log rotation via journald
 ```
+
+**Note:** The `backups/` directory shown in earlier drafts of this document does not exist yet. It will be created when the four-layer backup chain (§4) is implemented. See the status notes in §4.1 for what is currently active vs. planned.
 
 The data lives on the VPS local SSD. The 160 GB allocation is enough for several years of LSB collection at expected volumes; if it fills, Hetzner allows live volume expansion without downtime.
 
 ### 3.4 systemd services
 
-Long-running cron jobs are wired as systemd timers, not as `cron` entries, so that failures show up in `journalctl`:
+**`lsb-agent.service`** exists as a systemd unit but is currently **parked**:
+
+- `User=lsb`, `Group=lsb`
+- `WorkingDirectory=/opt/lsb-agent`
+- `EnvironmentFile=/opt/lsb-agent/.env`
+- `ExecStart=/bin/false` (placeholder — the previous `orchestrator.py` was deleted in commit 16a0be4 on 2026-04-14; there is nothing for the service to run yet)
+- Status: `disabled` (won't auto-start) and `inactive (dead)`
+
+When an orchestrator is reintroduced, only the `ExecStart=` line needs editing.
+
+**Planned systemd timers (not yet implemented):**
+
+The following timers are the target design but do not exist yet. They will be created as part of the backup and automation implementation work:
 
 ```
-lsb-cost-report.timer          # Mondays 09:00 UTC, runs scripts/cost_report.py
-lsb-backup.timer               # Daily 02:00 UTC, runs the backup sync to Backblaze B2
-lsb-social-runner.timer        # Triggered post-publish via a hook, not a fixed schedule
+lsb-cost-report.timer          # Planned: Mondays 09:00 UTC, runs scripts/cost_report.py
+lsb-backup.timer               # Planned: Daily 02:00 UTC, runs the backup sync to Backblaze B2
+lsb-social-runner.timer        # Planned: Triggered post-publish via a hook, not a fixed schedule
 ```
 
-The `cdb_collect/runner.py` is **not** a systemd service — it runs interactively (via `tmux`) when Mark is conducting a collection campaign. This is deliberate: collection runs are bounded, expensive, and need a human in the loop, so they shouldn't be wired to fire automatically.
+**Collection runner.** `cdb_collect/runner.py` is **not** a systemd service — it runs interactively (via `tmux`) when Mark is conducting a collection campaign. This is deliberate: collection runs are bounded, expensive, and need a human in the loop, so they shouldn't be wired to fire automatically.
 
 ### 3.5 Access and operations
 
-- **SSH access:** Mark only, via the YubiKey-protected SSH key (`SECURITY_AND_HARDENING.md` §5)
-- **Sudo:** Mark only
-- **Firewall:** Hetzner Cloud Firewall + ufw on the host. Inbound: SSH (22) only, restricted to Mark's IP ranges where possible. Outbound: unrestricted (the runner needs to reach all three LLM providers + Backblaze B2 + GitHub).
+- **SSH access:** Mark only, key-based authentication only. Root SSH login is disabled (`PermitRootLogin no`). Password authentication is disabled (`PasswordAuthentication no`). Mark connects as the `lsb` user and uses `sudo` when root is needed (`/etc/sudoers.d/lsb` grants passwordless sudo to `lsb`).
+- **Firewall:** Hetzner Cloud Firewall + ufw on the host. ufw is active with inbound rules for OpenSSH, port 80, and port 443. Outbound: unrestricted (the runner needs to reach all three LLM providers + Backblaze B2 + GitHub).
 - **Updates:** unattended-upgrades enabled for security patches; major OS upgrades are manual
 
 ---
@@ -161,14 +178,16 @@ LSB takes the backup story seriously because losing the raw data means losing th
 
 ### 4.1 The four backup layers
 
-| Layer | Lives where | Cadence | Failure mode this layer catches |
-|---|---|---|---|
-| **1 — Local on VPS** | `lsb-agent-01:/opt/lsb-agent/data/raw/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup |
-| **2 — Synology DS1522+ NAS** | Mark's home network, NAS pull via rsync over SSH | Nightly 03:00 local time (after the VPS-to-B2 push completes) | VPS hardware failure, accidental `rm`, ransomware on the VPS |
-| **3 — Backblaze B2** | Backblaze B2 bucket `lsb-backups`, region US-West | Nightly 02:00 UTC, push from VPS | Hetzner regional outage, full home network loss, theft of the NAS |
-| **4 — Fireproof safe** | USB SSD physically stored in Mark's fireproof safe at home | Manually refreshed every 90 days | Backblaze account compromise, US-wide cloud provider outage, "everything is on fire" scenarios |
+| Layer | Lives where | Cadence | Failure mode this layer catches | **Status** |
+|---|---|---|---|---|
+| **1 — Local on VPS** | `lsb-agent-01:/opt/lsb-agent/data/raw/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup | **Active** |
+| **2 — Synology DS1522+ NAS** | Mark's home network, NAS pull via rsync over SSH | Nightly 03:00 local time (after the VPS-to-B2 push completes) | VPS hardware failure, accidental `rm`, ransomware on the VPS | **Planned** — rsync job and NAS share not yet configured |
+| **3 — Backblaze B2** | Backblaze B2 bucket `lsb-backups`, region US-West | Nightly 02:00 UTC, push from VPS | Hetzner regional outage, full home network loss, theft of the NAS | **Planned** — `lsb-backup.timer` not yet created, B2 sync not yet configured |
+| **4 — Fireproof safe** | USB SSD physically stored in Mark's fireproof safe at home | Manually refreshed every 90 days | Backblaze account compromise, US-wide cloud provider outage, "everything is on fire" scenarios | **Planned** — no initial snapshot taken yet |
 
 The four layers fail differently. Layer 2 catches the most common failure (VPS misconfiguration); layer 3 catches geographic correlated failures; layer 4 catches account-level adversarial failures. Layer 1 is not a backup, it's the working copy — it's listed here only to make the ordering clear.
+
+**Current reality (2026-04-15):** Only layer 1 (the working copy on the VPS) is active. Layers 2–4 are the target design and should be implemented before collection campaigns begin in earnest. A Hetzner snapshot (`pre-lsb-chown-2026-04-15`) exists as temporary rollback protection for the recent lsb user migration but is not a substitute for the four-layer chain.
 
 ### 4.2 Backblaze B2 configuration
 
