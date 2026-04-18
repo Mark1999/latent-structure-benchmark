@@ -21,7 +21,7 @@ LSB is a small research project with a public dashboard, an open data bundle, an
 
 | Threat | Why it matters | Mitigation |
 |---|---|---|
-| **API key compromise** | Stolen LLM provider keys can be used to run up bills against LSB's accounts before Mark notices | Single-location storage on `lsb-agent-01` (`/opt/lsb-agent/.env`, mode 600, owned `lsb:lsb`), per-provider account caps as the Tier 2 spend defense, gitleaks pre-commit + GitHub secret scanning |
+| **API key compromise** | Stolen LLM provider keys can be used to run up bills against LSB's accounts before Mark notices | Single-location storage in a mode-600 `.env` on the active collection host (Mark's workstation in local-first development, `lsb-agent-01:/opt/lsb-agent/.env` owned `lsb:lsb` once the VPS returns), per-provider account caps as the Tier 2 spend defense, gitleaks pre-commit + GitHub secret scanning |
 | **Data tampering** | If someone alters `informants.jsonl` after the fact, LSB's findings become un-falsifiable and the project's credibility evaporates | Append-only JSONL, SHA256 manifest on every record, provider request ID as a second independent audit path, four-layer backup chain |
 | **Supply-chain attack via dependencies** | A compromised package in the dependency tree could exfiltrate keys, corrupt data, or inject content into the dashboard | Dependabot, `gitleaks`, minimal dependency footprint, lockfiles, no `unsafe-eval` in CSP |
 | **Researcher submission with PII** | A researcher contributing human grounding data could accidentally include subject names, emails, or other identifiers | CI runs `gitleaks` + a PII scan on every grounding submission PR; the CDA SME agent reviews; Mark merges only after both pass |
@@ -37,9 +37,9 @@ These are explicit non-goals for v1. Each is defensible for a research project a
 - **Nation-state adversaries.** LSB is not a hardened target. A motivated state actor with persistent access could cause real damage. Mitigation is to be small, transparent, and not interesting enough to attract that level of attention.
 - **Insider threats.** LSB has exactly one insider (Mark). If Mark is compromised, the project is compromised. There is no separation-of-duties for v1.
 - **Advanced supply-chain attacks** (typosquatting + delayed payload + selective targeting). LSB uses standard, well-known dependencies, but does not run independent dependency auditing beyond what Dependabot and `gitleaks` provide.
-- **Side-channel attacks** on the VPS or on Mark's local machines. Out of scope.
+- **Side-channel attacks** on the collection host (VPS when provisioned; Mark's workstation in local-first development). Out of scope.
 - **Subpoena or legal compulsion.** LSB stores no user data, has no logs of dashboard visitors, and produces no records about individuals. There's nothing to compel.
-- **Physical compromise** of `lsb-agent-01`. Hetzner physical security is what it is; LSB does not run in a SCIF.
+- **Physical compromise** of the collection host. In VPS mode, Hetzner physical security is what it is; in local-first mode, whatever protections Mark's workstation has. LSB does not run in a SCIF in either mode.
 
 ---
 
@@ -303,7 +303,7 @@ LSB has a small number of critical accounts. Each one is hardened identically pe
 | Backblaze B2 | Backblaze | Backup storage, open data distribution | Yes (after first nightly backup) |
 | Zenodo | Zenodo | DOI minting for the open data bundle | Yes (after Phase 4 validation) |
 | ProtonMail | Proton | Dedicated `security@cogstructurelab.ai` security contact (and standalone account before the domain is live) | Yes from day 1 |
-| Hetzner Cloud | Hetzner | `lsb-agent-01` VPS | Yes (after first provisioning) |
+| Hetzner Cloud | Hetzner | `lsb-agent-01` VPS (decommissioned 2026-04; the account remains hardened for when the VPS is re-provisioned per `HOSTING_AND_DEV_OPS.md` §1.1) | Yes (hardened from first provisioning and kept hardened through the deferred period) |
 | 1Password (or chosen password manager) | — | Credential storage | Yes from day 1 |
 
 ### 5.2 The hardening procedure (run for every account in §5.1)
@@ -398,7 +398,7 @@ When a credential may have been exposed:
 
 1. **Immediately revoke the existing credential** at the provider's dashboard. Do not wait for the new one to be ready.
 2. **Generate a new credential** with the minimum necessary scope.
-3. **Update the new credential everywhere it's used** — `lsb-agent-01:.env`, GitHub Actions secrets, the password manager. Use the password manager's "find usages" feature to make sure no location is missed.
+3. **Update the new credential everywhere it's used** — the active `.env` (workstation repo-root in local-first mode; `lsb-agent-01:.env` when the VPS is provisioned), GitHub Actions secrets, the password manager. Use the password manager's "find usages" feature to make sure no location is missed.
 4. **Restart any running processes** that loaded the old credential into memory.
 5. **Audit recent activity** at the provider's dashboard for any usage of the old credential between the time of suspected compromise and the revocation.
 6. **Document the rotation** in the password manager with the date, the reason, and the audit findings.
@@ -493,33 +493,35 @@ When a researcher submits human grounding data via the GitHub PR workflow (`ARCH
 
 For LSB, a secret is anything that grants access to a billed account, a write-capable API surface, or a private data store. The full list:
 
-- **LLM provider API keys** — `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `HUGGINGFACE_API_KEY`, optionally `OPENAI_API_KEY` and `GOOGLE_API_KEY`
-- **Backblaze B2 credentials** — `B2_KEY_ID`, `B2_APPLICATION_KEY`
-- **Slack webhook URLs** — `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`. Webhook URLs are themselves credentials — anyone with the URL can post to the channel — and must be treated like API keys.
+- **LLM provider API keys** — `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `HUGGINGFACE_API_KEY`, optionally `OPENAI_API_KEY`, `GOOGLE_API_KEY`, `XAI_API_KEY`
+- **Backblaze B2 credentials** — `B2_KEY_ID`, `B2_APPLICATION_KEY` (only active once the backup chain and open bundle publishing are live; see `HOSTING_AND_DEV_OPS.md` §4.2)
+- **Slack webhook URLs (optional)** — `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`. Webhook URLs are themselves credentials — anyone with the URL can post to the channel — and must be treated like API keys **whenever they exist**, regardless of whether they're currently wired up. They became optional in `HOSTING_AND_DEV_OPS.md` v0.2 (local-first development); the secret-handling rules did not change.
 - **Cloudflare API token** — only used if Phase 6 moves the publish flow to a Cloudflare API call rather than git-push (currently not used)
 - **GitHub Actions secrets** — managed via the GitHub repo settings, never copy-pasted out of the GitHub UI
-- **SSH private keys** — Mark's main SSH key for `lsb-agent-01`, the rsync-only key for the Synology NAS
+- **SSH private keys** — Mark's main SSH key for `lsb-agent-01` (when re-provisioned), the rsync-only key for the Synology NAS
 - **Password manager master password** — the meta-secret
 
 ### 8.2 Where secrets live
 
+The "Lives in" column shows the current local-first development state. Locations in parentheses apply when the VPS is re-provisioned per `HOSTING_AND_DEV_OPS.md` §1.1.
+
 | Secret | Lives in | Lives nowhere else |
 |---|---|---|
-| LLM provider API keys | `lsb-agent-01:/opt/lsb-agent/.env`, mode 600, owned `lsb:lsb` | Not on Mark's local machine, not in any GitHub Actions secret, not in any cloud sync |
-| B2 credentials | Same as above | Same |
-| Slack alerts webhook URL | Both `lsb-agent-01:/opt/lsb-agent/.env` AND GitHub Actions secrets (because both `qa_check.py` on the VPS and `weekly-cost-alert.yml` on GitHub Actions need it) | Nowhere else |
-| Slack CDA SME webhook URL | Mark's local Claude Code environment (the agent runtime reads it from there) | Not on the VPS |
-| Slack UI/UX webhook URL | Mark's local Claude Code environment | Not on the VPS |
-| SSH private keys | Mark's local `~/.ssh/` directory, encrypted at rest by the OS keychain | The matching public keys are in `~/.ssh/authorized_keys` on the VPS and on the NAS |
+| LLM provider API keys | Workstation repo-root `.env`, mode 600 (→ `lsb-agent-01:/opt/lsb-agent/.env`, mode 600, owned `lsb:lsb`, once the VPS returns) | Not in any GitHub Actions secret, not in any cloud sync. In VPS mode, not on Mark's local machine. |
+| B2 credentials | Same as above (inactive today — comes online with the backup chain) | Same |
+| Slack alerts webhook URL (optional) | If set: workstation `.env` and/or GitHub Actions secrets (the GH Actions copy is needed by `weekly-cost-alert.yml`). When unset, no storage is needed — the QA_Runner falls back to stdout + `logs/qa_alerts.log`. | Nowhere else |
+| Slack CDA SME webhook URL (optional) | If set: Mark's local Claude Code environment (the agent runtime reads it from there). When unset, verdicts go to `docs/verdicts/`. | Not on the VPS in current configuration |
+| Slack UI/UX webhook URL (optional) | If set: Mark's local Claude Code environment. When unset, verdicts go to `docs/verdicts/`. | Not on the VPS in current configuration |
+| SSH private keys | Mark's local `~/.ssh/` directory, encrypted at rest by the OS keychain | Currently: inactive (no VPS to SSH into). When the VPS returns: the matching public keys are in `~/.ssh/authorized_keys` on the VPS and on the NAS |
 | Password manager master password | In Mark's head | Plus a sealed-envelope printout in the fireproof safe (last resort) |
 
-The principle is **single-location storage by default**. A secret should live in exactly one place unless there's a specific reason for it to live in two places (which is true for the alerts webhook URL because it's read by two different runtimes).
+The principle is **single-location storage by default**. A secret should live in exactly one place unless there's a specific reason for it to live in two places (which is true for the alerts webhook URL when it's set, because it's read by two different runtimes — the QA_Runner and the GitHub Actions cost-alert job). When a Slack webhook is unset (the local-first default), it has zero storage locations, which is the safest state of all.
 
 ### 8.3 What never goes near secrets
 
 - **No secret is ever committed to git.** `.env` is in `.gitignore`; `.env.example` is the tracked template with placeholder values.
 - **No secret is ever logged.** The adapter base class scrubs keys from any request payload before writing to the raw lake (`ARCHITECTURE.md` §6.3). Custom logging in `cdb_collect` must not log raw request headers.
-- **No secret is ever included in an error message displayed to a user.** The dashboard does not error-message at users; CLI error messages on `lsb-agent-01` go to journald and are not surfaced to the dashboard or to Slack.
+- **No secret is ever included in an error message displayed to a user.** The dashboard does not error-message at users; CLI error messages on the collection host (Mark's workstation in local-first mode; `lsb-agent-01` when re-provisioned) go to stdout/journald and are not surfaced to the dashboard or to Slack.
 - **No secret is ever sent to a third-party service** (no error tracking SaaS, no APM, no log aggregation outside what's already trusted).
 
 ### 8.4 Rotation cadence
@@ -549,7 +551,7 @@ The Reviewer agent enforces the following rules on every PR. This table is **the
 | **R7** | **`InformantRecord` and `GroundingRef` schema changes co-update `docs/DATA_DICTIONARY.md`.** Any PR that touches these schemas in `cdb_core/schemas.py` must include a matching update to the data dictionary in the same PR. | `ARCHITECTURE.md` §5.1 Reviewer rule 5 |
 | **R8** | **Frontend PRs carry a UI/UX agent verdict.** Any PR touching `apps/dashboard/`, `DESIGN_SYSTEM.md`, or any visual component must have a UI/UX agent PASS or PASS-WITH-NOTES verdict in `#lsb-ui-ux` linked from the PR description. | `ARCHITECTURE.md` §5.1 Reviewer rule 6 |
 | **R9** | **Researcher grounding submission PRs run the full validation suite.** CI must run schema check, format check, item-intersection report, `gitleaks`, AND the PII scan (`scripts/check_grounding_pii.py`) on every PR that adds files under `data/grounding/`. The CDA SME agent must also have reviewed and posted a verdict to `#lsb-cda-sme`. | §7.4, `ARCHITECTURE.md` §4.2.5 |
-| **R10** | **Webhook URL secrets are never committed.** Specific case of R1, listed separately because Slack webhook URLs are easy to mistake for non-secret configuration. | §8.1 |
+| **R10** | **Webhook URL secrets are never committed.** Specific case of R1, listed separately because Slack webhook URLs are easy to mistake for non-secret configuration. Still applies even though webhooks became optional in `HOSTING_AND_DEV_OPS.md` v0.2 — a committed webhook URL is a security incident regardless of whether it was currently wired up. | §8.1 |
 | **R11** | **`SECURITY.md` at the repo root cannot be materially weakened.** Changes to the contact email, the SLA, or the disclosure process require Architect sign-off. | §6.5 |
 | **R12** | **The §1.5.4 language guardrails apply to every piece of generated text.** This is enforced by both the CDA SME agent (during plan review) and the Reviewer agent (during PR review). The Reviewer specifically checks generated ledes, social posts, dashboard copy, README content, commit messages, and PR descriptions. | `ARCHITECTURE.md` §1.5.4 |
 
@@ -607,11 +609,11 @@ These are real security improvements that LSB does not adopt in v1. Each has a d
 
 **Trigger to revisit:** sustained operational issues that require historical metric analysis (e.g., latency degradation over time across providers, slow drift in collection success rates).
 
-**When triggered:** add Prometheus + Grafana on `lsb-agent-01`, or a hosted alternative. Avoid Datadog and other commercial observability SaaS for cost reasons.
+**When triggered:** add Prometheus + Grafana on the collection host (Mark's workstation in local-first mode if the issue surfaces there; `lsb-agent-01` when the VPS is re-provisioned), or a hosted alternative. Avoid Datadog and other commercial observability SaaS for cost reasons.
 
 ### 10.7 Multi-region hosting
 
-**v1 status:** deferred. Single Helsinki VPS is fine.
+**v1 status:** deferred. A single VPS (when re-provisioned) is fine for v1; during local-first development, "multi-region" isn't a meaningful concept since there's no public collection surface.
 
 **Trigger to revisit:** the project has SLA commitments that single-region deployment can't meet, or the Helsinki region has sustained reliability issues.
 
@@ -621,7 +623,7 @@ These are real security improvements that LSB does not adopt in v1. Each has a d
 
 ## 11. The security posture in one paragraph
 
-LSB is a small research project that makes public claims about commercial AI products and accepts contributions from external researchers. Its security posture is built around three commitments: data integrity (append-only canonical raw data with cryptographic provenance and a four-layer backup chain), credential isolation (single-location secret storage, no SMS-second-factor anywhere, two YubiKeys on every critical account, dedicated security email separate from Mark's personal life), and small attack surface (static dashboard with strict CSP, no LLM-generated HTML, no realtime backend, minimal dependency footprint, single-VPS collection runner). The project does not defend against nation-state adversaries, insider threats, or advanced supply-chain attacks. It does defend against the realistic threats: credential phishing, accidental key commits, dependency vulnerabilities, LLM-output XSS, researcher submissions with PII, and tampering with the raw data lake. The Reviewer agent enforces twelve specific rules on every PR; the §10 deferred items are real improvements that v1 doesn't need yet.
+LSB is a small research project that makes public claims about commercial AI products and accepts contributions from external researchers. Its security posture is built around three commitments: data integrity (append-only canonical raw data with cryptographic provenance and, when the VPS and backup chain are active, a four-layer backup chain), credential isolation (single-location secret storage, no SMS-second-factor anywhere, two YubiKeys on every critical account, dedicated security email separate from Mark's personal life), and small attack surface (static dashboard with strict CSP, no LLM-generated HTML, no realtime backend, minimal dependency footprint, a single collection host — Mark's workstation during local-first development, `lsb-agent-01` once re-provisioned). The project does not defend against nation-state adversaries, insider threats, or advanced supply-chain attacks. It does defend against the realistic threats: credential phishing, accidental key commits, dependency vulnerabilities, LLM-output XSS, researcher submissions with PII, and tampering with the raw data lake. The Reviewer agent enforces twelve specific rules on every PR; the §10 deferred items are real improvements that v1 doesn't need yet.
 
 ---
 

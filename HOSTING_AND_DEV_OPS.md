@@ -1,7 +1,7 @@
 # LSB Hosting and DevOps
 
 **Document name:** `HOSTING_AND_DEV_OPS.md`  
-**Version:** v0.1.1 (reality alignment pass, aligned with `ARCHITECTURE.md` v0.7.1)  
+**Version:** v0.2 (local-first development, VPS deferred, Slack optional)  
 **Status:** Operational reference for the Coder agent and Mark  
 **Audience:** Coder agent, Mark, anyone who needs to understand how LSB is deployed and where its data lives  
 **Companion docs:** `ARCHITECTURE.md` (especially §4.4 publish layer, §4.3 storage, §6.7 open data, §7 resolved decisions), `SECURITY_AND_HARDENING.md` (account hardening, secret management), `PHASE_0_TASKS.md` (P0-T10 dashboard scaffold)
@@ -11,6 +11,7 @@
 **Stability.** Changes to this document require Architect sign-off if they affect cost, latency, availability, or backup integrity. Cosmetic or clarifying changes do not.
 
 **Changelog:**
+- **v0.2** (2026-04-18) — Local-first development mode. The Hetzner VPS has been decommissioned and LSB now runs from Mark's local workstation. §1: added §1.1 "Current operating mode" callout; hosting table reflects "VPS deferred" state. §3: retitled "Future project VPS — deferred"; whole section kept as forward-looking spec, with a banner noting it is not currently provisioned. §3.6 (new): "Local development mode" — documents where `.env`, `data/raw/`, and the runner actually live today. §6: Slack channels reframed as **optional** notification surfaces — when a webhook env var is unset, `qa_check.py` and the agent runtime fall back to stdout plus a rotating log file at `logs/`. §8: Slack webhooks marked optional; key-location rows updated to show local-dev vs. VPS-deployed splits. §11: added "VPS-hosted operation is deferred, not cancelled" so the Coder doesn't drift into building VPS-only code paths. **Trigger for VPS provisioning:** Claude Code flags it when unattended long-running collection, scheduled crons, or the four-layer backup chain become load-bearing — i.e., when local-only operation starts blocking the research. Until that flag is raised, local dev is the supported mode.
 - **v0.1.1** (2026-04-15) — Reality alignment pass. §3.1: SSH alias connects as `lsb` user. §3.2: note that processes run as `lsb`, note planned-vs-active services. §3.3: removed aspirational `backups/` directory, added `lsb:lsb` ownership. §3.4: documented parked `lsb-agent.service` (`ExecStart=/bin/false`), marked all systemd timers as planned. §3.5: documented SSH hardening (root login disabled, password auth disabled, key-only as `lsb` user), verified ufw active state. §4.1: added Status column — only layer 1 (working copy) is active; layers 2–4 are planned.
 - **v0.1** — first draft. Documents Cloudflare Pages hosting, the `lsb-agent-01` Hetzner VPS, the four-layer backup strategy (Synology + Backblaze B2 + fireproof safe + Zenodo), the GitHub Actions CI/CD pipeline, the three Slack webhooks, and the cost summary. Aligned with `ARCHITECTURE.md` v0.7 — no Mac Mini, no on-prem GPU, no local inference layer.
 
@@ -18,18 +19,33 @@
 
 ## 1. Hosting overview
 
-LSB has **four hosted surfaces** in v1, all small and most of them free or near-free:
+### 1.1 Current operating mode — local-first development
 
-| Surface | Provider | Cost | Purpose |
-|---|---|---|---|
-| **Dashboard** | Cloudflare Pages (free tier) | $0 / month | Public dashboard at `cogstructurelab.com`, served as static files from a Cloudflare global CDN |
-| **Domain registration** | Cloudflare Registrar | ~$10–20 / year for `.com`, ~$50–70 / year for `.ai` | Both `cogstructurelab.com` and `cogstructurelab.ai` are owned; `.ai` redirects to `.com` |
-| **Project VPS** | Hetzner Cloud (Helsinki region) | ~$12 / month | `lsb-agent-01` runs the collection runner, the QA_Runner, the cron jobs, and the social pipeline. CPX32 instance: 4 vCPU, 8 GB RAM, 160 GB SSD |
-| **Open data bundle** | Backblaze B2 + Zenodo | ~$5 / month + free | Backblaze B2 hosts the bundle; Zenodo mints DOIs after Phase 4 validation. CC0 distribution per `ARCHITECTURE.md` §6.7 |
+**As of 2026-04-18, LSB runs entirely from Mark's local workstation.** The Hetzner VPS (`lsb-agent-01`) has been decommissioned. Collection, QA, analysis, and dashboard builds all execute locally; the public dashboard is still served by Cloudflare Pages from GitHub. The VPS spec in §3 below is preserved as **forward-looking** infrastructure — it will be re-provisioned when local-only operation starts blocking the research.
 
-**Total recurring cost:** approximately $17 / month for hosting + $50–90 / year for domains. This excludes LLM API spend (capped at $300/month per `ARCHITECTURE.md` §6.2 three-tier defense), which is the largest variable cost in the project but is *operational expense*, not hosting infrastructure.
+**Trigger for re-provisioning the VPS.** Claude Code is responsible for flagging when the project outgrows local-only operation. The trigger conditions are any of:
 
-The architecture is deliberately **server-light**. There is no API server to maintain, no database server to maintain, no realtime backend, no auth system. The dashboard is static files; the analysis is batch; the collection runner is a cron job on a single VPS. v0.4 design decisions explicitly committed to this; see `ARCHITECTURE.md` §4.4.5 ("Why no FastAPI") and §1 commitment 5 ("Small surface area").
+- An unattended collection campaign needs to run for more than a working day without Mark's laptop being awake.
+- The four-layer backup chain (§4) becomes load-bearing — i.e., the raw data set is large enough or valuable enough that losing the local copy would be a project-ending event.
+- A scheduled cron (cost report, social runner, backup sync) becomes part of the routine operating cadence rather than an ad-hoc manual step.
+- Public visitors start depending on freshness cadence that a human-in-the-loop cron can't deliver.
+
+Until one of those is true, local-first is the supported mode and the Coder should not build VPS-only code paths. Collection, QA, analysis, and publish scripts must all run unmodified on a laptop.
+
+### 1.2 Hosted surfaces
+
+LSB has **two active hosted surfaces** today, plus one deferred and one conditional:
+
+| Surface | Provider | Cost | Status | Purpose |
+|---|---|---|---|---|
+| **Dashboard** | Cloudflare Pages (free tier) | $0 / month | **Active** | Public dashboard at `cogstructurelab.com`, served as static files from a Cloudflare global CDN |
+| **Domain registration** | Cloudflare Registrar | ~$10–20 / year for `.com`, ~$50–70 / year for `.ai` | **Active** | Both `cogstructurelab.com` and `cogstructurelab.ai` are owned; `.ai` redirects to `.com` |
+| **Project VPS** | Hetzner Cloud (Helsinki region) | ~$12 / month | **Deferred** (decommissioned 2026-04) | Will run the collection runner, the QA_Runner, the cron jobs, and the social pipeline when re-provisioned. Spec: CPX32 — 4 vCPU, 8 GB RAM, 160 GB SSD. See §3. |
+| **Open data bundle** | Backblaze B2 + Zenodo | ~$5 / month + free | **Planned** (post Phase 4 validation) | Backblaze B2 hosts the bundle; Zenodo mints DOIs after Phase 4 validation. CC0 distribution per `ARCHITECTURE.md` §6.7 |
+
+**Current recurring cost:** approximately $0 / month for hosting + $50–90 / year for domains. This goes up by ~$12/month when the VPS is re-provisioned and by ~$5/month once the open data bundle goes live. LLM API spend (capped at $300/month per `ARCHITECTURE.md` §6.2 three-tier defense) is tracked separately as operational expense, not hosting infrastructure.
+
+The architecture is deliberately **server-light**. There is no API server to maintain, no database server to maintain, no realtime backend, no auth system. The dashboard is static files; the analysis is batch; the collection runner is a script that runs interactively. v0.4 design decisions explicitly committed to this; see `ARCHITECTURE.md` §4.4.5 ("Why no FastAPI") and §1 commitment 5 ("Small surface area"). That server-light posture is exactly what makes local-first development viable — there is no background service that *has* to be up.
 
 ---
 
@@ -94,7 +110,9 @@ Every PR against `main` gets an automatic preview deployment at a Cloudflare-gen
 
 ---
 
-## 3. `lsb-agent-01` — the project VPS
+## 3. `lsb-agent-01` — the project VPS (deferred)
+
+> **Status as of 2026-04-18: this VPS is not currently provisioned.** The Hetzner instance was decommissioned in April 2026 and the project now runs locally on Mark's workstation (see §3.6). The spec below is preserved as the target state for re-provisioning once any of the trigger conditions in §1.1 is met. When that happens, this section becomes live reality again and the changelog entry for the next version of this document records the date.
 
 ### 3.1 Provisioning
 
@@ -169,6 +187,35 @@ lsb-social-runner.timer        # Planned: Triggered post-publish via a hook, not
 - **SSH access:** Mark only, key-based authentication only. Root SSH login is disabled (`PermitRootLogin no`). Password authentication is disabled (`PasswordAuthentication no`). Mark connects as the `lsb` user and uses `sudo` when root is needed (`/etc/sudoers.d/lsb` grants passwordless sudo to `lsb`).
 - **Firewall:** Hetzner Cloud Firewall + ufw on the host. ufw is active with inbound rules for OpenSSH, port 80, and port 443. Outbound: unrestricted (the runner needs to reach all three LLM providers + Backblaze B2 + GitHub).
 - **Updates:** unattended-upgrades enabled for security patches; major OS upgrades are manual
+
+### 3.6 Local development mode (current)
+
+Until the VPS is re-provisioned, LSB runs from Mark's local workstation. The layout:
+
+- **Repo location:** the LSB monorepo is cloned to Mark's local filesystem (path is workstation-specific; `/home/user/latent-structure-benchmark/` in CI-managed agent worktrees).
+- **`.env` location:** lives at the repo root, mode 600, never committed. `.gitignore` and `gitleaks` are both lines of defense. The real `.env` replaces the `lsb-agent-01:/opt/lsb-agent/.env` location referenced throughout this document.
+- **Data location:** `data/raw/`, `data/processed/`, `data/results/` live inside the repo tree. The canonical `data/raw/informants.jsonl` is append-only by convention and by the CI check (unchanged from VPS operation).
+- **Collection runner:** `python scripts/collect.py` runs interactively in a terminal. No systemd, no tmux session on a remote box. For long runs, Mark uses `tmux` or `screen` locally, or runs the script in a terminal that he leaves open.
+- **QA_Runner:** `scripts/qa_check.py` runs automatically after each collection record. If `LSB_ALERTS_WEBHOOK_URL` is set, it posts to Slack; if unset, it writes to stdout and to `logs/qa_alerts.log` (see §6 for the fallback behavior).
+- **Analysis:** `python scripts/analyze.py` runs locally, writes to `data/results/`.
+- **Dashboard build:** `cd apps/dashboard && npm run build` runs locally; Cloudflare Pages picks up the build from `main` via GitHub (unchanged from VPS operation — CI was never on the VPS in the first place).
+- **Backups:** there is currently no automated backup chain. Mark relies on git (code + schemas are pushed to GitHub) plus whatever disk-level backup his workstation already has. The raw data set is small enough that this is acceptable during development, but one of the trigger conditions in §1.1 is "raw data valuable enough to need real backups" — when that fires, the VPS and the four-layer chain (§4) come online together.
+- **Cron jobs (planned):** `cost_report.py`, `social_runner.py`, and the nightly backup sync are **not run locally** during the development phase. They activate when the VPS returns.
+
+**What changed vs. VPS operation:**
+
+| Thing | VPS mode | Local-dev mode |
+|---|---|---|
+| `.env` file | `lsb-agent-01:/opt/lsb-agent/.env` | Repo-root `.env` on Mark's workstation |
+| LLM API keys | Only on VPS, never on Mark's machine | On Mark's workstation (by necessity) |
+| Collection runner | Interactive tmux on VPS | Interactive terminal on workstation |
+| QA_Runner alerts | Always posted to `#lsb-alerts` | Posted to `#lsb-alerts` if webhook is set, else stdout + `logs/qa_alerts.log` |
+| Scheduled crons | Planned on VPS | Disabled (run by hand when needed) |
+| Backups | Four-layer chain (planned) | git + workstation disk backup only |
+| Dashboard build | Via Cloudflare Pages (unchanged) | Via Cloudflare Pages (unchanged) |
+| CI (ruff, mypy, pytest) | GitHub Actions (unchanged) | GitHub Actions (unchanged) |
+
+Local-dev mode is **not** a feature branch of the architecture — it is the same codebase running in a different environment. No code paths are local-only. When the VPS returns, the only changes are where `.env` lives and which scheduler invokes the scripts.
 
 ---
 
@@ -253,7 +300,7 @@ The following secrets must be configured in the GitHub repository settings (Sett
 | `B2_APPLICATION_KEY` | (none in v1; Phase 6) | Backblaze B2 |
 | `CLOUDFLARE_API_TOKEN` | (none in v1; Cloudflare Pages auto-deploys without an API token) | — |
 
-GitHub Actions does **not** need any LLM API keys, because no GitHub Actions job ever calls an LLM directly. The collection runner only ever runs on `lsb-agent-01`. This is a deliberate security simplification: the LLM API keys live in exactly one place (`lsb-agent-01:/opt/lsb-agent/.env`) and never travel.
+GitHub Actions does **not** need any LLM API keys, because no GitHub Actions job ever calls an LLM directly. The collection runner only runs on the active collection host — Mark's workstation in local-first development mode, and `lsb-agent-01` when the VPS is re-provisioned (never on GitHub Actions). This is a deliberate security simplification: the LLM API keys live in one active `.env` file at a time and never travel into CI.
 
 ### 5.3 Branch protection on `main`
 
@@ -279,19 +326,21 @@ Dependabot PRs go through the same `ci.yml` pipeline as any other PR. The Review
 
 ---
 
-## 6. The three Slack workspaces and channels
+## 6. Slack channels (optional notification surfaces)
 
-LSB has three operational Slack channels per `ARCHITECTURE.md` §5.4. All three live in the same Slack workspace ("Cognitive Structure Lab"); they are not separate workspaces.
+LSB defines three operational Slack channels per `ARCHITECTURE.md` §5.4. All three live in the same Slack workspace ("Cognitive Structure Lab"); they are not separate workspaces. **All three are optional.** When the corresponding webhook env var is unset, the code that would have posted to Slack falls back to stdout plus a rotating log file under `logs/`. The fallback is not degraded operation — it is a supported mode for local development, where Mark is at the terminal and does not need a cross-device ping.
 
-| Channel | Posted by | Webhook env var | Where the env var is configured |
+| Channel | Posted by | Webhook env var | Fallback when unset |
 |---|---|---|---|
-| `#lsb-alerts` | `scripts/qa_check.py` running on `lsb-agent-01`; `weekly-cost-alert.yml` running on GitHub Actions | `LSB_ALERTS_WEBHOOK_URL` | Both `lsb-agent-01:/opt/lsb-agent/.env` and GitHub Actions secrets |
-| `#lsb-cda-sme` | The CDA SME agent (Opus) running in the Claude Code agent runtime | `LSB_CDA_SME_WEBHOOK_URL` | Mark's local Claude Code environment |
-| `#lsb-ui-ux` | The UI/UX agent (Sonnet) running in the Claude Code agent runtime | `LSB_UI_UX_WEBHOOK_URL` | Mark's local Claude Code environment |
+| `#lsb-alerts` | `scripts/qa_check.py`; `weekly-cost-alert.yml` on GitHub Actions | `LSB_ALERTS_WEBHOOK_URL` | stdout + `logs/qa_alerts.log`; GitHub Actions job still succeeds |
+| `#lsb-cda-sme` | The CDA SME agent (Opus) in the Claude Code agent runtime | `LSB_CDA_SME_WEBHOOK_URL` | Verdict printed in the agent's turn output and written to `docs/verdicts/<date>-cda-sme-<task>.md` |
+| `#lsb-ui-ux` | The UI/UX agent (Sonnet) in the Claude Code agent runtime | `LSB_UI_UX_WEBHOOK_URL` | Verdict printed in the agent's turn output and written to `docs/verdicts/<date>-ui-ux-<task>.md` |
 
-The webhook URLs are created in Slack via Slack App configuration (one Slack app with three Incoming Webhook integrations, one per channel). They are stored in 1Password and copied into the relevant `.env` files. They are never committed.
+**When webhooks are set** (VPS or any mode where cross-device notifications matter), they are created in Slack via Slack App configuration (one Slack app with three Incoming Webhook integrations, one per channel), stored in 1Password, and copied into the relevant `.env` files. They are never committed.
 
-**Why webhooks rather than the Slack API.** Webhooks are the simplest possible posting mechanism — a single POST with a JSON body, no auth flow, no token refresh. LSB does not need to read from Slack, only post; the Slack API would be overkill. The downside is that webhook URLs are themselves credentials (anyone with the URL can post to the channel), which is why they're in `.env` and the password manager rather than in code.
+**Why webhooks rather than the Slack API.** When used, webhooks are the simplest possible posting mechanism — a single POST with a JSON body, no auth flow, no token refresh. LSB does not need to read from Slack, only post; the Slack API would be overkill. The downside is that webhook URLs are themselves credentials (anyone with the URL can post to the channel), which is why they're in `.env` and the password manager rather than in code. Reviewer rule R10 in `SECURITY_AND_HARDENING.md` §9 still applies: a webhook URL that does exist must never be committed, regardless of whether it's currently wired up.
+
+**Local-dev default.** During the local-first development phase, the recommended setup is to leave `LSB_CDA_SME_WEBHOOK_URL` and `LSB_UI_UX_WEBHOOK_URL` unset and let the verdict files accumulate under `docs/verdicts/` — they're durable, greppable, and reviewable in PRs. `LSB_ALERTS_WEBHOOK_URL` is useful to set if Mark wants phone notifications for long collection runs, but is not required.
 
 ---
 
@@ -325,44 +374,48 @@ Per `ARCHITECTURE.md` §6.7, LSB publishes its full result set as open data afte
 
 ## 8. Environment variables
 
-The full list of environment variables LSB reads, where each one is set, and what it's for. **Variables in bold are required**; others are optional.
+The full list of environment variables LSB reads, where each one is set, and what it's for. **Variables in bold are required**; others are optional. The "Where set" column shows the local-dev location first, with the VPS location in parentheses for when the VPS is re-provisioned.
 
 | Variable | Required? | Where set | Used by | Purpose |
 |---|---|---|---|---|
-| **`ANTHROPIC_API_KEY`** | Yes | `lsb-agent-01:.env` | `cdb_collect/adapters/anthropic.py` | Anthropic API auth |
-| **`OPENROUTER_API_KEY`** | Yes | `lsb-agent-01:.env` | `cdb_collect/adapters/openrouter.py` | OpenRouter API auth |
-| **`HUGGINGFACE_API_KEY`** | Yes | `lsb-agent-01:.env` | `cdb_collect/adapters/huggingface.py` | Hugging Face Inference Providers auth |
-| **`CDB_MAX_SPEND_USD`** | Yes (default `300`) | `lsb-agent-01:.env` | `cdb_collect/runner.py` (tier 1 of the three-tier spend defense) | Hard runtime spend cap per `ARCHITECTURE.md` §6.2 |
-| **`B2_KEY_ID`** | Yes (for backups and open bundle publishing) | `lsb-agent-01:.env` | Nightly backup script, `scripts/build_db.py` | Backblaze B2 API auth |
-| **`B2_APPLICATION_KEY`** | Yes | `lsb-agent-01:.env` | Same | Backblaze B2 API auth |
-| **`LSB_ALERTS_WEBHOOK_URL`** | Yes | `lsb-agent-01:.env` AND GitHub Actions secrets | `scripts/qa_check.py`, `weekly-cost-alert.yml` | Slack `#lsb-alerts` posting |
-| **`LSB_CDA_SME_WEBHOOK_URL`** | Yes | Mark's local Claude Code env | CDA SME agent | Slack `#lsb-cda-sme` posting |
-| **`LSB_UI_UX_WEBHOOK_URL`** | Yes | Mark's local Claude Code env | UI/UX agent | Slack `#lsb-ui-ux` posting |
-| `OPENAI_API_KEY` | No | `lsb-agent-01:.env` (if used) | `cdb_collect/adapters/openai.py` (currently routed via OpenRouter; direct OpenAI is a future option) | Direct OpenAI API auth, not v1 |
-| `GOOGLE_API_KEY` | No | Same | Same for Google | Same for Google |
+| **`ANTHROPIC_API_KEY`** | Yes | Workstation `.env` (→ `lsb-agent-01:.env` when VPS returns) | `cdb_collect/adapters/anthropic.py` | Anthropic API auth |
+| **`OPENROUTER_API_KEY`** | Yes | Workstation `.env` (→ `lsb-agent-01:.env`) | `cdb_collect/adapters/openrouter.py` | OpenRouter API auth |
+| **`HUGGINGFACE_API_KEY`** | Yes | Workstation `.env` (→ `lsb-agent-01:.env`) | `cdb_collect/adapters/huggingface.py` | Hugging Face Inference Providers auth |
+| **`CDB_MAX_SPEND_USD`** | Yes (default `300`) | Workstation `.env` (→ `lsb-agent-01:.env`) | `cdb_collect/runner.py` (tier 1 of the three-tier spend defense) | Hard runtime spend cap per `ARCHITECTURE.md` §6.2 |
+| `B2_KEY_ID` | No (required once backup/open-bundle publishing is live) | Workstation `.env` (→ `lsb-agent-01:.env`) | Future backup script, `scripts/build_db.py` | Backblaze B2 API auth |
+| `B2_APPLICATION_KEY` | No (same) | Same | Same | Backblaze B2 API auth |
+| `LSB_ALERTS_WEBHOOK_URL` | No (optional; stdout + `logs/qa_alerts.log` fallback) | Workstation `.env` and/or GitHub Actions secrets | `scripts/qa_check.py`, `weekly-cost-alert.yml` | Slack `#lsb-alerts` posting |
+| `LSB_CDA_SME_WEBHOOK_URL` | No (optional; `docs/verdicts/` fallback) | Workstation Claude Code env | CDA SME agent | Slack `#lsb-cda-sme` posting |
+| `LSB_UI_UX_WEBHOOK_URL` | No (optional; `docs/verdicts/` fallback) | Workstation Claude Code env | UI/UX agent | Slack `#lsb-ui-ux` posting |
+| `OPENAI_API_KEY` | No | Workstation `.env` (if used) | `cdb_collect/adapters/openai.py` / `openai_compat.py` | Direct OpenAI API auth |
+| `GOOGLE_API_KEY` | No | Same | `cdb_collect/adapters/google.py` | Direct Google Gemini auth |
+| `XAI_API_KEY` | No | Same | `cdb_collect/adapters/xai.py` | Direct xAI auth |
 
 `.env.example` at the repo root tracks the full list with placeholder values. The real `.env` is never committed; `.gitignore` enforces this and `gitleaks` is the second line of defense.
+
+**On the change from v0.1.** The three Slack webhook URLs were "Required" in v0.1 because they were load-bearing for the operational alerting and pipeline gating. In v0.2 they are optional: the QA_Runner and the two gating agents both degrade gracefully to local output when the webhook is unset. This reflects the local-first development mode — when Mark is at the terminal, Slack is a convenience, not a requirement. When the VPS returns and collection starts running unattended, setting `LSB_ALERTS_WEBHOOK_URL` becomes strongly recommended (and in practice required for any multi-hour campaign) so that QA failures don't sit unnoticed.
 
 ---
 
 ## 9. Cost summary
 
-| Item | Cost | Cadence | Notes |
-|---|---|---|---|
-| Cloudflare Pages | $0 | monthly | Free tier covers v1 traffic comfortably |
-| Cloudflare Registrar (`cogstructurelab.com`) | ~$10–12 | yearly | At-cost domain registration |
-| Cloudflare Registrar (`cogstructurelab.ai`) | ~$50–70 | yearly | `.ai` is more expensive; LSB owns it for redirect purposes |
-| Hetzner Cloud CPX32 (`lsb-agent-01`) | ~$12 (€11.90) | monthly | Helsinki region |
-| Backblaze B2 storage (`lsb-backups`) | ~$5 | monthly | Estimated for v1 data volumes |
-| Backblaze B2 storage (`lsb-open-data`) | <$1 | monthly | Bundle is small |
-| Backblaze B2 egress | $0–2 | monthly | Highly variable; free up to ~30 GB/day via Bandwidth Alliance |
-| Synology NAS | $0 incremental | — | Existing hardware Mark already owns |
-| USB SSD for fireproof safe | $0 incremental | — | Existing hardware |
-| Zenodo | $0 | — | Free for open science |
-| HuggingFace Datasets | $0 | — | Free for public datasets |
-| ProtonMail security contact | ~$5 | monthly | Existing personal Proton account; LSB pays for the dedicated `security@cogstructurelab.ai` address as part of the existing plan |
-| **Total infrastructure** | **~$23 / month + ~$80 / year** | | Excluding LLM API spend |
-| LLM API spend (variable) | Up to $300 | monthly | Capped via the three-tier defense per `ARCHITECTURE.md` §6.2 |
+| Item | Cost | Cadence | Status | Notes |
+|---|---|---|---|---|
+| Cloudflare Pages | $0 | monthly | Active | Free tier covers v1 traffic comfortably |
+| Cloudflare Registrar (`cogstructurelab.com`) | ~$10–12 | yearly | Active | At-cost domain registration |
+| Cloudflare Registrar (`cogstructurelab.ai`) | ~$50–70 | yearly | Active | `.ai` is more expensive; LSB owns it for redirect purposes |
+| Hetzner Cloud CPX32 (`lsb-agent-01`) | ~$12 (€11.90) | monthly | **Deferred** | Decommissioned 2026-04; re-provisioned when §1.1 triggers fire |
+| Backblaze B2 storage (`lsb-backups`) | ~$5 | monthly | Deferred | Comes online with the VPS and the four-layer backup chain |
+| Backblaze B2 storage (`lsb-open-data`) | <$1 | monthly | Planned (post Phase 4) | Bundle is small |
+| Backblaze B2 egress | $0–2 | monthly | Planned | Highly variable; free up to ~30 GB/day via Bandwidth Alliance |
+| Synology NAS | $0 incremental | — | Deferred | Existing hardware Mark already owns; layer 2 of the backup chain |
+| USB SSD for fireproof safe | $0 incremental | — | Deferred | Existing hardware; layer 4 of the backup chain |
+| Zenodo | $0 | — | Planned | Free for open science |
+| HuggingFace Datasets | $0 | — | Planned | Free for public datasets |
+| ProtonMail security contact | ~$5 | monthly | Active | Existing personal Proton account; LSB pays for the dedicated `security@cogstructurelab.ai` address as part of the existing plan |
+| **Current infrastructure total** | **~$5 / month + ~$60–80 / year** | | | Local-dev mode, Phase 0/1 |
+| **Projected infrastructure total when VPS returns** | **~$23 / month + ~$80 / year** | | | Excluding LLM API spend |
+| LLM API spend (variable) | Up to $300 | monthly | Active | Capped via the three-tier defense per `ARCHITECTURE.md` §6.2 |
 
 The infrastructure cost is small enough to be a personal expense for Mark and does not require external funding or grant support to sustain. The LLM API spend is the largest variable and is what the spend cap exists to control.
 
@@ -372,10 +425,10 @@ The infrastructure cost is small enough to be a personal expense for Mark and do
 
 The full incident response runbook lives in `docs/RUNBOOKS/incident_response.md` (Phase 6 deliverable, not yet written). Until that file exists, the high-level posture is:
 
-- **Operational incidents** (QA failure, provider outage, runner crash, cost spike): post to `#lsb-alerts` if not already alerted there, Mark investigates within hours, decides whether to pause collection / switch providers / open a provider ticket.
+- **Operational incidents** (QA failure, provider outage, runner crash, cost spike): post to `#lsb-alerts` if the webhook is configured, or surface in `logs/qa_alerts.log` / stdout if not. Mark investigates within hours, decides whether to pause collection / switch providers / open a provider ticket.
 - **Security incidents** (suspected key compromise, suspected unauthorized access, suspected data tampering): rotate the affected credential immediately, document in a private incident log, notify the security contact email, and pull the affected data from any public distribution if confirmed. The full procedure lives in `SECURITY_AND_HARDENING.md` §6.
-- **Data integrity incidents** (suspected corruption of `informants.jsonl`, SHA256 manifest verification failures, restored backup looks wrong): pause all collection, snapshot the current state of `data/raw/` to a separate B2 bucket for forensics, verify the four-layer backup chain to identify which layer is the last known good, restore from the last known good layer, document the gap.
-- **Total infrastructure loss** (Hetzner outage + Backblaze outage simultaneously): worst-case scenario. Restore from the fireproof safe USB SSD. Acknowledge data loss for any runs collected since the last 90-day refresh. This has never happened to anyone, but the layered backup design assumes it might.
+- **Data integrity incidents** (suspected corruption of `informants.jsonl`, SHA256 manifest verification failures, restored backup looks wrong): pause all collection. In VPS mode, snapshot the current state of `data/raw/` to a separate B2 bucket for forensics and verify the four-layer backup chain to identify which layer is the last known good. In local-dev mode, copy `data/raw/` to a timestamped sibling directory for forensics and rely on git history plus workstation disk backups; acknowledge that the weaker chain is one of the reasons local-dev mode only runs during early development.
+- **Total infrastructure loss** (all hosting providers down simultaneously): worst-case scenario. In VPS mode, restore from the fireproof safe USB SSD. In local-dev mode, rely on the GitHub remote for code and on whatever workstation disk backup Mark has. This has never happened to anyone, but it's one of the reasons the VPS + four-layer chain comes back online before any high-value collection campaign.
 
 The pattern in all four cases is the same: stop the bleeding first, document the state, restore from the last known good source, verify integrity end to end before resuming normal operations. LSB does not have a 24/7 on-call rotation — incident response is best-effort during Mark's working hours. This is appropriate for a research project at v1 scale.
 
@@ -385,10 +438,11 @@ The pattern in all four cases is the same: stop the bleeding first, document the
 
 Listing these so the Coder agent doesn't drift into building them:
 
+- **VPS-hosted operation is deferred, not cancelled.** The VPS spec in §3 is forward-looking and will come back online when any of the §1.1 trigger conditions fires. The Coder must not build code paths that only work on the VPS or only work locally — the same scripts must run in both modes, controlled by `.env` location and scheduler choice.
 - **No realtime collection.** Everything is batch.
-- **No multi-region hosting.** The single Helsinki VPS is fine for v1.
-- **No automatic failover.** If `lsb-agent-01` is down, collection pauses until Mark fixes it.
-- **No metric dashboards (Prometheus, Grafana, Datadog).** Structured logs to journald + the QA_Runner alert path are sufficient for v1 observability per `ARCHITECTURE.md` §6.4.
+- **No multi-region hosting.** A single VPS (when re-provisioned) is fine for v1.
+- **No automatic failover.** If the collection host (local workstation or VPS) is down, collection pauses until Mark resumes it.
+- **No metric dashboards (Prometheus, Grafana, Datadog).** Structured logs to stdout + journald + the QA_Runner alert path are sufficient for v1 observability per `ARCHITECTURE.md` §6.4.
 - **No automated rollback.** If a bad publish corrupts the dashboard, Mark git-reverts the offending commit and re-publishes manually.
 - **No automated dependency upgrades** (beyond Dependabot opening PRs that still go through review).
 - **No paid Cloudflare features** (WAF, bot management, image optimization). v1 ships on Cloudflare's free tier per resolved decision #21 in `ARCHITECTURE.md` §7.

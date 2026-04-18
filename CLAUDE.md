@@ -77,17 +77,19 @@ For the full responsibility specifications and verdict formats, see `ARCHITECTUR
 
 ---
 
-## 5. Slack channels
+## 5. Slack channels (optional)
 
-Three operational channels. Each has a different audience, latency expectation, and routing rule.
+Three operational channels are defined. Each has a different audience, latency expectation, and routing rule. **All three are optional.** When the corresponding webhook env var is unset, the publisher falls back to a durable local surface — the QA_Runner writes to stdout + `logs/qa_alerts.log`, and the two agents write verdict files under `docs/verdicts/<date>-<agent>-<task>.md`. The gate semantics (PASS / PASS-WITH-NOTES / FAIL) are unchanged; only the transport differs. This is the default during local-first development; when the VPS returns, `LSB_ALERTS_WEBHOOK_URL` becomes strongly recommended for unattended campaigns.
 
-| Channel | Posted by | Latency | Routing rule |
-|---|---|---|---|
-| `#lsb-alerts` | `scripts/qa_check.py` (QA_Runner); `weekly-cost-alert.yml` (GitHub Actions) | Minutes — operational firefighting | **Bypasses the agent team entirely.** Mark monitors in real time. |
-| `#lsb-cda-sme` | CDA SME agent | Hours to a day — development gating | Verdicts (PASS / PASS-WITH-NOTES / FAIL) with four-axis scorecard. Researcher grounding PR reviews also post here. |
-| `#lsb-ui-ux` | UI/UX agent | Hours to a day — frontend gating | Verdicts with four-question scorecard. `DESIGN_SYSTEM.md` updates also post here. Frontend plans only. |
+| Channel | Posted by | Latency | Routing rule | Fallback when webhook unset |
+|---|---|---|---|---|
+| `#lsb-alerts` | `scripts/qa_check.py` (QA_Runner); `weekly-cost-alert.yml` (GitHub Actions) | Minutes — operational firefighting | **Bypasses the agent team entirely.** Mark monitors in real time. | stdout + `logs/qa_alerts.log` |
+| `#lsb-cda-sme` | CDA SME agent | Hours to a day — development gating | Verdicts (PASS / PASS-WITH-NOTES / FAIL) with four-axis scorecard. Researcher grounding PR reviews also post here. | Agent turn output + `docs/verdicts/<date>-cda-sme-<task>.md` |
+| `#lsb-ui-ux` | UI/UX agent | Hours to a day — frontend gating | Verdicts with four-question scorecard. `DESIGN_SYSTEM.md` updates also post here. Frontend plans only. | Agent turn output + `docs/verdicts/<date>-ui-ux-<task>.md` |
 
-**Webhook env vars:** `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`. Stored in `.env` (never committed) and in 1Password. See `HOSTING_AND_DEV_OPS.md` §6 and `SECURITY_AND_HARDENING.md` §8 for the secret-handling specifics.
+**Webhook env vars (optional):** `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`. When set, stored in `.env` (never committed) and in 1Password. See `HOSTING_AND_DEV_OPS.md` §6 and `SECURITY_AND_HARDENING.md` §8 for the secret-handling specifics. A committed webhook URL is still a security incident regardless of whether it was currently wired up — Reviewer rule R10 applies any time the value exists.
+
+**Current operating mode — local-first development.** As of 2026-04-18, LSB runs entirely from Mark's local workstation; the Hetzner VPS `lsb-agent-01` has been decommissioned. The full rationale and the trigger conditions for re-provisioning the VPS live in `HOSTING_AND_DEV_OPS.md` §1.1; **Claude Code flags when the project has outgrown local-only operation** (unattended multi-day runs, load-bearing backup chain, routine crons, freshness-dependent visitors). Until that flag is raised, the Coder should not build VPS-only code paths — the same scripts must run unmodified on both a laptop and the VPS.
 
 ---
 
@@ -183,11 +185,11 @@ These are mistakes that have happened on similar projects, or that the LSB desig
 
 8. **Building a dashboard component that displays a point estimate without an uncertainty ellipse.** Reviewer rule (in `ARCHITECTURE.md` §4.5) is that no visualization may display a point estimate without its associated uncertainty. Bare points on an MDS plot don't ship. Heatmap cells without CIs don't ship. The bootstrap module exists for a reason.
 
-9. **Calling a real API in a test.** Tests use fixtures from `tests/fixtures/`. The fixture convention is documented in `tests/fixtures/README.md`. There is no exception for "but I just need to verify the adapter works once" — adapter integration tests run against fixtures, not against real providers. Real-API verification happens during structured collection campaigns on `lsb-agent-01`, not in CI.
+9. **Calling a real API in a test.** Tests use fixtures from `tests/fixtures/`. The fixture convention is documented in `tests/fixtures/README.md`. There is no exception for "but I just need to verify the adapter works once" — adapter integration tests run against fixtures, not against real providers. Real-API verification happens during structured collection campaigns (on Mark's workstation during local-first development; on `lsb-agent-01` once the VPS is re-provisioned), not in CI.
 
 10. **Editing existing lines in `data/raw/informants.jsonl`.** The file is append-only by convention and by tooling. The CI append-only check rejects any PR that modifies pre-existing lines. If you find yourself wanting to "fix" a record, the answer is no — the bad record stays in place (with `qa_passed=False` and `qa_notes` documenting the failure), and the audit trail remains intact.
 
-11. **Committing a webhook URL.** Slack webhook URLs are credentials. Anyone with the URL can post to the channel. They live in `.env` and in 1Password, never in the repo. `gitleaks` has a custom rule for them.
+11. **Committing a webhook URL.** Slack webhook URLs are credentials even though they are now optional in local-first development. Anyone with the URL can post to the channel. When present, they live in `.env` and in 1Password, never in the repo. `gitleaks` has a custom rule for them. Rule applies whether or not the webhook is currently wired up.
 
 12. **Assuming `data/grounding/{domain}/` is a single directory with one baseline.** The v0.7 schema makes it `data/grounding/{domain}/{baseline_id}/`. A single-baseline domain has one subdirectory; a multi-baseline domain has many. Code that hard-codes a path like `data/grounding/family/cooccurrence.csv` is broken — it should be `data/grounding/family/{baseline_id}/cooccurrence.csv` and iterate over all baselines in the parent directory.
 

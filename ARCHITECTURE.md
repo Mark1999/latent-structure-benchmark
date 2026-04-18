@@ -709,7 +709,7 @@ python scripts/cost_report.py --month current
 
 #### 4.1.5 Open decisions
 
-**RESOLVED in v0.4 / v0.5.** Phase 1 collection uses three remote API surfaces only (Anthropic, OpenRouter, Hugging Face Inference Providers) on project VPS — no Mac Mini and no local Ollama mirror (v0.5). See §7 for the resolved-decisions log; `ModelRef.collection_method` values are `anthropic_api`, `openrouter`, and `huggingface`.
+**RESOLVED in v0.4 / v0.5.** Phase 1 collection uses remote API surfaces only (Anthropic, OpenRouter, Hugging Face Inference Providers, plus direct adapters added post-v0.7) — no Mac Mini and no local Ollama mirror (v0.5). The host running the runner is the project VPS when provisioned and Mark's workstation during local-first development (see `HOSTING_AND_DEV_OPS.md` §1.1). See §7 for the resolved-decisions log; `ModelRef.collection_method` values are `anthropic_api`, `openrouter`, `huggingface`, and the direct-adapter names.
 
 #### 4.1.6 QA_Runner (`scripts/qa_check.py`) — added v0.6
 
@@ -717,10 +717,10 @@ python scripts/cost_report.py --month current
 
 **Implementation profile:**
 
-- A single Python script: `scripts/qa_check.py`. Pure stdlib + `requests` for the Slack webhook + `pydantic` for record validation. No async, no Celery, no LLM calls.
+- A single Python script: `scripts/qa_check.py`. Pure stdlib + `requests` for the optional Slack webhook + `pydantic` for record validation. No async, no Celery, no LLM calls.
 - Invoked automatically by `scripts/collect.py` after each `InformantRecord` is written, and invokable manually for backfills (`python scripts/qa_check.py --since 2026-04-01`).
 - Hardcoded thresholds at the top of the file with comments explaining each one. Tuning the thresholds is an architecture decision, not a config change.
-- Slack webhook URL read from `LSB_ALERTS_WEBHOOK_URL` in `.env`. Never committed.
+- Slack webhook URL read from `LSB_ALERTS_WEBHOOK_URL` in `.env` when set. When unset (default in local-first development mode), failures are written to stdout and to `logs/qa_alerts.log` instead. The alert content is identical; only the transport changes. Never committed.
 
 **Deterministic checks (all six must pass for `qa_passed=True`):**
 
@@ -734,7 +734,7 @@ python scripts/cost_report.py --month current
 | 6 | Output token count consistent with response length | `output_tokens` reported by the provider should be within ±10% of `len(response_verbatim) / 4` (rough chars-per-token heuristic). | Provider is misreporting usage; downstream cost tracking is unreliable |
 | 7 | Provider request ID present | `provider_request_id` is non-empty | Adapter failed to surface the provider's request ID — provenance is broken |
 
-Any failure sets `qa_passed=False`, writes the failure reason to `qa_notes`, and posts a structured message to `#lsb-alerts` containing: `informant_id`, `model_id`, `model_version_returned`, the failed check number, the threshold, the actual value, and a link to the raw record in `data/raw/`. **The post goes directly to Slack — it does not enqueue an agent task, does not file a GitHub issue, and does not block the collection run.** Collection continues; the bad record is retained (with `qa_passed=False`) so that the failure itself is part of the audit trail.
+Any failure sets `qa_passed=False`, writes the failure reason to `qa_notes`, and emits a structured alert containing: `informant_id`, `model_id`, `model_version_returned`, the failed check number, the threshold, the actual value, and a link to the raw record in `data/raw/`. The alert goes to `#lsb-alerts` when `LSB_ALERTS_WEBHOOK_URL` is set, and otherwise to stdout plus `logs/qa_alerts.log`. **The alert does not enqueue an agent task, does not file a GitHub issue, and does not block the collection run** regardless of transport. Collection continues; the bad record is retained (with `qa_passed=False`) so that the failure itself is part of the audit trail.
 
 **Why this is software-only and bypasses the agents.** A QA system that depends on an LLM to interpret the output of an LLM is not really a QA system. The whole point of QA on a benchmark like LSB is to have a layer of the pipeline that is *boring*, *deterministic*, and *fast*. Hardcoding the thresholds in a Python script means anyone — Mark, a future researcher, an auditor — can read the file in five minutes and know exactly what passes and what doesn't. Routing alerts directly to a human channel means QA failures get attention in minutes, not whenever the next agent session happens to run. The agents build the system; QA watches the system.
 
@@ -1189,15 +1189,16 @@ This is sized to be workable across a few focused sessions with your agent pipel
 - CI: ruff + mypy + pytest on push, plus the `cdb_analyze` no-LLM-imports static check
 - See `PHASE_0_TASKS.md` for the full 10-task decomposition (P0-T1 through P0-T10), acceptance criteria, and dependency graph.
 
-**Phase 1 — Collection layer (unified; VPS + remote APIs only)**
+**Phase 1 — Collection layer (unified; remote APIs only)**
 
-All collection runs use **three API endpoints** — no local inference mirror, no Ollama, no Mac-class edge hardware:
+All collection runs use remote API endpoints — no local inference mirror, no Ollama, no Mac-class edge hardware. The initial set was three; it has since grown to include direct adapters for several providers alongside the aggregators:
 
 1. **Anthropic API** — Claude models (direct first-party integration).
 2. **OpenRouter** — frontier closed models and many open-weight models through a single HTTP API (including long-tail and regional routes where applicable).
 3. **Hugging Face Inference Providers** — specialist open models when OpenRouter is not the right fit.
+4. **Direct adapters** (added post-v0.7) — Google Gemini, OpenAI-compat, xAI, used when direct provider routing is cheaper or exposes capabilities the aggregators don't (e.g., Gemini thinking traces).
 
-The runner and adapters live on ordinary project VPS (`lsb-agent-01`) / CI infrastructure; scaling is by concurrency limits and the spend cap, not by adding on-prem GPUs.
+The runner and adapters run on whatever host is active — currently Mark's local workstation in the local-first development mode (`HOSTING_AND_DEV_OPS.md` §1.1); historically the Hetzner VPS `lsb-agent-01`; and the VPS again once any of the §1.1 trigger conditions fires. The code does not distinguish between these hosts. Scaling is by concurrency limits and the spend cap, not by adding on-prem GPUs.
 
 **Milestone A — smallest vertical slice (one session)**
 
@@ -1206,7 +1207,7 @@ The runner and adapters live on ordinary project VPS (`lsb-agent-01`) / CI infra
 - Free-list step only
 - Raw JSONL write, basic parser
 - **`InformantRecord` written to `data/raw/informants.jsonl` with full provenance (provider request ID + SHA256 manifest)**
-- **`scripts/qa_check.py` (§4.1.6) wired up and posting to `#lsb-alerts` on failure**
+- **`scripts/qa_check.py` (§4.1.6) wired up and emitting alerts on failure** (to `#lsb-alerts` when `LSB_ALERTS_WEBHOOK_URL` is set, otherwise to stdout + `logs/qa_alerts.log`)
 - Test with a fixture so the Coder doesn't burn the API budget
 - `scripts/cost_report.py` wired up with basic per-run cost tracking (the full three-tier defense is Phase 1's exit criterion for this milestone — see §6.2)
 - Spend cap enforcement: `CDB_MAX_SPEND_USD` env var read by the runner; hard halt at 100%, warning logged at 80%
@@ -1282,9 +1283,11 @@ This phase is a formal scientific gate, not a build step. Nothing downstream shi
 
 Phases 0–4 are the minimum viable benchmark and the scientific validation. If any Phase 4 gate fails, the dashboard is not built. This is the project's single most important design commitment: **we do not ship a pretty visualization layer over data we haven't validated.**
 
-### 5.4 Agent Slack channels (added v0.7)
+### 5.4 Agent Slack channels (added v0.7; optional as of v0.8 local-first)
 
-Three operational Slack channels carry agent and watchdog output. Each one has a different audience, a different latency expectation, and a different routing rule. Mark monitors all three; the agents post to the channels they own and read only their own.
+Three operational Slack channels are **defined** to carry agent and watchdog output. Each one has a different audience, a different latency expectation, and a different routing rule. Mark monitors the channels that are wired up; the agents post to the channels they own and read only their own.
+
+**Slack is optional in the local-first development mode** (`HOSTING_AND_DEV_OPS.md` §1.1). When the corresponding webhook env var is unset, each publisher falls back to a durable local surface — the QA_Runner writes to stdout plus `logs/qa_alerts.log`, and the two agents write verdict files under `docs/verdicts/<date>-<agent>-<task>.md` in addition to printing the verdict in their turn output. The fallback is first-class: the pipeline gate semantics (PASS / PASS-WITH-NOTES / FAIL) are the same, only the transport changes. When the VPS returns and collection starts running unattended, the webhooks become strongly recommended again so that alerts don't sit unnoticed while Mark's terminal isn't visible.
 
 | Channel | Posted by | Read by | Latency expectation | Routing rule |
 |---|---|---|---|---|
@@ -1294,7 +1297,7 @@ Three operational Slack channels carry agent and watchdog output. Each one has a
 
 **Why three channels rather than one.** Mixing operational alerts with development verdicts means either the alerts get lost in the development noise or Mark trains himself to ignore the channel he's supposed to be watching most closely. Splitting them keeps the QA_Runner's "drop everything" signal distinct from the agents' "ready for review" signal. The two flavors of agent verdict (CDA SME and UI/UX) are split because frontend and methodology are different review surfaces with different reviewers — collapsing them would force the Coder to filter every message to figure out which ones apply to the current task.
 
-**Webhook configuration.** Each channel has its own webhook URL stored in `.env` as `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, and `LSB_UI_UX_WEBHOOK_URL`. Never committed. The QA_Runner reads the alerts URL directly; the agent runtime reads the other two from the agent task environment. See `SECURITY_AND_HARDENING.md` §5 for the secrets handling around these.
+**Webhook configuration.** Each channel has its own optional webhook URL stored in `.env` as `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, and `LSB_UI_UX_WEBHOOK_URL`. When set, never committed. The QA_Runner reads the alerts URL directly; the agent runtime reads the other two from the agent task environment. When a URL is unset, the publisher uses the fallback described above. See `SECURITY_AND_HARDENING.md` §5 for the secrets handling around the webhooks that are configured, and `HOSTING_AND_DEV_OPS.md` §6 for the fallback behavior and recommended defaults per operating mode.
 
 ---
 
@@ -1487,20 +1490,20 @@ Listing these to keep the Coder agent from scope-creep:
 - **Grounding states (0 / 1 / 2 / 3)** — the four display states defined in `DESIGN_SYSTEM.md` §4.1: State 0 (no human baselines available — a normal first-class state per §1.5.5), State 1 (published baseline only), State 2 (researcher baseline only), State 3 (multiple baselines, published + researcher or multiple researcher). Driven directly by the contents of `DomainResult.groundings` (§3.2): empty list = State 0, one entry = State 1 or 2 by `baseline_kind`, two or more entries = State 3.
 - **DESIGN_SYSTEM.md** — the binding visual specification document for all frontend work on LSB. Owned by the UI/UX agent. Specifies design tokens, page architecture, the OWID-style article-with-explorer layout, the data explorer pattern, the four grounding-display states, the researcher submission UI, the methodology page structure, accessibility requirements, mobile behavior, and the component inventory. Required reading before any frontend task per CLAUDE.md item 14 (§5.2).
 - **UI/UX agent** — Sonnet-class agent added in v0.7. Sits between the CDA SME and the Coder for frontend tasks only. The design conscience of the project. Reviews every frontend plan against four questions rooted in `DESIGN_SYSTEM.md`: OWID design fidelity, the 30-second journalist test, the researcher reproduce-and-cite test, and WCAG AA accessibility. Verdicts (PASS / PASS-WITH-NOTES / FAIL) post to `#lsb-ui-ux`. Owns `DESIGN_SYSTEM.md` and updates it before passing any plan through that requires a visual decision the design system does not yet cover. See §5.1.
-- **`#lsb-alerts`** — the operational firefighting Slack channel where `scripts/qa_check.py` posts QA failures directly. Bypasses the agent team entirely (commitment #8 in §1). Mark monitors in real time. See §4.1.6, §5.4.
-- **`#lsb-cda-sme`** — the development pipeline gating Slack channel where the CDA SME agent posts methodological verdicts (PASS / PASS-WITH-NOTES / FAIL with four-axis scorecard). Read by Mark and by the next agent in the pipeline. Also receives researcher grounding submission PR review verdicts. See §5.1, §5.4.
-- **`#lsb-ui-ux`** — the frontend pipeline gating Slack channel where the UI/UX agent posts design verdicts (PASS / PASS-WITH-NOTES / FAIL with four-question scorecard) and `DESIGN_SYSTEM.md` updates. Read by Mark and the Coder. See §5.1, §5.4.
+- **`#lsb-alerts`** — the optional operational firefighting Slack channel where `scripts/qa_check.py` posts QA failures when `LSB_ALERTS_WEBHOOK_URL` is set. When unset, the same alerts go to stdout + `logs/qa_alerts.log` (see §5.4 and `HOSTING_AND_DEV_OPS.md` §6). Bypasses the agent team entirely (commitment #8 in §1). See §4.1.6, §5.4.
+- **`#lsb-cda-sme`** — the optional development pipeline gating Slack channel where the CDA SME agent posts methodological verdicts (PASS / PASS-WITH-NOTES / FAIL with four-axis scorecard) when `LSB_CDA_SME_WEBHOOK_URL` is set. When unset, verdicts go to the agent's turn output and to `docs/verdicts/<date>-cda-sme-<task>.md`. Read by Mark and by the next agent in the pipeline. Also receives researcher grounding submission PR review verdicts. See §5.1, §5.4.
+- **`#lsb-ui-ux`** — the optional frontend pipeline gating Slack channel where the UI/UX agent posts design verdicts (PASS / PASS-WITH-NOTES / FAIL with four-question scorecard) and `DESIGN_SYSTEM.md` updates when `LSB_UI_UX_WEBHOOK_URL` is set. When unset, verdicts go to the agent's turn output and to `docs/verdicts/<date>-ui-ux-<task>.md`. Read by Mark and the Coder. See §5.1, §5.4.
 - **LSB / Latent Structure Benchmark** — the methodologically precise name for this project. Used in citation contexts, methodology pages, schema fields, and the repository name. The full phrase is canonical; "LSB" is the casual abbreviation. See §1.6.
 - **Cognitive Structure Lab** — the public-facing website name and brand, hosted at **`cogstructurelab.com`**. Used in social posts, headlines, and the URL. Not a synonym for "LSB" — the two names have different jobs. See §1.6.
 - **cogstructurelab.com** — primary production URL for the dashboard.
 - **cogstructurelab.ai** — also owned; parked / redirects to **`cogstructurelab.com`** so legacy links and `.ai`-branded materials still resolve.
 - **HuggingFace Inference Providers** — the Hugging Face hosted-inference surface used by LSB as one of three collection methods (alongside the Anthropic API and OpenRouter). Used for specialist open-weight models that are not well-routed through OpenRouter. `ModelRef.collection_method` value is `huggingface`. Replaces older references to "Hugging Face Inference API" — same surface, current product name.
 - **Open data** — the LSB publication contract defined in §6.7. The published bundle (`informants.jsonl` + `lsb.sqlite` + `build_db.py` + `DATA_DICTIONARY.md` + prompt templates) is licensed CC0, hosted on Backblaze B2, mirrored to HuggingFace Datasets, and DOI-minted via Zenodo after the Phase 4 validation gates pass. Any researcher with the bundle can rebuild the SQLite database, re-run the analysis pipeline, and reproduce every figure on the dashboard without LSB-specific tooling.
-- **lsb-agent-01** — the project VPS that runs `cdb_collect/runner.py`, `scripts/qa_check.py`, the cron jobs in `.github/workflows/`, and the social pipeline. Ordinary cloud infrastructure; not a special-purpose machine. No on-prem GPU, no local inference layer (per §5.3 Phase 1 and resolved decision #14).
+- **lsb-agent-01** — the Hetzner Cloud VPS that historically ran `cdb_collect/runner.py`, `scripts/qa_check.py`, the cron jobs, and the social pipeline. **Decommissioned 2026-04; currently deferred.** During the local-first development mode (see `HOSTING_AND_DEV_OPS.md` §1.1) the same scripts run on Mark's workstation; no code distinguishes the two hosts. The VPS will be re-provisioned when any of the trigger conditions in `HOSTING_AND_DEV_OPS.md` §1.1 fires. Ordinary cloud infrastructure; not a special-purpose machine. No on-prem GPU, no local inference layer (per §5.3 Phase 1 and resolved decision #14).
 - **Validation gate (G1 / G2 / G3)** — the three quantitative pass/fail criteria at the end of Phase 4. G1 = stability (within-model variance < between-model variance); G2 = signal (similarity matrix distinguishable from random, p < 0.01); G3 = replication (cluster structure reproduces across independent runs, Rand index ≥ 0.7). All three must pass before Phase 5 begins. See §5.3.
 - **Bootstrap ellipse** — the 95% confidence ellipse drawn around each model's MDS point, derived by resampling runs with replacement B=500 times. Every MDS plot in the dashboard renders these ellipses; bare point estimates are forbidden. See §4.2.6.
 - **GroundingRef** — the pydantic schema type that tracks the human CDA baseline injected as a virtual informant into the analysis pipeline. Fields include source citation, year, n_informants, MDS coordinates, and distance to nearest model. See §3.2.
-- **Phase 1 (collection)** — unified phase: remote APIs only (Anthropic API, OpenRouter, Hugging Face Inference Providers) on project VPS; milestones A then B within §5.3. No Phase 1a/1b hardware split.
+- **Phase 1 (collection)** — unified phase: remote APIs only (Anthropic API, OpenRouter, Hugging Face Inference Providers, plus direct adapters added post-v0.7); runs on the project VPS when provisioned and on Mark's workstation during local-first development (`HOSTING_AND_DEV_OPS.md` §1.1). Milestones A then B within §5.3. No Phase 1a/1b hardware split.
 - **Three-axis filtering** — the model-selection and display filter applied to the 12-model slate: origin (US / EU / China) × openness (closed-weight / open-weight) × collection method (`anthropic_api` / `openrouter` / `huggingface`). The dashboard's `ModelFilter` component exposes all three axes. See §3.2, §4.5.
 - **Spend cap three-tier defense** — the layered cost control: (1) `CDB_MAX_SPEND_USD` runtime cap in the collection runner, (2) per-provider account caps set in each provider's billing dashboard, (3) weekly `cost_report.py` run with projected-spend alerting. See §6.2.
 - **`cdb_publish`** — the Python package responsible for reading `data/results/` and writing pre-shaped static JSON files to `apps/dashboard/public/data/` at build time. Replaces the former `cdb_api` FastAPI service. See §4.4.
