@@ -908,6 +908,26 @@ LSB exists in part to connect to the broader CDA research community. Anthropolog
 
 **Interaction with grounding:** every baseline in a domain's `groundings` list is bootstrapped independently when raw subject-level data is available (resampling human informants with replacement). Researcher submissions that include `pile_sort_raw.csv` get a bootstrap ellipse on the MDS plot; published baselines that ship aggregate matrices only are shown without an ellipse and labeled "published aggregate, uncertainty unavailable" per `DESIGN_SYSTEM.md` §3.3 conditional rendering rules. When a domain has multiple baselines, each gets its own ellipse computed independently — the bootstrap does not pool across baselines, since they represent different human populations and pooling would smear them.
 
+#### 4.2.7 Two-level pipeline and saturation analysis (added post-F1 SME review)
+
+Implements Register 1 (within-model output distribution) on top of the existing Register 2 (between-model cultural consensus) pipeline per the three-register framework in §4.2.0. Code lives in `packages/cdb_analyze/cdb_analyze/two_level.py` and `saturation.py`; the Level 1 uncertainty contract is specified in `docs/BOOTSTRAP_DESIGN.md`.
+
+**`run_within_model_analysis(records)`** → `WithinModelResult` for one (model, domain). Computes:
+
+- **Output Concentration Index (OCI)** — the eigenratio λ₁/λ₂ of the run × run agreement matrix. OCI is a concentration statistic, **not** a cultural consensus ratio — the §1.5.4 forbidden-vocabulary rules enforce this distinction.
+- **Per-run centrality loadings** — used to pick the **centroid run** (Option B display representation) whose free list is rendered on dashboard tooltips and model-profile pages.
+- **Optional bootstrap OCI CI** — resamples runs with replacement. Returned with `underestimates_uncertainty = True` always; see `BOOTSTRAP_DESIGN.md` §2 for the caveat that must accompany every Register 1 CI on the methods page and in the dashboard.
+
+**`options_for_level_two(records)`** → dict with three Level-2-input representations per the post-F1 SME resolution:
+
+- `option_a` — pooled consensus free list. **Primary Level 2 input**. Equal voice for all models regardless of OCI.
+- `option_b_centroid_run_id` — the informant_id of the run closest to the model's central tendency. Dashboard display representation only, never an analytical input at Level 2.
+- `option_c_weight` — the model's OCI, surfaced as a **diagnostic only**. Never used as an alternative between-model map. Weighting Level 2 by Level 1 coherence would push low-OCI models to the margins for the wrong reason; see `docs/SME_REVIEW.md` Q2 resolution.
+
+**`saturation_curve(records)`** → list of `SaturationPoint` for a sweep of N values (default 5, 10, 15, 20, 25, 30). Each point reports OCI, elbow position, Smith-vs-Sutrop Spearman ρ, and top-K Jaccard overlap with the previous N — a direct "has the salience order stopped changing" measure. `identify_knee(curve)` returns the operational N (knee × 1.20 safety margin) when the top-K Jaccard meets the threshold; returns `None` if the curve has not saturated in the sweep range (a finding — expand the sweep).
+
+**Reference models and domains for the Phase 4b saturation analysis** (`SATURATION_REFERENCE_MODELS`, `SATURATION_REFERENCE_DOMAINS`): Claude Opus 4.6, GPT-4o, and Llama 3.1 70B across family and holidays. Integrates into the Phase 4b prompt-sensitivity study budget envelope. Findings are surfaced on the public methodology page as a named methods contribution — **not** framed as publishable per §1.5.6.
+
 ---
 
 ### 4.3 Storage
