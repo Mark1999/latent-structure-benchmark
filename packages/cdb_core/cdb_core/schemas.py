@@ -306,6 +306,39 @@ class InformantRecord(BaseModel):
     pile_sort: PileSortRecord
     interview: InterviewRecord
 
+    # ── Capacity-constrained truncation (post-F1 SME review, SME_REVIEW.md §1.7) ──
+    # LLMs do not fatigue like humans. The natural list length for an LLM is
+    # bounded by its context window, not by cognitive exhaustion. These fields
+    # record which termination mode ended the free listing and (for
+    # ``context_window_exceeded``) which step was affected. A
+    # ``context_window_exceeded = True`` value is **not** a QA failure; it is a
+    # finding about the architecture's categorical-processing capacity.
+    #
+    # truncation_type:
+    #   "elbow"                    — data-driven elbow cutoff per
+    #                                consensus.find_salience_elbow (the normal
+    #                                case for well-formed outputs)
+    #   "capacity"                  — the model stopped listing on its own at N
+    #                                items before hitting any ceiling
+    #   "prompt_ceiling"           — the prompt's "aim for ≥ 30" floor was the
+    #                                active cap; lift the ceiling to measure
+    #                                natural capacity
+    #   "context_window_exceeded"  — the model was still generating when the
+    #                                provider truncated at max_tokens / context
+    truncation_type: Literal[
+        "elbow", "capacity", "prompt_ceiling", "context_window_exceeded",
+    ] | None = None
+    truncation_n: int | None = None        # items kept after truncation
+    max_possible_n: int | None = None      # longest list the model could return
+                                           # under the no-ceiling condition, if
+                                           # known; null for records collected
+                                           # under the standard protocol
+    context_window_exceeded: bool = False  # True on at least one step; see
+                                           # capacity_note for which step
+    capacity_note: str = ""                # free-text detail, e.g. "model
+                                           # returned 487 items before context
+                                           # limit at step 2"
+
     # ── Provenance ──
     sha256_manifest: dict[str, str]
 
