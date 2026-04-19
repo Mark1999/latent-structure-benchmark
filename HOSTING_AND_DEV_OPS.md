@@ -1,16 +1,19 @@
 # LSB Hosting and DevOps
 
 **Document name:** `HOSTING_AND_DEV_OPS.md`  
-**Version:** v0.1.1 (reality alignment pass, aligned with `ARCHITECTURE.md` v0.7.1)  
+**Version:** v0.1.2 (infra pivot pass — see banner below)  
 **Status:** Operational reference for the Coder agent and Mark  
 **Audience:** Coder agent, Mark, anyone who needs to understand how LSB is deployed and where its data lives  
-**Companion docs:** `ARCHITECTURE.md` (especially §4.4 publish layer, §4.3 storage, §6.7 open data, §7 resolved decisions), `SECURITY_AND_HARDENING.md` (account hardening, secret management), `PHASE_0_TASKS.md` (P0-T10 dashboard scaffold)
+**Companion docs:** `ARCHITECTURE.md` (especially §4.4 publish layer, §4.3 storage, §6.7 open data, §7 resolved decisions), `SECURITY_AND_HARDENING.md` (account hardening, secret management), `PHASE_0_TASKS.md` (P0-T10 dashboard scaffold), `docs/INCIDENTS/2026-04-19-test-data-loss.md`
+
+> **Status banner (2026-04-19).** The Hetzner VPS `lsb-agent-01` is **decommissioned**. All development is on Mark's local MS Surface Laptop Studio (model 1964). **A new VPS has not been selected**; provider and containerization (Docker vs. native) are open decisions. Every reference to `lsb-agent-01`, `/opt/lsb-agent/`, and the `lsb` user in the sections below describes the *prior* state and is retained for historical continuity until the new VPS is chosen; those sections will be rewritten — not just patched — at that point. Per the `docs/INCIDENTS/2026-04-19-test-data-loss.md` lesson, **at least one off-host backup layer must be active before any official collection run** on the new VPS.
 
 **Purpose.** This document is the **single operational reference** for everything related to where LSB runs, where its data lives, what infrastructure costs money, and how deployments work. It is read by the Coder agent before any task touching `.github/workflows/`, Cloudflare Pages config, or environment variables. It is read by Mark before any operational change. Architectural decisions about hosting live in `ARCHITECTURE.md`; this document is the *operational* expression of those decisions — exact commands, exact account names, exact paths.
 
 **Stability.** Changes to this document require Architect sign-off if they affect cost, latency, availability, or backup integrity. Cosmetic or clarifying changes do not.
 
 **Changelog:**
+- **v0.1.2** (2026-04-19) — Infra pivot. `lsb-agent-01` decommissioned following a test-data loss on the VPS working copy (see `docs/INCIDENTS/2026-04-19-test-data-loss.md`). Development moved to Mark's local Surface Laptop Studio. New VPS TBD. Added top-of-doc status banner; VPS-specific sections carry the historical framing until rewritten. Tightened backup posture to a precondition, not a parallel deliverable.
 - **v0.1.1** (2026-04-15) — Reality alignment pass. §3.1: SSH alias connects as `lsb` user. §3.2: note that processes run as `lsb`, note planned-vs-active services. §3.3: removed aspirational `backups/` directory, added `lsb:lsb` ownership. §3.4: documented parked `lsb-agent.service` (`ExecStart=/bin/false`), marked all systemd timers as planned. §3.5: documented SSH hardening (root login disabled, password auth disabled, key-only as `lsb` user), verified ufw active state. §4.1: added Status column — only layer 1 (working copy) is active; layers 2–4 are planned.
 - **v0.1** — first draft. Documents Cloudflare Pages hosting, the `lsb-agent-01` Hetzner VPS, the four-layer backup strategy (Synology + Backblaze B2 + fireproof safe + Zenodo), the GitHub Actions CI/CD pipeline, the three Slack webhooks, and the cost summary. Aligned with `ARCHITECTURE.md` v0.7 — no Mac Mini, no on-prem GPU, no local inference layer.
 
@@ -178,16 +181,18 @@ LSB takes the backup story seriously because losing the raw data means losing th
 
 ### 4.1 The four backup layers
 
+> **Superseded (2026-04-19).** The layers below describe the target design as of the Hetzner-VPS era. `lsb-agent-01` is decommissioned and layers 1–4 as written are not currently operative. The design — off-host nightly sync, off-region second copy, offline fireproof-safe snapshot, and a DOI'd open-data mirror — remains the target for whatever VPS is chosen next, with one tightening: at least one off-host layer must be **active and test-restored** before any official collection run begins. See `docs/INCIDENTS/2026-04-19-test-data-loss.md` §5.1 for the precondition and the reasoning.
+
 | Layer | Lives where | Cadence | Failure mode this layer catches | **Status** |
 |---|---|---|---|---|
-| **1 — Local on VPS** | `lsb-agent-01:/opt/lsb-agent/data/raw/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup | **Active** |
-| **2 — Synology DS1522+ NAS** | Mark's home network, NAS pull via rsync over SSH | Nightly 03:00 local time (after the VPS-to-B2 push completes) | VPS hardware failure, accidental `rm`, ransomware on the VPS | **Planned** — rsync job and NAS share not yet configured |
-| **3 — Backblaze B2** | Backblaze B2 bucket `lsb-backups`, region US-West | Nightly 02:00 UTC, push from VPS | Hetzner regional outage, full home network loss, theft of the NAS | **Planned** — `lsb-backup.timer` not yet created, B2 sync not yet configured |
+| **1 — Local on VPS** | `lsb-agent-01:/opt/lsb-agent/data/raw/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup | **Decommissioned** with `lsb-agent-01` on 2026-04-19 |
+| **2 — Synology DS1522+ NAS** | Mark's home network, NAS pull via rsync over SSH | Nightly 03:00 local time (after the VPS-to-B2 push completes) | VPS hardware failure, accidental `rm`, ransomware on the VPS | **Planned** — rsync job and NAS share not yet configured; pending new VPS |
+| **3 — Backblaze B2** | Backblaze B2 bucket `lsb-backups`, region US-West | Nightly 02:00 UTC, push from VPS | Hetzner regional outage, full home network loss, theft of the NAS | **Planned** — `lsb-backup.timer` not yet created, B2 sync not yet configured; **precondition for official collection** |
 | **4 — Fireproof safe** | USB SSD physically stored in Mark's fireproof safe at home | Manually refreshed every 90 days | Backblaze account compromise, US-wide cloud provider outage, "everything is on fire" scenarios | **Planned** — no initial snapshot taken yet |
 
 The four layers fail differently. Layer 2 catches the most common failure (VPS misconfiguration); layer 3 catches geographic correlated failures; layer 4 catches account-level adversarial failures. Layer 1 is not a backup, it's the working copy — it's listed here only to make the ordering clear.
 
-**Current reality (2026-04-15):** Only layer 1 (the working copy on the VPS) is active. Layers 2–4 are the target design and should be implemented before collection campaigns begin in earnest. A Hetzner snapshot (`pre-lsb-chown-2026-04-15`) exists as temporary rollback protection for the recent lsb user migration but is not a substitute for the four-layer chain.
+**Current reality (2026-04-19):** No backup layer is active. `lsb-agent-01` is decommissioned; no new VPS has been chosen. Development is on Mark's local Surface Laptop Studio (see the top-of-doc banner). Because official collection has not yet begun, the only data currently at risk is local dev state, which is already covered by git for everything tracked and is not considered canonical. Before the next VPS is brought into service for a collection run, at least layer 3 (an off-host nightly sync) must be active and test-restored.
 
 ### 4.2 Backblaze B2 configuration
 
