@@ -278,6 +278,20 @@ def _oci_from_matrix(agreement: NDArray[np.float64]) -> float:
     return lambda_1 / lambda_2
 
 
+# Minimum N runs required before ``_is_deterministic_output`` will raise
+# the flag. Per CDA SME review of PR A (2026-04-20, recommendation R2):
+# at N = 2 or N = 3, a single pair of identical runs can push λ₂ below
+# ``DETERMINISTIC_EIGENVALUE_THRESHOLD`` without the model being
+# genuinely deterministic — two draws from a stochastic process can
+# accidentally match. The N = 2 guard below is the correctness floor
+# (eigendecomposition needs ≥ 2 rows to have a second eigenvalue); the
+# N = 4 guard here is the *reliability* floor for treating the zero-λ₂
+# signal as architectural rather than a lucky coincidence. Revisit
+# after the Phase 4b saturation analysis confirms the per-model N is
+# routinely ≥ 5 (the default slate's N=5 clears this guard).
+MIN_RUNS_FOR_DETERMINISTIC_FLAG: int = 4
+
+
 def _is_deterministic_output(agreement: NDArray[np.float64]) -> bool:
     """True when the model's run × run agreement has effectively zero λ₂.
 
@@ -289,9 +303,14 @@ def _is_deterministic_output(agreement: NDArray[np.float64]) -> bool:
     *least* informative case, not the most. Does not trigger on any
     current transformer model at T > 0; reserved for future deterministic
     architectures (neurosymbolic systems, zero-temperature models).
+
+    Requires N >= ``MIN_RUNS_FOR_DETERMINISTIC_FLAG`` (4) — below that,
+    a pair of identical runs can trip the eigenvalue threshold without
+    the model being genuinely deterministic. See the comment on
+    ``MIN_RUNS_FOR_DETERMINISTIC_FLAG`` for the reliability rationale.
     """
     n = agreement.shape[0]
-    if n < 2:
+    if n < MIN_RUNS_FOR_DETERMINISTIC_FLAG:
         return False
     eigvals = np.linalg.eigvalsh(agreement)
     eigvals = np.sort(eigvals)[::-1]

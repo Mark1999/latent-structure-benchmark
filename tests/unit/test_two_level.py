@@ -149,6 +149,22 @@ class TestWithinModelAnalysis:
         wm = run_within_model_analysis(records)
         assert wm.deterministic_output is False
 
+    def test_small_n_identical_runs_not_deterministic(self):
+        """The N>=4 reliability floor prevents spurious deterministic flags.
+
+        Per CDA SME review of PR A (2026-04-20, recommendation R2).
+        At N=3 with identical runs, λ₂ is effectively zero but the
+        model is not genuinely deterministic — two or three draws from
+        a stochastic process can coincidentally produce identical
+        structure. MIN_RUNS_FOR_DETERMINISTIC_FLAG=4 guards this.
+        """
+        records = _stable_runs("m", 3)  # identical runs but only 3 of them
+        wm = run_within_model_analysis(records)
+        # OCI sentinel still fires (divide-by-zero guard, independent of N)
+        assert wm.oci >= 5.0
+        # But the deterministic flag does NOT — reliability floor holds
+        assert wm.deterministic_output is False
+
     def test_centroid_run_is_in_inputs(self):
         records = _variable_runs("m", 6)
         wm = run_within_model_analysis(records)

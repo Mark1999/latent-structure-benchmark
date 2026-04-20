@@ -102,7 +102,15 @@ Per the standing decision rule ("if a new variance-propagation question arises n
 
 - **Saturation analysis (Phase 4b, PR #6) interaction.** The saturation curves will give us operational N per domain. Whether the Register 1 bootstrap should use that N or something smaller (to reduce compute further) is an open question. Default for v1: use operational N.
 - **Multi-baseline grounding with raw subject data.** When a researcher submission includes `pile_sort_raw.csv`, the baseline can be analyzed at Register 1 (human OCI, per §4.2.5). Do we bootstrap subjects with replacement at Level 1? Default for v1: yes, treating human subjects as the analog of runs — and carrying an *under*estimation caveat in the opposite direction: if the human subject pool is a purposive or convenience sample from one community, the CI does not reflect cross-population variance.
-- **Is OCI < 3.0 the right cutoff for "hide the Register 2 ellipse"?** Decision deferred to PR #6 saturation analysis. Until then, any Register 2 ellipse rendering decision is provisional.
+- **Is OCI < 3.0 the right cutoff for "hide the Register 2 ellipse"?** Decision deferred to the Phase 4b saturation analysis. Until then, any Register 2 ellipse rendering decision is provisional.
+
+  **Coordination commitment (per CDA SME review of PR A, 2026-04-20, recommendation R3).** When the Phase 4b saturation analysis finalizes the R1-a / R1-b OCI cutoff, the update ships as **one coordinated PR** that simultaneously touches:
+    1. the TS config constant `OCI_LOW_CONCENTRATION_THRESHOLD` at `apps/dashboard/src/config/analysis.ts`,
+    2. any schema-level threshold reference in `packages/cdb_core/cdb_core/schemas.py` or `packages/cdb_analyze/`,
+    3. the methodology-page prose that names the threshold,
+    4. `DESIGN_SYSTEM.md` §3.3.5 if the provisional-value text changes.
+
+  Partial updates are a foreseeable source of drift and must not ship in separate PRs. The Reviewer agent rejects any PR that touches one of the four surfaces above without touching the others.
 
 ---
 
