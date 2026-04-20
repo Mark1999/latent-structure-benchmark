@@ -182,8 +182,26 @@ def test_run_pipeline_populates_within_model_results():
     underestimates_uncertainty=True (binding), and the
     deterministic_output marker. See ARCHITECTURE.md §4.2.0 and
     docs/BOOTSTRAP_DESIGN.md §2.
+
+    Uses 4 runs per model (MIN_RUNS_FOR_DETERMINISTIC_FLAG) so that
+    identical-pile synthetic inputs actually trip the deterministic
+    flag — the default _synthetic_records N=3 fixture is below the
+    reliability floor per two_level.MIN_RUNS_FOR_DETERMINISTIC_FLAG.
     """
-    records = _synthetic_records()
+    items = ["mother", "father", "sister", "brother"]
+    records = []
+    # Model A: 4 identical runs — should trigger deterministic_output
+    for i in range(4):
+        records.append(_make_record(
+            "model-a", i, items,
+            [["mother", "father"], ["sister", "brother"]],
+        ))
+    # Model B: 4 identical runs (different structure) — also deterministic
+    for i in range(4):
+        records.append(_make_record(
+            "model-b", i, items,
+            [["mother", "sister"], ["father", "brother"]],
+        ))
     result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
 
     assert len(result.within_model_results) == 2
@@ -191,18 +209,46 @@ def test_run_pipeline_populates_within_model_results():
     assert set(by_model.keys()) == {"model-a", "model-b"}
 
     for mid, wm in by_model.items():
-        assert wm.n_runs == 3
+        assert wm.n_runs == 4
         assert wm.oci >= 0.0
         # Binding underestimation caveat is always set per BOOTSTRAP_DESIGN.md §2
         assert wm.underestimates_uncertainty is True
-        # _synthetic_records uses identical pile structures per model, so
-        # each model's runs are exactly the same — the agreement matrix
-        # is rank-1 and deterministic_output fires (state R1-c per
-        # DESIGN_SYSTEM.md §3.3.5). This is the intended trigger path.
+        # Identical pile structures per model at N=4 → agreement matrix
+        # is rank-1 AND passes the reliability floor; deterministic_output
+        # fires (state R1-c per DESIGN_SYSTEM.md §3.3.5).
         assert wm.deterministic_output is True
         assert wm.centroid_run_id is not None
         # Centroid must be one of the input records
         assert wm.centroid_run_id in {r.informant_id for r in records if r.model_id == mid}
+
+
+def test_run_pipeline_small_n_does_not_trigger_deterministic_flag():
+    """Below MIN_RUNS_FOR_DETERMINISTIC_FLAG (N=4), identical runs alone
+    are not enough to raise the deterministic_output flag.
+
+    Per CDA SME review of PR A (2026-04-20, recommendation R2): at N=2
+    or N=3, a single pair of identical runs can push λ₂ below the
+    numerical-zero threshold without the model being genuinely
+    deterministic. The reliability floor prevents this spurious trip.
+    """
+    items = ["mother", "father", "sister", "brother"]
+    records = []
+    # 3 identical runs per model — below the reliability floor
+    for i in range(3):
+        records.append(_make_record(
+            "model-a", i, items,
+            [["mother", "father"], ["sister", "brother"]],
+        ))
+    for i in range(3):
+        records.append(_make_record(
+            "model-b", i, items,
+            [["mother", "sister"], ["father", "brother"]],
+        ))
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    for wm in result.within_model_results:
+        assert wm.n_runs == 3
+        assert wm.deterministic_output is False  # reliability floor holds
 
 
 def test_pipeline_single_model():
