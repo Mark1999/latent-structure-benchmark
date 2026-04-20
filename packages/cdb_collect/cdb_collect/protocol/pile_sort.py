@@ -168,6 +168,9 @@ def build_binary_matrix(
     return matrix
 
 
+DEFAULT_PILESORT_TEMPERATURE: float = 0.3
+
+
 async def run_pile_sort(
     adapter: ModelAdapter,
     items: list[str],
@@ -175,11 +178,19 @@ async def run_pile_sort(
     run_index: int,
     prompt_version: str = "v1",
     max_retries: int = _MAX_PARSE_RETRIES,
+    *,
+    temperature: float | None = None,
 ) -> tuple[PileSortRecord, AdapterResult]:
     """Execute the pile-sort step of the CDA protocol.
 
-    Uses temperature 0.3 for modal categorization per ARCHITECTURE.md §4.1.3.
-    Retries up to max_retries times on JSON parse failure.
+    Uses temperature 0.3 for modal categorization per ARCHITECTURE.md §4.1.3
+    when no override is provided. Retries up to max_retries times on JSON
+    parse failure.
+
+    Args:
+        temperature: Optional override for the sampling temperature. When
+            None, uses ``DEFAULT_PILESORT_TEMPERATURE`` (0.3). Set to 0.0
+            for the shakedown determinism cell.
 
     Returns:
         (PileSortRecord, AdapterResult) tuple.
@@ -189,10 +200,12 @@ async def run_pile_sort(
     """
     prompt = load_prompt(items, domain_seed, version=prompt_version)
     last_error: Exception | None = None
+    effective_temp = (
+        temperature if temperature is not None else DEFAULT_PILESORT_TEMPERATURE
+    )
 
     for attempt in range(max_retries):
-        # Temperature 0.3 per ARCHITECTURE.md §4.1.3
-        result = await adapter.complete(prompt, temperature=0.3)
+        result = await adapter.complete(prompt, temperature=effective_temp)
 
         try:
             piles, matrix = parse_pile_sort(result.text, items)

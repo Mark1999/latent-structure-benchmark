@@ -82,23 +82,36 @@ def parse_pile_interview(
     return labels
 
 
+DEFAULT_INTERVIEW_TEMPERATURE: float = 0.3
+
+
 async def run_pile_interview(
     adapter: ModelAdapter,
     piles: list[list[str]],
     run_index: int,
     prompt_version: str = "v1",
+    *,
+    temperature: float | None = None,
 ) -> tuple[InterviewRecord, AdapterResult]:
     """Execute the pile-interview step of the CDA protocol.
 
-    Uses temperature 0.3 per ARCHITECTURE.md §4.1.3.
+    Uses temperature 0.3 per ARCHITECTURE.md §4.1.3 when no override is
+    provided.
+
+    Args:
+        temperature: Optional override for the sampling temperature. When
+            None, uses ``DEFAULT_INTERVIEW_TEMPERATURE`` (0.3). Set to 0.0
+            for the shakedown determinism cell.
 
     Returns:
         (InterviewRecord, AdapterResult) tuple.
     """
     prompt = load_prompt(piles, version=prompt_version)
 
-    # Temperature 0.3 for categorization
-    result = await adapter.complete(prompt, temperature=0.3)
+    effective_temp = (
+        temperature if temperature is not None else DEFAULT_INTERVIEW_TEMPERATURE
+    )
+    result = await adapter.complete(prompt, temperature=effective_temp)
 
     labels = parse_pile_interview(result.text, expected_count=len(piles))
 

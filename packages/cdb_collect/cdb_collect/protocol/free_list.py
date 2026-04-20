@@ -75,11 +75,16 @@ def parse_free_list(text: str) -> tuple[list[str], list[str]]:
     return parsed_items, raw_order
 
 
+DEFAULT_FREELIST_TEMPERATURE: float = 0.7
+
+
 async def run_free_list(
     adapter: ModelAdapter,
     domain: Domain,
     run_index: int,
     prompt_version: str = "v1",
+    *,
+    temperature: float | None = None,
 ) -> tuple[FreelistRecord, AdapterResult]:
     """Execute the free-list step of the CDA protocol.
 
@@ -88,14 +93,21 @@ async def run_free_list(
         domain: The domain definition.
         run_index: The run index (0-based).
         prompt_version: Prompt template version.
+        temperature: Optional override for the sampling temperature. When
+            None, uses ``DEFAULT_FREELIST_TEMPERATURE`` (0.7) per
+            ARCHITECTURE.md §4.1.3. Set explicitly (e.g. 0.0 for the
+            shakedown determinism cell per docs/SHAKEDOWN_PROTOCOL.md
+            §4 determinism-cell row) to override the default.
 
     Returns:
         (FreelistRecord, AdapterResult) tuple.
     """
     prompt = load_prompt(domain, version=prompt_version)
 
-    # Free listing uses temperature 0.7 per ARCHITECTURE.md §4.1.3
-    result = await adapter.complete(prompt, temperature=0.7)
+    effective_temp = (
+        temperature if temperature is not None else DEFAULT_FREELIST_TEMPERATURE
+    )
+    result = await adapter.complete(prompt, temperature=effective_temp)
 
     parsed_items, raw_order = parse_free_list(result.text)
 

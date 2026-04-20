@@ -126,6 +126,69 @@ def test_run_informant_full_protocol():
     assert record.pile_sort.item_source == "own_freelist"
 
 
+def test_run_informant_default_temperature_and_empty_qa_notes():
+    """Without overrides, temperature=0.7 (dominant step) and qa_notes is empty."""
+    record = asyncio.run(run_informant(_mock_adapter(), _domain(), 0))
+    assert record.temperature == 0.7
+    assert record.qa_notes == ""
+
+
+def test_run_informant_temperature_override_recorded():
+    """--temperature 0.0 → record.temperature = 0.0."""
+    record = asyncio.run(
+        run_informant(_mock_adapter(), _domain(), 0, temperature=0.0),
+    )
+    assert record.temperature == 0.0
+
+
+def test_run_informant_temperature_override_propagates_to_adapter():
+    """Override temperature reaches adapter.complete on all three steps."""
+    adapter = _mock_adapter()
+    seen_temperatures = []
+
+    async def capture_complete(prompt, *, json_schema=None, temperature=0.7):
+        seen_temperatures.append(temperature)
+        lower = prompt.lower()
+        if "label" in lower or "organizing principle" in lower:
+            return _interview_result()
+        if "sort" in lower:
+            return _pile_sort_result()
+        return _free_list_result()
+
+    adapter.complete = capture_complete
+
+    asyncio.run(run_informant(adapter, _domain(), 0, temperature=0.0))
+
+    assert len(seen_temperatures) == 3  # one per CDA step
+    assert all(t == 0.0 for t in seen_temperatures), (
+        f"Expected all three steps at temperature=0.0, got {seen_temperatures}"
+    )
+
+
+def test_run_informant_campaign_id_written_to_qa_notes():
+    """--campaign-id shakedown-20260420 → qa_notes='campaign_id=shakedown-20260420'."""
+    record = asyncio.run(
+        run_informant(
+            _mock_adapter(), _domain(), 0,
+            campaign_id="shakedown-20260420",
+        ),
+    )
+    assert record.qa_notes == "campaign_id=shakedown-20260420"
+
+
+def test_run_informant_temperature_and_campaign_id_together():
+    """Both overrides compose (the actual shakedown determinism-cell invocation)."""
+    record = asyncio.run(
+        run_informant(
+            _mock_adapter(), _domain(), 0,
+            temperature=0.0,
+            campaign_id="shakedown-20260420",
+        ),
+    )
+    assert record.temperature == 0.0
+    assert record.qa_notes == "campaign_id=shakedown-20260420"
+
+
 def test_run_informant_manifest_no_empty_hashes():
     record = asyncio.run(run_informant(_mock_adapter(), _domain(), 0))
     empty_hash = hashlib.sha256(b"").hexdigest()

@@ -84,10 +84,40 @@ def _assemble_record(
     collection_mode: Literal["single_pass", "two_pass", "baseline_items", "cross_model_consensus"],
     prompt_version: str = "v1",
     system_prompt: str = "",
+    *,
+    temperature: float | None = None,
+    campaign_id: str | None = None,
 ) -> InformantRecord:
-    """Assemble an InformantRecord from step records."""
+    """Assemble an InformantRecord from step records.
+
+    Args:
+        temperature: When set, overrides the default per-step temperatures
+            (free_list 0.7, pile_sort 0.3, interview 0.3 per §4.1.3) and
+            the single value is recorded in both ``request_params`` and
+            the top-level ``InformantRecord.temperature`` field. Used by
+            the shakedown determinism cell (``--temperature 0.0``).
+        campaign_id: When set, written verbatim into ``qa_notes`` as
+            ``campaign_id=<value>`` at construction time. Used by the
+            pre-Phase-4a shakedown protocol (§2 four-layer non-canonical
+            labeling). Null for canonical Phase 4a runs.
+    """
     now = datetime.now()
     collection_date_str = now.strftime("%Y-%m-%dT%H:%M:%S")
+
+    # When a temperature override is provided, all three steps used the
+    # same value. When None, each step used its per-step default from
+    # ARCHITECTURE.md §4.1.3. Record both so the request_params remain
+    # auditable either way.
+    if temperature is not None:
+        temp_freelist = temperature
+        temp_pilesort = temperature
+        temp_interview = temperature
+        record_temperature = temperature
+    else:
+        temp_freelist = 0.7
+        temp_pilesort = 0.3
+        temp_interview = 0.3
+        record_temperature = 0.7  # the dominant step's temp
 
     request_params = {
         "model_id": adapter.model.model_id,
@@ -95,9 +125,9 @@ def _assemble_record(
         "run_index": run_index,
         "prompt_version": prompt_version,
         "collection_mode": collection_mode,
-        "temperature_freelist": 0.7,
-        "temperature_pilesort": 0.3,
-        "temperature_interview": 0.3,
+        "temperature_freelist": temp_freelist,
+        "temperature_pilesort": temp_pilesort,
+        "temperature_interview": temp_interview,
     }
 
     manifest = compute_manifest(
@@ -122,6 +152,8 @@ def _assemble_record(
     if not provider_req_id:
         provider_req_id = f"two_pass_{run_index}"
 
+    qa_notes_value = f"campaign_id={campaign_id}" if campaign_id else ""
+
     return InformantRecord(
         informant_id=informant_id,
         domain_slug=domain.slug,
@@ -140,7 +172,7 @@ def _assemble_record(
         collection_mode=collection_mode,
         api_endpoint=_resolve_endpoint(adapter.model.collection_method),
         api_version="",
-        temperature=0.7,
+        temperature=record_temperature,
         top_p=None,
         max_tokens=16384,
         system_prompt=system_prompt,
@@ -149,7 +181,7 @@ def _assemble_record(
         interview=interview_record,
         sha256_manifest=manifest,
         qa_passed=True,
-        qa_notes="",
+        qa_notes=qa_notes_value,
     )
 
 
@@ -160,14 +192,25 @@ async def run_informant(
     *,
     prompt_version: str = "v1",
     system_prompt: str = "",
+    temperature: float | None = None,
+    campaign_id: str | None = None,
 ) -> InformantRecord:
     """Run the full single-pass CDA protocol and assemble an InformantRecord.
 
     Each run generates its own free list, sorts its own items, and names
     its own piles. This captures end-to-end model behavior.
+
+    Args:
+        temperature: Optional single temperature used for all three CDA
+            steps. When None, the per-step defaults from
+            ARCHITECTURE.md §4.1.3 are used (0.7 / 0.3 / 0.3).
+        campaign_id: Optional campaign identifier written into
+            ``qa_notes`` per docs/SHAKEDOWN_PROTOCOL.md §2.
     """
     freelist_record, freelist_result = await run_free_list(
-        adapter, domain, run_index, prompt_version=prompt_version,
+        adapter, domain, run_index,
+        prompt_version=prompt_version,
+        temperature=temperature,
     )
 
     pilesort_record, _ = await run_pile_sort(
@@ -176,6 +219,7 @@ async def run_informant(
         domain_seed=domain.prompt_seed,
         run_index=run_index,
         prompt_version=prompt_version,
+        temperature=temperature,
     )
 
     interview_record, _ = await run_pile_interview(
@@ -183,6 +227,7 @@ async def run_informant(
         piles=pilesort_record.parsed_piles,
         run_index=run_index,
         prompt_version=prompt_version,
+        temperature=temperature,
     )
 
     return _assemble_record(
@@ -192,6 +237,8 @@ async def run_informant(
         collection_mode="single_pass",
         prompt_version=prompt_version,
         system_prompt=system_prompt,
+        temperature=temperature,
+        campaign_id=campaign_id,
     )
 
 
