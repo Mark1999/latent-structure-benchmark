@@ -23,10 +23,9 @@ reported Rand before ARI was common.
 from __future__ import annotations
 
 from dataclasses import dataclass, field
-from typing import Literal
 
 import numpy as np
-from cdb_core import InformantRecord
+from cdb_core import ConsensusType, InformantRecord  # noqa: F401 — re-exported
 from numpy.typing import NDArray
 from sklearn.metrics import adjusted_rand_score
 
@@ -34,48 +33,11 @@ from cdb_analyze.cluster import cluster_models
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
 from cdb_analyze.mds import compute_cross_model_similarity
 
-# ---------------------------------------------------------------------------
-# Consensus typology (post-F1 SME review)
-# ---------------------------------------------------------------------------
-#
-# Low-consensus domain typology per Caulkins & Hyatt (1999), with a
-# DETERMINISTIC extension for future architectures.
-#
-# Only ``DETERMINISTIC`` is used by the current pipeline. The remaining
-# five values are defined here so that the ``classify_consensus``
-# function added in the DomainResult schema PR can return any of them
-# without a second type change. See ``docs/SME_REVIEW.md`` §1.6 and
-# §3.3.
-#
-# Triggering conditions (to be implemented by ``classify_consensus``
-# in the schema PR):
-#
-#   STRONG_CONSENSUS  — λ₁/λ₂ ≥ 5.0 and all centrality scores positive
-#   WEAK_CONSENSUS    — 3.0 ≤ λ₁/λ₂ < 5.0 and all centrality scores
-#                       positive (passes classic threshold, warn on
-#                       operational threshold)
-#   SUBCULTURAL       — λ₁/λ₂ ≥ 3.0 with negative centrality scores
-#                       present (models form sub-clusters)
-#   TURBULENT         — λ₁/λ₂ < 3.0 with centrality scores positive
-#                       (no dominant structure)
-#   CONTESTED         — λ₁/λ₂ < 3.0 with negative centrality scores
-#                       (deep structural disagreement across models)
-#   DETERMINISTIC     — Zero-variance output across prompt/run variation.
-#                       Does not trigger for any current model; reserved
-#                       for future deterministic architectures
-#                       (neurosymbolic systems, zero-temperature models).
-#                       When triggered, the eigenratio is undefined and
-#                       CCM is not computed.
-
-ConsensusType = Literal[
-    "STRONG_CONSENSUS",
-    "WEAK_CONSENSUS",
-    "SUBCULTURAL",
-    "TURBULENT",
-    "CONTESTED",
-    "DETERMINISTIC",
-]
-
+# Canonical definition of ``ConsensusType`` lives in ``cdb_core.schemas``.
+# It is re-exported here via the import above so that older callers that
+# do ``from cdb_analyze.gates import ConsensusType`` continue to work.
+# See docs/SME_REVIEW.md §1.6 for the six-state typology and the Caulkins
+# & Hyatt (1999) derivation.
 
 # ---------------------------------------------------------------------------
 # Shared result type
