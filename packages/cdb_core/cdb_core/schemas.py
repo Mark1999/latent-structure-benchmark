@@ -364,6 +364,24 @@ class DomainResult(BaseModel):
     # Register 1 within-model results (populated by PR #6 two-level pipeline)
     within_model_results: list[WithinModelResult] = []
 
+    # G1 split stability (SME §1.3 un-deferred 2026-04-20).
+    # When populated (after a sensitivity study has run), carries both
+    # stability ratios plus the combined pass flag. g1_overall_pass is
+    # the binding gate criterion: True iff BOTH axes are below the
+    # threshold (0.5 by default). The two individual ratios are diagnostic
+    # — a model can be salience-stable and spatially-unstable (or vice
+    # versa), and the split reports that distinction rather than
+    # collapsing to a single pass/fail. g1_aggregate_stability is the
+    # legacy single-axis composite retained for cross-study comparability.
+    # Null on analysis versions that predate the un-defer. See
+    # packages/cdb_analyze/cdb_analyze/gates.py G1SplitResult.
+    g1_salience_stability: float | None = None
+    g1_spatial_stability: float | None = None
+    g1_aggregate_stability: float | None = None
+    g1_salience_pass: bool | None = None
+    g1_spatial_pass: bool | None = None
+    g1_overall_pass: bool | None = None
+
     # Grounding
     groundings: list[GroundingRef] = []
     selected_baseline_id: str | None = None

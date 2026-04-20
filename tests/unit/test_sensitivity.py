@@ -4,8 +4,12 @@ from __future__ import annotations
 
 from datetime import UTC, datetime
 
+from cdb_analyze.gates import G1SplitResult, g1_stability_split
 from cdb_analyze.sensitivity import (
+    compute_between_model_salience_variance,
     compute_between_model_variance,
+    compute_within_model_salience_variance,
+    compute_within_model_spatial_variance,
     compute_within_model_variance,
 )
 from cdb_core import (
@@ -177,3 +181,127 @@ class TestBetweenModelVariance:
         }
         var = compute_between_model_variance(by_model)
         assert var == 0.0
+
+
+# ---------------------------------------------------------------------------
+# Split G1 — salience variance axis (SME §1.3, un-deferred 2026-04-20)
+# ---------------------------------------------------------------------------
+
+class TestSalienceVariance:
+    def test_identical_salience_rankings_zero_variance(self):
+        """Same item order across variants → Spearman ρ ≈ 1 → zero variance."""
+        items = ["mother", "father", "sister", "brother", "uncle", "aunt"]
+        piles = [["mother", "father"], ["sister", "brother"], ["uncle", "aunt"]]
+        by_variant = {
+            "v1": [_make_record("model-a", i, items, piles) for i in range(3)],
+            "v2": [_make_record("model-a", i + 3, items, piles) for i in range(3)],
+            "v3": [_make_record("model-a", i + 6, items, piles) for i in range(3)],
+        }
+        assert compute_within_model_salience_variance(by_variant) == 0.0
+
+    def test_reversed_rankings_produce_variance(self):
+        """Reversed item order on one variant → rank distance > 0 → variance > 0."""
+        items_fwd = ["a", "b", "c", "d", "e", "f"]
+        items_rev = list(reversed(items_fwd))
+        piles_fwd = [["a", "b"], ["c", "d"], ["e", "f"]]
+        piles_rev = [["f", "e"], ["d", "c"], ["b", "a"]]
+        by_variant = {
+            "v1": [_make_record("model-a", i, items_fwd, piles_fwd) for i in range(3)],
+            "v2": [_make_record("model-a", i + 3, items_rev, piles_rev) for i in range(3)],
+            "v3": [_make_record("model-a", i + 6, items_fwd, piles_fwd) for i in range(3)],
+        }
+        var = compute_within_model_salience_variance(by_variant)
+        assert var > 0.0
+
+    def test_single_variant_zero_variance(self):
+        items = ["a", "b", "c", "d"]
+        piles = [["a", "b"], ["c", "d"]]
+        by_variant = {"v1": [_make_record("m", 0, items, piles)]}
+        assert compute_within_model_salience_variance(by_variant) == 0.0
+
+    def test_between_model_salience_variance_nonneg(self):
+        items = ["a", "b", "c", "d"]
+        by_model = {
+            "m1": [_make_record("m1", i, items, [["a", "b"], ["c", "d"]]) for i in range(3)],
+            "m2": [_make_record("m2", i, items, [["a", "c"], ["b", "d"]]) for i in range(3)],
+        }
+        var = compute_between_model_salience_variance(by_model)
+        assert var >= 0.0
+
+
+class TestSpatialAliases:
+    def test_spatial_matches_legacy_alias(self):
+        """compute_within_model_variance is an alias for the spatial axis."""
+        items = ["a", "b", "c", "d"]
+        by_variant = {
+            "v1": [_make_record("m", i, items, [["a", "b"], ["c", "d"]]) for i in range(3)],
+            "v2": [_make_record("m", i + 3, items, [["a", "c"], ["b", "d"]]) for i in range(3)],
+        }
+        assert (
+            compute_within_model_variance(by_variant)
+            == compute_within_model_spatial_variance(by_variant)
+        )
+
+
+# ---------------------------------------------------------------------------
+# Split G1 gate
+# ---------------------------------------------------------------------------
+
+class TestG1StabilitySplit:
+    def test_both_axes_pass_overall_pass(self):
+        result = g1_stability_split(
+            within_salience_variance=0.01, between_salience_variance=0.10,
+            within_spatial_variance=0.02, between_spatial_variance=0.10,
+        )
+        assert isinstance(result, G1SplitResult)
+        assert result.salience_pass is True
+        assert result.spatial_pass is True
+        assert result.g1_pass is True
+        assert result.threshold == 0.5
+
+    def test_salience_fails_overall_fails(self):
+        """Even if spatial passes, a failing salience axis fails the overall gate."""
+        result = g1_stability_split(
+            within_salience_variance=0.08, between_salience_variance=0.10,  # 0.8 > 0.5
+            within_spatial_variance=0.02, between_spatial_variance=0.10,
+        )
+        assert result.salience_pass is False
+        assert result.spatial_pass is True
+        assert result.g1_pass is False
+
+    def test_spatial_fails_overall_fails(self):
+        """Even if salience passes, a failing spatial axis fails the overall gate."""
+        result = g1_stability_split(
+            within_salience_variance=0.02, between_salience_variance=0.10,
+            within_spatial_variance=0.08, between_spatial_variance=0.10,
+        )
+        assert result.salience_pass is True
+        assert result.spatial_pass is False
+        assert result.g1_pass is False
+
+    def test_both_axes_fail(self):
+        result = g1_stability_split(
+            within_salience_variance=0.08, between_salience_variance=0.10,
+            within_spatial_variance=0.08, between_spatial_variance=0.10,
+        )
+        assert result.salience_pass is False
+        assert result.spatial_pass is False
+        assert result.g1_pass is False
+
+    def test_zero_between_variance_infinite_ratio(self):
+        """Zero between-variance on either axis → infinite ratio → fail."""
+        result = g1_stability_split(
+            within_salience_variance=0.01, between_salience_variance=0.0,  # inf
+            within_spatial_variance=0.02, between_spatial_variance=0.10,
+        )
+        assert result.salience_stability == float("inf")
+        assert result.salience_pass is False
+        assert result.g1_pass is False
+
+    def test_aggregate_is_mean_of_ratios(self):
+        result = g1_stability_split(
+            within_salience_variance=0.02, between_salience_variance=0.10,  # 0.2
+            within_spatial_variance=0.04, between_spatial_variance=0.10,   # 0.4
+        )
+        # Mean of 0.2 and 0.4 = 0.3
+        assert result.aggregate_stability == 0.3

@@ -3,7 +3,12 @@
 Three quantitative criteria that must all pass before Phase 5 begins:
 
     G1 — Stability: within-model prompt variance < between-model variance
-          (ratio < 0.5).
+          (ratio < 0.5). Split into two axes (SME §1.3, un-deferred
+          2026-04-20): salience stability (Smith's S rank ordering
+          across prompt variants) and spatial stability (pile-sort
+          co-occurrence structure across prompt variants). Both ratios
+          must be below 0.5 for the split G1 to pass. See
+          ``g1_stability_split`` below.
     G2 — Signal: model-to-model similarity matrix statistically
           distinguishable from random (permutation test p < 0.01).
     G3 — Replication: cluster structure replicates across independent
@@ -385,4 +390,101 @@ def g1_stability(
             f"Within/between ratio {ratio:.4f} "
             f"(within={within_variance:.4f}, between={between_variance:.4f})"
         ),
+    )
+
+
+# ---------------------------------------------------------------------------
+# Split G1 (SME §1.3 un-deferred 2026-04-20) — two-axis stability result
+# ---------------------------------------------------------------------------
+
+@dataclass(frozen=True)
+class G1SplitResult:
+    """Structured outcome of the split G1 stability gate.
+
+    Reports both axes (salience and spatial) plus the aggregate. The
+    gate passes only when **both** axes pass — a model can be
+    salience-stable and spatially-unstable (or vice versa), and per
+    SME §1.3 un-deferral that's a more informative finding than a
+    single aggregate pass/fail. Use the individual pass flags to
+    diagnose which axis fails when ``g1_pass`` is False.
+
+    ``g1_aggregate_stability`` is retained to support cross-study
+    comparability with the original single-axis G1 computation; new
+    analyses should gate on ``g1_pass`` (both axes below threshold).
+    """
+
+    salience_stability: float          # within/between on Smith's S rank ordering
+    spatial_stability: float           # within/between on pile-sort co-occurrence
+    aggregate_stability: float         # legacy composite (mean of the two ratios)
+    salience_pass: bool                # salience_stability < threshold
+    spatial_pass: bool                 # spatial_stability < threshold
+    g1_pass: bool                      # both axes below threshold
+    threshold: float                   # the cutoff used (default 0.5)
+
+
+def g1_stability_split(
+    within_salience_variance: float,
+    between_salience_variance: float,
+    within_spatial_variance: float,
+    between_spatial_variance: float,
+    *,
+    threshold: float = 0.5,
+) -> G1SplitResult:
+    """Two-axis split of the G1 stability gate per SME §1.3.
+
+    Args:
+        within_salience_variance: Within-model variance on Smith's S
+            rank ordering across prompt variants. Output of
+            ``sensitivity.compute_within_model_salience_variance``.
+        between_salience_variance: Between-model variance on Smith's S
+            rank ordering across the model slate. Output of
+            ``sensitivity.compute_between_model_salience_variance``.
+        within_spatial_variance: Within-model variance on the pile-sort
+            co-occurrence structure across prompt variants. Output of
+            ``sensitivity.compute_within_model_spatial_variance``.
+        between_spatial_variance: Between-model variance on pile-sort
+            co-occurrence structure across the model slate. Output of
+            ``sensitivity.compute_between_model_spatial_variance``.
+        threshold: The pass cutoff for *each* axis (default 0.5). The
+            combined gate passes only when both axes are below this.
+
+    Returns:
+        A ``G1SplitResult`` with both axes reported and pass flags for
+        each plus the combined ``g1_pass``.
+
+    Notes:
+        When ``between_*_variance`` is zero on either axis, that axis's
+        stability ratio is set to positive infinity (the "no signal to
+        compare against" failure mode, matching ``g1_stability``).
+    """
+    def _ratio(within: float, between: float) -> float:
+        if between <= 0:
+            return float("inf")
+        return within / between
+
+    salience_ratio = _ratio(within_salience_variance, between_salience_variance)
+    spatial_ratio = _ratio(within_spatial_variance, between_spatial_variance)
+
+    # Aggregate is the simple mean of the two ratios — preserves the
+    # original single-axis semantics when both axes agree and degrades
+    # gracefully when one axis is borderline. Not the binding metric.
+    if salience_ratio == float("inf") or spatial_ratio == float("inf"):
+        aggregate = float("inf")
+    else:
+        aggregate = (salience_ratio + spatial_ratio) / 2.0
+
+    salience_pass = salience_ratio < threshold
+    spatial_pass = spatial_ratio < threshold
+
+    def _fmt(x: float) -> float:
+        return round(x, 4) if x != float("inf") else x
+
+    return G1SplitResult(
+        salience_stability=_fmt(salience_ratio),
+        spatial_stability=_fmt(spatial_ratio),
+        aggregate_stability=_fmt(aggregate),
+        salience_pass=salience_pass,
+        spatial_pass=spatial_pass,
+        g1_pass=salience_pass and spatial_pass,
+        threshold=threshold,
     )
