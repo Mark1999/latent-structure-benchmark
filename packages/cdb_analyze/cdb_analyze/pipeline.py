@@ -27,6 +27,7 @@ from cdb_analyze.consensus import compute_consensus_free_list
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
 from cdb_analyze.mds import compute_cross_model_similarity
 from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
+from cdb_analyze.two_level import run_within_model_analysis
 
 logger = logging.getLogger(__name__)
 
@@ -175,6 +176,26 @@ def run_pipeline(
         max(salience_agreement.values()) if salience_agreement else 1.0,
     )
 
+    # 1c. Register 1 within-model analysis per model (SME two-level design,
+    # ARCHITECTURE.md §4.2.7). Produces one WithinModelResult per model
+    # carrying OCI, per-run centrality, centroid run id, and the
+    # deterministic_output marker that drives DESIGN_SYSTEM.md §3.3.5
+    # rendering. Bootstrap CI is left off here (n_bootstrap=0) because
+    # Register 2 bootstrap already runs below and Level 1 bootstrap has
+    # the documented underestimation caveat — a separate uncertainty
+    # pass at Level 1 can be added later if the Phase 4b data motivates
+    # it. See docs/BOOTSTRAP_DESIGN.md §2.
+    within_model_results = [
+        run_within_model_analysis(records_by_model[mid])
+        for mid in model_ids
+    ]
+    n_deterministic = sum(1 for wm in within_model_results if wm.deterministic_output)
+    logger.info(
+        "Built Register 1 WithinModelResult for %d models; "
+        "%d flagged deterministic_output",
+        len(within_model_results), n_deterministic,
+    )
+
     # 2. Co-occurrence matrices per model
     matrices: list[CooccurrenceMatrix] = []
     for mid in model_ids:
@@ -260,6 +281,7 @@ def run_pipeline(
         consensus_ci=consensus_ci_vals,
         sutrop_csi=sutrop_by_model,
         salience_index_agreement=salience_agreement,
+        within_model_results=within_model_results,
         groundings=[],
         selected_baseline_id=None,
         generated_lede="",  # Populated by cdb_publish, not cdb_analyze
