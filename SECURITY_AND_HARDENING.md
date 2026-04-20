@@ -9,7 +9,10 @@
 **Section reference contract.** This document's section numbering is **stable** because `ARCHITECTURE.md` cross-references specific sub-sections by number (§3.1 CSP, §3.3 LLM sanitization, §3.4 gitleaks, §5 account hardening, §6.5 SECURITY.md, §9 Reviewer rules, §10 future hardening). Changing these section numbers breaks the architecture doc's references and is not allowed without a coordinated update to `ARCHITECTURE.md`.
 
 **Changelog:**
+- **v0.1.1** (2026-04-19) — Added infra-pivot status banner. `lsb-agent-01` is decommissioned; references to `/opt/lsb-agent/.env`, the `lsb` user, and Hetzner-specific hardening describe the prior state and will be rewritten when a new VPS is chosen. No substantive change to the Reviewer rules table (§9) or to the CSP/sanitization guarantees.
 - **v0.1** — first draft. Documents the threat model, the dashboard's CSP and security headers, the LLM-output sanitization rules, the secret-scanning configuration, the dependency security posture, account hardening (YubiKey, ProtonMail, password manager), the vulnerability disclosure process, the data protection posture, the Reviewer rules table, and the deferred-to-later hardening items (paid pentest, bug bounty, Cloudflare paid tier). Aligned with `ARCHITECTURE.md` v0.7 — includes the three Slack webhook env vars and the cryptographic provenance requirements from §1 commitment 7.
+
+> **Status banner (2026-04-19).** The Hetzner VPS `lsb-agent-01` is **decommissioned**. References to `/opt/lsb-agent/.env`, the `lsb` system user, `lsb:lsb` ownership, SSH hardening specific to Hetzner, and the Hetzner physical-compromise threat row describe the prior state. Until a new VPS is selected, LLM provider keys and Slack webhooks live only on Mark's local MS Surface Laptop Studio in `.env` (mode 600, git-ignored) and in 1Password. The dashboard-side guarantees (CSP, sanitization, Cloudflare Pages, YubiKey-secured accounts) are unaffected by the VPS pivot. See `docs/INCIDENTS/2026-04-19-test-data-loss.md` and `HOSTING_AND_DEV_OPS.md` top-of-doc banner.
 
 ---
 
