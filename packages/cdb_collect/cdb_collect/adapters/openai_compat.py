@@ -37,27 +37,42 @@ _BASE_DELAY_S = 1.0
 # HTTP status codes that trigger retry
 _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 
-# Provider configurations: base_url, env_key, model_id prefix to strip
+# Provider configurations: base_url, env_key, model_id prefix to strip,
+# max-tokens parameter name.
+#
+# max_tokens_param: the request body field used to cap output tokens.
+# OpenAI's GPT-5.x reasoning models require ``max_completion_tokens``
+# and reject the older ``max_tokens`` (surfaced by the 2026-04-20
+# shakedown where every gpt-5.4-mini call returned HTTP 400
+# "Unsupported parameter: 'max_tokens' is not supported with this
+# model. Use 'max_completion_tokens' instead."). The other providers
+# in this adapter continue to accept ``max_tokens`` as of 2026-04-20;
+# if a future provider migration forces the same rename, flip the
+# entry here rather than patching the payload-construction path.
 PROVIDER_CONFIGS: dict[str, dict] = {
     "openai_api": {
         "base_url": "https://api.openai.com/v1/chat/completions",
         "env_key": "OPENAI_API_KEY",
         "strip_prefix": "openai/",
+        "max_tokens_param": "max_completion_tokens",
     },
     "xai_api": {
         "base_url": "https://api.x.ai/v1/chat/completions",
         "env_key": "XAI_API_KEY",
         "strip_prefix": "x-ai/",
+        "max_tokens_param": "max_tokens",
     },
     "deepseek_api": {
         "base_url": "https://api.deepseek.com/v1/chat/completions",
         "env_key": "DEEPSEEK_API_KEY",
         "strip_prefix": "deepseek/",
+        "max_tokens_param": "max_tokens",
     },
     "mistral_api": {
         "base_url": "https://api.mistral.ai/v1/chat/completions",
         "env_key": "MISTRAL_API_KEY",
         "strip_prefix": "mistralai/",
+        "max_tokens_param": "max_tokens",
     },
 }
 
@@ -94,6 +109,11 @@ class OpenAICompatAdapter:
         # Strip provider prefix from model_id to get the API model name
         strip = config.get("strip_prefix", "")
         self._api_model = model.model_id.removeprefix(strip)
+
+        # Output-token cap parameter name. OpenAI GPT-5.x rejects
+        # ``max_tokens`` and requires ``max_completion_tokens``; other
+        # providers in this adapter still accept ``max_tokens``.
+        self._max_tokens_param = config.get("max_tokens_param", "max_tokens")
 
         self._provider_name = model.collection_method.removesuffix("_api")
 
@@ -148,7 +168,7 @@ class OpenAICompatAdapter:
 
         payload: dict = {
             "model": self._api_model,
-            "max_tokens": 16384,
+            self._max_tokens_param: 16384,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
