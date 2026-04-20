@@ -295,3 +295,123 @@ def test_slack_called_with_url():
         mock_post.assert_called_once()
         call_args = mock_post.call_args
         assert call_args[0][0] == "https://hooks.test/abc"
+
+
+# ─── Check 8: Salience agreement (aggregate, per (model, domain)) ───
+
+def test_check8_stable_items_pass():
+    """Identical free lists across runs → rho ≈ 1 → no failure.
+
+    Uses 12 items (above the MIN_SALIENCE_AGREEMENT_SHARED_ITEMS floor
+    of 10) so that the rho computation actually runs — if the floor
+    short-circuits before rho is computed, the test is testing the
+    bypass path rather than the happy path.
+    """
+    from scripts.qa_check import check_salience_agreement
+    items = [
+        "mother", "father", "sister", "brother", "uncle", "aunt",
+        "grandmother", "grandfather", "cousin", "niece", "nephew", "stepmother",
+    ]
+    records = [_record(freelist=_freelist(items), run_index=i) for i in range(4)]
+    rho, failure = check_salience_agreement(records, "claude-opus-4-6", "family")
+    assert failure is None
+    assert rho >= 0.85
+
+
+def test_check8_too_few_items_bypasses():
+    """Groups with fewer than MIN_SALIENCE_AGREEMENT_SHARED_ITEMS distinct
+    items across the group's free lists return (1.0, None) — the check
+    is skipped because Spearman ρ on a short ranking is too noisy to
+    interpret. Per SME review of the Sutrop wiring PR (2026-04-20)."""
+    from scripts.qa_check import check_salience_agreement
+    items = ["a", "b", "c", "d", "e"]  # 5 items < 10
+    records = [_record(freelist=_freelist(items), run_index=i) for i in range(4)]
+    rho, failure = check_salience_agreement(records, "claude-opus-4-6", "family")
+    assert failure is None
+    assert rho == 1.0
+
+
+def test_check8_single_record_returns_na():
+    """Fewer than 2 records → rho is not meaningful; no failure posted."""
+    from scripts.qa_check import check_salience_agreement
+    records = [_record()]
+    rho, failure = check_salience_agreement(records, "claude-opus-4-6", "family")
+    assert failure is None
+    assert rho == 1.0
+
+
+def test_check8_failure_shape_when_rho_below_threshold():
+    """When compute_salience_agreement returns ρ < 0.85, the QAFailure
+    object carries Check 8 metadata with the right description, threshold,
+    and actual value. The rho computation is tested elsewhere (in
+    test_sme_measures.py); this test pins only the qa_check failure
+    shape deterministically by mocking the agreement computation —
+    per SME review of the Sutrop wiring PR (2026-04-20).
+    """
+    from scripts.qa_check import check_salience_agreement
+    items = [f"i{i}" for i in range(12)]
+    records = [_record(freelist=_freelist(items), run_index=i) for i in range(4)]
+    with patch(
+        "cdb_analyze.salience.compute_salience_agreement",
+        return_value=0.70,
+    ):
+        rho, failure = check_salience_agreement(
+            records, "claude-opus-4-6", "family",
+        )
+    assert rho == 0.70
+    assert failure is not None
+    assert failure.check_num == 8
+    assert "Smith" in failure.description
+    assert "Sutrop" in failure.description
+    assert failure.threshold == ">= 0.85"
+    assert failure.actual == "0.700"
+
+
+def test_check8_aggregate_runs_group_by_model_domain():
+    """run_aggregate_checks groups records by (model_id, domain_slug)
+    and runs Check 8 on each group. No Slack URL → stderr fallback.
+
+    Uses 12 items per group (above MIN_SALIENCE_AGREEMENT_SHARED_ITEMS)
+    so each group actually computes ρ rather than short-circuiting on
+    the item-count floor.
+    """
+    from scripts.qa_check import run_aggregate_checks
+    items = [f"item_{i}" for i in range(12)]
+    records = [
+        _record(freelist=_freelist(items), model_id="m1", run_index=i)
+        for i in range(3)
+    ] + [
+        _record(freelist=_freelist(items), model_id="m2", run_index=i)
+        for i in range(3)
+    ]
+    # No webhook URL → falls through to stderr; should not raise
+    n_failed = run_aggregate_checks(records)
+    # Stable items across runs → ρ ≈ 1 → zero failures expected
+    assert n_failed == 0
+
+
+def test_aggregate_alert_posts_expected_fields():
+    from scripts.qa_check import QAFailure, post_aggregate_alert
+    failure = QAFailure(
+        8,
+        "Smith's S / Sutrop CSI rank orders diverge significantly",
+        ">= 0.85",
+        "0.712",
+    )
+    with patch("scripts.qa_check.requests.post") as mock_post:
+        mock_post.return_value.raise_for_status = lambda: None
+        post_aggregate_alert(
+            "claude-opus-4-6",
+            "family",
+            failure,
+            rho=0.712,
+            webhook_url="https://hooks.test/abc",
+        )
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "https://hooks.test/abc"
+        payload_text = call_args[1]["json"]["text"]
+        assert "claude-opus-4-6" in payload_text
+        assert "family" in payload_text
+        assert "0.712" in payload_text
+        assert "0.85" in payload_text

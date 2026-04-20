@@ -26,6 +26,7 @@ from cdb_analyze.cluster import cluster_models
 from cdb_analyze.consensus import compute_consensus_free_list
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
 from cdb_analyze.mds import compute_cross_model_similarity
+from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
 
 logger = logging.getLogger(__name__)
 
@@ -94,6 +95,29 @@ def _build_free_lists(
     return result
 
 
+def _build_sutrop_metrics(
+    records_by_model: dict[str, list[InformantRecord]],
+) -> tuple[dict[str, list], dict[str, float]]:
+    """Compute Sutrop CSI and Smith's S / Sutrop CSI agreement per model.
+
+    Sutrop's CSI (Sutrop 2001) is more robust to list-length variance than
+    Smith's S. See docs/SME_REVIEW.md §2.1. The per-model agreement ρ
+    (Spearman rank correlation between the two orderings) flags — via the
+    QA_Runner's aggregate check when ρ < 0.85 — cases where list-length
+    variance is high enough to distort the salience order.
+    """
+    sutrop_by_model: dict[str, list] = {}
+    agreement_by_model: dict[str, float] = {}
+    for model_id, recs in records_by_model.items():
+        smith_ranked = compute_consensus_free_list(recs)
+        sutrop_ranked = sutrop_csi(recs)
+        sutrop_by_model[model_id] = sutrop_ranked
+        agreement_by_model[model_id] = compute_salience_agreement(
+            smith_ranked, sutrop_ranked,
+        )
+    return sutrop_by_model, agreement_by_model
+
+
 def _model_ref_from_record(rec: InformantRecord) -> ModelRef:
     """Extract a ModelRef from an InformantRecord."""
     return ModelRef(
@@ -141,6 +165,15 @@ def run_pipeline(
     # 1. Consensus free lists per model
     free_lists = _build_free_lists(records_by_model)
     logger.info("Built consensus free lists for %d models", len(free_lists))
+
+    # 1b. Sutrop CSI + Smith's S / Sutrop agreement per model (SME §2.1)
+    sutrop_by_model, salience_agreement = _build_sutrop_metrics(records_by_model)
+    logger.info(
+        "Built Sutrop CSI for %d models; agreement rho range [%.3f, %.3f]",
+        len(sutrop_by_model),
+        min(salience_agreement.values()) if salience_agreement else 1.0,
+        max(salience_agreement.values()) if salience_agreement else 1.0,
+    )
 
     # 2. Co-occurrence matrices per model
     matrices: list[CooccurrenceMatrix] = []
@@ -225,6 +258,8 @@ def run_pipeline(
         similarity_ci=similarity_ci,
         consensus_score=consensus_score,
         consensus_ci=consensus_ci_vals,
+        sutrop_csi=sutrop_by_model,
+        salience_index_agreement=salience_agreement,
         groundings=[],
         selected_baseline_id=None,
         generated_lede="",  # Populated by cdb_publish, not cdb_analyze

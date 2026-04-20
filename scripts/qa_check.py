@@ -43,6 +43,23 @@ MAX_LATENCY_MS = 30_000
 # Validated against 6 real Claude Opus runs across free-list and interview steps.
 TOKEN_TOLERANCE = 1.0
 
+# Check 8 (aggregate, per-(model, domain)): Minimum Spearman ρ between
+# Smith's S and Sutrop CSI rankings. Per docs/SME_REVIEW.md §2.1, Sutrop's
+# CSI is more robust to list-length variance than Smith's S. When the two
+# rank orders diverge significantly (ρ < 0.85), list-length variance is
+# high enough to affect the salience structure for that (model, domain)
+# pair — posts to #lsb-alerts so the pair's salience output can be
+# inspected. This is an aggregate check (runs on N records for one model
+# on one domain); it does not mutate qa_passed on any individual record.
+MIN_SALIENCE_AGREEMENT_RHO = 0.85
+
+# Minimum number of items (union across the N runs for a (model, domain)
+# group) required before Check 8 is meaningful. With fewer items, Spearman
+# ρ on the ranking is too noisy to interpret and would trip the threshold
+# spuriously — especially for capacity-truncated or short-list groups.
+# Floor value per SME review of the Sutrop wiring PR (2026-04-20).
+MIN_SALIENCE_AGREEMENT_SHARED_ITEMS = 10
+
 # ─── Default paths ──────────────────────────────────────────────────
 DEFAULT_JSONL = Path("data/raw/informants.jsonl")
 
@@ -280,6 +297,128 @@ def check_record(
     return True
 
 
+# ─── Aggregate per-(model, domain) checks (SME §2.1) ────────────────
+
+def check_salience_agreement(
+    records_for_group: list[InformantRecord],
+    model_id: str,
+    domain_slug: str,
+) -> tuple[float, QAFailure | None]:
+    """Check 8 — Smith's S vs Sutrop CSI rank agreement on N runs.
+
+    Returns (rho, failure). Failure is None when:
+      - fewer than 2 runs (rho is not meaningful below 2 runs),
+      - fewer than MIN_SALIENCE_AGREEMENT_SHARED_ITEMS distinct items
+        across the group (Spearman ρ on a short ranking is noisy and
+        would trip the threshold spuriously — especially on
+        capacity-truncated or short-list groups), or
+      - rho >= MIN_SALIENCE_AGREEMENT_RHO.
+
+    The ``rho`` returned in the no-failure cases above is set to 1.0 as
+    a neutral "no concern" sentinel rather than the true computed value,
+    so callers can treat it uniformly.
+    """
+    # Function-scope imports: pulls cdb_analyze in only on the aggregate
+    # path. The per-record checks above use only cdb_core + stdlib +
+    # requests, preserving the minimal import profile described in
+    # ARCHITECTURE.md §4.1.6. When scripts/collect.py invokes qa_check
+    # after each InformantRecord is written, only the per-record checks
+    # are exercised; the aggregate path runs once at the end (or during
+    # a manual `python scripts/qa_check.py` sweep), so the incremental
+    # import cost is paid at most once per invocation.
+    from cdb_analyze.consensus import compute_consensus_free_list
+    from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
+
+    if len(records_for_group) < 2:
+        return 1.0, None  # not meaningful; not a failure
+
+    # Union of distinct items across the group's free lists. Gates Check
+    # 8 so short-list or capacity-truncated groups do not trip the ρ
+    # threshold spuriously (SME review of the Sutrop wiring PR).
+    shared_items: set[str] = set()
+    for r in records_for_group:
+        shared_items.update(r.freelist.parsed_items)
+    if len(shared_items) < MIN_SALIENCE_AGREEMENT_SHARED_ITEMS:
+        return 1.0, None
+
+    smith_ranked = compute_consensus_free_list(records_for_group)
+    sutrop_ranked = sutrop_csi(records_for_group)
+    rho = compute_salience_agreement(smith_ranked, sutrop_ranked)
+
+    if rho < MIN_SALIENCE_AGREEMENT_RHO:
+        failure = QAFailure(
+            8,
+            "Smith's S / Sutrop CSI rank orders diverge significantly",
+            f">= {MIN_SALIENCE_AGREEMENT_RHO}",
+            f"{rho:.3f}",
+        )
+        return rho, failure
+    return rho, None
+
+
+def post_aggregate_alert(
+    model_id: str,
+    domain_slug: str,
+    failure: QAFailure,
+    rho: float,
+    webhook_url: str | None = None,
+) -> None:
+    """Post an aggregate per-(model, domain) QA failure to #lsb-alerts.
+
+    Shape differs from ``post_to_slack`` because the failure is not tied to
+    a single informant — it is a property of the (model, domain) aggregate.
+    """
+    if webhook_url is None:
+        webhook_url = os.environ.get("LSB_ALERTS_WEBHOOK_URL")
+
+    if not webhook_url:
+        logger.warning(
+            "LSB_ALERTS_WEBHOOK_URL not set — logging aggregate QA failure to stderr"
+        )
+        print(
+            f"QA AGGREGATE FAILURE: model={model_id} domain={domain_slug} — "
+            f"{failure} (rho={rho:.3f})",
+            file=sys.stderr,
+        )
+        return
+
+    text = (
+        f":warning: *QA Aggregate Failure* — "
+        f"`{model_id}` on `{domain_slug}`\n"
+        f"{failure}\n"
+        f"ρ (Smith's S vs Sutrop CSI) = {rho:.3f} "
+        f"(threshold >= {MIN_SALIENCE_AGREEMENT_RHO})\n"
+        f"_List-length variance is high enough to affect the salience order "
+        f"for this (model, domain) pair. See docs/SME_REVIEW.md §2.1._"
+    )
+
+    try:
+        resp = requests.post(webhook_url, json={"text": text}, timeout=10)
+        resp.raise_for_status()
+    except Exception as e:
+        logger.error("Failed to post aggregate alert to Slack: %s", e)
+
+
+def run_aggregate_checks(records: list[InformantRecord]) -> int:
+    """Run per-(model, domain) aggregate QA checks on a corpus of records.
+
+    Currently: Check 8 (salience agreement). Posts failures to #lsb-alerts.
+    Returns the number of groups that failed.
+    """
+    groups: dict[tuple[str, str], list[InformantRecord]] = {}
+    for r in records:
+        key = (r.model_id, r.domain_slug)
+        groups.setdefault(key, []).append(r)
+
+    n_failed = 0
+    for (model_id, domain_slug), recs in groups.items():
+        rho, failure = check_salience_agreement(recs, model_id, domain_slug)
+        if failure is not None:
+            post_aggregate_alert(model_id, domain_slug, failure, rho)
+            n_failed += 1
+    return n_failed
+
+
 def main() -> int:
     """CLI entry point for qa_check.py."""
     parser = argparse.ArgumentParser(
@@ -334,6 +473,17 @@ def main() -> int:
                 )
         else:
             print(f"PASS: {record.informant_id}")
+
+    # Aggregate per-(model, domain) checks (Check 8 — salience agreement).
+    # Runs on the same scope as the per-record checks.
+    n_aggregate_failed = run_aggregate_checks(records_to_check)
+    if n_aggregate_failed > 0:
+        any_failed = True
+        print(
+            f"AGGREGATE FAILURES: {n_aggregate_failed} (model, domain) group(s) "
+            f"failed Check 8 (salience agreement)",
+            file=sys.stderr,
+        )
 
     return 1 if any_failed else 0
 
