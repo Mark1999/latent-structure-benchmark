@@ -1,0 +1,2 @@
+- [QA_Runner aggregate-check pattern](project_qa_check_aggregate_pattern.md) — Check 8 semantics, function-scope cdb_analyze imports, aggregate alerts do not mutate qa_passed
+- [Review rigor on thresholds](feedback_review_rigor_on_thresholds.md) — always stress-test rank/correlation thresholds at small-N before PASS
