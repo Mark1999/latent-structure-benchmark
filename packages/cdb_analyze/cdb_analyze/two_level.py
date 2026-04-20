@@ -89,6 +89,7 @@ def run_within_model_analysis(
 
     agreement = _run_agreement_matrix(records)
     oci = _oci_from_matrix(agreement)
+    deterministic = _is_deterministic_output(agreement)
     centrality = _centrality_loadings(agreement)
     centrality_by_run = {
         records[i].informant_id: float(centrality[i])
@@ -110,6 +111,7 @@ def run_within_model_analysis(
         oci=float(oci),
         oci_ci=oci_ci,
         underestimates_uncertainty=True,  # binding; see BOOTSTRAP_DESIGN.md §2
+        deterministic_output=deterministic,
         centrality_scores_by_run=centrality_by_run,
         centroid_run_id=centroid_run_id,
     )
@@ -143,9 +145,17 @@ def options_for_level_two(
       pooled aggregate.
     - ``"option_c_weight"``: the model's OCI, to be used only as a
       **diagnostic** in a coherence-weighted sensitivity analysis
-      run alongside the Register 2 map — never as the primary map.
+      run alongside the Register 2 map — **never as the primary map**.
       Per SME Q2 resolution: weighting Level 2 by Level 1 coherence
       biases low-OCI models toward the margins for the wrong reason.
+      **Note on CI:** this function calls ``run_within_model_analysis``
+      with ``n_bootstrap=0`` — ``option_c_weight`` is a point estimate
+      of OCI without a confidence interval. That is by design because
+      Option C is diagnostic-only; a caller that needs an OCI CI for
+      methodological reporting should use ``run_within_model_analysis``
+      directly and request a bootstrap, not route through this helper.
+      The §4.2.0 register boundary forbids using this value as a
+      primary weighting input in any production dashboard code path.
 
     See ARCHITECTURE.md §4.2.0 and docs/SME_REVIEW.md for the full
     rationale and why Option B is preferred for dashboard display
@@ -219,6 +229,30 @@ def _run_agreement_matrix(
     return mat
 
 
+# Floor below which the second eigenvalue of the agreement matrix is
+# treated as zero — the run × run agreement matrix is effectively
+# rank-1, meaning the model's N runs produced near-identical pile-sort
+# structure. Used by both ``_oci_from_matrix`` (to avoid dividing by
+# ~0) and ``_is_deterministic_output`` (to raise the DETERMINISTIC
+# marker). Per ARCHITECTURE.md §4.2.0 and the post-F1 SME review.
+#
+# Scale rationale (per CDA SME review of this PR, 2026-04-20). The
+# agreement matrix A is an N × N symmetric matrix whose entries lie in
+# [0, 1] — each cell is the fraction of item pairs on which two runs
+# agree. Since each row-sum of A is at most N, the spectral radius
+# λ₁ ≤ N (Gershgorin / row-sum bound), and N is small in practice
+# (typically ≈ 5–20 runs). The natural scale of the leading eigenvalue
+# is therefore O(N). A threshold of 1e-12 is ~12 orders of magnitude
+# below λ₁'s natural scale and cannot be confused with ordinary
+# numerical noise from a stochastic but non-degenerate matrix. An
+# absolute threshold is preferred over a relative one (λ₂ / λ₁) here
+# because the absolute form gives a clearer semantic contract at this
+# scale: "λ₂ is indistinguishable from numerical zero" rather than
+# "λ₂ is a small-but-nonzero fraction of λ₁." If N ever grows past
+# ~100 (not in scope for v1), reconsider the absolute form.
+DETERMINISTIC_EIGENVALUE_THRESHOLD: float = 1e-12
+
+
 def _oci_from_matrix(agreement: NDArray[np.float64]) -> float:
     """Compute the eigenratio λ₁/λ₂ of the agreement matrix.
 
@@ -233,12 +267,37 @@ def _oci_from_matrix(agreement: NDArray[np.float64]) -> float:
         return 0.0
     lambda_1 = float(eigvals[0])
     lambda_2 = float(eigvals[1])
-    if lambda_2 <= 1e-12:
+    if lambda_2 <= DETERMINISTIC_EIGENVALUE_THRESHOLD:
         # λ₂ effectively zero — concentration is effectively infinite.
         # Return a large sentinel rather than dividing by ~0; upstream
         # code treats OCI ≥ operational threshold as high concentration.
+        # ``_is_deterministic_output`` raises the DETERMINISTIC marker
+        # on the same condition, which is what downstream code should
+        # key on rather than the sentinel value itself.
         return 100.0
     return lambda_1 / lambda_2
+
+
+def _is_deterministic_output(agreement: NDArray[np.float64]) -> bool:
+    """True when the model's run × run agreement has effectively zero λ₂.
+
+    Indicates the model's N runs produced near-identical pile-sort structure —
+    a zero-variance output distribution on this (model, domain). Triggers
+    the ``ConsensusType = DETERMINISTIC`` classification per
+    ARCHITECTURE.md §4.2.0 and the DESIGN_SYSTEM.md §3.3.5 visual
+    convention for Register 2 points whose Level 1 concentration is the
+    *least* informative case, not the most. Does not trigger on any
+    current transformer model at T > 0; reserved for future deterministic
+    architectures (neurosymbolic systems, zero-temperature models).
+    """
+    n = agreement.shape[0]
+    if n < 2:
+        return False
+    eigvals = np.linalg.eigvalsh(agreement)
+    eigvals = np.sort(eigvals)[::-1]
+    if len(eigvals) < 2:
+        return False
+    return float(eigvals[1]) <= DETERMINISTIC_EIGENVALUE_THRESHOLD
 
 
 def _centrality_loadings(

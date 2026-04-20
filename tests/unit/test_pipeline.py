@@ -175,6 +175,36 @@ def test_run_pipeline_populates_sutrop_fields():
         assert -1.0 <= rho <= 1.0, f"{mid} rho out of range: {rho}"
 
 
+def test_run_pipeline_populates_within_model_results():
+    """Register 1 results are populated per model on every pipeline run.
+
+    One WithinModelResult per model, carrying OCI, centroid_run_id,
+    underestimates_uncertainty=True (binding), and the
+    deterministic_output marker. See ARCHITECTURE.md §4.2.0 and
+    docs/BOOTSTRAP_DESIGN.md §2.
+    """
+    records = _synthetic_records()
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    assert len(result.within_model_results) == 2
+    by_model = {wm.model_id: wm for wm in result.within_model_results}
+    assert set(by_model.keys()) == {"model-a", "model-b"}
+
+    for mid, wm in by_model.items():
+        assert wm.n_runs == 3
+        assert wm.oci >= 0.0
+        # Binding underestimation caveat is always set per BOOTSTRAP_DESIGN.md §2
+        assert wm.underestimates_uncertainty is True
+        # _synthetic_records uses identical pile structures per model, so
+        # each model's runs are exactly the same — the agreement matrix
+        # is rank-1 and deterministic_output fires (state R1-c per
+        # DESIGN_SYSTEM.md §3.3.5). This is the intended trigger path.
+        assert wm.deterministic_output is True
+        assert wm.centroid_run_id is not None
+        # Centroid must be one of the input records
+        assert wm.centroid_run_id in {r.informant_id for r in records if r.model_id == mid}
+
+
 def test_pipeline_single_model():
     """Single model should produce a valid but trivial DomainResult."""
     items = ["mother", "father", "sister", "brother"]
