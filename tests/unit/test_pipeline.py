@@ -147,6 +147,34 @@ def test_run_pipeline_produces_domain_result():
     assert result.generated_lede == ""
 
 
+def test_run_pipeline_populates_sutrop_fields():
+    """Sutrop CSI and salience-index agreement are populated per model.
+
+    SME_REVIEW.md §2.1: Sutrop CSI is more robust to list-length variance
+    than Smith's S; the Spearman ρ between the two rankings is the QA
+    signal for list-length variance affecting salience structure.
+    """
+    records = _synthetic_records()
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    # Per-model CSI entries
+    assert set(result.sutrop_csi.keys()) == {"model-a", "model-b"}
+    for mid, csi_list in result.sutrop_csi.items():
+        assert len(csi_list) > 0, f"{mid} has no Sutrop CSI entries"
+        # Each entry is a SutropCSI pydantic model with the right fields
+        top = csi_list[0]
+        assert top.item
+        assert top.csi > 0
+        assert top.f_mentions > 0
+        assert top.n_runs == 3  # 3 runs per model in _synthetic_records
+        assert top.mean_position >= 1.0
+
+    # Per-model Smith's S vs Sutrop CSI Spearman ρ
+    assert set(result.salience_index_agreement.keys()) == {"model-a", "model-b"}
+    for mid, rho in result.salience_index_agreement.items():
+        assert -1.0 <= rho <= 1.0, f"{mid} rho out of range: {rho}"
+
+
 def test_pipeline_single_model():
     """Single model should produce a valid but trivial DomainResult."""
     items = ["mother", "father", "sister", "brother"]
