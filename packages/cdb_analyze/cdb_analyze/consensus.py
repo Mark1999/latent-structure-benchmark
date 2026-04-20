@@ -1,15 +1,31 @@
 """Cultural consensus analysis (Romney/Weller/Batchelder). See ARCHITECTURE.md §4.2.
 
 Includes Smith's S salience index computation per Quinlan (2017),
-elbow detection for data-driven free list truncation, and
-pile count variance monitoring per methodology audit.
+elbow detection for data-driven free list truncation, pile count
+variance monitoring per methodology audit, and (post-F1 SME review)
+cultural centrality scores + low-consensus typology classification
+per Caulkins (1999) and Caulkins & Hyatt (1999). See
+docs/SME_REVIEW.md §1.5 and §1.6.
+
+Cultural centrality is computed at the model level per SME Q4
+(models-as-informants). Each model contributes one centrality score
+derived from the loadings on the first eigenvector of the model × model
+agreement (similarity) matrix, normalized to [0, 1]. Following
+Caulkins (1999), we label this as "cultural centrality" rather than
+"competence" — the Romney/Weller/Batchelder "competence" label implies
+objective correctness, which is inappropriate for a benchmark whose
+object is not a single ground-truth culture. A negative centrality
+score indicates the model systematically inverts the modal consensus
+and is a flag, not a disqualification — see docs/SME_REVIEW.md Q6.
 """
 
 from __future__ import annotations
 
 import math
 
-from cdb_core import InformantRecord
+import numpy as np
+from cdb_core import ConsensusType, InformantRecord
+from numpy.typing import NDArray
 
 
 def smiths_s(rank: int, list_length: int) -> float:
@@ -218,3 +234,120 @@ def compute_pile_count_stats(
         "max": max(counts),
         "counts": counts,
     }
+
+
+# ---------------------------------------------------------------------------
+# Cultural centrality and low-consensus typology (post-F1 SME review)
+# ---------------------------------------------------------------------------
+
+def compute_centrality_scores(
+    model_ids: list[str],
+    similarity_matrix: NDArray[np.float64],
+) -> dict[str, float]:
+    """Per-model cultural centrality from the inter-model similarity matrix.
+
+    Computed as the loadings on the first eigenvector of the model × model
+    similarity matrix. Models with high positive loadings are central to
+    the inter-model consensus; models with near-zero loadings are neutral;
+    models with negative loadings systematically invert the modal consensus.
+
+    Per Caulkins (1999), the canonical label for this is "cultural
+    centrality," not "competence." "Competence" implies objective
+    correctness against a known ground truth, which does not apply
+    to a benchmark whose object is architectural comparison rather than
+    approximation of a specific human cultural consensus.
+
+    Negative scores are a first-class finding (candidate SUBCULTURAL or
+    CONTESTED classification — see ``classify_consensus``) and also a
+    QA signal for anomaly review per docs/SME_REVIEW.md Q6.
+
+    Args:
+        model_ids: Ordering of models corresponding to the similarity
+            matrix rows/columns.
+        similarity_matrix: Square model × model similarity matrix.
+
+    Returns:
+        dict mapping model_id → centrality score. Raw loadings are
+        preserved (not normalized to [0, 1]) so the sign is meaningful;
+        readers interpret ``> 0`` as contributing to the dominant
+        structure, ``< 0`` as opposing it.
+    """
+    n = len(model_ids)
+    if n != similarity_matrix.shape[0]:
+        msg = (
+            f"Model count {n} does not match similarity matrix shape "
+            f"{similarity_matrix.shape}"
+        )
+        raise ValueError(msg)
+    if n < 2:
+        return {mid: 0.0 for mid in model_ids}
+
+    # Symmetric real matrix → use eigh for numerical stability.
+    eigvals, eigvecs = np.linalg.eigh(similarity_matrix)
+    # eigh returns ascending; we want the largest eigenvalue's eigenvector.
+    order = eigvals.argsort()[::-1]
+    first = eigvecs[:, order[0]]
+
+    # Convention: flip so the mean loading is positive (the eigenvector
+    # sign is arbitrary; this makes the sign of individual loadings
+    # interpretable relative to the dominant structure).
+    if float(np.mean(first)) < 0:
+        first = -first
+
+    return {mid: float(first[i]) for i, mid in enumerate(model_ids)}
+
+
+def classify_consensus(
+    eigenratio: float,
+    centrality_scores: dict[str, float],
+    *,
+    classic_threshold: float = 3.0,
+    operational_threshold: float = 5.0,
+    deterministic_variance_threshold: float = 1e-9,
+    observed_variance: float | None = None,
+) -> ConsensusType:
+    """Map eigenratio + centrality profile to a low-consensus typology label.
+
+    Per Caulkins & Hyatt (1999) with a DETERMINISTIC extension for
+    future architectures. See docs/SME_REVIEW.md §1.6 and §3.3.
+
+    Decision table:
+
+    | Eigenratio | All scores ≥ 0 | Any score < 0 |
+    |---|---|---|
+    | ≥ 5.0 | STRONG_CONSENSUS | SUBCULTURAL |
+    | [3.0, 5.0) | WEAK_CONSENSUS | SUBCULTURAL |
+    | < 3.0 | TURBULENT | CONTESTED |
+
+    DETERMINISTIC overrides everything when ``observed_variance`` is
+    below ``deterministic_variance_threshold`` — signal that the model
+    produced zero-variance output across the available variation axes
+    (run + prompt). Reserved for future deterministic architectures;
+    does not trigger for any current transformer model at T > 0.
+
+    Args:
+        eigenratio: The λ₁/λ₂ ratio of the inter-model agreement matrix.
+        centrality_scores: Output of ``compute_centrality_scores``.
+        classic_threshold: Lower bound for consensus (default 3.0, the
+            classic RWB threshold).
+        operational_threshold: LSB operational threshold (default 5.0,
+            per SME small-n adjustment).
+        deterministic_variance_threshold: Variance floor below which
+            the output distribution is treated as deterministic.
+        observed_variance: Observed variance across runs + prompts
+            (if known). When None, DETERMINISTIC cannot be assessed
+            and the function falls through to the standard table.
+
+    Returns:
+        One of the six ``ConsensusType`` literal values.
+    """
+    if observed_variance is not None and observed_variance < deterministic_variance_threshold:
+        return "DETERMINISTIC"
+
+    has_negative = any(score < 0 for score in centrality_scores.values())
+
+    if eigenratio >= operational_threshold:
+        return "SUBCULTURAL" if has_negative else "STRONG_CONSENSUS"
+    if eigenratio >= classic_threshold:
+        return "SUBCULTURAL" if has_negative else "WEAK_CONSENSUS"
+    return "CONTESTED" if has_negative else "TURBULENT"

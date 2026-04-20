@@ -176,10 +176,139 @@ class GroundingRef(BaseModel):
     item_intersection_size: int
     item_intersection_total: int
 
+    # ── Register 1 cross-species extension (post-F1 SME review) ──
+    # Populated only when the baseline ships with per-subject raw pile-sort
+    # data (pile_sort_raw.csv). Allows the human subject pool to be
+    # analyzed at Register 1 alongside models, producing a concentration
+    # index directly comparable to model OCI. Null for published aggregate
+    # matrices — the majority case. See ARCHITECTURE.md §4.2.5.
+    human_oci: float | None = None
+    human_oci_ci: tuple[float, float] | None = None
+    n_subjects_with_raw_data: int | None = None
 
-# ────────────���──────────────────────��─────────────────────────────────
+
+# ──────────────────────────────────────────────────────────────────────
+# Consensus typology and measure result types (added post-F1 SME review)
+#
+# See docs/SME_REVIEW.md §1.1 (dual Romney threshold), §1.5 (cultural
+# centrality), §1.6 (low-consensus typology), §2.1 (Sutrop CSI),
+# §2.2 (Nolan Index), and the two-level-design discussion for OCI /
+# WithinModelResult. Canonical location for ConsensusType is here
+# (cdb_core) to avoid circular imports between schemas.py and
+# cdb_analyze.gates where the type is also consumed.
+# ──────────────────────────────────────────────────────────────────────
+
+ConsensusType = Literal[
+    "STRONG_CONSENSUS",   # λ₁/λ₂ ≥ 5.0, all centrality scores positive
+    "WEAK_CONSENSUS",     # 3.0 ≤ λ₁/λ₂ < 5.0, centrality scores positive
+    "SUBCULTURAL",        # λ₁/λ₂ ≥ 3.0, negative centrality scores present
+    "TURBULENT",          # λ₁/λ₂ < 3.0, centrality scores positive
+    "CONTESTED",          # λ₁/λ₂ < 3.0, negative centrality scores present
+    "DETERMINISTIC",      # zero-variance across prompt/run variation;
+                          # reserved for deterministic architectures
+                          # (neurosymbolic, zero-temperature); does not
+                          # trigger for any current transformer model
+]
+
+
+class SutropCSI(BaseModel):
+    """One item's Sutrop composite salience index (Sutrop 2001).
+
+    CSI = F / (N × mP) where F is mentions across runs, N is total
+    runs, and mP is the mean 1-indexed position of the item across
+    runs that contained it. Robust to list-length variance in a way
+    Smith's S is not; see docs/SME_REVIEW.md §2.1.
+    """
+    item: str
+    csi: float
+    f_mentions: int   # number of runs where the item appeared
+    n_runs: int       # total runs considered
+    mean_position: float  # mP (1-indexed)
+
+
+class NolanIndexPair(BaseModel):
+    """Pairwise proportional-frequency similarity between two models.
+
+    Robbins (2023). NI = 1 - D, D = sqrt((1/M) × Σ(d_i)²),
+    d_i = proportional difference per item. Range [0, 1] where 1 is
+    identical proportional distributions. See docs/SME_REVIEW.md §2.2.
+
+    Reported alongside Jaccard and Mantel r to distinguish
+    "same items, different weights" (where Jaccard says 1.0 but NI < 1)
+    from "different items" (where both decrease together).
+    """
+    model_a: str
+    model_b: str
+    ni: float
+    jaccard: float
+    ni_vs_jaccard_delta: float  # ni - jaccard; negative when emphasis differs
+
+
+class MantelPair(BaseModel):
+    """Classical Mantel test between two models' co-occurrence matrices.
+
+    Reports both the matrix correlation r and the permutation p-value
+    on the upper triangle (excluding diagonal). See docs/SME_REVIEW.md
+    §1.2 — added as a parallel pairwise measure alongside the Register 2
+    ``g2_signal`` dispersion-permutation test which tests the full
+    inter-model structure at once.
+    """
+    model_a: str
+    model_b: str
+    r: float
+    p_value: float
+    n_permutations: int
+
+
+class WithinModelResult(BaseModel):
+    """Register 1 result block for one model on one domain.
+
+    See ARCHITECTURE.md §4.2.0 for the three-register framework.
+    Populated by the two-level pipeline (PR #6). All fields may be
+    null on analysis versions that predate the two-level design.
+
+    The primary measure is the Output Concentration Index (OCI) —
+    the eigenratio of the within-model agreement matrix. OCI is a
+    concentration statistic, not a cultural consensus statistic; the
+    rows of that matrix are iid samples from one stochastic process,
+    not distinct cultural agents. See docs/BOOTSTRAP_DESIGN.md §2
+    for the underestimation caveat that accompanies every R1 CI.
+    """
+    model_id: str
+    n_runs: int
+
+    # Register 1 primary measure
+    oci: float                              # λ₁/λ₂ of within-model agreement matrix
+    oci_ci: tuple[float, float] | None = None  # 95% bootstrap CI (see BOOTSTRAP_DESIGN.md)
+    underestimates_uncertainty: bool = True  # binding: see §2 of BOOTSTRAP_DESIGN.md
+
+    # Stability diagnostics
+    salience_stability_rho: float | None = None  # Spearman rho of Smith's S across runs
+    elbow_stability: bool | None = None          # elbow position stable across N sweeps
+    mds_procrustes_rmse: float | None = None     # within-model MDS RMSE across runs
+
+    # Per-run centrality (flags runs most/least representative of this model's
+    # central tendency). Used to pick the Option B centroid run for the
+    # dashboard display representation per ARCHITECTURE.md §4.2.0.
+    centrality_scores_by_run: dict[str, float] = {}
+    centroid_run_id: str | None = None   # informant_id of highest-centrality run
+
+    # Within-model MDS (Option B display assets)
+    mds_within_model: list[list[float]] = []  # (n_items, 2) item coordinates
+
+
+# ──────────────────────────────────────────────────────────────────────
 # DomainResult — the type the frontend sees (ARCHITECTURE.md §3.2)
-# ──────────────��────────────────────────────────���─────────────────────
+# ──────────────────────────────────────────────────────────────────────
+
+# Romney consensus eigenratio thresholds (post-F1 SME review, §1.1).
+# Binding operational gate is 5.0; 3.0 is retained as the classic RWB
+# threshold (Romney/Weller/Batchelder 1986) and reported for
+# cross-study comparability. A ratio in [3.0, 5.0) is a warning zone:
+# passes the classic threshold, fails the operational one.
+ROMNEY_THRESHOLD_CLASSIC: float = 3.0
+ROMNEY_THRESHOLD_LSB: float = 5.0
+
 
 class DomainResult(BaseModel):
     """The thing the dashboard serves. One per (domain, analysis_version).
@@ -196,10 +325,39 @@ class DomainResult(BaseModel):
     mds_uncertainty: dict[str, BootstrapEllipse]
     similarity_matrix: list[list[float]]
     similarity_ci: list[list[tuple[float, float]]]
-    consensus_score: float
+
+    # Register 2 cultural consensus analysis (post-F1 SME review)
+    consensus_score: float  # retained as alias for romney_eigenratio;
+                            # existing code paths write this. New code
+                            # should prefer romney_eigenratio.
     consensus_ci: tuple[float, float]
+    romney_eigenratio: float | None = None
+    romney_threshold_classic: float = ROMNEY_THRESHOLD_CLASSIC  # = 3.0
+    romney_threshold_lsb: float = ROMNEY_THRESHOLD_LSB          # = 5.0
+    romney_consensus_pass: bool | None = None       # based on operational 5.0
+    romney_consensus_warning: bool | None = None    # 3.0 ≤ ratio < 5.0
+    consensus_type: ConsensusType | None = None
+    cultural_centrality_scores: dict[str, float] = {}  # model_id → score
+    negative_centrality_flag: bool = False
+    negative_centrality_models: list[str] = []
+
+    # Pairwise measures (post-F1 SME review)
+    cross_model_mantel: list[MantelPair] = []
+    cross_model_nolan: list[NolanIndexPair] = []
+
+    # Salience indices (post-F1 SME review, §2.1)
+    sutrop_csi: dict[str, list[SutropCSI]] = {}  # per-model CSI lists
+    salience_index_agreement: dict[str, float] = {}  # model_id → Spearman ρ
+                                                     # between Smith's S and CSI
+
+    # Register 1 within-model results (populated by PR #6 two-level pipeline)
+    within_model_results: list[WithinModelResult] = []
+
+    # Grounding
     groundings: list[GroundingRef] = []
     selected_baseline_id: str | None = None
+
+    # Output
     generated_lede: str
     generated_at: datetime
 
