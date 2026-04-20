@@ -5,9 +5,9 @@ description = "Latent Structure Benchmark — corpus lens analysis of LLMs via C
 readme = "README.md"
 requires-python = ">=3.11"
 dependencies = [
-    # Scratch-file dependencies (orchestrator.py, main.py, slack_helper.py).
-    # These predate the formal architecture and will be cleaned up
-    # when scratch files are migrated or removed post-Phase 0.
+    # Scratch-file dependencies (main.py is the only remaining pre-architecture
+    # scratch file). These predate the formal architecture and will be cleaned
+    # up when main.py is migrated or removed post-Phase 0.
     "anthropic>=0.94.0",
     "langgraph>=1.1.6",
     "python-dotenv>=1.2.2",
@@ -48,14 +48,10 @@ cdb-social = { workspace = true }
 [tool.ruff]
 target-version = "py311"
 line-length = 100
-# Exclude pre-architecture scratch files from linting.
-# These will be cleaned up post-Phase 0.
+# Exclude the remaining pre-architecture scratch file from linting.
+# main.py will be cleaned up post-Phase 0.
 exclude = [
     "main.py",
-    "orchestrator.py",
-    "task_manager.py",
-    "slack_helper.py",
-    "test_slack.py",
     "tests/test_smoke.py",
 ]
 
@@ -78,13 +74,9 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "scipy.*"
 ignore_missing_imports = true
-# Exclude pre-architecture scratch files from type checking.
-# These will be cleaned up post-Phase 0.
+# Exclude the remaining pre-architecture scratch file from type checking.
+# main.py will be cleaned up post-Phase 0.
 exclude = [
     "^main\\.py$",
-    "^orchestrator\\.py$",
-    "^task_manager\\.py$",
-    "^slack_helper\\.py$",
-    "^test_slack\\.py$",
     "^tests/test_smoke\\.py$",
 ]
