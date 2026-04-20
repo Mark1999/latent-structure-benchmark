@@ -118,7 +118,25 @@ def parse_pile_sort(
                     continue
 
             if canonical.lower() in seen:
-                raise ValueError(f"Duplicate item in pile sort: {raw_item!r}")
+                # Skip duplicates rather than hard-failing. The LLM
+                # sometimes produces near-duplicate items in a long free
+                # list (e.g., "Bonus Mom" at rank 15 and "bonus mother"
+                # at rank 87 both normalize to "bonus mom"), and then
+                # assigns both instances to piles during pile sort. The
+                # first occurrence wins; subsequent occurrences are
+                # dropped — consistent with how unknown items are handled
+                # at line 117. Surfaced by the 2026-04-20 shakedown where
+                # this pattern caused 50% of Claude Sonnet's runs to fail
+                # on 200-item free lists. Retaining the record (instead
+                # of losing it) is defensible because "which pile should
+                # the duplicate go in?" has no correct answer — first
+                # occurrence is as good as any other choice.
+                logger.warning(
+                    "Duplicate item in pile sort: %r — keeping first "
+                    "occurrence, skipping this one.",
+                    raw_item,
+                )
+                continue
 
             seen.add(canonical.lower())
             normalized_pile.append(canonical)
