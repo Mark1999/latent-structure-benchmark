@@ -6,6 +6,13 @@ Usage:
     python scripts/build_db.py [informants.jsonl] [lsb.sqlite]
     python scripts/build_db.py                           # uses default paths
     python scripts/build_db.py --dry-run                 # report record count without writing
+
+**Shakedown exclusion (binding per docs/SHAKEDOWN_PROTOCOL.md §2).** This
+script refuses to build a canonical SQLite from any path under
+``data/shakedown/``. Shakedown runs are diagnostic-only and must be
+machine-prevented from entering the canonical open-data bundle. The
+exclusion is the fourth of four labeling layers (path, gitignore,
+build-script exclusion, per-record campaign tag).
 """
 
 from __future__ import annotations
@@ -15,6 +22,10 @@ import json
 import sqlite3
 import sys
 from pathlib import Path
+
+# Path segment that, if present in the input JSONL path, causes
+# build_db to refuse the build. Per docs/SHAKEDOWN_PROTOCOL.md §2.
+SHAKEDOWN_PATH_SEGMENT: str = "shakedown"
 
 # ── DDL from docs/DATA_DICTIONARY.md §4 ────────────────────────────────
 
@@ -223,8 +234,35 @@ def _insert_informant(cur: sqlite3.Cursor, rec: dict) -> None:
         )
 
 
+def _refuse_shakedown_path(jsonl_path: Path) -> None:
+    """Raise if the input path is under a shakedown directory.
+
+    Per docs/SHAKEDOWN_PROTOCOL.md §2: shakedown data is machine-
+    prevented from being confused with canonical data. The bundle-build
+    script cannot ingest shakedown records even if asked — this is the
+    fourth labeling layer (after path segregation, gitignore, and the
+    per-record campaign tag).
+
+    The check looks for the literal segment ``shakedown`` anywhere in
+    the resolved path parts. Any use of ``data/shakedown/...`` trips
+    the refusal. To run a shakedown analysis locally, use
+    ``scripts/analyze.py`` directly against the JSONL — that script
+    produces diagnostic DomainResult JSON and does NOT feed the
+    canonical SQLite bundle.
+    """
+    resolved = jsonl_path.resolve()
+    if SHAKEDOWN_PATH_SEGMENT in resolved.parts:
+        msg = (
+            f"Refusing to build canonical SQLite from a shakedown path: {jsonl_path}. "
+            f"Shakedown data is diagnostic-only and must not enter the open data bundle. "
+            f"See docs/SHAKEDOWN_PROTOCOL.md §2. Use scripts/analyze.py for shakedown analysis."
+        )
+        raise ValueError(msg)
+
+
 def build_db(jsonl_path: Path, db_path: Path) -> int:
     """Read informants.jsonl and write lsb.sqlite. Returns record count."""
+    _refuse_shakedown_path(jsonl_path)
     if not jsonl_path.exists():
         print(f"Error: {jsonl_path} not found.", file=sys.stderr)
         return 0
@@ -288,6 +326,15 @@ def main() -> int:
 
     args = parser.parse_args()
     jsonl_path = Path(args.jsonl)
+
+    # Shakedown refusal applies to --dry-run too — the script must
+    # consistently refuse to acknowledge shakedown paths as canonical
+    # inputs, whether or not a DB is actually being written.
+    try:
+        _refuse_shakedown_path(jsonl_path)
+    except ValueError as err:
+        print(f"Error: {err}", file=sys.stderr)
+        return 1
 
     if args.dry_run:
         if not jsonl_path.exists():

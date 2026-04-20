@@ -7,12 +7,15 @@ import json
 import sqlite3
 from pathlib import Path
 
+import pytest
+
 _SPEC = importlib.util.spec_from_file_location(
     "build_db", Path(__file__).resolve().parents[2] / "scripts" / "build_db.py",
 )
 _MOD = importlib.util.module_from_spec(_SPEC)  # type: ignore[arg-type]
 _SPEC.loader.exec_module(_MOD)  # type: ignore[union-attr]
 build_db = _MOD.build_db
+_refuse_shakedown_path = _MOD._refuse_shakedown_path
 
 
 def _make_record(
@@ -260,3 +263,38 @@ def test_build_db_replaces_existing(tmp_path: Path):
     n = conn.execute("SELECT COUNT(*) FROM informants").fetchone()[0]
     conn.close()
     assert n == 1
+
+
+# ── Shakedown refusal — docs/SHAKEDOWN_PROTOCOL.md §2 ──────────────────
+
+class TestShakedownRefusal:
+    """build_db refuses to canonicalize shakedown data (fourth labeling layer)."""
+
+    def test_refuses_shakedown_path_build(self, tmp_path: Path):
+        shakedown_dir = tmp_path / "data" / "shakedown" / "shakedown-2026-04-20"
+        shakedown_dir.mkdir(parents=True)
+        jsonl = shakedown_dir / "informants.jsonl"
+        jsonl.write_text(json.dumps(_make_record()) + "\n")
+        db = tmp_path / "lsb.sqlite"
+
+        with pytest.raises(ValueError, match="shakedown"):
+            build_db(jsonl, db)
+
+        # Critically, no DB was written
+        assert not db.exists()
+
+    def test_refuses_shakedown_path_helper(self, tmp_path: Path):
+        """Unit test of the _refuse_shakedown_path helper directly."""
+        shakedown = tmp_path / "data" / "shakedown" / "informants.jsonl"
+        shakedown.parent.mkdir(parents=True)
+        shakedown.touch()
+        with pytest.raises(ValueError, match="shakedown"):
+            _refuse_shakedown_path(shakedown)
+
+    def test_allows_non_shakedown_path(self, tmp_path: Path):
+        """The helper does not raise on canonical paths."""
+        canonical = tmp_path / "data" / "raw" / "informants.jsonl"
+        canonical.parent.mkdir(parents=True)
+        canonical.touch()
+        # Should not raise
+        _refuse_shakedown_path(canonical)

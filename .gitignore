@@ -18,6 +18,13 @@ data/raw/
 data/processed/
 data/transcripts/
 
+# Non-canonical shakedown runs per docs/SHAKEDOWN_PROTOCOL.md.
+# Shakedown data is diagnostic-only, must never be committed alongside code,
+# and must be machine-prevented from being confused with canonical data in
+# data/raw/. Path segregation is the primary non-canonical labeling mechanism
+# (see SHAKEDOWN_PROTOCOL.md §2).
+data/shakedown/
+
 # Note: data/cost_reports/*.txt is NOT ignored (git-tracked per ARCHITECTURE.md §6.2)
 
 # Dashboard build artifacts

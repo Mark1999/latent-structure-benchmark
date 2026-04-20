@@ -1332,6 +1332,8 @@ The runner and adapters live on ordinary project VPS (`lsb-agent-01`) / CI infra
 
 This phase is a formal scientific gate, not a build step. Nothing downstream ships until Phase 4 passes. The gate has three quantitative criteria, each of which must be met before Phase 5 begins.
 
+**Pre-Phase-4a shakedown protocol (added 2026-04-20).** Any pre-Phase-4a collection run that uses real LLM APIs — for pipeline instrumentation, CDA SME first-result review, or deferred-question sharpening — is binding under `docs/SHAKEDOWN_PROTOCOL.md`. The shakedown protocol specifies the non-canonical labeling (four machine-enforced layers), the external-citation rule (cited externally → retroactively "official"), the scope limits, the methodology sanity checks, and the retention policy. Shakedown data never substitutes for Phase 4a; it is diagnostic about the instrument, not evidence about the models.
+
 *4a. Multi-model collection.* Using the Phase 1 adapters (Anthropic, OpenRouter, Hugging Face Inference Providers as needed), run the full family domain across the 12-model slate with N=5 runs each. This produces the first real dataset.
 
 *4b. Prompt-sensitivity study (`sensitivity.py`).* Generate 8 paraphrased variants of the free-list and pile-sort prompts (semantically equivalent, lexically different). Run 2 reference models (Claude Opus 4.6 and the current GPT flagship) across all 8 variants with N=5 each. Compute within-model variance (across prompt variants) and between-model variance (across the 12 models from 4a). Optionally extend to 16 or 32 variants on selected open-weight models via OpenRouter and/or Hugging Face Inference Providers within the monthly spend cap.
