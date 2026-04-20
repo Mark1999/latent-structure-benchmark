@@ -282,6 +282,17 @@ class WithinModelResult(BaseModel):
     oci_ci: tuple[float, float] | None = None  # 95% bootstrap CI (see BOOTSTRAP_DESIGN.md)
     underestimates_uncertainty: bool = True  # binding: see §2 of BOOTSTRAP_DESIGN.md
 
+    # Deterministic-output marker (post-F1 SME review, 2026-04-20).
+    # True when the run × run agreement matrix has effectively zero second
+    # eigenvalue, indicating the model produced near-identical pile-sort
+    # structure on every run (zero-variance output distribution). Triggers
+    # the ConsensusType = DETERMINISTIC classification and drives the
+    # Register 2 visual convention in DESIGN_SYSTEM.md §3.3.5 — not
+    # suppression, a distinct marker, because the mismatch is the finding.
+    # Does not trigger on any current transformer model at T > 0; reserved
+    # for future deterministic architectures (neurosymbolic, zero-temp).
+    deterministic_output: bool = False
+
     # Stability diagnostics
     salience_stability_rho: float | None = None  # Spearman rho of Smith's S across runs
     elbow_stability: bool | None = None          # elbow position stable across N sweeps

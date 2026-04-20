@@ -127,14 +127,27 @@ class TestWithinModelAnalysis:
         assert wm.model_id == "claude-opus-4-6"
         assert wm.n_runs == 6
         # All runs identical → agreement matrix is all ones → OCI is
-        # capped at the sentinel for effectively infinite concentration
+        # capped at the sentinel for effectively infinite concentration,
+        # AND deterministic_output is True (λ₂ is effectively zero).
         assert wm.oci >= 5.0
         assert wm.underestimates_uncertainty is True
+        assert wm.deterministic_output is True
 
     def test_variable_runs_produce_lower_oci(self):
         stable_oci = compute_oci(_stable_runs("m", 6))
         variable_oci = compute_oci(_variable_runs("m", 6))
         assert variable_oci < stable_oci
+
+    def test_variable_runs_not_deterministic(self):
+        """Variable runs have λ₂ > 0 so deterministic_output is False.
+
+        Guards the distinction between "high OCI" (concentrated but still
+        variable) and "deterministic output" (zero variance, the R1-c
+        case in DESIGN_SYSTEM.md §3.3.5).
+        """
+        records = _variable_runs("m", 6)
+        wm = run_within_model_analysis(records)
+        assert wm.deterministic_output is False
 
     def test_centroid_run_is_in_inputs(self):
         records = _variable_runs("m", 6)
