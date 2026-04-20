@@ -1,0 +1,284 @@
+"""Two-level nested CDA pipeline (post-F1 SME review).
+
+Implements the three-register framework from ARCHITECTURE.md §4.2.0:
+
+- **Register 1 (within-model)**: N runs of one model analyzed as an
+  output distribution. The primary measure is the Output Concentration
+  Index (OCI) — the eigenratio of the run × run agreement matrix. OCI
+  is a concentration statistic, not a cultural consensus ratio; the
+  runs are iid samples from one stochastic process, not distinct
+  cultural agents. See docs/SME_REVIEW.md and docs/BOOTSTRAP_DESIGN.md
+  for why OCI must never be called "within-model consensus."
+
+- **Register 2 (between-model)**: each model contributes one voice as
+  its Option A consensus free list (``level_two_input``). Human
+  baselines participate as reference informants with distinct markers.
+
+- **Register 3 (cross-version drift)**: handled by ``drift.py``,
+  unchanged by this module.
+
+This module produces Register 1 results (per-model ``WithinModelResult``
+objects) and the three Level-2-input representations per the SME
+resolution (``options_for_level_two``):
+
+- **Option A — pooled consensus free list** (primary Level 2 input).
+  All models contribute equal voice regardless of OCI.
+- **Option B — centroid run** (dashboard display only). The single
+  run closest to the model's central tendency.
+- **Option C — coherence-weighted diagnostic** (not an alternative
+  map). A separate computation reported alongside the Register 2 map
+  so readers can see whether high-OCI models cluster together.
+"""
+
+from __future__ import annotations
+
+import numpy as np
+from cdb_core import InformantRecord, WithinModelResult
+from numpy.typing import NDArray
+
+from cdb_analyze.consensus import compute_consensus_free_list
+
+
+def run_within_model_analysis(
+    records: list[InformantRecord],
+    *,
+    n_bootstrap: int = 0,
+    random_state: int = 42,
+) -> WithinModelResult:
+    """Register 1 analysis for one model's N runs.
+
+    Computes the Output Concentration Index (OCI), per-run centrality
+    loadings, the centroid run (Option B display representation), and
+    optional bootstrap CIs on OCI.
+
+    Args:
+        records: InformantRecords for a single (model, domain). Must
+            all share the same model_id. Minimum N = 3 for a
+            well-posed eigenratio; below that, OCI is returned as 0.0
+            with a null CI.
+        n_bootstrap: Bootstrap iterations for OCI CI. 0 means no
+            bootstrap (the default for tests and for fast pipeline
+            runs). When > 0, the returned ``oci_ci`` is the 95%
+            percentile interval from resampling runs with replacement.
+            **The CI systematically underestimates uncertainty** —
+            see docs/BOOTSTRAP_DESIGN.md §2. The
+            ``underestimates_uncertainty`` flag on the returned object
+            is always True for Register 1.
+        random_state: RNG seed.
+
+    Returns:
+        WithinModelResult populated with OCI, per-run centrality, the
+        centroid run id, and optional CIs. Stability diagnostics
+        (salience, elbow, Procrustes) are left null — those are
+        populated by the saturation analysis runner when varying N,
+        not on a single N-run record batch.
+
+    Raises:
+        ValueError: if records is empty or contains mixed model_ids.
+    """
+    if not records:
+        msg = "Cannot run within-model analysis on empty records"
+        raise ValueError(msg)
+
+    model_ids = {r.model_id for r in records}
+    if len(model_ids) != 1:
+        msg = f"All records must share one model_id; got {sorted(model_ids)}"
+        raise ValueError(msg)
+    model_id = model_ids.pop()
+    n_runs = len(records)
+
+    agreement = _run_agreement_matrix(records)
+    oci = _oci_from_matrix(agreement)
+    centrality = _centrality_loadings(agreement)
+    centrality_by_run = {
+        records[i].informant_id: float(centrality[i])
+        for i in range(n_runs)
+    }
+    centroid_run_id = (
+        max(centrality_by_run, key=lambda k: centrality_by_run[k])
+        if centrality_by_run
+        else None
+    )
+
+    oci_ci: tuple[float, float] | None = None
+    if n_bootstrap > 0 and n_runs >= 3:
+        oci_ci = _bootstrap_oci(records, n_bootstrap=n_bootstrap, random_state=random_state)
+
+    return WithinModelResult(
+        model_id=model_id,
+        n_runs=n_runs,
+        oci=float(oci),
+        oci_ci=oci_ci,
+        underestimates_uncertainty=True,  # binding; see BOOTSTRAP_DESIGN.md §2
+        centrality_scores_by_run=centrality_by_run,
+        centroid_run_id=centroid_run_id,
+    )
+
+
+def compute_oci(records: list[InformantRecord]) -> float:
+    """Convenience wrapper — OCI only, without the full WithinModelResult."""
+    if len(records) < 2:
+        return 0.0
+    return float(_oci_from_matrix(_run_agreement_matrix(records)))
+
+
+# ---------------------------------------------------------------------------
+# Level-2 input derivation (Option A / B / C per the SME resolution)
+# ---------------------------------------------------------------------------
+
+def options_for_level_two(
+    records: list[InformantRecord],
+) -> dict[str, object]:
+    """Compute the three Level-2-input representations per SME resolution.
+
+    Returns a dict with:
+
+    - ``"option_a"``: list of (item, composite_smiths_s) — the pooled
+      consensus free list from the model's runs. **Primary Level 2
+      input**. Equal voice for all models regardless of OCI.
+    - ``"option_b_centroid_run_id"``: the informant_id of the run
+      closest to the model's central tendency. Used as the
+      **dashboard display representation** on tooltips and model
+      profile pages — a concrete, readable single run rather than a
+      pooled aggregate.
+    - ``"option_c_weight"``: the model's OCI, to be used only as a
+      **diagnostic** in a coherence-weighted sensitivity analysis
+      run alongside the Register 2 map — never as the primary map.
+      Per SME Q2 resolution: weighting Level 2 by Level 1 coherence
+      biases low-OCI models toward the margins for the wrong reason.
+
+    See ARCHITECTURE.md §4.2.0 and docs/SME_REVIEW.md for the full
+    rationale and why Option B is preferred for dashboard display
+    over Option A's pooled aggregate.
+    """
+    if not records:
+        return {
+            "option_a": [],
+            "option_b_centroid_run_id": None,
+            "option_c_weight": 0.0,
+        }
+
+    wm = run_within_model_analysis(records, n_bootstrap=0)
+    option_a = compute_consensus_free_list(records)
+    return {
+        "option_a": option_a,
+        "option_b_centroid_run_id": wm.centroid_run_id,
+        "option_c_weight": wm.oci,
+    }
+
+
+# ---------------------------------------------------------------------------
+# Internals
+# ---------------------------------------------------------------------------
+
+def _run_agreement_matrix(
+    records: list[InformantRecord],
+) -> NDArray[np.float64]:
+    """Compute an N × N run agreement matrix.
+
+    Agreement between two runs is the fraction of item pairs on which
+    they agree — both in the same pile, or both in different piles —
+    computed on the intersection of items present in both runs'
+    pile-sort output. Diagonal = 1.0. Symmetric.
+
+    This is the Register 1 analog of the RWB informant × informant
+    agreement matrix. The resulting matrix's eigenratio λ₁/λ₂ is the
+    Output Concentration Index.
+    """
+    n = len(records)
+    mat = np.ones((n, n), dtype=np.float64)
+
+    # Build a lookup of (item → pile_index) for each run for fast lookup
+    per_run: list[dict[str, int]] = []
+    for r in records:
+        item_to_pile: dict[str, int] = {}
+        for pile_idx, pile in enumerate(r.pile_sort.parsed_piles):
+            for item in pile:
+                item_to_pile[item] = pile_idx
+        per_run.append(item_to_pile)
+
+    for i in range(n):
+        for j in range(i + 1, n):
+            shared = sorted(set(per_run[i]) & set(per_run[j]))
+            if len(shared) < 2:
+                mat[i, j] = 0.0
+                mat[j, i] = 0.0
+                continue
+            n_pairs = 0
+            n_agree = 0
+            for a_idx in range(len(shared)):
+                for b_idx in range(a_idx + 1, len(shared)):
+                    a, b = shared[a_idx], shared[b_idx]
+                    same_i = per_run[i][a] == per_run[i][b]
+                    same_j = per_run[j][a] == per_run[j][b]
+                    if same_i == same_j:
+                        n_agree += 1
+                    n_pairs += 1
+            mat[i, j] = n_agree / n_pairs if n_pairs else 0.0
+            mat[j, i] = mat[i, j]
+    return mat
+
+
+def _oci_from_matrix(agreement: NDArray[np.float64]) -> float:
+    """Compute the eigenratio λ₁/λ₂ of the agreement matrix.
+
+    Returns 0.0 for degenerate inputs (too few rows, zero λ₂).
+    """
+    n = agreement.shape[0]
+    if n < 2:
+        return 0.0
+    eigvals = np.linalg.eigvalsh(agreement)
+    eigvals = np.sort(eigvals)[::-1]  # descending
+    if len(eigvals) < 2:
+        return 0.0
+    lambda_1 = float(eigvals[0])
+    lambda_2 = float(eigvals[1])
+    if lambda_2 <= 1e-12:
+        # λ₂ effectively zero — concentration is effectively infinite.
+        # Return a large sentinel rather than dividing by ~0; upstream
+        # code treats OCI ≥ operational threshold as high concentration.
+        return 100.0
+    return lambda_1 / lambda_2
+
+
+def _centrality_loadings(
+    agreement: NDArray[np.float64],
+) -> NDArray[np.float64]:
+    """Per-run loadings on the first eigenvector of the agreement matrix.
+
+    Used to identify the centroid run (highest loading) and to surface
+    run-level centrality for any per-run QA or diagnostics.
+    """
+    n = agreement.shape[0]
+    if n < 2:
+        return np.zeros(n)
+    eigvals, eigvecs = np.linalg.eigh(agreement)
+    order = eigvals.argsort()[::-1]
+    first = eigvecs[:, order[0]]
+    if float(np.mean(first)) < 0:
+        first = -first
+    return first
+
+
+def _bootstrap_oci(
+    records: list[InformantRecord],
+    *,
+    n_bootstrap: int,
+    random_state: int,
+) -> tuple[float, float]:
+    """95% percentile CI on OCI via resampling runs with replacement.
+
+    **This CI systematically underestimates uncertainty** — runs are
+    iid draws from one stochastic process, so effective N is less
+    than nominal N. The returned interval is narrow by construction.
+    See docs/BOOTSTRAP_DESIGN.md §2.
+    """
+    n = len(records)
+    rng = np.random.default_rng(random_state)
+    vals: list[float] = []
+    for _ in range(n_bootstrap):
+        idx = rng.integers(0, n, size=n)
+        resampled = [records[i] for i in idx]
+        mat = _run_agreement_matrix(resampled)
+        vals.append(_oci_from_matrix(mat))
+    return float(np.percentile(vals, 2.5)), float(np.percentile(vals, 97.5))
