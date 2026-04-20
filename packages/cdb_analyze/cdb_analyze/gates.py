@@ -7,20 +7,75 @@ Three quantitative criteria that must all pass before Phase 5 begins:
     G2 — Signal: model-to-model similarity matrix statistically
           distinguishable from random (permutation test p < 0.01).
     G3 — Replication: cluster structure replicates across independent
-          bootstrap pipeline runs (Rand index ≥ 0.7).
+          bootstrap pipeline runs (Adjusted Rand Index ≥ 0.6; Rand
+          index also reported for cross-study comparability).
+
+Per the post-F1 SME review, G3 uses the Adjusted Rand Index as the
+binding metric. ARI corrects for chance agreement and is the standard
+in modern cluster analysis literature; 0.60 on ARI is conservative and
+defensible and corresponds roughly to 0.70 on unadjusted Rand for
+typical cluster sizes. The unadjusted Rand index is still computed
+and reported in ``secondary_metrics`` for continuity with prior
+internal results and for cross-study comparability with papers that
+reported Rand before ARI was common.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
+from typing import Literal
 
 import numpy as np
 from cdb_core import InformantRecord
 from numpy.typing import NDArray
+from sklearn.metrics import adjusted_rand_score
 
 from cdb_analyze.cluster import cluster_models
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
 from cdb_analyze.mds import compute_cross_model_similarity
+
+# ---------------------------------------------------------------------------
+# Consensus typology (post-F1 SME review)
+# ---------------------------------------------------------------------------
+#
+# Low-consensus domain typology per Caulkins & Hyatt (1999), with a
+# DETERMINISTIC extension for future architectures.
+#
+# Only ``DETERMINISTIC`` is used by the current pipeline. The remaining
+# five values are defined here so that the ``classify_consensus``
+# function added in the DomainResult schema PR can return any of them
+# without a second type change. See ``docs/SME_REVIEW.md`` §1.6 and
+# §3.3.
+#
+# Triggering conditions (to be implemented by ``classify_consensus``
+# in the schema PR):
+#
+#   STRONG_CONSENSUS  — λ₁/λ₂ ≥ 5.0 and all centrality scores positive
+#   WEAK_CONSENSUS    — 3.0 ≤ λ₁/λ₂ < 5.0 and all centrality scores
+#                       positive (passes classic threshold, warn on
+#                       operational threshold)
+#   SUBCULTURAL       — λ₁/λ₂ ≥ 3.0 with negative centrality scores
+#                       present (models form sub-clusters)
+#   TURBULENT         — λ₁/λ₂ < 3.0 with centrality scores positive
+#                       (no dominant structure)
+#   CONTESTED         — λ₁/λ₂ < 3.0 with negative centrality scores
+#                       (deep structural disagreement across models)
+#   DETERMINISTIC     — Zero-variance output across prompt/run variation.
+#                       Does not trigger for any current model; reserved
+#                       for future deterministic architectures
+#                       (neurosymbolic systems, zero-temperature models).
+#                       When triggered, the eigenratio is undefined and
+#                       CCM is not computed.
+
+ConsensusType = Literal[
+    "STRONG_CONSENSUS",
+    "WEAK_CONSENSUS",
+    "SUBCULTURAL",
+    "TURBULENT",
+    "CONTESTED",
+    "DETERMINISTIC",
+]
+
 
 # ---------------------------------------------------------------------------
 # Shared result type
@@ -28,13 +83,21 @@ from cdb_analyze.mds import compute_cross_model_similarity
 
 @dataclass(frozen=True)
 class GateResult:
-    """Outcome of a single validation gate."""
+    """Outcome of a single validation gate.
+
+    ``value`` is the binding metric (what the pass/fail decision is made
+    against). ``secondary_metrics`` carries auxiliary numbers that are
+    reported alongside — for G3, ``median_rand_index`` is in
+    ``secondary_metrics`` while ``value`` carries the (binding) median
+    Adjusted Rand Index. See the module docstring.
+    """
 
     gate: str          # "G1", "G2", "G3"
     passed: bool
-    value: float       # observed metric (ratio / p-value / Rand index)
+    value: float       # binding metric (ratio / p-value / ARI)
     threshold: float   # pass threshold
     detail: str        # human-readable one-liner
+    secondary_metrics: dict[str, float] = field(default_factory=dict)
 
 
 # ---------------------------------------------------------------------------
@@ -176,7 +239,7 @@ def g3_replication(
     records_by_model: dict[str, list[InformantRecord]],
     *,
     n_trials: int = 100,
-    threshold: float = 0.7,
+    threshold: float = 0.6,
     random_state: int = 42,
 ) -> GateResult:
     """G3 — Does the cluster structure replicate across independent runs?
@@ -184,20 +247,28 @@ def g3_replication(
     First computes a reference clustering on the full data to determine
     the number of clusters k. Then for each trial, splits each model's
     runs into two disjoint halves, clusters both halves at the same k,
-    and compares labels via Rand index. This pins the cluster count so
-    that the test measures membership stability, not cut-point detection
-    stability.
+    and compares labels via the Adjusted Rand Index (ARI) — the binding
+    metric for G3 per the post-F1 SME review. The unadjusted Rand index
+    is also computed and reported in ``secondary_metrics`` for
+    cross-study comparability.
 
-    The gate reports the *median* Rand index across trials.
+    This pins the cluster count so that the test measures membership
+    stability, not cut-point detection stability.
+
+    The gate reports the *median* ARI across trials as the binding
+    value; the median unadjusted Rand is in ``secondary_metrics``.
 
     Args:
         records_by_model: model_id → list of InformantRecords.
         n_trials: Number of independent split-half trials.
-        threshold: Minimum Rand index to pass (default 0.7).
+        threshold: Minimum ARI to pass (default 0.6 per SME review;
+            prior Rand threshold was 0.7 and is retained only for
+            continuity as a secondary metric).
         random_state: RNG seed.
 
     Returns:
-        GateResult with median Rand index and pass/fail.
+        GateResult with median ARI (value) and median Rand in
+        ``secondary_metrics``.
     """
     rng = np.random.default_rng(random_state)
     model_ids = sorted(records_by_model.keys())
@@ -226,7 +297,8 @@ def g3_replication(
     # Compute reference k from full data (auto-cut)
     ref_k = _reference_cluster_count(records_by_model, model_ids)
 
-    rand_indices = []
+    ari_values: list[float] = []
+    rand_values: list[float] = []
 
     for _ in range(n_trials):
         half_a: dict[str, list[InformantRecord]] = {}
@@ -242,13 +314,13 @@ def g3_replication(
         try:
             labels_a = _cluster_from_records(half_a, model_ids, max_clusters=ref_k)
             labels_b = _cluster_from_records(half_b, model_ids, max_clusters=ref_k)
-            ri = rand_index(labels_a, labels_b)
-            rand_indices.append(ri)
+            ari_values.append(float(adjusted_rand_score(labels_a, labels_b)))
+            rand_values.append(rand_index(labels_a, labels_b))
         except (ValueError, np.linalg.LinAlgError):
             # Degenerate split — skip this trial
             continue
 
-    if not rand_indices:
+    if not ari_values:
         return GateResult(
             gate="G3",
             passed=False,
@@ -257,18 +329,26 @@ def g3_replication(
             detail="All split-half trials failed (degenerate data)",
         )
 
-    median_ri = float(np.median(rand_indices))
-    passed = median_ri >= threshold
+    median_ari = float(np.median(ari_values))
+    median_rand = float(np.median(rand_values))
+    passed = median_ari >= threshold
 
     return GateResult(
         gate="G3",
         passed=passed,
-        value=round(median_ri, 4),
+        value=round(median_ari, 4),
         threshold=threshold,
         detail=(
-            f"Median Rand index {median_ri:.4f} across {len(rand_indices)} "
-            f"trials at k={ref_k} (threshold ≥ {threshold})"
+            f"Median ARI {median_ari:.4f} across {len(ari_values)} trials at k={ref_k} "
+            f"(threshold ≥ {threshold}); median Rand {median_rand:.4f} reported for "
+            f"cross-study comparability."
         ),
+        secondary_metrics={
+            "median_rand_index": round(median_rand, 4),
+            "rand_threshold_prior": 0.7,
+            "n_trials_completed": float(len(ari_values)),
+            "reference_k": float(ref_k),
+        },
     )
 
 

@@ -231,12 +231,20 @@ class TestG2Signal:
 
 class TestG3Replication:
     def test_consistent_models_pass(self):
-        """Models with stable pile structures should replicate."""
+        """Models with stable pile structures should replicate.
+
+        Post-F1 SME review: G3's binding metric is Adjusted Rand Index
+        (threshold ≥ 0.6). Unadjusted Rand is reported in
+        ``secondary_metrics`` for cross-study comparability.
+        """
         records = _make_distinct_models()
         result = g3_replication(records, n_trials=50)
         assert result.gate == "G3"
         assert result.passed is True
-        assert result.value >= 0.7
+        assert result.value >= 0.6
+        # Both ARI (primary) and Rand (secondary) are reported
+        assert "median_rand_index" in result.secondary_metrics
+        assert result.secondary_metrics["rand_threshold_prior"] == 0.7
 
     def test_single_model_fails(self):
         items = ["mother", "father", "sister", "brother"]

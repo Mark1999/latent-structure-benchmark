@@ -183,7 +183,7 @@ These are mistakes that have happened on similar projects, or that the LSB desig
 
 8. **Building a dashboard component that displays a point estimate without an uncertainty ellipse.** Reviewer rule (in `ARCHITECTURE.md` §4.5) is that no visualization may display a point estimate without its associated uncertainty. Bare points on an MDS plot don't ship. Heatmap cells without CIs don't ship. The bootstrap module exists for a reason.
 
-9. **Calling a real API in a test.** Tests use fixtures from `tests/fixtures/`. The fixture convention is documented in `tests/fixtures/README.md`. There is no exception for "but I just need to verify the adapter works once" — adapter integration tests run against fixtures, not against real providers. Real-API verification happens during structured collection campaigns on `lsb-agent-01`, not in CI.
+9. **Calling a real API in a test.** Tests use fixtures from `tests/fixtures/`. The fixture convention is documented in `tests/fixtures/README.md`. There is no exception for "but I just need to verify the adapter works once" — adapter integration tests run against fixtures, not against real providers. Real-API verification happens during structured collection campaigns on the project VPS (formerly `lsb-agent-01`, decommissioned 2026-04-19; new VPS TBD — see `HOSTING_AND_DEV_OPS.md` top-of-doc banner), not in CI.
 
 10. **Editing existing lines in `data/raw/informants.jsonl`.** The file is append-only by convention and by tooling. The CI append-only check rejects any PR that modifies pre-existing lines. If you find yourself wanting to "fix" a record, the answer is no — the bad record stays in place (with `qa_passed=False` and `qa_notes` documenting the failure), and the audit trail remains intact.
 
