@@ -167,8 +167,18 @@ async def collect_single_pass(
     output_path: Path,
     *,
     prompt_version: str = "v1",
+    temperature: float | None = None,
+    campaign_id: str | None = None,
 ) -> int:
-    """Single-pass collection: each run generates and sorts its own items."""
+    """Single-pass collection: each run generates and sorts its own items.
+
+    Args:
+        temperature: Optional single temperature used for all three CDA
+            steps. When None, per-step defaults apply (§4.1.3).
+        campaign_id: Optional campaign identifier written into qa_notes
+            on every record. Used by the pre-Phase-4a shakedown protocol
+            per docs/SHAKEDOWN_PROTOCOL.md §2.
+    """
     domain = load_domain(domain_slug)
     successful = 0
 
@@ -188,7 +198,12 @@ async def collect_single_pass(
         )
 
         try:
-            record = await run_informant(adapter, domain, run_index, prompt_version=prompt_version)
+            record = await run_informant(
+                adapter, domain, run_index,
+                prompt_version=prompt_version,
+                temperature=temperature,
+                campaign_id=campaign_id,
+            )
             append_record(record, output_path)
             qa_passed = check_record(record)
             status_str = "PASS" if qa_passed else "QA_FAIL"
@@ -458,6 +473,24 @@ def main() -> int:
         "--list-models", action="store_true",
         help="List all models in the registry and exit",
     )
+    parser.add_argument(
+        "--temperature", type=float, default=None,
+        help="Override the per-step temperatures (defaults per ARCHITECTURE.md "
+        "§4.1.3: 0.7 free_list, 0.3 pile_sort, 0.3 interview). When set, the "
+        "same value is used for all three steps. Used by the shakedown "
+        "determinism cell (--temperature 0.0) per docs/SHAKEDOWN_PROTOCOL.md "
+        "§4. Applies only to --mode single_pass in this PR; other modes use "
+        "the hardcoded defaults.",
+    )
+    parser.add_argument(
+        "--campaign-id", type=str, default=None,
+        help="Optional campaign identifier. When set, the string "
+        "'campaign_id=<value>' is written into each record's qa_notes field "
+        "at collection time. The canonical use is the shakedown non-canonical "
+        "labeling per docs/SHAKEDOWN_PROTOCOL.md §2 (e.g., --campaign-id "
+        "shakedown-20260420). Phase 4a canonical runs leave this unset. "
+        "Applies only to --mode single_pass in this PR.",
+    )
 
     args = parser.parse_args()
 
@@ -572,6 +605,8 @@ def main() -> int:
             result = asyncio.run(collect_single_pass(
                 adapter, args.domain, args.runs, args.output,
                 prompt_version=args.prompt_version,
+                temperature=args.temperature,
+                campaign_id=args.campaign_id,
             ))
         elif args.mode == "two_pass":
             result = asyncio.run(collect_two_pass(
