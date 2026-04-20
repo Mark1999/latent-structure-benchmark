@@ -59,12 +59,55 @@ def test_parse_many_missing_items_raises():
         parse_pile_sort(text, _ITEMS)
 
 
-def test_parse_duplicate_item_raises():
+def test_parse_duplicate_item_is_skipped_not_raised():
+    """Duplicate item assignments: first occurrence wins, subsequent skip.
+
+    Behavior change per 2026-04-20 shakedown finding: Claude Sonnet on
+    200-item free lists occasionally produces near-duplicates that
+    normalize to the same canonical item (e.g., 'Bonus Mom' and 'bonus
+    mother' both → 'bonus mom'). The pile-sort parser previously raised
+    on the second occurrence, losing the entire run. It now skips the
+    duplicate (consistent with how unknown items are handled) so the
+    first-occurrence assignment is kept and the run produces a valid
+    record. See pile_sort.py line 120 for the rationale.
+    """
     text = json.dumps({
         "piles": [["mother", "father", "mother"], ["sister", "brother", "aunt"]],
     })
-    with pytest.raises(ValueError, match="Duplicate"):
-        parse_pile_sort(text, _ITEMS)
+    piles, matrix = parse_pile_sort(text, _ITEMS)
+    # First occurrence of "mother" (in pile 0) is kept; second occurrence
+    # (also in pile 0) is skipped. The final pile 0 therefore has only
+    # ["mother", "father"] — duplicates are silently dropped.
+    assert len(piles) == 2
+    assert piles[0].count("mother") == 1
+    assert piles[0] == ["mother", "father"]
+    assert set(piles[1]) == {"sister", "brother", "aunt"}
+
+
+def test_parse_fuzzy_duplicate_across_piles_is_skipped():
+    """Near-duplicates that resolve to the same canonical item via
+    punctuation-stripping are also deduplicated (the real shakedown case)."""
+    text = json.dumps({
+        "piles": [
+            ["mother"],
+            # "Mother," with trailing comma normalizes to "mother" via
+            # the stripped-punctuation path (pile_sort.py line 113-115).
+            # Since "mother" is already in the first pile, this second
+            # occurrence is skipped.
+            ["father", "Mother,", "aunt"],
+            ["sister", "brother"],
+        ],
+    })
+    piles, matrix = parse_pile_sort(text, _ITEMS)
+    assert len(piles) == 3
+    # "mother" appears only in the first pile; the fuzzy duplicate is dropped
+    mothers_in_pile_0 = piles[0].count("mother")
+    mothers_in_pile_1 = piles[1].count("mother")
+    assert mothers_in_pile_0 == 1
+    assert mothers_in_pile_1 == 0
+    # Other items in pile 1 are still kept
+    assert "father" in piles[1]
+    assert "aunt" in piles[1]
 
 
 def test_parse_unexpected_item_skipped():

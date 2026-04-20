@@ -1,1 +1,5 @@
-# Phase 1 deliverable
+slug: holidays
+version: v1
+display_name: Holidays
+prompt_seed: "holiday, festive day, or religious observance"
+truncation_k: 50
