@@ -108,6 +108,15 @@ Unpack the long form:
 - **Surfaced by applying CDA protocols** — the methodology is imported from cognitive anthropology. That does not import the ontological commitments of cognitive anthropology along with it. We are borrowing a microscope, not claiming the sample is alive.
 - **As if it were an informant** — the "as if" is load-bearing. Treating the model as an informant is a methodological move, not a metaphysical one.
 
+**Four-layer breakdown of the corpus lens (added post-F1 SME review).** The "corpus lens" phrase compresses four distinct transformations. Naming them explicitly makes the construct operationally legible and clarifies what LSB does and does not observe:
+
+1. **Co-occurrence patterns in the training corpus.** The substrate. Not directly observed by LSB; mostly opaque for frontier models.
+2. **Compression and abstraction by pretraining** (next-token prediction). Reshapes raw co-occurrence into representations that serve sequence prediction. Not directly observed.
+3. **Behavioral shaping by RLHF and constitutional fine-tuning.** Inserts preferences, safety training, and alignment objectives over the pretraining representation. Not directly observed.
+4. **Surface expression through temperature-sampled token generation.** The only layer LSB actually observes. Every claim LSB makes about Layers 1–3 is inferential, not direct.
+
+LSB elicitation operates on Layer 4. What it reveals about Layers 1–3 is a composed inference, not a measurement. This does not weaken the construct; it clarifies what it claims.
+
 ### 1.5.2 Why the reframe is stronger, not weaker
 
 This framing is **more** defensible than "measures cultural worldview," not less. Three reasons:
@@ -139,14 +148,32 @@ The following substitutions are enforced in all generated text (ledes, social po
 | "Model X's worldview" | "Model X's categorical structure" / "Model X's corpus lens" |
 | "Cultural bias" (standalone) | "Categorical divergence from [baseline]" |
 | "What the model understands" | "What the model's outputs pattern as" |
+| "Within-model consensus" | "Representational coherence" / "Output Concentration Index (OCI)" |
+| "Within-model cultural consensus" | "Output distribution analysis" |
+| "Within-model eigenratio" | "Output Concentration Index (OCI)" |
+| "Within-model CCM" | "Output distribution analysis" |
+
+The last four rows (added post-F1 SME review) guard the boundary between **Register 1 (output distribution analysis)** and **Register 2 (cultural consensus analysis)** — see §4.2 for the register framework. Running the eigenratio machinery on N runs of a single model at fixed prompt does not produce a cultural consensus statistic; the rows of that agreement matrix are iid samples from one stochastic process, not distinct cultural agents, and the RWB assumptions do not hold. The measure (concentration of the model's output distribution on a domain) is real and useful; the name is what matters. Calling it "within-model consensus" imports assumptions that do not apply and will be rejected by the Reviewer.
 
 The lede generator (§4.2.4) receives this table as part of its system prompt and must not produce text containing the left-column phrases. The Reviewer agent spot-checks a sample of generated ledes per release.
 
-### 1.5.5 Human grounding — optional, per-domain, multi-baseline
+### 1.5.5 Human grounding — reference point, not target of measurement
 
-Claims of the form "Model A differs from Model B" are weaker than claims of the form "Model A sits closer to human consensus than Model B." Where human CDA data is available, LSB includes one or more human baselines as reference points in the model-to-model MDS plot. Where it is not available, the benchmark makes model-to-model comparative claims only — and that is a normal, first-class state, not a degraded mode.
+**Framing reversal (post-F1 SME review).** An earlier version of this section framed human baselines as the *ceiling* for claim strength — treating "Model A sits closer to the 1996 Romney US human consensus than Model B" as a stronger claim than "Model A and Model B organize family terms differently from each other." That hierarchy imports an assumption from classical CDA that does not hold for LSB's research question. In classical CDA, human consensus is the ground truth because the object of measurement *is* human cultural knowledge. LSB is not measuring human cultural knowledge. It is measuring architectural differences between language models. Treating human consensus as the ceiling implicitly suggests that "closer to human = better," which is a claim LSB cannot and should not make.
 
-Three things follow from this, all of which are binding on the rest of the document:
+**LSB's primary scientific claim is comparative across model architectures and across time.** Human baselines are **contextual reference points**, not the target of measurement. They participate in the cross-model analysis as a reference informant with a distinct visual marker, and they support an additional kind of claim (locating model outputs relative to a specific human cultural consensus), but they do not constitute the benchmark's success criterion. A domain with no human baseline is not a degraded domain; it is a normal, first-class state.
+
+**Floor and ceiling claims, re-stated.**
+
+> **Floor claim (no human baseline needed).** Model A and Model B organize this domain differently from each other.
+>
+> **Ceiling claim (human baseline present).** Model A sits closer to the 1996 Romney human consensus than Model B.
+>
+> The ceiling claim is valid and interesting — humans like to compare machines to themselves, and that comparison will be one output of the project. It is just not the primary research question. The primary question is cross-architecture comparison.
+
+This phrasing appears verbatim on the public methodology page and is binding on any generated text that attempts to rank claim strength by grounding presence.
+
+**What follows from this framing:**
 
 1. **Grounding is a per-domain slot, not a project-wide property.** Some domains have published human CDA data (family terms — Romney et al. 1996); some domains have no published data anyone can find (holidays, food, justice, in v1); some domains will accumulate researcher-submitted data over time. Each of these is fine. The dashboard must handle all states gracefully — without empty states, broken layouts, or copy that treats ungrounded as broken. The four display states are specified in `DESIGN_SYSTEM.md` §4.1.
 
@@ -154,7 +181,9 @@ Three things follow from this, all of which are binding on the rest of the docum
 
 3. **Researcher-contributed grounding is a v1 feature, not a v2 feature.** LSB exists in part to *connect to* the broader CDA research community — anthropologists and linguists running pile sort or free list studies on human subjects today should be able to drop their data into LSB and see it on the dashboard alongside the model results. The v1 contribution path is a GitHub PR with a submission template (§4.2.5); the in-app submission form is the v2 hook. Researchers retain all rights to their data; LSB validates format and provides attribution.
 
-The difference grounding makes is the difference between relative and absolute claims. Without it, LSB says "Claude and DeepSeek organize family terms differently from each other." With it, LSB says "Claude sits closer than DeepSeek to the 1996 Romney US human consensus on family terms." Both are interesting. The first is the floor; the second is the ceiling. See §4.2.5 for the implementation and `DESIGN_SYSTEM.md` §4 for the visual treatment.
+4. **Human baselines are Register-2 reference informants** (see §4.2 Three analytical registers). They enter the cross-model MDS with a distinct marker; they are not targets against which models are scored. Where a researcher submission includes per-subject raw data (`pile_sort_raw.csv`), the baseline can additionally be analyzed at Register 1 to produce a human Output Concentration Index (OCI) for cross-architecture comparison of human subject pools against models — a genuinely new cross-species claim of the form "this model's output concentration on kinship terms is within the range we observe across human subject pools." The `GroundingRef` schema carries a `human_oci` field for this purpose; it is populated when raw subject-level data is available and left null otherwise.
+
+See §4.2.5 for the implementation and `DESIGN_SYSTEM.md` §4 for the visual treatment.
 
 ### 1.5.6 The website is the artifact
 
@@ -172,6 +201,8 @@ This shapes every other design decision:
 - The methodology page is a Phase 5/6 deliverable in its own right, not an afterthought. It deserves a dedicated session with Mark personally writing or reviewing the prose. The Coder agent should not generate the methodology page from a template.
 - Visual polish, copy quality, and load performance on the dashboard are first-class concerns, not nice-to-haves. The site is competing for attention against every other thing on the internet. If it looks like a research demo, it will be treated like one.
 - The social pipeline (§4.6) is the dashboard's primary discovery mechanism. Without a paper to drive citation traffic, social posts are how people find the site. This is why the journalist affordances in §4.5 and the social pipeline in §4.6 are first-class features and not optional polish.
+
+**"The mismatch is the finding" is the lead paragraph of the public methods page (binding, added post-F1 SME review).** §1.5.2 point 3 is the most intellectually honest framing of the project: *what happens when you apply a methodology designed for cultural informants to a system that encodes culture without experiencing it? The mismatch is the finding, not a flaw to hide.* Researchers who understand CDA will grasp what LSB is doing immediately; researchers who don't will be oriented by this framing. It is load-bearing for the project's defensibility and must not be buried in a late paragraph, a footnote, or a methods page's "limitations" section. Placement: the first paragraph of the public methods page, before any description of specific measures. The Reviewer agent rejects any methods-page draft that does not open with this framing.
 
 ## 1.6 Project naming
 
@@ -748,6 +779,43 @@ Any failure sets `qa_passed=False`, writes the failure reason to `qa_notes`, and
 
 **Responsibility:** turn raw responses into `DomainResult` artifacts. Pure functions, no I/O except reading raw JSONL and writing processed Parquet.
 
+#### 4.2.0 Three analytical registers (added post-F1 SME review)
+
+LSB operates three distinct analytical registers, each with different statistical assumptions. Keeping these registers distinct — in code, documentation, and dashboard copy — is what prevents the methodological confusion of importing classical CDA assumptions into settings where they do not apply. Each register has its own measures, its own assumptions, its own vocabulary, and its own claims. They inform each other; they are not the same analysis.
+
+**Register 1 — Output distribution analysis (within-model):**
+
+- **R1a: Sampling concentration (OCI)** — N runs, fixed prompt, temperature-driven variance.
+- **R1b: Prompt robustness** — fixed model, 8+ prompt variants, G1 diagnostics (§5.3).
+- **Statistical framework:** output concentration statistics. **RWB assumptions do not apply.** The rows of a run × item agreement matrix at R1a are iid samples from one stochastic process, not distinct cultural agents; therefore the eigenratio on such a matrix is a concentration statistic, not a cultural consensus statistic. The canonical name for the R1a eigenratio is the **Output Concentration Index (OCI)**. See §1.5.4 for the forbidden vocabulary that guards this boundary.
+
+**Register 2 — Categorical structure analysis (between-model):**
+
+- **Informants:** each model contributes equal voice via the consensus free list produced from its Level 1 (Option A input — see §4.2.7 two-level pipeline). All models contribute equally regardless of their OCI.
+- **Human grounding:** injected as a **reference informant** with a distinct visual marker (per `DESIGN_SYSTEM.md` §3.3), consistent with §4.2.5. Humans participate in the cross-model analysis; they are not the target of measurement (§1.5.5).
+- **Statistical framework:** RWB cultural consensus analysis with the LSB caveats from `docs/SME_REVIEW.md` (small-n regime, non-human informants, dual threshold λ₁/λ₂ > 5.0 operational / 3.0 reported).
+- **Dashboard display representation:** Option B (centroid run) for tooltips and model profile pages — a concrete, human-readable free list drawn from the single run closest to the model's central tendency. Option A (pooled consensus) is the analytical input; Option B is the display.
+
+**Register 3 — Longitudinal drift analysis (cross-version):**
+
+- Procrustes distance across model versions on shared item sets (`drift.py`).
+- No classical CDA equivalent — this is a new analytical framework enabled by the fact that LLM "informants" can be re-queried indefinitely in ways human informants cannot.
+
+**Methods adaptation table (public methodology page — binding).** Add to the public methods page and keep in lockstep with this section. This table is the clearest statement of what LSB is doing and why it is methodologically legitimate rather than a naive application of human methods to a non-human subject:
+
+| Human CDA assumption | LLM reality | LSB adaptation |
+|---|---|---|
+| List length bounded by memory fatigue | Unbounded; limited by context window | Protocol ceiling with capacity-truncation as a named finding type (§3.2 `InformantRecord`) |
+| N informants are independent agents | N runs are draws from the same stochastic process | Prompt/temperature variation as variance source; RWB CCM applied at Register 2 only, as a convergence test rather than an assumption |
+| Card deck independent of informants | Same entity class generates deck and sorts | Cross-model pooled deck (`consensus.compute_cross_model_consensus`); reflexivity treated as signal to scrutinize, not a confound to hide |
+| Pile sort is physical manipulation | JSON output only | Pile count variance and pile-label consistency as structural proxies |
+| Pile interview captures indigenous reasoning | Model labels its own piles | Pile labels as first-class architectural discriminator |
+| Longitudinal = cross-cohort human study | Longitudinal = version drift within model family | Procrustes drift as new temporal measure (Register 3) |
+| Consensus = shared cultural knowledge | Consensus = convergent representation across training corpora | RWB applied as an architectural test at Register 2, not as cultural validation |
+| Single-level analysis (informants as units) | N runs per model *and* N models per benchmark available cheaply | Two-level design: Register 1 within-model + Register 2 between-model (§4.2.7) |
+
+**"The mismatch is the finding."** Both §1.5.2 point 3 and §1.5.6 make this point; it is restated here because it is the single most important framing for the public methods page and for generated text that accompanies any visualization. The intellectual contribution of LSB is precisely that importing a methodology designed for cultural informants into a system that encodes culture without experiencing it *is* the research question. The three-register framework above is how that question is operationalized without methodological confusion.
+
 #### 4.2.1 Pipeline stages
 
 ```
@@ -806,9 +874,11 @@ Idempotent. Running twice with the same version produces byte-identical output (
 
 #### 4.2.5 Human grounding module (`grounding.py`)
 
-**Why this exists:** claims of the form "Model A differs from Model B" are weaker than claims of the form "Model A sits closer to human consensus than Model B." See §1.5.5.
+**Why this exists:** human CDA baselines are **reference points** in the Register 2 (between-model) analysis — not the target of measurement. The primary scientific claim of LSB is comparative across model architectures and across time (§1.5.5); human comparison is secondary. Where human CDA data is available, a baseline enters the cross-model MDS as a reference informant with a distinct visual marker, which enables an additional kind of claim (locating model outputs relative to a specific human cultural consensus) without redefining the benchmark's success criterion. Where no baseline is available, the benchmark makes model-to-model comparative claims only — a normal first-class state, not a degraded one.
 
-**What it does:** loads zero or more published or researcher-submitted human CDA datasets from `data/grounding/{domain}/{baseline_id}/` and injects each as a virtual informant labeled by `baseline_id`. Each baseline appears in the MDS plot as a distinct marker — published baselines as black stars (★), researcher baselines as gray diamonds (◆), per `DESIGN_SYSTEM.md` §3.3 — and in the similarity heatmap as reference rows/columns. **A domain may have zero, one, or many baselines, and zero is a normal state.**
+**What it does:** loads zero or more published or researcher-submitted human CDA datasets from `data/grounding/{domain}/{baseline_id}/` and injects each as a reference informant labeled by `baseline_id`. Each baseline appears in the MDS plot as a distinct marker — published baselines as black stars (★), researcher baselines as gray diamonds (◆), per `DESIGN_SYSTEM.md` §3.3 — and in the similarity heatmap as reference rows/columns. **A domain may have zero, one, or many baselines, and zero is a normal state.**
+
+**Human OCI (post-F1 SME review).** Where a researcher submission includes per-subject raw pile-sort data (`pile_sort_raw.csv`), the baseline can additionally be analyzed at Register 1 (§4.2.0) to produce a **human Output Concentration Index** — a measure of how concentrated that specific human subject pool's output distribution is on the domain. The `GroundingRef.human_oci` field carries this value (nullable; populated only when raw subject-level data is present). The comparison "this model's OCI on kinship terms is within the range we observe across human subject pools" is a genuinely new cross-species claim enabled by this field; it is a claim about *output concentration*, not about proximity to any single human consensus.
 
 **Data layout — multi-baseline (v0.7):**
 
@@ -1235,6 +1305,12 @@ This phase is a formal scientific gate, not a build step. Nothing downstream shi
 *4a. Multi-model collection.* Using the Phase 1 adapters (Anthropic, OpenRouter, Hugging Face Inference Providers as needed), run the full family domain across the 12-model slate with N=5 runs each. This produces the first real dataset.
 
 *4b. Prompt-sensitivity study (`sensitivity.py`).* Generate 8 paraphrased variants of the free-list and pile-sort prompts (semantically equivalent, lexically different). Run 2 reference models (Claude Opus 4.6 and the current GPT flagship) across all 8 variants with N=5 each. Compute within-model variance (across prompt variants) and between-model variance (across the 12 models from 4a). Optionally extend to 16 or 32 variants on selected open-weight models via OpenRouter and/or Hugging Face Inference Providers within the monthly spend cap.
+
+**Reframe (post-F1 SME review).** The sensitivity study is not only a validity check for prompt stability — it is the **primary variance-generation mechanism** for the Register 2 cultural consensus analysis and, more importantly, will be the *only* variance mechanism available for deterministic future architectures (neurosymbolic systems, zero-temperature models). The gate semantics of G1 (below) are unchanged; the explanatory framing is updated throughout the docs and the generated text.
+
+**Phase 4b runbook — G1 failure response (binding, added post-F1 SME review).** If G1 fails in Phase 4b with a ratio in the borderline range (0.4–0.6), the correct response is to **add prompt variants** (expand beyond the default 8 toward 16–32) on the affected model pair, not to disqualify the domain. The reasoning: a borderline G1 in a small variant set often reflects insufficient variance coverage rather than genuine instability. Domain disqualification requires G1 failure *after* prompt-variant expansion has been attempted, plus an explicit Architect diagnostic. This line is load-bearing and must be read before the Phase 4b analysis begins, not discovered after a wrong-direction response to the first G1 failure.
+
+*4b also includes the two-level saturation analysis* (§4.2.7): on the same two reference models plus one open-weight reference (Llama 3.1 70B), run the within-model Register 1 analysis at N = 5, 10, 15, 20, 25, 30 across family and holidays. Identify the empirical knee in each saturation curve (Spearman salience stability, OCI convergence, elbow-position stability, MDS Procrustes RMSE at N vs N+5). Set operational N at the knee plus a 20% safety margin. The saturation analysis piggybacks on the Phase 4b budget envelope and produces content surfaced on the public methodology page as a named methods contribution — **not** framed as publishable (per §1.5.6).
 
 *4c. Human baseline acquisition.* Mark acquires a licensed, peer-reviewed human CDA dataset for family terms from the published anthropological literature (see §4.2.5 and `PHASE_4C_CANDIDATE_SOURCES.md` for sourcing policy and candidate sources). Extract the published similarity or co-occurrence matrix into `data/grounding/family/cooccurrence.csv` with full citation in `source.md`. ~3 hours of Mark's hands-on time for the literature pull. If no suitable published source is available, v1 ships without grounding and the benchmark makes relative claims only.
 
