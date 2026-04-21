@@ -40,8 +40,13 @@ MIN_FREELIST_ITEMS = 10
 # Validated against 6 real Claude Opus runs on the family domain.
 MIN_UNIQUENESS_RATIO = 0.15
 
-# Check 5: Maximum latency per step (ms)
-MAX_LATENCY_MS = 30_000
+# Check 5: Maximum latency per step (ms). Raised from 30_000 to 60_000 on
+# 2026-04-21 after the shakedown surfaced spurious failures on Gemini/DeepSeek
+# 200-item pile-sort prompts that legitimately take 30-45 seconds under normal
+# load. 60s is the operational ceiling; adapter-aware per-provider ceilings are
+# deferred until a second failure pattern is observed (Architect YAGNI ruling).
+# See docs/status/2026-04-20-shakedown-findings.md §5.
+MAX_LATENCY_MS = 60_000
 
 # Check 6: Output token consistency tolerance (±100%)
 # The chars/4 heuristic is rough — real tokenizers produce 1.3-1.8x more

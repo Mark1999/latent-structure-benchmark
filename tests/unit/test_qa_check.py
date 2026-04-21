@@ -213,7 +213,7 @@ def test_check5_pass():
 
 
 def test_check5_fail_high_latency():
-    record = _record(freelist=_freelist(latency_ms=31000))
+    record = _record(freelist=_freelist(latency_ms=61000))
     failure = check_5_latency(record)
     assert failure is not None
     assert failure.check_num == 5
@@ -223,6 +223,18 @@ def test_check5_skips_placeholder_steps():
     record = _record(freelist=_freelist(latency_ms=100))
     # Pile sort and interview are placeholders (not_collected, 0ms)
     assert check_5_latency(record) is None
+
+
+def test_check_5_passes_at_45s_latency():
+    """45 000 ms is within the new 60 000 ms ceiling — must pass.
+
+    Added 2026-04-21: ceiling raised from 30s to 60s (F2-T08). Gemini and
+    DeepSeek 200-item pile-sort prompts legitimately take 30-45 seconds under
+    normal load; the old 30s ceiling produced spurious Check 5 failures.
+    """
+    record = _record(freelist=_freelist(latency_ms=45000))
+    assert check_5_latency(record) is None
+
 
 
 # ─── Check 6: Token consistency ──────────────────────────────────────
