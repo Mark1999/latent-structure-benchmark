@@ -60,7 +60,7 @@ def load_grounding_ref(
         Validated GroundingRef.
     """
     ref_path = root / domain_slug / baseline_id / "grounding_ref.json"
-    data = json.loads(ref_path.read_text())
+    data = json.loads(ref_path.read_text(encoding="utf-8"))
     return GroundingRef(**data)
 
 
@@ -76,7 +76,7 @@ def load_items(
     """
     items_path = root / domain_slug / baseline_id / "items.txt"
     items = []
-    for line in items_path.read_text().splitlines():
+    for line in items_path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if not line or line.startswith("#"):
             continue

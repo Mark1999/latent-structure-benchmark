@@ -508,6 +508,6 @@ def write_result(result: DomainResult, output_dir: Path) -> Path:
     domain_dir = output_dir / result.domain_slug
     domain_dir.mkdir(parents=True, exist_ok=True)
     out_path = domain_dir / f"{result.analysis_version}.json"
-    out_path.write_text(result.model_dump_json(indent=2))
+    out_path.write_text(result.model_dump_json(indent=2), encoding="utf-8")
     logger.info("Wrote %s", out_path)
     return out_path
