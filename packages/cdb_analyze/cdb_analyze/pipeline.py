@@ -33,11 +33,23 @@ from cdb_analyze.consensus import (
     compute_romney_eigenratio,
 )
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
+from cdb_analyze.gates import G1SplitResult, g1_stability_split
 from cdb_analyze.mds import compute_cross_model_similarity
 from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
+from cdb_analyze.sensitivity import (
+    compute_between_model_salience_variance,
+    compute_between_model_spatial_variance,
+    compute_within_model_salience_variance,
+    compute_within_model_spatial_variance,
+)
 from cdb_analyze.two_level import run_within_model_analysis
 
 logger = logging.getLogger(__name__)
+
+
+def _is_finite_float(v: float) -> bool:
+    """Return True iff v is a normal finite float (not NaN, not +inf)."""
+    return not (np.isnan(v) or np.isinf(v))
 
 
 def load_records(
@@ -83,6 +95,23 @@ def group_by_model(
     groups: dict[str, list[InformantRecord]] = {}
     for rec in records:
         groups.setdefault(rec.model_id, []).append(rec)
+    return groups
+
+
+def group_by_prompt_version(
+    records: list[InformantRecord],
+) -> dict[str, list[InformantRecord]]:
+    """Group records by freelist prompt_version.
+
+    The sensitivity study encodes prompt variants in
+    ``InformantRecord.freelist.prompt_version`` (e.g., "v1_s1" through
+    "v1_s8").  The split G1 computation requires records grouped by this
+    key so that within-model variance can be measured across phrasings.
+    """
+    groups: dict[str, list[InformantRecord]] = {}
+    for rec in records:
+        key = rec.freelist.prompt_version
+        groups.setdefault(key, []).append(rec)
     return groups
 
 
@@ -311,6 +340,96 @@ def run_pipeline(
             len(cultural_centrality_scores),
         )
 
+    # 3e. Split G1 stability (SME §1.3 un-deferred 2026-04-20).
+    # Fires only when at least one model has ≥2 distinct prompt_version
+    # values (i.e., a sensitivity-cell collection with prompt variants).
+    # Single-prompt-version runs leave all six g1_* fields as None.
+    #
+    # Within-model variance is computed per model (using that model's
+    # records grouped by prompt_version), then averaged across all models
+    # that have ≥2 variants. This respects build_cooccurrence_matrix's
+    # requirement that all records in a batch belong to the same model.
+    #
+    # Threshold is 0.5 per axis per the CDA SME verdict (binding); both
+    # axes must be below 0.5 for g1_overall_pass to be True.
+    g1_salience_stability: float | None = None
+    g1_spatial_stability: float | None = None
+    g1_aggregate_stability: float | None = None
+    g1_salience_pass: bool | None = None
+    g1_spatial_pass: bool | None = None
+    g1_overall_pass: bool | None = None
+
+    # Identify which models have ≥2 prompt_version values (sensitivity models)
+    sensitivity_within_salience: list[float] = []
+    sensitivity_within_spatial: list[float] = []
+
+    for mid in model_ids:
+        model_records = records_by_model[mid]
+        by_variant = group_by_prompt_version(model_records)
+        if len(by_variant) >= 2:
+            sensitivity_within_salience.append(
+                compute_within_model_salience_variance(by_variant),
+            )
+            sensitivity_within_spatial.append(
+                compute_within_model_spatial_variance(by_variant),
+            )
+
+    if sensitivity_within_salience:
+        try:
+            # Average within-model variance across all sensitivity models
+            within_salience = float(
+                sum(sensitivity_within_salience) / len(sensitivity_within_salience)
+            )
+            within_spatial = float(
+                sum(sensitivity_within_spatial) / len(sensitivity_within_spatial)
+            )
+            between_salience = compute_between_model_salience_variance(records_by_model)
+            between_spatial = compute_between_model_spatial_variance(records_by_model)
+
+            # Guard against NaN / inf from degenerate inputs
+            if not all(
+                _is_finite_float(v)
+                for v in (
+                    within_salience, between_salience,
+                    within_spatial, between_spatial,
+                )
+            ):
+                logger.warning(
+                    "G1 split: one or more variance inputs invalid "
+                    "(NaN/inf); skipping G1 split.",
+                )
+            else:
+                g1_result: G1SplitResult = g1_stability_split(
+                    within_salience_variance=within_salience,
+                    between_salience_variance=between_salience,
+                    within_spatial_variance=within_spatial,
+                    between_spatial_variance=between_spatial,
+                    threshold=0.5,
+                )
+                g1_salience_stability = g1_result.salience_stability
+                g1_spatial_stability = g1_result.spatial_stability
+                g1_aggregate_stability = g1_result.aggregate_stability
+                g1_salience_pass = g1_result.salience_pass
+                g1_spatial_pass = g1_result.spatial_pass
+                g1_overall_pass = g1_result.g1_pass
+                logger.info(
+                    "G1 split: salience=%.3f (pass=%s), spatial=%.3f (pass=%s),"
+                    " overall=%s",
+                    g1_salience_stability,
+                    g1_salience_pass,
+                    g1_spatial_stability,
+                    g1_spatial_pass,
+                    g1_overall_pass,
+                )
+        except Exception:
+            logger.warning(
+                "G1 split: unexpected error computing variance; "
+                "leaving G1 fields None.",
+                exc_info=True,
+            )
+    else:
+        logger.info("G1 split skipped (single prompt_version)")
+
     # 4. Clustering
     if len(model_ids) >= 2:
         _, sim_for_cluster = compute_cross_model_similarity(matrices)
@@ -363,6 +482,12 @@ def run_pipeline(
         sutrop_csi=sutrop_by_model,
         salience_index_agreement=salience_agreement,
         within_model_results=within_model_results,
+        g1_salience_stability=g1_salience_stability,
+        g1_spatial_stability=g1_spatial_stability,
+        g1_aggregate_stability=g1_aggregate_stability,
+        g1_salience_pass=g1_salience_pass,
+        g1_spatial_pass=g1_spatial_pass,
+        g1_overall_pass=g1_overall_pass,
         groundings=[],
         selected_baseline_id=None,
         generated_lede="",  # Populated by cdb_publish, not cdb_analyze
