@@ -14,6 +14,8 @@ from pathlib import Path
 
 import numpy as np
 from cdb_core import (
+    ROMNEY_THRESHOLD_CLASSIC,
+    ROMNEY_THRESHOLD_LSB,
     CooccurrenceMatrix,
     DomainResult,
     FreeList,
@@ -23,7 +25,11 @@ from cdb_core import (
 
 from cdb_analyze.bootstrap import bootstrap_mds_ellipses
 from cdb_analyze.cluster import cluster_models
-from cdb_analyze.consensus import compute_centrality_scores, compute_consensus_free_list
+from cdb_analyze.consensus import (
+    compute_centrality_scores,
+    compute_consensus_free_list,
+    compute_romney_eigenratio,
+)
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
 from cdb_analyze.mds import compute_cross_model_similarity
 from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
@@ -250,6 +256,40 @@ def run_pipeline(
         len(cultural_centrality_scores), len(negative_centrality_models),
     )
 
+    # 3c. Romney CCM eigenratio (λ₁/λ₂ of the inter-model similarity matrix).
+    # Insertion point: immediately after centrality block (commit de6bf73),
+    # before clustering. Both consume sim_np; contiguous placement keeps the
+    # methodology computations together.
+    if len(model_ids) >= 2:
+        sim_np_romney = np.array(similarity_matrix, dtype=np.float64)
+        romney_eigenratio: float | None = compute_romney_eigenratio(sim_np_romney)
+        if romney_eigenratio is not None:
+            romney_consensus_pass: bool | None = romney_eigenratio >= ROMNEY_THRESHOLD_LSB
+            romney_consensus_warning: bool | None = (
+                ROMNEY_THRESHOLD_CLASSIC <= romney_eigenratio < ROMNEY_THRESHOLD_LSB
+            )
+            romney_small_n_warning: bool = len(model_ids) < 8
+            logger.info(
+                "Romney CCM: eigenratio=%.3f, pass=%s, warning=%s, small_n=%s",
+                romney_eigenratio,
+                romney_consensus_pass,
+                romney_consensus_warning,
+                romney_small_n_warning,
+            )
+        else:
+            # Rank-1 degenerate (perfect consensus, λ₂ ≈ 0): ratio undefined.
+            romney_consensus_pass = None
+            romney_consensus_warning = None
+            romney_small_n_warning = False
+            logger.info("Romney CCM: degenerate (second eigenvalue ≈ 0), eigenratio=None")
+    else:
+        # n < 2: no inter-model agreement structure.
+        romney_eigenratio = None
+        romney_consensus_pass = None
+        romney_consensus_warning = None
+        romney_small_n_warning = False
+        logger.info("Romney skipped (n<2)")
+
     # 4. Clustering
     if len(model_ids) >= 2:
         _, sim_for_cluster = compute_cross_model_similarity(matrices)
@@ -295,6 +335,10 @@ def run_pipeline(
         similarity_ci=similarity_ci,
         consensus_score=consensus_score,
         consensus_ci=consensus_ci_vals,
+        romney_eigenratio=romney_eigenratio,
+        romney_consensus_pass=romney_consensus_pass,
+        romney_consensus_warning=romney_consensus_warning,
+        romney_small_n_warning=romney_small_n_warning,
         sutrop_csi=sutrop_by_model,
         salience_index_agreement=salience_agreement,
         within_model_results=within_model_results,

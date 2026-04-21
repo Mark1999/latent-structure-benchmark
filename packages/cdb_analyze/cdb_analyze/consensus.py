@@ -297,6 +297,58 @@ def compute_centrality_scores(
     return {mid: float(first[i]) for i, mid in enumerate(model_ids)}
 
 
+def compute_romney_eigenratio(
+    similarity_matrix: NDArray[np.float64],
+) -> float | None:
+    """Compute the Romney CCM eigenratio (λ₁/λ₂) from the inter-model agreement matrix.
+
+    The eigenratio is the primary quantity in Romney/Weller/Batchelder (1986)
+    cultural consensus analysis.  A high λ₁/λ₂ ratio means the first factor
+    dominates — the models share a common categorical structure.  See
+    ``classify_consensus`` for the downstream consumer that maps this ratio to
+    a typology label.
+
+    Args:
+        similarity_matrix: Square, symmetric model × model similarity matrix
+            (dtype float64).  Rows/columns correspond to model_ids in the same
+            order as the calling code's ``model_ids`` list.
+
+    Returns:
+        The ratio λ₁/λ₂ (both eigenvalues taken as positive magnitudes from
+        ``np.linalg.eigh``, which returns them ascending; we sort descending
+        before dividing).
+
+        Returns ``None`` in two degenerate cases:
+
+        * ``n < 2`` — a single model has no inter-model agreement structure.
+        * ``abs(eigvals[1]) < 1e-12`` — the second eigenvalue is numerically
+          zero.  This is the rank-1 perfect-consensus case: all models are
+          indistinguishable and the ratio would be infinite/undefined.  Returning
+          ``None`` makes the degenerate case explicit rather than propagating a
+          divide-by-zero.
+
+    Reference:
+        Romney, A. K., Weller, S. C., & Batchelder, W. H. (1986). Culture as
+        consensus: A theory of culture and informant accuracy. *American
+        Anthropologist*, 88(2), 313–338.
+    """
+    n = similarity_matrix.shape[0]
+    if n < 2:
+        return None
+
+    # Symmetric real matrix → eigh for numerical stability; returns ascending.
+    eigvals, _ = np.linalg.eigh(similarity_matrix)
+
+    # Sort descending so eigvals[0] = λ₁ (largest), eigvals[1] = λ₂.
+    eigvals = eigvals[::-1]
+
+    if abs(eigvals[1]) < 1e-12:
+        # Rank-1 degenerate: perfect consensus, ratio undefined.
+        return None
+
+    return float(eigvals[0] / eigvals[1])
+
+
 def classify_consensus(
     eigenratio: float,
     centrality_scores: dict[str, float],

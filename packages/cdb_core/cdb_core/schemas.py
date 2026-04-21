@@ -347,6 +347,14 @@ class DomainResult(BaseModel):
     romney_threshold_lsb: float = ROMNEY_THRESHOLD_LSB          # = 5.0
     romney_consensus_pass: bool | None = None       # based on operational 5.0
     romney_consensus_warning: bool | None = None    # 3.0 ≤ ratio < 5.0
+    romney_small_n_warning: bool = False  # True when n_models < 8 at Romney
+                                          # computation time. Dual-threshold
+                                          # pass/fail is statistically under-
+                                          # powered below n=8; flag will be
+                                          # set on every canonical run until
+                                          # corpora grow. See SME verdict
+                                          # 2026-04-20 and DATA_DICTIONARY.md
+                                          # §2 Romney block.
     consensus_type: ConsensusType | None = None
     cultural_centrality_scores: dict[str, float] = {}  # model_id → score
     negative_centrality_flag: bool = False
