@@ -439,7 +439,7 @@ def main() -> int:
         return 0
 
     all_records: list[InformantRecord] = []
-    with open(args.file) as f:
+    with open(args.file, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:

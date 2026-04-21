@@ -52,7 +52,7 @@ def _load_registry_pricing() -> dict[str, tuple[float, float]]:
         return _registry_pricing
 
     try:
-        data = json.loads(REGISTRY_PATH.read_text())
+        data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
         for entry in data.get("models", []):
             model_id = entry.get("model_id", "")
             price_in = entry.get("pricing_input_per_m", 0)
@@ -158,7 +158,7 @@ def get_monthly_spend(jsonl_path: Path, month: str | None = None) -> float:
         return 0.0
 
     total = 0.0
-    with open(jsonl_path) as f:
+    with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:

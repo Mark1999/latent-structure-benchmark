@@ -81,7 +81,7 @@ def _load_registry() -> dict[str, ModelRef]:
         )
         return {}
 
-    data = json.loads(REGISTRY_PATH.read_text())
+    data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
     registry: dict[str, ModelRef] = {}
 
     for entry in data.get("models", []):
@@ -125,7 +125,7 @@ def _load_collected_model_ids(jsonl_path: Path) -> set[str]:
     ids: set[str] = set()
     if not jsonl_path.exists():
         return ids
-    with open(jsonl_path) as f:
+    with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:
@@ -297,7 +297,7 @@ async def collect_cross_model(
 
     # ── Load existing free list records ────────────────────────────
     records_by_model: dict[str, list] = {}
-    with open(output_path) as f:
+    with open(output_path, encoding="utf-8") as f:
         for line in f:
             rec_dict = json.loads(line.strip())
             if rec_dict.get("domain_slug") != domain_slug:
@@ -493,6 +493,14 @@ def main() -> int:
     )
 
     args = parser.parse_args()
+
+    # Force UTF-8 on stdout/stderr so non-ASCII characters in model
+    # responses are not corrupted by the Windows cp1252 console default.
+    # This guards print() calls; file I/O is hardened at each open() call.
+    if hasattr(sys.stdout, "reconfigure"):
+        sys.stdout.reconfigure(encoding="utf-8")
+    if hasattr(sys.stderr, "reconfigure"):
+        sys.stderr.reconfigure(encoding="utf-8")
 
     logging.basicConfig(
         level=logging.INFO,

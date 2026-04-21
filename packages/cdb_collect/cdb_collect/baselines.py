@@ -32,7 +32,7 @@ def load_baseline_items(
         raise FileNotFoundError(f"Baseline items not found: {path}")
 
     items: list[str] = []
-    for line in path.read_text().splitlines():
+    for line in path.read_text(encoding="utf-8").splitlines():
         line = line.strip()
         if line and not line.startswith("#"):
             items.append(line)

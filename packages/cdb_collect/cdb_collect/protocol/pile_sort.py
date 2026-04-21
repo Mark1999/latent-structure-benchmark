@@ -25,7 +25,7 @@ def load_prompt(
 ) -> str:
     """Load and substitute the pile-sort prompt template."""
     path = _PROMPTS_DIR / version / "pile_sort.md"
-    template = path.read_text()
+    template = path.read_text(encoding="utf-8")
     items_text = "\n".join(f"- {item}" for item in items)
     prompt = template.replace("{{items}}", items_text)
     prompt = prompt.replace("{{item_count}}", str(len(items)))

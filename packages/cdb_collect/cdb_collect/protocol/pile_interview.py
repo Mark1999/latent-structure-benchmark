@@ -15,7 +15,7 @@ _PROMPTS_DIR = Path(__file__).resolve().parents[1] / "prompts"
 def load_prompt(piles: list[list[str]], version: str = "v1") -> str:
     """Load and substitute the pile-interview prompt template."""
     path = _PROMPTS_DIR / version / "pile_interview.md"
-    template = path.read_text()
+    template = path.read_text(encoding="utf-8")
 
     # Format piles as numbered groups
     lines: list[str] = []

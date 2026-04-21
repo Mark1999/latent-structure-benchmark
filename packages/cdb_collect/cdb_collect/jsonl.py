@@ -18,7 +18,7 @@ def append_record(record: InformantRecord, path: Path) -> None:
     Creates the file and parent directories if they don't exist.
     """
     path.parent.mkdir(parents=True, exist_ok=True)
-    with open(path, "a") as f:
+    with open(path, "a", encoding="utf-8") as f:
         f.write(record.model_dump_json() + "\n")
 
 
@@ -28,7 +28,7 @@ def read_records(path: Path) -> list[InformantRecord]:
         return []
 
     records: list[InformantRecord] = []
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
             if not line:
@@ -52,5 +52,5 @@ def append_failure(
         "error_message": str(error),
         "context": context,
     }
-    with open(path, "a") as f:
+    with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
