@@ -1,0 +1,18 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git *)",
+      "Bash(gh auth *)",
+      "Bash(uv run *)",
+      "Bash(grep -n *)",
+      "Bash(mkdir -p data/shakedown/shakedown-20260420)",
+      "Bash(cat)",
+      "Bash(CDB_MAX_SPEND_USD=25 uv run python scripts/collect.py --model anthropic/claude-sonnet-4.6 --domain family --runs 1 --campaign-id shakedown-20260420 --output data/shakedown/shakedown-20260420/informants.jsonl)",
+      "Bash(CDB_MAX_SPEND_USD=25 uv run python scripts/collect.py --model anthropic/claude-sonnet-4.6 --domain holidays --runs 1 --campaign-id shakedown-20260420 --output data/shakedown/shakedown-20260420/informants.jsonl)",
+      "Bash(bash *)",
+      "Bash(tasklist)",
+      "Bash(powershell.exe *)",
+      "Bash(python *)"
+    ]
+  }
+}
