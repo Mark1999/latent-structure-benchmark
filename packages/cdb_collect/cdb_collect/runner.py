@@ -24,6 +24,24 @@ from cdb_collect.protocol.free_list import run_free_list
 from cdb_collect.protocol.pile_interview import run_pile_interview
 from cdb_collect.protocol.pile_sort import run_pile_sort
 
+# Stop reasons (raw strings from providers) that signal a context-window cap.
+# Each entry is the exact string stored in AdapterResult.stop_reason:
+#   - Anthropic Messages API:  "max_tokens"
+#   - OpenAI / xAI / DeepSeek / Mistral (chat completions): "length"
+#   - OpenRouter (proxies OpenAI format):  "length"
+#   - HuggingFace Inference Providers (OpenAI-compat):  "length"
+#   - Google Gemini (FinishReason enum .name): "MAX_TOKENS"
+_CONTEXT_WINDOW_STOP_REASONS: frozenset[str] = frozenset({
+    "max_tokens",   # Anthropic
+    "length",       # OpenAI-compat, OpenRouter, HuggingFace, xAI, DeepSeek, Mistral
+    "MAX_TOKENS",   # Google Gemini (FinishReason enum name)
+})
+
+
+def _is_context_window_exceeded(stop_reason: str) -> bool:
+    """Return True when the provider stop reason indicates a context-window cap."""
+    return stop_reason in _CONTEXT_WINDOW_STOP_REASONS
+
 logger = logging.getLogger(__name__)
 
 
@@ -87,6 +105,10 @@ def _assemble_record(
     *,
     temperature: float | None = None,
     campaign_id: str | None = None,
+    truncation_type: Literal[
+        "elbow", "capacity", "prompt_ceiling", "context_window_exceeded",
+    ] | None = None,
+    truncation_n: int | None = None,
 ) -> InformantRecord:
     """Assemble an InformantRecord from step records.
 
@@ -154,6 +176,41 @@ def _assemble_record(
 
     qa_notes_value = f"campaign_id={campaign_id}" if campaign_id else ""
 
+    # Detect context-window overflow across all three CDA steps.
+    # A step's stop_reason of "not_collected" means the step was a placeholder
+    # (skipped in two_pass / baseline_items modes) and must not trigger the flag.
+    cwe_freelist = _is_context_window_exceeded(freelist_record.stop_reason)
+    cwe_pilesort = _is_context_window_exceeded(pilesort_record.stop_reason)
+    cwe_interview = _is_context_window_exceeded(interview_record.stop_reason)
+    cwe_any = cwe_freelist or cwe_pilesort or cwe_interview
+
+    # Build capacity_note when context window was hit.
+    if cwe_any:
+        steps_hit = [
+            name for name, flag in (
+                ("freelist", cwe_freelist),
+                ("pile_sort", cwe_pilesort),
+                ("interview", cwe_interview),
+            )
+            if flag
+        ]
+        capacity_note_value = "context window exceeded at step(s): " + ", ".join(steps_hit)
+    else:
+        capacity_note_value = ""
+
+    # context_window_exceeded on the freelist overrides the caller-supplied
+    # truncation_type, because the provider cut the response short before the
+    # model finished listing — the elbow / capacity label is no longer correct.
+    resolved_truncation_type = truncation_type
+    if cwe_freelist:
+        resolved_truncation_type = "context_window_exceeded"
+
+    # truncation_n: number of items kept after whatever truncation was applied.
+    # Use the passed value if provided; otherwise derive from parsed_items length.
+    resolved_truncation_n = truncation_n if truncation_n is not None else (
+        len(freelist_record.parsed_items) if freelist_record.parsed_items else None
+    )
+
     return InformantRecord(
         informant_id=informant_id,
         domain_slug=domain.slug,
@@ -179,6 +236,10 @@ def _assemble_record(
         freelist=freelist_record,
         pile_sort=pilesort_record,
         interview=interview_record,
+        truncation_type=resolved_truncation_type,
+        truncation_n=resolved_truncation_n,
+        context_window_exceeded=cwe_any,
+        capacity_note=capacity_note_value,
         sha256_manifest=manifest,
         qa_passed=True,
         qa_notes=qa_notes_value,
@@ -276,7 +337,10 @@ async def run_two_pass(
         )
         freelist_records.append((fl_record, fl_result))
 
-        # Create a free-list-only InformantRecord for provenance
+        # Create a free-list-only InformantRecord for provenance.
+        # truncation_type is left None here — it will be retroactively set to
+        # "elbow" (or kept as "context_window_exceeded" if the freelist hit the
+        # context window) after find_salience_elbow() is computed below.
         placeholder_ps = PileSortRecord(
             prompt_verbatim="", prompt_version=prompt_version,
             response_verbatim="", response_object_json={},
@@ -314,7 +378,21 @@ async def run_two_pass(
         len(consensus_items), n_free_lists, elbow_k,
     )
 
+    # Retroactively stamp truncation_type on the freelist-only records.
+    # If _assemble_record already set "context_window_exceeded" (because the
+    # freelist step hit the context window), preserve that. Otherwise, apply
+    # "elbow" now that we know the elbow k.
+    stamped_freelist_records: list[InformantRecord] = []
+    for rec in all_informant_records:
+        if rec.truncation_type != "context_window_exceeded":
+            rec = rec.model_copy(update={
+                "truncation_type": "elbow",
+                "truncation_n": elbow_k,
+            })
+        stamped_freelist_records.append(rec)
+
     # ── Pass 2: Pile sorts on consensus items ───────────────────────
+    pile_sort_records: list[InformantRecord] = []
     for i in range(n_pile_sorts):
         run_idx = n_free_lists + i  # Offset to avoid ID collision
 
@@ -337,7 +415,8 @@ async def run_two_pass(
             prompt_version=prompt_version,
         )
 
-        # Use placeholder free list (free lists were in pass 1)
+        # Use placeholder free list (free lists were in pass 1).
+        # The item set for this pile sort was elbow-truncated at elbow_k.
         fl_placeholder, fl_result_placeholder = _placeholder_freelist()
 
         record = _assemble_record(
@@ -347,10 +426,12 @@ async def run_two_pass(
             collection_mode="two_pass",
             prompt_version=prompt_version,
             system_prompt=system_prompt,
+            truncation_type="elbow",
+            truncation_n=elbow_k,
         )
-        all_informant_records.append(record)
+        pile_sort_records.append(record)
 
-    return all_informant_records
+    return stamped_freelist_records + pile_sort_records
 
 
 async def run_cross_model_sort(
