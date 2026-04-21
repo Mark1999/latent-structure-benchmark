@@ -254,7 +254,23 @@ def _assemble_record(
     # scripts/qa_check.py main() — that sweep remains useful for
     # re-checking records written by older runner versions or for manual
     # inspection passes.
-    from scripts.qa_check import run_qa_checks  # noqa: PLC0415
+    #
+    # scripts/ is a package (has __init__.py) but is only on sys.path in
+    # pytest runs (pyproject.toml pythonpath=["."]). When cdb_collect is
+    # invoked by scripts/collect.py at runtime, scripts/ sibling dir is
+    # not automatically on sys.path — add the project root defensively so
+    # the function-level import resolves either way. Proper fix: move
+    # run_qa_checks into cdb_collect.qa; deferred per CLAUDE.md §8 no-
+    # scope-creep. See the F2-T10 re-shakedown surfacing.
+    try:
+        from scripts.qa_check import run_qa_checks  # noqa: PLC0415
+    except ModuleNotFoundError:
+        import sys as _sys  # noqa: PLC0415
+        from pathlib import Path as _Path  # noqa: PLC0415
+        _project_root = str(_Path(__file__).resolve().parents[3])
+        if _project_root not in _sys.path:
+            _sys.path.insert(0, _project_root)
+        from scripts.qa_check import run_qa_checks  # noqa: PLC0415
     failures = run_qa_checks(record)
     qa_passed = len(failures) == 0
 
