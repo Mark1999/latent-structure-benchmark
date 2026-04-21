@@ -72,7 +72,7 @@ def load_records(
         List of validated InformantRecord objects.
     """
     records = []
-    with open(jsonl_path) as f:
+    with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
             if not line:

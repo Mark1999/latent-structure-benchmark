@@ -99,7 +99,7 @@ def load_cooccurrence(
         is a numpy array of shape (n_items, n_items).
     """
     csv_path = root / domain_slug / baseline_id / "cooccurrence.csv"
-    with open(csv_path, newline="") as f:
+    with open(csv_path, newline="", encoding="utf-8") as f:
         reader = csv.reader(f)
         header = next(reader)
         items = [h.strip().lower() for h in header]
