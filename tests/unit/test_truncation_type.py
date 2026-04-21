@@ -18,7 +18,6 @@ from cdb_collect.adapters.base import AdapterResult
 from cdb_collect.runner import _is_context_window_exceeded, run_informant, run_two_pass
 from cdb_core import Domain, ModelRef
 
-
 # ── Shared fixtures ─────────────────────────────────────────────────────────
 
 
@@ -47,7 +46,11 @@ def _domain() -> Domain:
 
 
 def _free_list_result(stop_reason: str = "end_turn") -> AdapterResult:
-    text = "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Aunt"
+    # 10 items so check_1 (MIN_FREELIST_ITEMS=10) passes in the assembled record.
+    text = (
+        "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Aunt\n"
+        "6. Uncle\n7. Grandmother\n8. Grandfather\n9. Cousin\n10. Niece"
+    )
     return AdapterResult(
         text=text,
         raw_response={"id": "msg_free", "content": [{"text": text}]},
@@ -63,7 +66,10 @@ def _free_list_result(stop_reason: str = "end_turn") -> AdapterResult:
 
 def _free_list_result_length_stop() -> AdapterResult:
     """Simulates a context-window-exceeded free list (Anthropic: stop_reason='max_tokens')."""
-    text = "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Aunt"
+    text = (
+        "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Aunt\n"
+        "6. Uncle\n7. Grandmother\n8. Grandfather\n9. Cousin\n10. Niece"
+    )
     return AdapterResult(
         text=text,
         raw_response={"id": "msg_free_trunc", "content": [{"text": text}]},
@@ -78,8 +84,14 @@ def _free_list_result_length_stop() -> AdapterResult:
 
 
 def _pile_sort_result() -> AdapterResult:
+    # Matches the 10-item free list so the pile sort parser validates all items.
     piles_json = json.dumps({
-        "piles": [["mother", "father"], ["sister", "brother"], ["aunt"]],
+        "piles": [
+            ["mother", "father"],
+            ["sister", "brother"],
+            ["aunt", "uncle"],
+            ["grandmother", "grandfather", "cousin", "niece"],
+        ],
     })
     return AdapterResult(
         text=piles_json,
@@ -95,7 +107,8 @@ def _pile_sort_result() -> AdapterResult:
 
 
 def _interview_result() -> AdapterResult:
-    text = "1. Parents\n2. Siblings\n3. Extended family"
+    # 4 labels matching 4 piles from _pile_sort_result.
+    text = "1. Parents\n2. Siblings\n3. Aunts and Uncles\n4. Extended family"
     return AdapterResult(
         text=text,
         raw_response={"id": "msg_int", "content": [{"text": text}]},
@@ -206,7 +219,7 @@ def test_single_pass_context_window_exceeded_anthropic():
 
 
 def test_single_pass_context_window_exceeded_openai_compat():
-    """When freelist stop_reason='length' (OpenAI-compat), truncation_type='context_window_exceeded'."""
+    """When freelist stop_reason='length' (OpenAI-compat), truncation_type is set."""
     adapter = _mock_adapter(freelist_stop_reason="length")
     record = asyncio.run(run_informant(adapter, _domain(), 0))
     assert record.truncation_type == "context_window_exceeded"
@@ -214,7 +227,7 @@ def test_single_pass_context_window_exceeded_openai_compat():
 
 
 def test_single_pass_context_window_exceeded_gemini():
-    """When freelist stop_reason='MAX_TOKENS' (Gemini), truncation_type='context_window_exceeded'."""
+    """When freelist stop_reason='MAX_TOKENS' (Gemini), truncation_type is set."""
     adapter = _mock_adapter(freelist_stop_reason="MAX_TOKENS")
     record = asyncio.run(run_informant(adapter, _domain(), 0))
     assert record.truncation_type == "context_window_exceeded"
@@ -229,7 +242,7 @@ def test_context_window_exceeded_sets_capacity_note():
 
 
 def test_two_pass_freelist_context_window_preserved_over_elbow():
-    """If a freelist response hit context window, that label is kept (not overwritten by 'elbow')."""
+    """If a freelist hit the context window, that label is kept (not overwritten by 'elbow')."""
     adapter = _mock_adapter(freelist_stop_reason="max_tokens")
     records = asyncio.run(
         run_two_pass(adapter, _domain(), n_free_lists=2, n_pile_sorts=1)

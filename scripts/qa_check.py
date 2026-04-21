@@ -216,6 +216,36 @@ def check_7_provider_request_id(record: InformantRecord) -> QAFailure | None:
     return None
 
 
+def check_8_label_count_match(record: InformantRecord) -> QAFailure | None:
+    """Pile-interview label count must equal pile count.
+
+    Infers the mismatch from len(parsed_pile_labels) != len(parsed_piles).
+    Skips when either step was not collected (placeholder mode). This is
+    the per-record detection of the condition that pile_interview.py's
+    parse_pile_interview now surfaces as a structured result rather than
+    raising. CDA SME option (b): FAIL-and-record, no padding, no retry.
+    See docs/status/2026-04-20-f2-cda-sme-verdict.md §T09.
+    """
+    # Skip when pile sort was not collected (placeholder mode)
+    if record.pile_sort.stop_reason == "not_collected":
+        return None
+    # Skip when interview was not collected (placeholder mode)
+    if record.interview.stop_reason == "not_collected":
+        return None
+
+    n_piles = len(record.pile_sort.parsed_piles)
+    n_labels = len(record.interview.parsed_pile_labels)
+
+    if n_labels != n_piles:
+        return QAFailure(
+            8,
+            "Pile-interview label count does not match pile count",
+            f"labels == piles ({n_piles})",
+            f"label_count_mismatch:{n_piles}/{n_labels}",
+        )
+    return None
+
+
 def run_qa_checks(
     record: InformantRecord,
     all_records: list[InformantRecord] | None = None,
@@ -237,6 +267,7 @@ def run_qa_checks(
         lambda: check_5_latency(record),
         lambda: check_6_token_consistency(record),
         lambda: check_7_provider_request_id(record),
+        lambda: check_8_label_count_match(record),
     ]
 
     for check in checks:

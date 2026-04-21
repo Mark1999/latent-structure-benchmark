@@ -174,7 +174,7 @@ def _assemble_record(
     if not provider_req_id:
         provider_req_id = f"two_pass_{run_index}"
 
-    qa_notes_value = f"campaign_id={campaign_id}" if campaign_id else ""
+    campaign_id_tag = f"campaign_id={campaign_id}" if campaign_id else ""
 
     # Detect context-window overflow across all three CDA steps.
     # A step's stop_reason of "not_collected" means the step was a placeholder
@@ -211,7 +211,10 @@ def _assemble_record(
         len(freelist_record.parsed_items) if freelist_record.parsed_items else None
     )
 
-    return InformantRecord(
+    # Build the record with qa_passed=True initially so run_qa_checks can
+    # inspect the fully-assembled record (check_8 reads parsed_piles and
+    # parsed_pile_labels from the step sub-records).
+    record = InformantRecord(
         informant_id=informant_id,
         domain_slug=domain.slug,
         run_index=run_index,
@@ -241,9 +244,28 @@ def _assemble_record(
         context_window_exceeded=cwe_any,
         capacity_note=capacity_note_value,
         sha256_manifest=manifest,
-        qa_passed=True,
-        qa_notes=qa_notes_value,
+        qa_passed=True,      # will be overwritten below
+        qa_notes="",         # will be overwritten below
     )
+
+    # Run QA checks on the assembled record and wire the result back.
+    # Function-scope import mirrors the pattern used in run_two_pass for
+    # cdb_analyze. This is ADDITIVE to the post-collection CLI sweep in
+    # scripts/qa_check.py main() — that sweep remains useful for
+    # re-checking records written by older runner versions or for manual
+    # inspection passes.
+    from scripts.qa_check import run_qa_checks  # noqa: PLC0415
+    failures = run_qa_checks(record)
+    qa_passed = len(failures) == 0
+
+    failure_notes = "; ".join(f.actual for f in failures) if failures else ""
+    qa_notes_parts = [p for p in (failure_notes, campaign_id_tag) if p]
+    qa_notes_value = "; ".join(qa_notes_parts)
+
+    return record.model_copy(update={
+        "qa_passed": qa_passed,
+        "qa_notes": qa_notes_value,
+    })
 
 
 async def run_informant(

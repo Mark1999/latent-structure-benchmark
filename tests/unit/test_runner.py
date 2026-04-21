@@ -39,7 +39,11 @@ def _domain() -> Domain:
 
 
 def _free_list_result() -> AdapterResult:
-    text = "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Aunt"
+    # 10 items so check_1 (MIN_FREELIST_ITEMS=10) passes in the assembled record.
+    text = (
+        "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Aunt\n"
+        "6. Uncle\n7. Grandmother\n8. Grandfather\n9. Cousin\n10. Niece"
+    )
     return AdapterResult(
         text=text,
         raw_response={"id": "msg_free", "content": [{"text": text}]},
@@ -54,8 +58,14 @@ def _free_list_result() -> AdapterResult:
 
 
 def _pile_sort_result() -> AdapterResult:
+    # Matches the 10-item free list so the pile sort parser validates all items.
     piles_json = json.dumps({
-        "piles": [["mother", "father"], ["sister", "brother"], ["aunt"]],
+        "piles": [
+            ["mother", "father"],
+            ["sister", "brother"],
+            ["aunt", "uncle"],
+            ["grandmother", "grandfather", "cousin", "niece"],
+        ],
     })
     return AdapterResult(
         text=piles_json,
@@ -71,7 +81,8 @@ def _pile_sort_result() -> AdapterResult:
 
 
 def _interview_result() -> AdapterResult:
-    text = "1. Parents\n2. Siblings\n3. Extended family"
+    # 4 labels matching 4 piles from _pile_sort_result.
+    text = "1. Parents\n2. Siblings\n3. Aunts and Uncles\n4. Extended family"
     return AdapterResult(
         text=text,
         raw_response={"id": "msg_int", "content": [{"text": text}]},
@@ -118,11 +129,11 @@ def test_run_informant_full_protocol():
 
     assert record.collection_mode == "single_pass"
     assert record.domain_slug == "family"
-    assert len(record.freelist.parsed_items) == 5
+    assert len(record.freelist.parsed_items) == 10
     assert record.pile_sort.stop_reason == "end_turn"
-    assert len(record.pile_sort.parsed_piles) == 3
+    assert len(record.pile_sort.parsed_piles) == 4
     assert record.interview.stop_reason == "end_turn"
-    assert len(record.interview.parsed_pile_labels) == 3
+    assert len(record.interview.parsed_pile_labels) == 4
     assert record.pile_sort.item_source == "own_freelist"
 
 

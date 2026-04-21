@@ -26,20 +26,42 @@ def load_prompt(piles: list[list[str]], version: str = "v1") -> str:
     return template.replace("{{piles}}", "\n".join(lines))
 
 
+class PileInterviewParseResult:
+    """Result of parsing a pile-interview response.
+
+    Carries the parsed labels and a mismatch signal when the parser
+    extracted a different number of labels than the expected pile count.
+    The mismatch is a structured signal (not an exception) so the runner
+    can FAIL-and-record per CDA SME option (b) — docs/status/2026-04-20-f2-cda-sme-verdict.md.
+
+    ``label_count_mismatch`` is None on a clean parse, or
+    (expected, got) when counts differ. The raw response text is always
+    preserved verbatim in the InterviewRecord regardless.
+    """
+
+    def __init__(
+        self,
+        labels: list[str],
+        label_count_mismatch: tuple[int, int] | None = None,
+    ) -> None:
+        self.labels = labels
+        self.label_count_mismatch = label_count_mismatch
+
+
 def parse_pile_interview(
     text: str, expected_count: int,
-) -> list[str]:
-    """Parse pile interview response into a list of labels.
+) -> PileInterviewParseResult:
+    """Parse pile interview response into a structured result.
 
     Args:
         text: Raw response text with one label per pile.
         expected_count: Expected number of labels (= number of piles).
 
     Returns:
-        List of label strings, one per pile.
-
-    Raises:
-        ValueError: If the number of parsed labels doesn't match expected_count.
+        PileInterviewParseResult with parsed labels and an optional
+        mismatch signal. Does NOT raise when counts differ — the caller
+        is responsible for detecting the mismatch and handling it per
+        the CDA SME FAIL-and-record policy (option b).
     """
     labels: list[str] = []
 
@@ -74,12 +96,11 @@ def parse_pile_interview(
         if line:
             labels.append(line)
 
+    mismatch: tuple[int, int] | None = None
     if len(labels) != expected_count:
-        raise ValueError(
-            f"Expected {expected_count} labels, got {len(labels)}: {labels}"
-        )
+        mismatch = (expected_count, len(labels))
 
-    return labels
+    return PileInterviewParseResult(labels=labels, label_count_mismatch=mismatch)
 
 
 DEFAULT_INTERVIEW_TEMPERATURE: float = 0.3
@@ -113,7 +134,7 @@ async def run_pile_interview(
     )
     result = await adapter.complete(prompt, temperature=effective_temp)
 
-    labels = parse_pile_interview(result.text, expected_count=len(piles))
+    parse_result = parse_pile_interview(result.text, expected_count=len(piles))
 
     record = InterviewRecord(
         prompt_verbatim=prompt,
@@ -125,7 +146,7 @@ async def run_pile_interview(
         output_tokens=result.output_tokens,
         latency_ms=result.latency_ms,
         stop_reason=result.stop_reason,
-        parsed_pile_labels=labels,
+        parsed_pile_labels=parse_result.labels,
     )
 
     return record, result
