@@ -16,6 +16,7 @@ import numpy as np
 from cdb_core import (
     ROMNEY_THRESHOLD_CLASSIC,
     ROMNEY_THRESHOLD_LSB,
+    ConsensusType,
     CooccurrenceMatrix,
     DomainResult,
     FreeList,
@@ -26,6 +27,7 @@ from cdb_core import (
 from cdb_analyze.bootstrap import bootstrap_mds_ellipses
 from cdb_analyze.cluster import cluster_models
 from cdb_analyze.consensus import (
+    classify_consensus,
     compute_centrality_scores,
     compute_consensus_free_list,
     compute_romney_eigenratio,
@@ -290,6 +292,25 @@ def run_pipeline(
         romney_small_n_warning = False
         logger.info("Romney skipped (n<2)")
 
+    # 3d. Caulkins six-state typology (F2-T01).
+    # Requires both eigenratio (T02) and centrality_scores (T03) to be present.
+    # Degenerate cases: consensus_type=None when either input is unavailable.
+    consensus_type: ConsensusType | None
+    if romney_eigenratio is not None and cultural_centrality_scores:
+        consensus_type = classify_consensus(
+            eigenratio=romney_eigenratio,
+            centrality_scores=cultural_centrality_scores,
+        )
+        logger.info("Caulkins typology: consensus_type=%s", consensus_type)
+    else:
+        consensus_type = None
+        logger.info(
+            "Caulkins typology: consensus_type=None "
+            "(eigenratio=%s, centrality_scores_count=%d)",
+            romney_eigenratio,
+            len(cultural_centrality_scores),
+        )
+
     # 4. Clustering
     if len(model_ids) >= 2:
         _, sim_for_cluster = compute_cross_model_similarity(matrices)
@@ -349,6 +370,7 @@ def run_pipeline(
         cultural_centrality_scores=cultural_centrality_scores,
         negative_centrality_flag=negative_centrality_flag,
         negative_centrality_models=negative_centrality_models,
+        consensus_type=consensus_type,
     )
 
 
