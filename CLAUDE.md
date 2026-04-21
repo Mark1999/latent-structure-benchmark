@@ -136,7 +136,17 @@ The forbidden vocabulary applies to text *about* the models that LSB measures. I
 
 Cultural defaults for all agents and humans on this project. Most of these are common sense; they're written down because common sense is uncommon when six different agents are reading the same task description.
 
-**One PR per task.** Do not bundle. If you finish a task and notice an obviously useful change you could make at the same time, the answer is no — commit the current task, mention the observation in the PR description, and let the Architect decide whether to schedule it as a follow-up. Bundling makes review harder, makes rollback harder, and makes the agent pipeline's gating verdicts ambiguous.
+**One commit per task. Do not bundle.** If you finish a task and notice an obviously useful change you could make at the same time, the answer is no — commit the current task, note the observation in the commit body or a follow-up task, and let the Architect decide whether to schedule it. Bundling makes review harder, makes rollback harder (revert is per-commit), and makes the agent pipeline's gating verdicts ambiguous.
+
+Default workflow for this repo is **direct commits to `master`**, not branch+PR. LSB is a single-operator project; the PR ceremony (branch, push, browser handoff to open a PR without `gh` CLI, CI re-running identical locally-passed tests, manual merge) adds friction without adding quality. The agent pipeline (Architect → CDA SME → Coder → Reviewer → Tester) is what produces quality, not the GitHub UI. Each gate verdict is saved to `docs/status/YYYY-MM-DD-{task-id}-verdicts.md` (or appended to an existing F{N}-verdicts file) so the audit trail survives outside of PR comments. Commit body should reference the verdict file.
+
+**When to branch+PR instead:**
+- Experimental or multi-day work you want to throw away cleanly if it doesn't pan out
+- Schema changes to `cdb_core/schemas.py` that might need clean rollback (the `DATA_DICTIONARY.md` co-update makes diffs noisy; a branch isolates them)
+- Dependabot-style dependency bumps where CI on a throwaway branch is the point
+- Any change where Mark explicitly says "branch this one"
+
+**Tests still run locally before every commit** (see below). Direct-to-master does not relax the test gate; it removes the CI re-run of already-passing local tests.
 
 **No surprise scope creep.** If a task's acceptance criteria don't cover something you think needs doing, stop and surface it to the Architect rather than improvising. The Architect is the only role authorized to expand a task's scope; the Coder is not, the Reviewer is not, and the Tester is not.
 
@@ -144,9 +154,9 @@ Cultural defaults for all agents and humans on this project. Most of these are c
 
 **Commit messages follow Conventional Commits.** `feat(scope):`, `fix(scope):`, `chore(scope):`, `docs(scope):`, `test(scope):`, `refactor(scope):`, `ci(scope):`, `perf(scope):`. The scope is the affected package (`core`, `collect`, `analyze`, `publish`, `social`, `dashboard`, `scripts`, `docs`, `ci`). The first line is under 72 characters. Longer descriptions go in the commit body. Reference the relevant `ARCHITECTURE.md` section in the body if the change is architecturally significant.
 
-**PR descriptions reference the task ID and the gate verdicts.** Phase 0 PRs reference the P0-T{N} ID from `PHASE_0_TASKS.md`. Frontend PRs link to the UI/UX agent verdict in `#lsb-ui-ux`. CDA-significant PRs link to the CDA SME verdict in `#lsb-cda-sme`. The Reviewer rejects PRs that don't include the necessary gate verdicts.
+**Commit (or PR) descriptions reference the task ID and the gate verdicts.** Phase 0 commits reference the P0-T{N} ID from `PHASE_0_TASKS.md`. Frontend changes link to the UI/UX agent verdict file in `docs/status/`. CDA-significant changes link to the CDA SME verdict file in `docs/status/`. The Reviewer rejects commits that don't reference the necessary gate verdicts. (When branch+PR is used under the exceptions above, the same rule applies to the PR description.)
 
-**Tests run locally before pushing.** Don't make CI do work you could do on your own machine in five seconds. `uv run pytest && uv run ruff check . && uv run mypy packages/` is the minimum. For frontend changes, `npm run build && npm run test && npm run lint` from `apps/dashboard/`.
+**Tests run locally before every commit.** `uv run pytest && uv run ruff check . && uv run mypy packages/` is the minimum. For frontend changes, `npm run build && npm run test && npm run lint` from `apps/dashboard/`. Direct-to-master makes this non-negotiable: CI is not a safety net here, it's a redundant confirmation.
 
 **No "I'll fix the lint after."** Lint is part of done.
 
@@ -209,17 +219,16 @@ Escalation order, fastest to slowest:
 A task is done when **all of the following are true**:
 
 - [ ] All acceptance criteria in the task spec are met
-- [ ] CI is green (`ruff`, `mypy`, `pytest`, the no-LLM-imports static check, `gitleaks`)
+- [ ] Tests pass locally (`ruff`, `mypy`, `pytest`, the no-LLM-imports static check, `gitleaks`). If branch+PR is used under §8 exceptions, CI is also green.
 - [ ] For frontend tasks: `npm run build && npm run test && npm run lint` passes locally
-- [ ] The Reviewer agent has posted a PASS or PASS-WITH-NOTES verdict, with all notes addressed
-- [ ] For frontend tasks: the UI/UX agent has posted a PASS or PASS-WITH-NOTES verdict, with all notes addressed
-- [ ] For methodologically significant tasks: the CDA SME agent has posted a PASS or PASS-WITH-NOTES verdict, with all notes addressed
-- [ ] The commit message follows Conventional Commits (§8)
-- [ ] The PR description references the task ID and links to all required gate verdicts
+- [ ] The Reviewer agent has issued a PASS or PASS-WITH-NOTES verdict, with all notes addressed; verdict saved to `docs/status/`
+- [ ] For frontend tasks: the UI/UX agent has issued a PASS or PASS-WITH-NOTES verdict, with all notes addressed; verdict saved to `docs/status/`
+- [ ] For methodologically significant tasks: the CDA SME agent has issued a PASS or PASS-WITH-NOTES verdict, with all notes addressed; verdict saved to `docs/status/`
+- [ ] The commit message follows Conventional Commits (§8) and references the task ID + verdict file paths
 - [ ] No forbidden vocabulary in any committed text (the Reviewer's spot check passes)
 - [ ] No new dependency was added without Architect sign-off
 - [ ] No schema change to `cdb_core/schemas.py` without a matching `DATA_DICTIONARY.md` update
-- [ ] The task is committed to its own PR (not bundled with other work)
+- [ ] The task is one commit (not bundled with other work). If the §8 exceptions triggered a branch+PR, the PR contains exactly one task.
 
 A task is **not** done if any of the above is missing, even if the code "works." The pipeline gates exist to keep the project's compounding decisions consistent over time; bypassing a gate to ship faster is borrowing against future maintainability.
 
