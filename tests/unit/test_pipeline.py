@@ -281,6 +281,140 @@ def test_write_result(tmp_path: Path):
     assert len(data["mds_coordinates"]) == 2
 
 
+def test_centrality_happy_path():
+    """>=2 models => cultural_centrality_scores is non-empty dict keyed by model_id."""
+    records = _synthetic_records()
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    assert set(result.cultural_centrality_scores.keys()) == {"model-a", "model-b"}
+    for mid, score in result.cultural_centrality_scores.items():
+        assert isinstance(score, float), f"{mid} score is not float"
+    # negative_centrality_flag must correctly reflect sign of any entry
+    expected_flag = any(v < 0 for v in result.cultural_centrality_scores.values())
+    assert result.negative_centrality_flag == expected_flag
+
+
+def test_centrality_all_positive_case():
+    """When eigenvector is all-positive: flag=False, list=[], scores non-empty."""
+    items = ["mother", "father", "sister", "brother"]
+    records = []
+    # Both models have identical pile structure → similarity matrix [[1,1],[1,1]],
+    # first eigenvector is [1/√2, 1/√2] — all positive.
+    for i in range(3):
+        records.append(_make_record(
+            "model-a", i, items,
+            [["mother", "father"], ["sister", "brother"]],
+        ))
+    for i in range(3):
+        records.append(_make_record(
+            "model-b", i, items,
+            [["mother", "father"], ["sister", "brother"]],
+        ))
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    assert len(result.cultural_centrality_scores) == 2
+    assert result.negative_centrality_flag is False
+    assert result.negative_centrality_models == []
+
+
+def test_centrality_negative_case():
+    """Construct a fixture where at least one score is negative and flag fires."""
+    import numpy as np
+    from cdb_analyze.consensus import compute_centrality_scores
+
+    # Build a 3×3 similarity matrix where model-c opposes the dominant structure:
+    # models a and b are highly similar to each other but anti-similar to c.
+    model_ids = ["model-a", "model-b", "model-c"]
+    sim = np.array([
+        [1.0,  0.9, -0.5],
+        [0.9,  1.0, -0.5],
+        [-0.5, -0.5,  1.0],
+    ], dtype=np.float64)
+
+    scores = compute_centrality_scores(model_ids, sim)
+
+    assert set(scores.keys()) == set(model_ids)
+    # model-c should have a negative loading
+    assert scores["model-c"] < 0, f"Expected model-c negative; got {scores}"
+    assert scores["model-a"] > 0
+    assert scores["model-b"] > 0
+
+    # Simulate what pipeline does with these scores
+    flag = any(v < 0 for v in scores.values())
+    neg_models = [mid for mid, v in scores.items() if v < 0]
+    assert flag is True
+    assert "model-c" in neg_models
+
+
+def test_centrality_single_model_degenerate():
+    """Single-model input => all three centrality fields are empty/False, no exception."""
+    items = ["mother", "father", "sister", "brother"]
+    records = [
+        _make_record("model-a", i, items, [["mother", "father"], ["sister", "brother"]])
+        for i in range(3)
+    ]
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    assert result.cultural_centrality_scores == {}
+    assert result.negative_centrality_flag is False
+    assert result.negative_centrality_models == []
+
+
+def test_centrality_consistency_invariant():
+    """Invariant: negative_centrality_models = keys where score < 0."""
+    records = _synthetic_records()
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    expected_neg = {
+        mid for mid, v in result.cultural_centrality_scores.items() if v < 0
+    }
+    assert set(result.negative_centrality_models) == expected_neg
+
+    if expected_neg:
+        assert result.negative_centrality_flag is True
+    else:
+        assert result.negative_centrality_flag is False
+
+
+def test_centrality_scores_are_raw_eigenvector_loadings():
+    """Scores must be raw first-eigenvector loadings — not normalized, not abs-valued."""
+    import numpy as np
+    from cdb_analyze.consensus import compute_centrality_scores
+
+    sim = np.array([
+        [1.0,  0.9, -0.5],
+        [0.9,  1.0, -0.5],
+        [-0.5, -0.5,  1.0],
+    ], dtype=np.float64)
+    model_ids = ["model-a", "model-b", "model-c"]
+    scores = compute_centrality_scores(model_ids, sim)
+
+    # Recompute expected values independently
+    eigvals, eigvecs = np.linalg.eigh(sim)
+    order = eigvals.argsort()[::-1]
+    first = eigvecs[:, order[0]]
+    if float(np.mean(first)) < 0:
+        first = -first
+    expected = {mid: float(first[i]) for i, mid in enumerate(model_ids)}
+
+    for mid in model_ids:
+        assert abs(scores[mid] - expected[mid]) < 1e-10, (
+            f"{mid}: got {scores[mid]}, expected {expected[mid]}"
+        )
+    # Confirm values are NOT normalized to [0,1]
+    assert max(abs(v) for v in scores.values()) > 0.1  # trivially true for raw loadings
+    # Confirm negative value is preserved as negative, not abs-valued
+    assert scores["model-c"] < 0
+
+
+def test_centrality_zero_model_degenerate():
+    import numpy as np
+    from cdb_analyze.consensus import compute_centrality_scores
+
+    scores = compute_centrality_scores([], np.empty((0, 0)))
+    assert scores == {}
+
+
 def test_load_records_from_jsonl(tmp_path: Path):
     records = _synthetic_records()
     jsonl = tmp_path / "informants.jsonl"

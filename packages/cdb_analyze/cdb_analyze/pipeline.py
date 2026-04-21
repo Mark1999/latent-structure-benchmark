@@ -23,7 +23,7 @@ from cdb_core import (
 
 from cdb_analyze.bootstrap import bootstrap_mds_ellipses
 from cdb_analyze.cluster import cluster_models
-from cdb_analyze.consensus import compute_consensus_free_list
+from cdb_analyze.consensus import compute_centrality_scores, compute_consensus_free_list
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
 from cdb_analyze.mds import compute_cross_model_similarity
 from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
@@ -234,6 +234,22 @@ def run_pipeline(
         similarity_matrix = [[1.0]]
         similarity_ci = [[(1.0, 1.0)]]
 
+    # 3b. Cultural centrality scores (first eigenvector of similarity matrix)
+    # n<2 degenerate case: return empty dict (not meaningful for centrality).
+    if len(model_ids) >= 2:
+        sim_np = np.array(similarity_matrix, dtype=np.float64)
+        cultural_centrality_scores = compute_centrality_scores(model_ids, sim_np)
+    else:
+        cultural_centrality_scores = {}
+    negative_centrality_flag = any(v < 0 for v in cultural_centrality_scores.values())
+    negative_centrality_models = [
+        mid for mid, v in cultural_centrality_scores.items() if v < 0
+    ]
+    logger.info(
+        "Cultural centrality: %d models scored, %d negative",
+        len(cultural_centrality_scores), len(negative_centrality_models),
+    )
+
     # 4. Clustering
     if len(model_ids) >= 2:
         _, sim_for_cluster = compute_cross_model_similarity(matrices)
@@ -286,6 +302,9 @@ def run_pipeline(
         selected_baseline_id=None,
         generated_lede="",  # Populated by cdb_publish, not cdb_analyze
         generated_at=datetime.now(UTC),
+        cultural_centrality_scores=cultural_centrality_scores,
+        negative_centrality_flag=negative_centrality_flag,
+        negative_centrality_models=negative_centrality_models,
     )
 
 
