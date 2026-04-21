@@ -17,6 +17,13 @@ from pathlib import Path
 
 import requests
 from cdb_core import InformantRecord
+from cdb_core.schemas import FreelistRecord, InterviewRecord, PileSortRecord
+
+# Step-record union for the shared fields (stop_reason, latency_ms,
+# response_verbatim, output_tokens). Each concrete record type defines
+# these fields identically; typing the iteration variables as the union
+# lets mypy resolve attribute access without widening to BaseModel.
+_StepRecord = FreelistRecord | PileSortRecord | InterviewRecord
 
 logger = logging.getLogger(__name__)
 
@@ -166,7 +173,7 @@ def check_4_pilesort_symmetric(record: InformantRecord) -> QAFailure | None:
 
 def check_5_latency(record: InformantRecord) -> QAFailure | None:
     """Latency < MAX_LATENCY_MS per step. Skips placeholder steps."""
-    steps = [
+    steps: list[tuple[str, _StepRecord]] = [
         ("freelist", record.freelist),
         ("pile_sort", record.pile_sort),
         ("interview", record.interview),
@@ -184,7 +191,7 @@ def check_5_latency(record: InformantRecord) -> QAFailure | None:
 
 def check_6_token_consistency(record: InformantRecord) -> QAFailure | None:
     """Output tokens within ±10% of len(response_verbatim)/4. Skips placeholders."""
-    steps = [
+    steps: list[tuple[str, _StepRecord]] = [
         ("freelist", record.freelist),
         ("pile_sort", record.pile_sort),
         ("interview", record.interview),
@@ -498,9 +505,10 @@ def main() -> int:
         if failures:
             any_failed = True
             post_to_slack(record, failures)
-            for f in failures:
+            for failure in failures:
                 print(
-                    f"FAIL: {record.informant_id} — {f}", file=sys.stderr,
+                    f"FAIL: {record.informant_id} — {failure}",
+                    file=sys.stderr,
                 )
         else:
             print(f"PASS: {record.informant_id}")
