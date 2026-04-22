@@ -162,4 +162,50 @@ CDA SME PASS on slate (§1)
 
 ---
 
-*End of verdict. Phase 4a is unblocked from the Architect gate. Next action: spawn CDA SME for slate review.*
+*End of original verdict. Amendment A follows.*
+
+---
+
+# Amendment A (2026-04-22) — §2 and §4 mode-label correction
+
+**Trigger:** T2 CLI confirmation dry-run surfaced that `--mode cross_model` is a second-pass analytical step that consumes pre-existing freelists, not a single-invocation full-protocol mode. See `scripts/collect.py:275` (`collect_cross_model` — loads `freelist.output_tokens > 0` records, hard-errors at line 311 with `"No free list records found. Run two_pass first."`) vs. `scripts/collect.py:163` (`collect_single_pass` — each `--runs` iteration calls `run_informant` which produces one `InformantRecord` with all three steps: `freelist`, `pile_sort`, `interview`). The 2026-04-21 shakedown's 108 records in `data/shakedown/shakedown-20260421/informants.jsonl` are all `collection_mode=single_pass` and all contain the three step payloads — empirical confirmation that `single_pass` *is* the full CDA protocol per informant.
+
+## Amendment A.1 — §2 N semantics (corrected)
+
+Strike "Mode: `--mode cross_model`" from §2 and replace with:
+
+- **Mode:** `--mode single_pass`. Each run produces one `InformantRecord` containing all three CDA steps (freelist, pile-sort, interview). This is the same mode the 2026-04-21 shakedown used and its records already carry the G1/G2/G3-relevant fields. The original verdict's claim that `single_pass` was "insufficient" was based on a misread of the mode labels; the correct reading is that `cross_model` is a *downstream* analytical operation that consumes `single_pass` (or `two_pass`) outputs, not an alternative to them.
+- **N=5 maps to** `--runs 5` (five full informant runs per `(model, domain)` cell).
+- **Pile-sorts:** `--pile-sorts` flag is a `two_pass`/`cross_model` parameter and is **not applicable to `single_pass`** — each single_pass run does exactly one pile-sort by construction (inside `run_informant`). Remove the `--pile-sorts 1` flag from Phase 4a invocations.
+- **Temperature:** default (0.7 / 0.3 / 0.3). Unchanged.
+- **Domains:** `family` and `holidays`. Unchanged.
+- **Cell count:** 12 models × 2 domains × 5 runs = **120 InformantRecords, ~360 API calls.** Unchanged. (Register 2 cross-model consensus is computed downstream by `scripts/analyze.py` at T5, not as a collection step.)
+
+## Amendment A.2 — §4 task descriptions (corrected)
+
+**T2:** CLI invocation becomes:
+
+```
+uv run python scripts/collect.py --mode single_pass --domain family \
+  --model anthropic/claude-sonnet-4.6 --runs 2 --dry-run
+```
+
+Acceptance text replaced with: "Coder confirms dry-run reflects `Runs: 5`-equivalent plan at `--runs 2`; confirms via `run_informant` call path (lines 200–206) that each run produces an `InformantRecord` with all three step payloads populated; confirms output path is `data/raw/informants.jsonl`. Prior shakedown record inspection (`data/shakedown/shakedown-20260421/informants.jsonl`) is acceptable evidence."
+
+**T3 canary:** `--mode single_pass` (drop `--pile-sorts 1`), per-model invocation.
+
+**T4 full run:** `--mode single_pass` per `(model, domain)` cell. 12 × 2 = 24 invocations, each `--runs 5`.
+
+**T5 unchanged** — `scripts/analyze.py` still produces Register 2 cross-model consensus from the single_pass corpus.
+
+## Amendment A.3 — CDA SME re-gate
+
+**Not required.** The SME slate verdict (axis 1) blessed "the full CDA protocol (free-list + pile-sort + interview) at N=5 runs per cell." `single_pass` *is* that protocol. Only the parenthetical mode label was wrong, inherited from this verdict's §2. The protocol, the cell count, the temperatures, and all four SME notes (A–E) carry forward unchanged.
+
+## Amendment A.4 — Ruling accepted
+
+Candidate A (single_pass) is selected. Candidate B (two_pass + cross_model) is rejected: it adds cost and a cross-model-consensus collection step that is more correctly computed analytically at T5.
+
+---
+
+*End Amendment A. Proceed to T2 with the corrected invocation.*
