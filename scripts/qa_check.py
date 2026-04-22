@@ -12,7 +12,7 @@ import argparse
 import logging
 import os
 import sys
-from datetime import datetime
+from datetime import UTC, datetime
 from pathlib import Path
 
 import requests
@@ -55,6 +55,12 @@ MAX_LATENCY_MS = 60_000
 # Validated against 6 real Claude Opus runs across free-list and interview steps.
 TOKEN_TOLERANCE = 1.0
 
+# Check 9: Maximum age of logs/backup.log before a missed backup is flagged.
+# 48 hours gives a full daily-backup cycle plus a one-day grace window for
+# transient failures (network blip, B2 outage) without false-positive noise.
+# Below this ceiling a single missed run still resolves before the alert fires.
+MAX_BACKUP_AGE_HOURS = 48
+
 # Check 8 (aggregate, per-(model, domain)): Minimum Spearman ρ between
 # Smith's S and Sutrop CSI rankings. Per docs/SME_REVIEW.md §2.1, Sutrop's
 # CSI is more robust to list-length variance than Smith's S. When the two
@@ -73,7 +79,10 @@ MIN_SALIENCE_AGREEMENT_RHO = 0.85
 MIN_SALIENCE_AGREEMENT_SHARED_ITEMS = 10
 
 # ─── Default paths ──────────────────────────────────────────────────
+# scripts/qa_check.py lives one level below the repo root — same as backup.py.
+_REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_JSONL = Path("data/raw/informants.jsonl")
+_BACKUP_LOG_PATH = _REPO_ROOT / "logs" / "backup.log"
 
 
 class QAFailure:
@@ -258,11 +267,41 @@ def check_8_label_count_match(record: InformantRecord) -> QAFailure | None:
     return None
 
 
+def check_9_backup_freshness(
+    log_path: Path | None = None,
+) -> QAFailure | None:
+    """Backup log age < MAX_BACKUP_AGE_HOURS. Fails if log is missing.
+
+    Infrastructure check — not tied to an InformantRecord. Locates
+    logs/backup.log relative to the repo root (same root resolution
+    as scripts/backup.py uses). Returns None on PASS.
+    """
+    path = log_path if log_path is not None else _BACKUP_LOG_PATH
+    if not path.exists():
+        return QAFailure(
+            9,
+            "Backup log missing",
+            f"< {MAX_BACKUP_AGE_HOURS}h since last backup",
+            f"backup log missing: {path}",
+        )
+    mtime = path.stat().st_mtime
+    now = datetime.now(UTC).timestamp()
+    age_hours = (now - mtime) / 3600
+    if age_hours >= MAX_BACKUP_AGE_HOURS:
+        return QAFailure(
+            9,
+            "Last backup too old",
+            f"< {MAX_BACKUP_AGE_HOURS}h",
+            f"{age_hours:.1f}h",
+        )
+    return None
+
+
 def run_qa_checks(
     record: InformantRecord,
     all_records: list[InformantRecord] | None = None,
 ) -> list[QAFailure]:
-    """Run all 7 QA checks on an InformantRecord.
+    """Run all QA checks on an InformantRecord (checks 1–9).
 
     Returns a list of failures (empty if all pass).
     """
@@ -280,6 +319,7 @@ def run_qa_checks(
         lambda: check_6_token_consistency(record),
         lambda: check_7_provider_request_id(record),
         lambda: check_8_label_count_match(record),
+        lambda: check_9_backup_freshness(),
     ]
 
     for check in checks:

@@ -2,13 +2,17 @@
 
 from __future__ import annotations
 
+import os
+import time
 from datetime import date, datetime
+from pathlib import Path
 from unittest.mock import patch
 
 from cdb_core import FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord
 
 # Import the check functions directly
 from scripts.qa_check import (
+    MAX_BACKUP_AGE_HOURS,
     check_1_freelist_count,
     check_2_freelist_uniqueness,
     check_3_pilesort_binary,
@@ -16,6 +20,7 @@ from scripts.qa_check import (
     check_5_latency,
     check_6_token_consistency,
     check_7_provider_request_id,
+    check_9_backup_freshness,
     post_to_slack,
     run_qa_checks,
 )
@@ -427,3 +432,56 @@ def test_aggregate_alert_posts_expected_fields():
         assert "family" in payload_text
         assert "0.712" in payload_text
         assert "0.85" in payload_text
+
+
+# ─── Check 9: Backup freshness ───────────────────────────────────────
+
+def test_check9_log_missing_returns_failure(tmp_path: Path) -> None:
+    """No backup log → QAFailure with check_num 9 and 'missing' in actual."""
+    nonexistent = tmp_path / "backup.log"
+    failure = check_9_backup_freshness(log_path=nonexistent)
+    assert failure is not None
+    assert failure.check_num == 9
+    assert "missing" in failure.actual.lower()
+
+
+def test_check9_log_49h_old_returns_failure(tmp_path: Path) -> None:
+    """Log with mtime 49h ago → QAFailure; actual message includes '49.0'."""
+    log_file = tmp_path / "backup.log"
+    log_file.write_text("backup ok\n", encoding="utf-8")
+
+    # Set mtime to 49 hours ago
+    age_seconds = 49 * 3600
+    past_time = time.time() - age_seconds
+    os.utime(log_file, (past_time, past_time))
+
+    failure = check_9_backup_freshness(log_path=log_file)
+    assert failure is not None
+    assert failure.check_num == 9
+    assert "49.0" in failure.actual
+
+
+def test_check9_log_1h_old_passes(tmp_path: Path) -> None:
+    """Log with mtime 1h ago → PASS (None)."""
+    log_file = tmp_path / "backup.log"
+    log_file.write_text("backup ok\n", encoding="utf-8")
+
+    age_seconds = 1 * 3600
+    past_time = time.time() - age_seconds
+    os.utime(log_file, (past_time, past_time))
+
+    assert check_9_backup_freshness(log_path=log_file) is None
+
+
+def test_check9_log_exactly_48h_returns_failure(tmp_path: Path) -> None:
+    """Log mtime exactly at MAX_BACKUP_AGE_HOURS → QAFailure (boundary is >=)."""
+    log_file = tmp_path / "backup.log"
+    log_file.write_text("backup ok\n", encoding="utf-8")
+
+    age_seconds = MAX_BACKUP_AGE_HOURS * 3600
+    past_time = time.time() - age_seconds
+    os.utime(log_file, (past_time, past_time))
+
+    failure = check_9_backup_freshness(log_path=log_file)
+    assert failure is not None
+    assert failure.check_num == 9
