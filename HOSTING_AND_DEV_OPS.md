@@ -1,18 +1,19 @@
 # LSB Hosting and DevOps
 
 **Document name:** `HOSTING_AND_DEV_OPS.md`  
-**Version:** v0.1.2 (infra pivot pass — see banner below)  
+**Version:** v0.1.3 (Linode + B2 backup layer active — see banner below)  
 **Status:** Operational reference for the Coder agent and Mark  
 **Audience:** Coder agent, Mark, anyone who needs to understand how LSB is deployed and where its data lives  
-**Companion docs:** `ARCHITECTURE.md` (especially §4.4 publish layer, §4.3 storage, §6.7 open data, §7 resolved decisions), `SECURITY_AND_HARDENING.md` (account hardening, secret management), `PHASE_0_TASKS.md` (P0-T10 dashboard scaffold), `docs/INCIDENTS/2026-04-19-test-data-loss.md`
+**Companion docs:** `ARCHITECTURE.md` (especially §4.4 publish layer, §4.3 storage, §6.7 open data, §7 resolved decisions), `SECURITY_AND_HARDENING.md` (account hardening, secret management), `PHASE_0_TASKS.md` (P0-T10 dashboard scaffold), `docs/INCIDENTS/2026-04-19-test-data-loss.md`, `docs/status/2026-04-22-vps-handoff.md`
 
-> **Status banner (2026-04-19).** The Hetzner VPS `lsb-agent-01` is **decommissioned**. All development is on Mark's local MS Surface Laptop Studio (model 1964). **A new VPS has not been selected**; provider and containerization (Docker vs. native) are open decisions. Every reference to `lsb-agent-01`, `/opt/lsb-agent/`, and the `lsb` user in the sections below describes the *prior* state and is retained for historical continuity until the new VPS is chosen; those sections will be rewritten — not just patched — at that point. Per the `docs/INCIDENTS/2026-04-19-test-data-loss.md` lesson, **at least one off-host backup layer must be active before any official collection run** on the new VPS.
+> **Status banner (2026-04-22).** The project VPS is Linode `lsb-agent-02` (Shared 4GB, Ubuntu 24.04, `172.238.170.9`), with the repo at `/opt/lsb-agent` owned by the `lsb` user. The prior Hetzner `lsb-agent-01` was decommissioned on 2026-04-19 following the test-data loss incident. **Backup Layer 3 (Backblaze B2) is Active** as of 2026-04-22 — nightly at 02:00 UTC via `lsb-backup.timer`, verified by canary test-restore in `docs/status/2026-04-22-b2-test-restore.md`. This satisfies the `docs/INCIDENTS/2026-04-19-test-data-loss.md` §5.1 precondition for Phase 4a. **Dev posture:** the Surface Laptop Studio remains the primary development environment (code authoring, agent sessions, direct-to-master commits); the Linode is the production host (always-on headless Claude Code, nightly backups, Phase 4a collection when it begins). Sections §3.1, §3.4, and §4.1 below are updated to reflect the Linode reality; other sections still carry Hetzner-era framing and will be rewritten in a dedicated pass (see the deferred items in `docs/status/2026-04-22-vps-handoff.md` §5).
 
 **Purpose.** This document is the **single operational reference** for everything related to where LSB runs, where its data lives, what infrastructure costs money, and how deployments work. It is read by the Coder agent before any task touching `.github/workflows/`, Cloudflare Pages config, or environment variables. It is read by Mark before any operational change. Architectural decisions about hosting live in `ARCHITECTURE.md`; this document is the *operational* expression of those decisions — exact commands, exact account names, exact paths.
 
 **Stability.** Changes to this document require Architect sign-off if they affect cost, latency, availability, or backup integrity. Cosmetic or clarifying changes do not.
 
 **Changelog:**
+- **v0.1.3** (2026-04-22) — Linode production VPS brought up as `lsb-agent-02` (`172.238.170.9`, Ubuntu 24.04, Shared 4GB). B2 backup layer implemented and verified: `scripts/backup.py` using `b2sdk`, `deploy/systemd/lsb-backup.{service,timer}` installed and enabled on the VPS, `check_9_backup_freshness` added to `scripts/qa_check.py`, canary test-restore PASS (`docs/status/2026-04-22-b2-test-restore.md`). §3.1, §3.4, and §4.1 updated; remaining Hetzner-era framing in other sections is deferred to a dedicated rewrite pass.
 - **v0.1.2** (2026-04-19) — Infra pivot. `lsb-agent-01` decommissioned following a test-data loss on the VPS working copy (see `docs/INCIDENTS/2026-04-19-test-data-loss.md`). Development moved to Mark's local Surface Laptop Studio. New VPS TBD. Added top-of-doc status banner; VPS-specific sections carry the historical framing until rewritten. Tightened backup posture to a precondition, not a parallel deliverable.
 - **v0.1.1** (2026-04-15) — Reality alignment pass. §3.1: SSH alias connects as `lsb` user. §3.2: note that processes run as `lsb`, note planned-vs-active services. §3.3: removed aspirational `backups/` directory, added `lsb:lsb` ownership. §3.4: documented parked `lsb-agent.service` (`ExecStart=/bin/false`), marked all systemd timers as planned. §3.5: documented SSH hardening (root login disabled, password auth disabled, key-only as `lsb` user), verified ufw active state. §4.1: added Status column — only layer 1 (working copy) is active; layers 2–4 are planned.
 - **v0.1** — first draft. Documents Cloudflare Pages hosting, the `lsb-agent-01` Hetzner VPS, the four-layer backup strategy (Synology + Backblaze B2 + fireproof safe + Zenodo), the GitHub Actions CI/CD pipeline, the three Slack webhooks, and the cost summary. Aligned with `ARCHITECTURE.md` v0.7 — no Mac Mini, no on-prem GPU, no local inference layer.
@@ -97,17 +98,24 @@ Every PR against `main` gets an automatic preview deployment at a Cloudflare-gen
 
 ---
 
-## 3. `lsb-agent-01` — the project VPS
+## 3. `lsb-agent-02` — the project VPS (Linode)
 
 ### 3.1 Provisioning
 
-- **Provider:** Hetzner Cloud
-- **Region:** Helsinki (Finland) — chosen for low cost, EU jurisdiction, and proximity to most LLM provider edge points
-- **Instance type:** CPX32 — 4 vCPU (AMD), 8 GB RAM, 160 GB NVMe SSD, 20 TB included egress
+- **Provider:** Linode (Akamai)
+- **Plan:** Shared 4GB — 2 vCPU, 4 GB RAM, 80 GB SSD
+- **Region:** Chicago, IL (US)
+- **IP:** `172.238.170.9`
 - **OS:** Ubuntu 24.04 LTS
-- **Cost:** approximately €11.90 / month at the time of writing (~$12 USD), billed by the hour
-- **SSH alias:** `ssh lsb` (resolves to the `lsb` user on `lsb-agent-01` in Mark's local `~/.ssh/config`)
-- **Cursor Remote-SSH:** the host is accessible from Cursor via Remote-SSH, connecting as the `lsb` user (see Mark's Cursor configuration)
+- **SSH alias:** `ssh lsb-linode` (resolves to the `lsb` user on `lsb-agent-02`, configured in Mark's Surface `~/.ssh/config`)
+- **Repo path:** `/opt/lsb-agent`, owned `lsb:lsb`
+- **Non-root user:** `lsb` (created 2026-04-22; Claude Code, the backup timer, and all LSB processes run under this user)
+- **Claude Code on VPS:** installed (v2.1.117 at bring-up), authenticated to Mark's Max account, headless-capable
+- **uv:** installed at `/home/lsb/.local/bin/uv` (v0.11.7 at bring-up); PATH persisted via `.bashrc` and `.profile`
+
+**Dev posture.** The Surface Laptop Studio remains the primary development environment — Claude Code agent sessions, code authoring, and direct-to-master commits happen on the Surface. The Linode is the production host for always-on headless Claude Code runs, nightly backups, and Phase 4a canonical collection when it begins. Both hosts are active; neither replaces the other. The Linode does not have a separate dev workflow.
+
+**Prior VPS.** Hetzner `lsb-agent-01` (CPX32, Helsinki) was decommissioned on 2026-04-19 following the test-data loss incident. See `docs/INCIDENTS/2026-04-19-test-data-loss.md` for the incident report and `docs/status/2026-04-22-vps-handoff.md` §2 for the infrastructure timeline.
 
 ### 3.2 What runs on the VPS
 
@@ -155,13 +163,16 @@ The data lives on the VPS local SSD. The 160 GB allocation is enough for several
 
 When an orchestrator is reintroduced, only the `ExecStart=` line needs editing.
 
+**Active systemd timers:**
+
+`lsb-backup.timer` — daily at 02:00 UTC, triggers `lsb-backup.service` which runs `scripts/backup.py` as the `lsb` user. **Installed and enabled on `lsb-agent-02` on 2026-04-22.** Unit files are repo-tracked at `deploy/systemd/lsb-backup.{service,timer}`; installation procedure (four `sudo` commands) is documented in each unit file's header comment. Freshness monitored by `check_9_backup_freshness` in `scripts/qa_check.py` — fails when `logs/backup.log` mtime is ≥ 48 hours old or the log is missing. Verified by canary test-restore on 2026-04-22 (see `docs/status/2026-04-22-b2-test-restore.md`).
+
 **Planned systemd timers (not yet implemented):**
 
-The following timers are the target design but do not exist yet. They will be created as part of the backup and automation implementation work:
+The following timers are the target design but do not exist yet. They will be created as part of the automation implementation work:
 
 ```
 lsb-cost-report.timer          # Planned: Mondays 09:00 UTC, runs scripts/cost_report.py
-lsb-backup.timer               # Planned: Daily 02:00 UTC, runs the backup sync to Backblaze B2
 lsb-social-runner.timer        # Planned: Triggered post-publish via a hook, not a fixed schedule
 ```
 
@@ -181,18 +192,16 @@ LSB takes the backup story seriously because losing the raw data means losing th
 
 ### 4.1 The four backup layers
 
-> **Superseded (2026-04-19).** The layers below describe the target design as of the Hetzner-VPS era. `lsb-agent-01` is decommissioned and layers 1–4 as written are not currently operative. The design — off-host nightly sync, off-region second copy, offline fireproof-safe snapshot, and a DOI'd open-data mirror — remains the target for whatever VPS is chosen next, with one tightening: at least one off-host layer must be **active and test-restored** before any official collection run begins. See `docs/INCIDENTS/2026-04-19-test-data-loss.md` §5.1 for the precondition and the reasoning.
-
 | Layer | Lives where | Cadence | Failure mode this layer catches | **Status** |
 |---|---|---|---|---|
-| **1 — Local on VPS** | `lsb-agent-01:/opt/lsb-agent/data/raw/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup | **Decommissioned** with `lsb-agent-01` on 2026-04-19 |
-| **2 — Synology DS1522+ NAS** | Mark's home network, NAS pull via rsync over SSH | Nightly 03:00 local time (after the VPS-to-B2 push completes) | VPS hardware failure, accidental `rm`, ransomware on the VPS | **Planned** — rsync job and NAS share not yet configured; pending new VPS |
-| **3 — Backblaze B2** | Backblaze B2 bucket `lsb-backups`, region US-West | Nightly 02:00 UTC, push from VPS | Hetzner regional outage, full home network loss, theft of the NAS | **Planned** — `lsb-backup.timer` not yet created, B2 sync not yet configured; **precondition for official collection** |
+| **1 — Local on VPS** | `lsb-agent-02:/opt/lsb-agent/data/` | Continuous (this is the working copy) | Nothing — this is the primary, not a backup | **Active** on Linode `lsb-agent-02` since 2026-04-22 |
+| **2 — Synology DS1522+ NAS** | Mark's home network, NAS pull via rsync over SSH | Nightly 03:00 local time (after the VPS-to-B2 push completes) | VPS hardware failure, accidental `rm`, ransomware on the VPS | **Planned** — rsync job and NAS share not yet configured |
+| **3 — Backblaze B2** | Backblaze B2 bucket `lsb-backups` (private), nightly push from Linode | Nightly 02:00 UTC via `lsb-backup.timer` → `scripts/backup.py` (using `b2sdk`) | VPS regional outage, full home network loss, theft of the NAS | **Active** since 2026-04-22 — verified by canary test-restore (`docs/status/2026-04-22-b2-test-restore.md`) |
 | **4 — Fireproof safe** | USB SSD physically stored in Mark's fireproof safe at home | Manually refreshed every 90 days | Backblaze account compromise, US-wide cloud provider outage, "everything is on fire" scenarios | **Planned** — no initial snapshot taken yet |
 
 The four layers fail differently. Layer 2 catches the most common failure (VPS misconfiguration); layer 3 catches geographic correlated failures; layer 4 catches account-level adversarial failures. Layer 1 is not a backup, it's the working copy — it's listed here only to make the ordering clear.
 
-**Current reality (2026-04-19):** No backup layer is active. `lsb-agent-01` is decommissioned; no new VPS has been chosen. Development is on Mark's local Surface Laptop Studio (see the top-of-doc banner). Because official collection has not yet begun, the only data currently at risk is local dev state, which is already covered by git for everything tracked and is not considered canonical. Before the next VPS is brought into service for a collection run, at least layer 3 (an off-host nightly sync) must be active and test-restored.
+**Current reality (2026-04-22):** Layer 1 (local working copy on `lsb-agent-02`) and Layer 3 (Backblaze B2, nightly at 02:00 UTC) are **Active**. Layers 2 (Synology NAS) and 4 (fireproof safe) remain **Planned** — they remain the target design but are not preconditions for Phase 4a. The Phase 4a precondition from `docs/INCIDENTS/2026-04-19-test-data-loss.md` §5.1 — "at least one off-host backup layer is configured and verified by a test restore" — is **satisfied** as of the 2026-04-22 canary round-trip.
 
 ### 4.2 Backblaze B2 configuration
 
