@@ -102,9 +102,14 @@ class OpenRouterAdapter:
         # PROVIDER fallback (same model, different host) is left enabled;
         # same weights, just different serving infra, improves uptime.
         # model_version_returned captures whatever actually responded.
+        # Cap max_tokens at 4096. Models like microsoft/phi-4 have a 16384-token
+        # total context window; requesting max_tokens=16384 leaves no room for
+        # the prompt and triggers a 400 Bad Request. 4096 is well above any
+        # CDA step output (freelist ~250 tokens, pilesort matrix ~2000 tokens,
+        # interview labels ~500 tokens) and safe for all models on the slate.
         payload: dict = {
             "model": self.model.model_id,
-            "max_tokens": 16384,
+            "max_tokens": 4096,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
