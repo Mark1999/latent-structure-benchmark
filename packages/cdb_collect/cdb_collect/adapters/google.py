@@ -113,7 +113,7 @@ class GeminiAdapter:
 
         config = types.GenerateContentConfig(
             temperature=temperature,
-            max_output_tokens=16384,
+            max_output_tokens=4096,  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
             thinking_config=types.ThinkingConfig(
                 thinking_budget=8192,
             ),

@@ -168,7 +168,7 @@ class OpenAICompatAdapter:
 
         payload: dict = {
             "model": self._api_model,
-            self._max_tokens_param: 16384,
+            self._max_tokens_param: 4096,  # see phase4a-adapter-fix-verdict.md in docs/status/
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
