@@ -12,6 +12,9 @@ dependencies = [
     "langgraph>=1.1.6",
     "python-dotenv>=1.2.2",
     "slack-sdk>=3.41.0",
+    # B2 backup layer (scripts/backup.py). Architect sign-off:
+    # docs/status/2026-04-22-b2-backup-architect-verdict.md §1
+    "b2sdk>=2.0,<3",
     # Workspace packages
     "cdb-core",
     "cdb-collect",

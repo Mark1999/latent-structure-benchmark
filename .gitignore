@@ -39,6 +39,10 @@ docs/references/
 .DS_Store
 Thumbs.db
 
+# Logs (content is never tracked; logs/.gitkeep keeps the directory in git)
+logs/*
+!logs/.gitkeep
+
 # IDE
 .idea/
 *.swp
