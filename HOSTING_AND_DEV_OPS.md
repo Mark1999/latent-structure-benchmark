@@ -252,7 +252,7 @@ All workflows live in `.github/workflows/`. Each is a single YAML file scoped to
 | `ci.yml` | Push to any branch, PR against `main` | ruff check, mypy on `packages/`, pytest on `tests/`, the `cdb_analyze` no-LLM-imports static check (per `ARCHITECTURE.md` §1 commitment 6 and §4.2 binding constraint) | P0-T6 |
 | `publish.yml` | Push to `main` that touches `data/results/` | Runs `python scripts/publish.py`, commits the resulting JSON files to `apps/dashboard/public/data/`, pushes back to `main` (which triggers the Cloudflare Pages auto-deploy) | Phase 6 (manual until then) |
 | `weekly-cost-report.yml` | Cron, every Monday 09:00 UTC | Runs `scripts/cost_report.py --month current` and writes to `data/cost_reports/{YYYY-MM-DD}.txt`, commits and pushes | Phase 6 |
-| `weekly-cost-alert.yml` | Cron, every Monday 10:00 UTC (after the cost report) | Reads the latest cost report, checks if projected monthly spend exceeds 80% of `CDB_MAX_SPEND_USD`, if so posts an alert to `#lsb-alerts` | Phase 6 |
+| `weekly-cost-alert.yml` | Cron, every Monday 10:00 UTC (after the cost report) | Reads the latest cost report, checks if month-to-date actual spend exceeds 80% of `CDB_MAX_SPEND_USD`, if so posts an alert to `#lsb-alerts` | Phase 6 |
 
 The `weekly-cost-alert.yml` job is the third tier of the spend-cap defense per `ARCHITECTURE.md` §6.2 (tier 1 is the in-process runtime cap, tier 2 is the per-provider account caps, tier 3 is this weekly check). It posts to `#lsb-alerts` rather than to `#lsb-cda-sme` because it's an operational alert, not a development decision — see `ARCHITECTURE.md` §5.4 for the channel routing rules.
 

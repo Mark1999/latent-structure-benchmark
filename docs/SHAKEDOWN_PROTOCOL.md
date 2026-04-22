@@ -92,24 +92,7 @@ Practical consequence: the shakedown is internal-only. If anyone wants to show s
 
 ## 6. Budget
 
-Estimated spend by provider (rough, based on registry per-token pricing and observed output lengths in test runs):
-
-**Note on the interview step.** The pile-sort step's prompt carries the full item list back to the model (up to 60 items × ~10 chars each ≈ 600 input tokens overhead per call), and the interview step produces the longest output (one label per pile, often with justification text). The per-call averages below include both effects. Claude Sonnet in particular under-estimates at $0.08/call if interview outputs exceed ~1k tokens; the table below uses $0.12/call to be conservative.
-
-| Cell | Runs | Steps | API calls | $/call (est) | Subtotal |
-|---|---|---|---|---|---|
-| Claude Sonnet × 2 domains | 16 | 3 | 48 | $0.12 | $5.76 |
-| GPT-5.4-mini × 2 domains | 16 | 3 | 48 | $0.03 | $1.44 |
-| Gemini Flash × 2 domains | 16 | 3 | 48 | $0.02 | $0.96 |
-| DeepSeek Chat × 2 domains | 16 | 3 | 48 | $0.015 | $0.72 |
-| Sensitivity cell (8 variants × N=5 × 3 steps, Claude) | 40 | 3 | 120 | $0.12 | $14.40 |
-| Determinism cell (N=5 at T=0 × 3 steps, Claude) | 5 | 3 | 15 | $0.12 | $1.80 |
-| **Expected total** | | | **~327** | | **~$25.08** |
-| Ceiling with retries / token blow-outs | | | ~500 | | **~$40** |
-
-**The `$CDB_MAX_SPEND_USD=25` override sits at the expected total.** If the run trips the cap, that's itself a finding — it means Claude's interview step is producing more output than estimated, and the Phase 4a budget extrapolation (12 × 3 × 5 × $0.12 ≈ $22 per domain per pass) needs revision. If that happens, raise the cap to $50 and resume; do not run more than $50 in a single shakedown session without a fresh budget review.
-
-To reduce cost: running the sensitivity cell on `gpt-5.4-mini` or `gemini-2.5-flash` instead of Claude drops the cell from ~$14 to ~$2–4. Acceptable substitution if Claude budget is a constraint; the cell's purpose is to exercise split G1 plumbing, not to characterize Claude specifically.
+Shakedown runs are bounded by the `CDB_MAX_SPEND_USD` runtime cap (see `ARCHITECTURE.md` §6.2). The standing $300/month cap is the single authoritative guardrail; session-level overrides (e.g., `CDB_MAX_SPEND_USD=25`) are optional and not required. Actual shakedown-class sessions run well under $5 per cycle based on observed spend. **Pre-run cost projections are not produced** — they have been removed from this protocol because prior projections were inaccurate by an order of magnitude and caused unnecessary process friction. If a run ever trips the $300 cap, that is itself a finding about the instrument, not an accounting failure.
 
 ---
 
