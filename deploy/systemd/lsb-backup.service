@@ -1,0 +1,22 @@
+# LSB nightly B2 backup service
+# Triggered by lsb-backup.timer — do not enable this unit directly.
+# Architect verdict: docs/status/2026-04-22-b2-backup-architect-verdict.md §4.3
+#
+# Install (run as root on the VPS):
+#   sudo cp deploy/systemd/lsb-backup.service /etc/systemd/system/
+#   sudo cp deploy/systemd/lsb-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now lsb-backup.timer
+#   sudo systemctl list-timers lsb-backup.timer
+
+[Unit]
+Description=LSB nightly B2 backup
+# This service is activated by lsb-backup.timer; it does not start on its own.
+
+[Service]
+Type=oneshot
+User=lsb
+WorkingDirectory=/opt/lsb-agent
+ExecStart=/opt/lsb-agent/.venv/bin/python scripts/backup.py
+StandardOutput=append:/opt/lsb-agent/logs/backup.log
+StandardError=append:/opt/lsb-agent/logs/backup.log

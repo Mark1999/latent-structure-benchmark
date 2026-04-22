@@ -1,0 +1,22 @@
+# LSB nightly B2 backup timer
+# Fires lsb-backup.service daily at 02:00 UTC. Persistent=true means a missed
+# run (e.g. VPS was down) fires as soon as the machine comes back online.
+# Architect verdict: docs/status/2026-04-22-b2-backup-architect-verdict.md §4.3
+#
+# Install (run as root on the VPS):
+#   sudo cp deploy/systemd/lsb-backup.service /etc/systemd/system/
+#   sudo cp deploy/systemd/lsb-backup.timer /etc/systemd/system/
+#   sudo systemctl daemon-reload
+#   sudo systemctl enable --now lsb-backup.timer
+#   sudo systemctl list-timers lsb-backup.timer
+
+[Unit]
+Description=Run LSB B2 backup nightly at 02:00 UTC
+
+[Timer]
+OnCalendar=*-*-* 02:00:00 UTC
+Persistent=true
+Unit=lsb-backup.service
+
+[Install]
+WantedBy=timers.target
