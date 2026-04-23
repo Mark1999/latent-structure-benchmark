@@ -153,4 +153,69 @@ Existing task IDs reconciled with Architect's graph:
 
 ---
 
-*End of verdict. Directive captured. T5 has concrete unblocking criteria. Architect gate on this thread: closed pending #19 and #20 outcomes.*
+*End of original verdict. Amendment A follows.*
+
+---
+
+# Amendment A (2026-04-23) — Retry-attempt capture in `failures.jsonl`
+
+**Triggering finding:** #19 audit §3 Gap C + §5 "retry attempt log" recommendation. `run_pile_sort` retries up to `_MAX_PARSE_RETRIES=3` times; each retry's `AdapterResult` is discarded when the final `ValueError` is raised. The original Stream A schema ruling specified `response_verbatim: str` (singular), which captures only the final attempt.
+
+**Amends:** Stream A §Schema implications (the `failures.jsonl` entry shape).
+
+## A.1 — Shape amendment
+
+**Adopt a backward-compatible hybrid.** Keep `response_verbatim` / `thinking_verbatim` / `stop_reason` / `prompt_verbatim` at top level as the **final attempt's** bytes (the attempt that produced the raised error). Additionally add:
+
+```
+retry_attempts: list[RetryAttempt]   # ordered, index 0 = first attempt
+```
+
+where each `RetryAttempt` carries:
+
+```
+{
+  attempt_index: int,
+  response_verbatim: str,
+  thinking_verbatim: str,
+  stop_reason: str,
+  input_tokens: int,
+  output_tokens: int,
+  latency_ms: int,
+  parse_error_message: str,
+}
+```
+
+- `prompt_verbatim` is **not** duplicated per-attempt (the pile-sort retry loop does not mutate the prompt).
+- `http_status` is **not** included — parse-retries happen on HTTP 200 responses; adapter-level HTTP retries are internal to the adapter and not exposed here.
+- For failures where no retry loop executed (all `run_free_list` failures, all `run_pile_interview` failures, all HTTP 4xx/5xx/timeout failures at any step), `retry_attempts` is `[]`. Top-level `response_verbatim` etc. carry the single attempt's bytes.
+
+**Rationale for hybrid over pure-list:** readers inspecting a single failure entry want the "what did the model finally say" bytes at top level without indexing into a list. The list carries the diagnostic forensics for the minority case (pile-sort parse-retry exhaustion).
+
+## A.2 — Scope confirmation
+
+**In Phase 4a.** 10 Gemini cells + 6 GLM cells are already in the corpus; re-running T4 without retry-attempt capture produces a decline-interview pass (#21) that cannot distinguish deterministic refusal from varied failure modes. The "failures are findings" commitment is undermined if deferred.
+
+## A.3 — Schema-file implications
+
+**No pydantic model in `cdb_core/schemas.py`.** `failures.jsonl` entries are dict-shaped JSONL and not represented by a pydantic type today; adding one for failure entries is scope expansion beyond the directive. Specify the `RetryAttempt` shape in `docs/DATA_DICTIONARY.md` as a JSON object schema inside the `failures.jsonl` section. `append_failure` in `jsonl.py` accepts `retry_attempts: list[dict] | None = None` and serializes as-is.
+
+If future work (Stream C dashboard) needs type-checked access, a pydantic `FailureEntry` / `RetryAttempt` read model can be added then — not required for #24.
+
+## A.4 — #23 scope refinement
+
+**Gap C closure stays in #23** (already listed as Bug 2 in audit §7). Adjust Bug 2's fix:
+- `PileSortParseError` (new exception type replacing the bare `ValueError` in `pile_sort.py:253`) carries `attempts: list[AdapterResult]` — all retries in order, not just `final_result: AdapterResult`.
+- `run_informant` catches `PileSortParseError`, maps `attempts[:-1]` → `retry_attempts` list in the `PartialSessionError` raise, maps `attempts[-1]` → top-level verbatim fields.
+
+No new task.
+
+## A.5 — Per-step retry generalization
+
+**Neither `run_free_list` nor `run_pile_interview` retries at the parse layer** (confirmed at `free_list.py:110` and `pile_interview.py:135` — single `adapter.complete()` call; `pile_interview` uses `label_count_mismatch` signal, not an exception). `retry_attempts` is `[]` for free-list and interview failures. Gap C is **pile-sort-only**; no per-step pattern to generalize. The schema field is defined once and used uniformly (empty list for non-retry steps).
+
+Adapter-internal HTTP retries (Anthropic 5×, httpx 5×) are deliberately excluded — they are transport-layer, not protocol-layer, and the final `AdapterResult` already reflects the outcome.
+
+---
+
+*End Amendment A. #24 brief: implement the hybrid shape. #23 brief: Bug 2 fix carries `list[AdapterResult]`, not singular.*
