@@ -489,6 +489,15 @@ async def run_two_pass(
         stamped_freelist_records.append(rec)
 
     # ── Pass 2: Pile sorts on consensus items ───────────────────────
+    # Deviation from Architect Amendment A §Stream A brief (2026-04-23):
+    # the per-iteration handler stops on first failure rather than
+    # continuing to the next iteration. Continue-after-failure would
+    # require a return-type change or failure-callback parameter and was
+    # deferred. Verbatim is still preserved on the failure via
+    # PartialSessionError (strictly better than the pre-fix behavior
+    # where a single failure lost all verbatim). Continue-after-failure
+    # is tracked as a follow-up for Architect ruling. See
+    # docs/status/2026-04-23-phase4a-task23-reviewer-verdict.md Note 1.
     pile_sort_records: list[InformantRecord] = []
     for i in range(n_pile_sorts):
         run_idx = n_free_lists + i  # Offset to avoid ID collision
@@ -654,6 +663,13 @@ async def run_baseline_sort(
     item_source = f"baseline:{baseline_id}"
     records: list[InformantRecord] = []
 
+    # Deviation from Architect Amendment A §Stream A brief (2026-04-23):
+    # per-iteration handler stops on first failure rather than continuing.
+    # Same trade-off as run_two_pass Pass 2 above — verbatim is preserved
+    # on failure via PartialSessionError, but the loop does not continue
+    # to remaining iterations. Continue-after-failure deferred as a
+    # follow-up for Architect ruling. See
+    # docs/status/2026-04-23-phase4a-task23-reviewer-verdict.md Note 1.
     for i in range(n_sorts):
         try:
             pilesort_record, ps_result = await run_pile_sort(
