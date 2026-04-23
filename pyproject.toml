@@ -9,7 +9,6 @@ dependencies = [
     # scratch file). These predate the formal architecture and will be cleaned
     # up when main.py is migrated or removed post-Phase 0.
     "anthropic>=0.94.0",
-    "langgraph>=1.1.6",
     "python-dotenv>=1.2.2",
     "slack-sdk>=3.41.0",
     # B2 backup layer (scripts/backup.py). Architect sign-off:
