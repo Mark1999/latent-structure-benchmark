@@ -51,12 +51,17 @@ Exit codes:
 from __future__ import annotations
 
 import argparse
+import asyncio
 import json
 import re
+import statistics
 import sys
+import time
 from collections import defaultdict
+from datetime import UTC, datetime
 from pathlib import Path
 
+from cdb_collect.adapters.base import ModelAdapter
 from cdb_collect.decline_detection import (
     DetectedSession,
     _failure_identifier,
@@ -105,7 +110,13 @@ SAFETY_FILTER_MARKERS: tuple[str, ...] = (
     "RECITATION",             # Gemini finish_reason for copyright block
     "SAFETY",                 # Gemini finish_reason for safety block
     "PROHIBITED_CONTENT",
-    "OTHER",                  # Gemini's generic content-block finish_reason
+    # "OTHER" is Gemini's generic content-block finish_reason. Note: case-insensitive
+    # substring matching means this will match any error message containing the
+    # substring "other" (e.g., "another", "OtherConnectionError"). Acceptable trade-off
+    # per CDA SME verdict 2026-04-23 Amendment 1; the rarity of provider refusal
+    # messages containing an unrelated "other" substring keeps the false-positive rate
+    # negligible on current corpus. If this changes, revisit via new plan cycle.
+    "OTHER",
 )
 
 PARSE_EXHAUSTION_MARKERS: tuple[str, ...] = (
@@ -1013,15 +1024,511 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
+# ── Execute path helpers ──────────────────────────────────────────────────────
+
+
+def _build_adapter_for_model(model_id: str) -> ModelAdapter:
+    """Resolve and instantiate a ModelAdapter for the given model_id.
+
+    Loads the model registry from data/models/registry.json and routes
+    to the correct adapter class via collection_method. Mirrors the logic
+    in scripts/collect.py::_create_adapter.
+
+    Raises:
+        ValueError: If model_id is not found in the registry or the
+            collection_method is unknown.
+    """
+    import json as _json
+    from datetime import date
+
+    from cdb_collect.adapters import (
+        AnthropicAdapter,
+        GeminiAdapter,
+        HuggingFaceAdapter,
+        OpenAICompatAdapter,
+        OpenRouterAdapter,
+    )
+    from cdb_collect.model_ids import to_direct_id
+    from cdb_core import ModelRef
+
+    registry_path = _REPO_ROOT / "data" / "models" / "registry.json"
+    if not registry_path.exists():
+        raise ValueError(
+            f"Model registry not found at {registry_path}. "
+            "Run: python scripts/discover_models.py --update-registry"
+        )
+
+    data = _json.loads(registry_path.read_text(encoding="utf-8"))
+    _METHOD_TO_PROVIDER: dict[str, str] = {
+        "anthropic_api": "anthropic",
+        "google_ai": "google",
+        "xai_api": "xai",
+        "openrouter": "openrouter",
+        "huggingface": "huggingface",
+    }
+
+    model_ref: ModelRef | None = None
+    for entry in data.get("models", []):
+        eid = entry["model_id"]
+        effective = to_direct_id(eid)
+        if eid == model_id or effective == model_id:
+            method = entry["collection_method"]
+            provider = _METHOD_TO_PROVIDER.get(method, "openrouter")
+            parts = eid.split("/")
+            version_label = parts[-1] if len(parts) > 1 else eid
+            created_ts = entry.get("openrouter_created")
+            release = date.fromtimestamp(created_ts) if created_ts else date.today()
+            model_ref = ModelRef(
+                provider=provider,
+                model_id=effective,
+                family=entry["family"],
+                origin=entry["origin"],
+                open_weights=entry["open_weights"],
+                collection_method=method,
+                quantization=None,
+                release_date=release,
+                version_label=version_label,
+            )
+            break
+
+    if model_ref is None:
+        raise ValueError(
+            f"model_id {model_id!r} not found in registry at {registry_path}. "
+            "Cannot build adapter."
+        )
+
+    method = model_ref.collection_method
+    if method == "anthropic_api":
+        return AnthropicAdapter(model_ref)
+    if method == "google_ai":
+        return GeminiAdapter(model_ref)
+    if method in ("openai_api", "xai_api", "deepseek_api", "mistral_api"):
+        return OpenAICompatAdapter(model_ref)
+    if method == "openrouter":
+        return OpenRouterAdapter(model_ref)
+    if method == "huggingface":
+        return HuggingFaceAdapter(model_ref)
+    raise ValueError(f"Unknown collection_method: {method}")
+
+
+def _task_description_from_informant(
+    record: dict, originating_step: str,
+) -> str:
+    """Extract the verbatim task_description from an InformantRecord dict.
+
+    Reads prompt_verbatim from the relevant step sub-record, keyed by
+    originating_step (freelist, pile_sort, or interview). Per SME
+    binding note 1.1, task_description must be the verbatim prompt,
+    not a paraphrase, to preserve reproducibility.
+
+    Returns an empty string if the field is absent (callers should
+    handle that as a missing-context case, but the execute path will
+    still proceed).
+    """
+    step_to_field = {
+        "freelist": "freelist",
+        "pile_sort": "pile_sort",
+        "interview": "interview",
+        "pre_session": "freelist",  # fallback for pre_session (rare)
+    }
+    field_name = step_to_field.get(originating_step, "freelist")
+    step_record = record.get(field_name, {})
+    return str(step_record.get("prompt_verbatim", ""))
+
+
+def _response_verbatim_from_informant(
+    record: dict, originating_step: str,
+) -> str:
+    """Extract the verbatim response from an InformantRecord dict.
+
+    Reads response_verbatim from the relevant step sub-record.
+    Returns empty string if absent.
+    """
+    step_to_field = {
+        "freelist": "freelist",
+        "pile_sort": "pile_sort",
+        "interview": "interview",
+        "pre_session": "freelist",
+    }
+    field_name = step_to_field.get(originating_step, "freelist")
+    step_record = record.get(field_name, {})
+    return str(step_record.get("response_verbatim", ""))
+
+
+def _task_description_from_failure(
+    entry: dict, originating_step: str,
+) -> str:
+    """Extract or reconstruct task_description for a failures.jsonl entry.
+
+    Priority:
+    1. entry["prompt_verbatim"] if present (caller-supplied verbatim prompt).
+    2. Template reconstruction from cdb_collect prompts — freelist template with
+       domain seed substituted for freelist/pre_session steps; raw pile_sort or
+       pile_interview template for other steps. This is RISK 1 territory per the
+       Amendment 1 plan: the reconstructed prompt is domain-level, not the exact
+       prompt sent (which may have had specific items/piles substituted). Pile-sort
+       and pile-interview templates will be returned as-is with unfilled placeholders
+       because the original items/piles context is not available from the failure
+       entry alone.
+
+    RISK 1 note: for pile_sort and interview steps, the reconstructed prompt will
+    contain unfilled template markers ({{items}}, {{piles}}). The decline-interview
+    build_prompt() in run_decline_interview.py substitutes this as task_description
+    directly. The resulting decline-interview prompt will be less precise than one
+    constructed from the original context, but it is deterministic and reproducible.
+    Downstream analysis should note this limitation for non-freelist reconstructed
+    prompts.
+    """
+    # Priority 1: verbatim if present
+    verbatim = entry.get("prompt_verbatim")
+    if verbatim is not None:
+        return str(verbatim)
+
+    # Priority 2: template reconstruction
+    context = entry.get("context", {})
+    domain_slug = context.get("domain", "")
+
+    # Path to the cdb_collect prompts directory
+    prompts_dir = (
+        Path(__file__).resolve().parent.parent
+        / "packages" / "cdb_collect" / "cdb_collect" / "prompts" / "v1"
+    )
+
+    step_to_template_file = {
+        "freelist": "free_list.md",
+        "pile_sort": "pile_sort.md",
+        "interview": "pile_interview.md",
+        "pre_session": "free_list.md",
+    }
+    template_file = step_to_template_file.get(originating_step, "free_list.md")
+    template_path = prompts_dir / template_file
+
+    try:
+        template = template_path.read_text(encoding="utf-8").rstrip("\n")
+    except OSError:
+        # If template is not readable (shouldn't happen on landed repo), return empty
+        return ""
+
+    # For freelist/pre_session, substitute domain seed if we can load the domain.
+    if originating_step in ("freelist", "pre_session") and domain_slug:
+        try:
+            from cdb_collect.domains import load_domain
+            domain = load_domain(domain_slug)
+            return template.replace("{{domain_seed}}", domain.prompt_seed)
+        except (FileNotFoundError, ValueError):
+            # Domain not found; return template with placeholder intact
+            return template.replace("{{domain_seed}}", domain_slug or "{{domain_seed}}")
+
+    # For pile_sort and interview, return raw template (items/piles not available).
+    return template
+
+
+def _response_verbatim_from_failure(entry: dict) -> str:
+    """Extract response_verbatim from a failures.jsonl entry.
+
+    Returns entry["response_verbatim"] if present; else empty string.
+    The empty string causes build_prompt() in run_decline_interview.py
+    to substitute "(empty)" per the bound prompt wording.
+    """
+    v = entry.get("response_verbatim")
+    return str(v) if v is not None else ""
+
+
+def _is_recursive_decline(response_verbatim: str) -> bool:
+    """Return True if the decline-interview response is itself a decline.
+
+    A recursive decline is defined as:
+    - The response_verbatim is empty or whitespace-only, OR
+    - Any SAFETY_FILTER_MARKERS substring matches (case-insensitive) in
+      the response text.
+
+    This is expected per "failures are findings" — a model declining to
+    describe what happened is itself an audit data point.
+    """
+    if not response_verbatim or not response_verbatim.strip():
+        return True
+    rv_lower = response_verbatim.lower()
+    return any(marker.lower() in rv_lower for marker in SAFETY_FILTER_MARKERS)
+
+
+def run_execute(
+    informants_path: Path,
+    failures_path: Path,
+    output_path: Path,
+    verbose: bool = False,
+    cost_per_call: float = COST_PER_CALL_USD,
+    spend_cap: float = DEFAULT_COST_CAP_USD,
+    escalation_ratio: float = ESCALATION_THRESHOLD_RATIO,
+    source: str = "all",
+    adapter_factory: object | None = None,
+) -> int:
+    """Execute the decline-interview backfill: issue API calls and write records.
+
+    T2 scope per Amendment 1 §6. Implements:
+    - --source filter (informants / failures / all)
+    - should_include_failure() exclusion on failures-origin
+    - Pre-flight cost check at 80% of cap (same gate as dry-run)
+    - Sequential execution with per-call cost + running total to stdout
+    - Abort at hard cap (exit 3, distinct from dry-run STOP=2)
+    - Single batch_start detection_timestamp shared across all records (SME A6)
+    - Per-sub-batch cost counters in execute summary
+    - Recursive-decline capture and counting (SME binding note 6 + A6)
+    - Excluded records logged to stderr with SKIP: prefix
+
+    Args:
+        informants_path: Path to informants.jsonl.
+        failures_path:   Path to failures.jsonl.
+        output_path:     Path to decline_interviews.jsonl (append-only writes).
+        verbose:         If True, emit extra diagnostic output.
+        cost_per_call:   Estimated cost per API call in USD (injectable for tests).
+        spend_cap:       Hard spend cap in USD (injectable for tests).
+        escalation_ratio: Fraction of cap at which pre-flight STOP fires.
+        source:          Which origin to process: 'informants', 'failures', or 'all'.
+        adapter_factory: Optional callable(model_id: str) -> ModelAdapter.
+                         When None, uses _build_adapter_for_model (real adapters).
+                         Inject a MockAdapter factory in tests — never real API calls.
+
+    Returns:
+        Exit code:
+          0 — batch completed cleanly
+          1 — IO or parse error
+          2 — pre-flight projected cost >= 80% of cap (STOP before any API call)
+          3 — hard cap exceeded mid-batch (partial records written; JSONL stands)
+    """
+    # ── Load raw data ──────────────────────────────────────────────────────────
+    informant_dicts = _load_jsonl_dicts(informants_path)
+    failure_dicts = _load_jsonl_dicts(failures_path)
+
+    # ── Run detection ──────────────────────────────────────────────────────────
+    detected_sessions = detect_all(informant_dicts, failure_dicts)
+
+    informants_sessions = [s for s in detected_sessions if s.source == "informants"]
+    failures_sessions = [s for s in detected_sessions if s.source == "failures"]
+
+    # ── Build lookup dicts ─────────────────────────────────────────────────────
+    informant_by_id: dict[str, dict] = {
+        rec.get("informant_id", ""): rec for rec in informant_dicts
+    }
+    failure_dict_by_id: dict[str, dict] = {
+        _failure_identifier(e): e for e in failure_dicts
+    }
+
+    # ── Apply source filter + exclusion ────────────────────────────────────────
+    work_items: list[tuple[DetectedSession, dict]] = []   # (session, source_entry)
+    excluded_sessions: list[tuple[str, str]] = []         # (identifier, rationale)
+
+    if source in ("informants", "all"):
+        for session in informants_sessions:
+            entry = informant_by_id.get(session.identifier, {})
+            work_items.append((session, entry))
+
+    if source in ("failures", "all"):
+        for session in failures_sessions:
+            entry = failure_dict_by_id.get(session.identifier, {})
+            include, rationale = should_include_failure(entry)
+            if include:
+                work_items.append((session, entry))
+            else:
+                excluded_sessions.append((session.identifier, rationale))
+
+    # Log excluded records to stderr
+    for identifier, rationale in excluded_sessions:
+        print(f"SKIP: {identifier} — {rationale}", file=sys.stderr)
+
+    # ── Pre-flight cost check (same gate as dry-run) ───────────────────────────
+    n_work = len(work_items)
+    projected_cost = n_work * cost_per_call
+    escalation_threshold = spend_cap * escalation_ratio
+
+    if projected_cost >= escalation_threshold:
+        print(
+            f"STOP: projected cost ${projected_cost:.2f} >= "
+            f"${escalation_threshold:.2f} (80% of ${spend_cap:.2f} cap). "
+            "Escalate on a new Architect plan cycle per SME binding note 8. "
+            "No API calls made.",
+            file=sys.stdout,
+        )
+        return 2
+
+    # ── Resolve adapter factory ────────────────────────────────────────────────
+    _get_adapter = (
+        adapter_factory if adapter_factory is not None
+        else _build_adapter_for_model
+    )
+
+    # ── Import execute-path dependencies (lazy — keep dry-run import-clean) ───
+    from cdb_collect.jsonl import append_decline_interview
+    from cdb_collect.run_decline_interview import run_decline_interview
+
+    # ── Batch start timestamp (SME A6: single timestamp for the entire batch) ──
+    batch_start = datetime.now(UTC)
+
+    # ── Execute sequentially ───────────────────────────────────────────────────
+    n_total = len(work_items)
+    running_total: float = 0.0
+    informants_spend: float = 0.0
+    failures_spend: float = 0.0
+    n_written = 0
+    n_recursive = 0
+    n_version_drift = 0
+    latency_ms_list: list[float] = []
+
+    for call_index, (session, source_entry) in enumerate(work_items, 1):
+        # Reconstruct task_description and originating_response_verbatim
+        if session.source == "informants":
+            task_description = _task_description_from_informant(
+                source_entry, session.originating_step
+            )
+            originating_response_verbatim = _response_verbatim_from_informant(
+                source_entry, session.originating_step
+            )
+            originating_informant_id: str | None = session.identifier
+            originating_failure_id: str | None = None
+            # originating_model_version_returned from the InformantRecord
+            orig_model_version = str(source_entry.get("model_version_returned", ""))
+            model_id = str(source_entry.get("model_id", ""))
+        else:
+            # failures-origin
+            task_description = _task_description_from_failure(
+                source_entry, session.originating_step
+            )
+            originating_response_verbatim = _response_verbatim_from_failure(source_entry)
+            originating_informant_id = None
+            originating_failure_id = session.identifier
+            ctx = source_entry.get("context", {})
+            orig_model_version = ""  # failures.jsonl does not carry model_version_returned
+            model_id = str(ctx.get("model_id", ""))
+
+        # Resolve adapter
+        try:
+            adapter = _get_adapter(model_id)
+        except (ValueError, OSError) as exc:
+            print(
+                f"ERROR: cannot build adapter for model_id={model_id!r}: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+
+        # Invoke the decline interview
+        t_start = time.monotonic()
+        try:
+            interview = asyncio.run(
+                run_decline_interview(
+                    adapter,
+                    task_description=task_description,
+                    originating_response_verbatim=originating_response_verbatim,
+                    originating_informant_id=originating_informant_id,
+                    originating_failure_id=originating_failure_id,
+                    originating_step=session.originating_step,
+                    originating_outcome_class=session.originating_outcome_class,
+                    detection_rule_version="v1",
+                    detection_timestamp=batch_start,
+                    originating_model_version_returned=orig_model_version,
+                )
+            )
+        except Exception as exc:  # noqa: BLE001
+            print(
+                f"ERROR: decline interview failed for {session.identifier!r}: {exc}",
+                file=sys.stderr,
+            )
+            return 1
+        t_end = time.monotonic()
+
+        call_latency_ms = (t_end - t_start) * 1000.0
+        call_cost = interview.cost_usd if interview.cost_usd else cost_per_call
+        running_total += call_cost
+        latency_ms_list.append(call_latency_ms)
+
+        if session.source == "informants":
+            informants_spend += call_cost
+        else:
+            failures_spend += call_cost
+
+        if interview.version_drift_flag:
+            n_version_drift += 1
+
+        # Recursive-decline detection
+        is_recursive = _is_recursive_decline(interview.response_verbatim or "")
+        if is_recursive:
+            n_recursive += 1
+            first_120 = (interview.response_verbatim or "")[:120]
+            print(
+                f"RECURSIVE_DECLINE: {session.identifier} — {first_120!r}",
+                file=sys.stderr,
+            )
+
+        # Print per-call progress line
+        domain = (
+            source_entry.get("domain_slug", "")
+            if session.source == "informants"
+            else source_entry.get("context", {}).get("domain", "")
+        )
+        print(
+            f"[{call_index}/{n_total}] "
+            f"model={model_id} "
+            f"domain={domain} "
+            f"step={session.originating_step} "
+            f"cost=${call_cost:.3f} "
+            f"total=${running_total:.3f}"
+        )
+
+        # Append to output JSONL (append-only)
+        append_decline_interview(interview, output_path)
+        n_written += 1
+
+        # Hard-cap check after each call
+        if running_total >= spend_cap:
+            print(
+                f"\nCOST CAP EXCEEDED: ${running_total:.2f} >= ${spend_cap:.2f}. "
+                "Batch aborted.",
+                file=sys.stdout,
+            )
+            print(
+                f"Records written before abort: {n_written}. "
+                "decline_interviews.jsonl stands (append-only).",
+                file=sys.stdout,
+            )
+            return 3
+
+    # ── CLI summary ────────────────────────────────────────────────────────────
+    print()
+    print("===== Execute run summary =====")
+    print(f"Source:                       {source}")
+    print(f"Records written:              {n_written}")
+    print(f"Records excluded:             {len(excluded_sessions)}")
+    print(f"Total spend:                  ${running_total:.2f}")
+    print(f"Informants-origin spend:      ${informants_spend:.2f}")
+    print(f"Failures-origin spend:        ${failures_spend:.2f}")
+    print(f"Detection timestamp:          {batch_start.isoformat()}")
+    print(f"Version drift flags:          {n_version_drift}")
+
+    if latency_ms_list:
+        lat_min = min(latency_ms_list)
+        lat_med = statistics.median(latency_ms_list)
+        lat_max = max(latency_ms_list)
+        print(f"Latency (ms):                 {lat_min:.0f} / {lat_med:.0f} / {lat_max:.0f}")
+    else:
+        print("Latency (ms):                 N/A")
+
+    print(f"Recursive declines observed:  {n_recursive} (per-record detail to stderr)")
+    print()
+
+    return 0
+
+
 def main() -> int:
     """CLI entry point for run_decline_backfill.py."""
     parser = build_parser()
     args = parser.parse_args()
 
     if args.execute:
-        raise NotImplementedError(
-            "--execute is T2 scope; "
-            "see docs/status/2026-04-23-phase4a1-architect-plan-amendment-1.md §3 T2"
+        return run_execute(
+            informants_path=args.informants_path,
+            failures_path=args.failures_path,
+            output_path=args.output_path,
+            verbose=args.verbose,
+            spend_cap=args.cost_cap_usd,
+            source=args.source,
         )
 
     if args.dry_run:

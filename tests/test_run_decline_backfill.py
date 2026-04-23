@@ -44,6 +44,10 @@ from unittest.mock import patch
 
 import pytest
 
+# T2 fixtures: MockAdapter
+_FIXTURES_DIR_EARLY = Path(__file__).resolve().parent / "fixtures"
+_sys.path.insert(0, str(_FIXTURES_DIR_EARLY))
+
 _SCRIPT_PATH = Path(__file__).resolve().parent.parent / "scripts" / "run_decline_backfill.py"
 _spec = importlib.util.spec_from_file_location("run_decline_backfill", _SCRIPT_PATH)
 assert _spec is not None and _spec.loader is not None
@@ -52,10 +56,12 @@ _sys.modules["run_decline_backfill"] = _mod
 _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 
 run_dry_run = _mod.run_dry_run
+run_execute = _mod.run_execute
 _parse_failing_checks = _mod._parse_failing_checks
 _not_triggered_reason = _mod._not_triggered_reason
 _originating_step_from_checks = _mod._originating_step_from_checks
 _is_gemini_failure = _mod._is_gemini_failure
+_is_recursive_decline = _mod._is_recursive_decline
 should_include_failure = _mod.should_include_failure
 build_parser = _mod.build_parser
 
@@ -1620,3 +1626,976 @@ class TestSourceFlag:
         # Section 3b should indicate failures-origin pipeline not processed
         assert "--source informants" in output
         assert "N/A" in output
+
+
+# ── T2: MockAdapter import ────────────────────────────────────────────────────
+# sys.path extended above to include tests/fixtures/ for MockAdapter
+from mock_adapter import MockAdapter  # noqa: E402  # isort:skip
+
+
+# ── T2 helper: make informant with prompt_verbatim in step sub-records ────────
+
+def _make_informant_with_prompts(
+    *,
+    informant_id: str,
+    model_id: str,
+    domain_slug: str = "family",
+    qa_passed: bool = False,
+    qa_notes: str = "0; 71000ms; 171",
+    parsed_items: list | None = None,
+    parsed_piles: list | None = None,
+    parsed_labels: list | None = None,
+    freelist_prompt: str = "Please list family terms.",
+    freelist_response: str = "",
+    pile_sort_prompt: str = "Please sort these family terms into piles.",
+    pile_sort_response: str = "Here are my piles.",
+    interview_prompt: str = "Please label each pile.",
+    interview_response: str = "",
+    model_version_returned: str = "mock-model-v1",
+) -> dict[str, Any]:
+    """Build a full informant dict with prompt_verbatim in each step sub-record."""
+    if parsed_items is None:
+        parsed_items = []
+    if parsed_piles is None:
+        parsed_piles = [["mother", "father"]]
+    if parsed_labels is None:
+        parsed_labels = ["nuclear"]
+    return {
+        "informant_id": informant_id,
+        "model_id": model_id,
+        "domain_slug": domain_slug,
+        "qa_passed": qa_passed,
+        "qa_notes": qa_notes,
+        "model_version_returned": model_version_returned,
+        "freelist": {
+            "parsed_items": parsed_items,
+            "prompt_verbatim": freelist_prompt,
+            "response_verbatim": freelist_response,
+        },
+        "pile_sort": {
+            "parsed_piles": parsed_piles,
+            "prompt_verbatim": pile_sort_prompt,
+            "response_verbatim": pile_sort_response,
+        },
+        "interview": {
+            "parsed_pile_labels": parsed_labels,
+            "prompt_verbatim": interview_prompt,
+            "response_verbatim": interview_response,
+        },
+    }
+
+
+def _make_failure_full(
+    *,
+    model_id: str,
+    domain: str = "family",
+    run_index: int = 0,
+    timestamp: str = "2026-04-23T10:00:00",
+    error_type: str = "ValueError",
+    error_message: str = "Items missing from pile sort: expected 5, got 3",
+    prompt_verbatim: str | None = None,
+    response_verbatim: str | None = None,
+    failed_step: str = "pile_sort",
+) -> dict[str, Any]:
+    """Build a failures.jsonl entry with optional prompt_verbatim and response_verbatim."""
+    entry: dict[str, Any] = {
+        "timestamp": timestamp,
+        "error_type": error_type,
+        "error_message": error_message,
+        "context": {
+            "model_id": model_id,
+            "domain": domain,
+            "run_index": run_index,
+            "failed_step": failed_step,
+        },
+        "retry_attempts": [],
+    }
+    if prompt_verbatim is not None:
+        entry["prompt_verbatim"] = prompt_verbatim
+    if response_verbatim is not None:
+        entry["response_verbatim"] = response_verbatim
+    return entry
+
+
+def _run_execute_capture(
+    informants: list[dict],
+    failures: list[dict],
+    tmpdir: Path,
+    source: str = "all",
+    spend_cap: float = 10.00,
+    cost_per_call: float = 0.05,
+    adapter_response: str = "The model described the exchange clearly.",
+    adapter_cost: float = 0.05,
+    adapter_model_version: str | None = None,
+    adapter_model_id: str = "z-ai/glm-5.1",
+) -> tuple[int, str, str, list[dict]]:
+    """Write fixtures to temp files, run run_execute, capture stdout+stderr.
+
+    Returns (exit_code, stdout, stderr, written_records) where written_records
+    is the list of DeclineInterview dicts read from the output JSONL.
+    """
+    informants_path = tmpdir / "informants.jsonl"
+    failures_path = tmpdir / "failures.jsonl"
+    output_path = tmpdir / "decline_interviews.jsonl"
+
+    _write_jsonl(informants_path, informants)
+    _write_jsonl(failures_path, failures)
+    output_path.touch()
+
+    mock_adapter = MockAdapter(
+        model_id=adapter_model_id,
+        response_text=adapter_response,
+        cost_per_call=adapter_cost,
+        model_version_returned=adapter_model_version,
+    )
+
+    def adapter_factory(model_id: str) -> MockAdapter:
+        return mock_adapter
+
+    captured_out = StringIO()
+    captured_err = StringIO()
+
+    with patch("sys.stdout", captured_out), patch("sys.stderr", captured_err):
+        exit_code = run_execute(
+            informants_path=informants_path,
+            failures_path=failures_path,
+            output_path=output_path,
+            cost_per_call=cost_per_call,
+            spend_cap=spend_cap,
+            source=source,
+            adapter_factory=adapter_factory,
+        )
+
+    # Read written records from output JSONL
+    written_records: list[dict] = []
+    if output_path.exists():
+        for line in output_path.read_text(encoding="utf-8").splitlines():
+            line = line.strip()
+            if line:
+                written_records.append(json.loads(line))
+
+    return exit_code, captured_out.getvalue(), captured_err.getvalue(), written_records
+
+
+# ── T2: TestExecutePath ───────────────────────────────────────────────────────
+
+class TestExecutePath:
+    """MockAdapter-based integration tests for the execute path.
+
+    No real API calls. R10 non-negotiable.
+    """
+
+    @pytest.fixture()
+    def tmpdir(self, tmp_path: Path) -> Path:
+        return tmp_path
+
+    def _glm_informant(self, idx: int) -> dict[str, Any]:
+        """Informant-origin fixture: glm-5.1 x family with empty freelist trigger."""
+        return _make_informant_with_prompts(
+            informant_id=f"glm_exec_{idx:04d}",
+            model_id="z-ai/glm-5.1",
+            domain_slug="family",
+            qa_passed=False,
+            qa_notes="0; 71000ms; 171",
+            parsed_items=[],
+            freelist_prompt=f"List family terms (run {idx}).",
+            freelist_response="",
+            model_version_returned="glm-5.1-v1",
+        )
+
+    def _parse_failure(self, idx: int) -> dict[str, Any]:
+        """Failure-origin fixture: ValueError parse exhaustion (INCLUDE)."""
+        return _make_failure_full(
+            model_id="z-ai/glm-5.1",
+            domain="family",
+            run_index=idx,
+            timestamp=f"2026-04-23T10:{idx:02d}:00",
+            error_type="ValueError",
+            error_message="Items missing from pile sort: expected 5, got 3",
+            prompt_verbatim=f"Sort these items (run {idx}).",
+            response_verbatim="partial pile response",
+        )
+
+    def _http_failure(self, idx: int) -> dict[str, Any]:
+        """Failure-origin fixture: HTTPStatusError 400 (EXCLUDE)."""
+        return _make_failure_full(
+            model_id="microsoft/phi-4",
+            domain="family",
+            run_index=idx,
+            timestamp=f"2026-04-22T10:{idx:02d}:00",
+            error_type="HTTPStatusError",
+            error_message="Client error '400 Bad Request'",
+        )
+
+    def test_execute_informants_only_writes_n_records(self, tmpdir: Path) -> None:
+        """--source informants: N informants-origin records written, each valid."""
+        informants = [self._glm_informant(i) for i in range(3)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir, source="informants"
+        )
+        assert exit_code == 0
+        assert len(records) == 3
+        # Each record validates as a DeclineInterview (model_dump_json was used)
+        for rec in records:
+            assert "decline_interview_id" in rec
+            assert rec["originating_informant_id"] is not None
+            assert rec["originating_failure_id"] is None
+
+    def test_execute_failures_only_applies_exclusion(self, tmpdir: Path) -> None:
+        """--source failures: should_include_failure() applied; excluded records not written."""
+        # 2 parse failures (INCLUDE) + 1 HTTP failure (EXCLUDE)
+        failures = [
+            self._parse_failure(0),
+            self._parse_failure(1),
+            self._http_failure(0),
+        ]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            [], failures, tmpdir, source="failures"
+        )
+        assert exit_code == 0
+        # Only 2 INCLUDE records written
+        assert len(records) == 2
+        # Excluded record logged to stderr
+        assert "SKIP:" in stderr
+
+    def test_execute_all_combines_both(self, tmpdir: Path) -> None:
+        """--source all: informants + filtered failures; exclusion applied to failures."""
+        informants = [self._glm_informant(0)]
+        failures = [
+            self._parse_failure(0),
+            self._http_failure(0),  # excluded
+        ]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, failures, tmpdir, source="all"
+        )
+        assert exit_code == 0
+        # 1 informants + 1 failure (HTTP excluded) = 2 written
+        assert len(records) == 2
+        assert "SKIP:" in stderr
+
+    def test_execute_single_detection_timestamp_shared(self, tmpdir: Path) -> None:
+        """All records in a single run share identical detection_timestamp (SME A6)."""
+        informants = [self._glm_informant(i) for i in range(3)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir, source="informants"
+        )
+        assert exit_code == 0
+        assert len(records) == 3
+        timestamps = {rec["detection_timestamp"] for rec in records}
+        assert len(timestamps) == 1, (
+            f"Expected single shared detection_timestamp, got {timestamps}"
+        )
+
+    def test_execute_xor_invariant(self, tmpdir: Path) -> None:
+        """Every written record has exactly one of originating_informant_id /
+        originating_failure_id non-null (xor invariant on DeclineInterview)."""
+        informants = [self._glm_informant(0)]
+        failures = [self._parse_failure(0)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, failures, tmpdir, source="all"
+        )
+        assert exit_code == 0
+        for rec in records:
+            has_informant = rec.get("originating_informant_id") is not None
+            has_failure = rec.get("originating_failure_id") is not None
+            assert has_informant != has_failure, (
+                f"xor invariant violated: informant_id={rec.get('originating_informant_id')!r}, "
+                f"failure_id={rec.get('originating_failure_id')!r}"
+            )
+
+    def test_execute_per_call_cost_printed_to_stdout(self, tmpdir: Path) -> None:
+        """Stdout captures one [N/M] progress line per call."""
+        informants = [self._glm_informant(i) for i in range(3)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir, source="informants"
+        )
+        assert exit_code == 0
+        # Check for [1/3], [2/3], [3/3]
+        assert "[1/3]" in stdout
+        assert "[2/3]" in stdout
+        assert "[3/3]" in stdout
+        # Each line should contain cost= and total=
+        lines = [ln for ln in stdout.splitlines() if ln.startswith("[")]
+        assert len(lines) == 3
+        for ln in lines:
+            assert "cost=$" in ln
+            assert "total=$" in ln
+
+    def test_execute_running_total_accumulates(self, tmpdir: Path) -> None:
+        """Final summary total matches the sum of per-call costs."""
+        informants = [self._glm_informant(i) for i in range(3)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir, source="informants", adapter_cost=0.07
+        )
+        assert exit_code == 0
+        # 3 calls x $0.07 = $0.21
+        assert "Total spend:                  $0.21" in stdout
+
+    def test_execute_pre_flight_stop_at_cap(self, tmpdir: Path) -> None:
+        """Pre-flight check: projected cost >= 80% of cap -> exit 2 BEFORE any API call.
+
+        160 records x $0.05 = $8.00 >= $8.00 (80% of $10). No writes to JSONL.
+        """
+        informants = [
+            _make_informant_with_prompts(
+                informant_id=f"pf_preflight_{i:04d}",
+                model_id="z-ai/glm-5.1",
+                domain_slug="family",
+                qa_passed=False,
+                qa_notes="0; 71000ms; 171",
+                parsed_items=[],
+            )
+            for i in range(160)
+        ]
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, informants)
+        _write_jsonl(failures_path, [])
+        output_path.touch()
+
+        # Track whether adapter was called
+        call_count = [0]
+
+        class CountingAdapter:
+            model = MockAdapter(model_id="z-ai/glm-5.1").model
+            async def complete(self, prompt, *, json_schema=None, temperature=0.7):  # noqa: D102
+                call_count[0] += 1
+                return MockAdapter().complete.__func__(self, prompt, temperature=temperature)  # type: ignore[misc]
+
+        def adapter_factory(model_id: str) -> CountingAdapter:
+            return CountingAdapter()
+
+        captured_out = StringIO()
+        with patch("sys.stdout", captured_out), patch("sys.stderr", StringIO()):
+            exit_code = run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                cost_per_call=0.05,
+                spend_cap=10.00,
+                source="informants",
+                adapter_factory=adapter_factory,
+            )
+
+        assert exit_code == 2
+        assert "STOP" in captured_out.getvalue()
+        # No API calls made
+        assert call_count[0] == 0
+        # JSONL not written
+        assert output_path.read_text(encoding="utf-8") == ""
+
+    def test_execute_cap_abort_mid_batch(self, tmpdir: Path) -> None:
+        """Mid-batch abort: crossing $10 hard cap -> exit 3, partial records written."""
+        # 5 records x $3.00/call = $15 total, will hit $10 cap after 4th call
+        informants = [self._glm_informant(i) for i in range(5)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir,
+            source="informants",
+            spend_cap=10.00,
+            adapter_cost=3.00,
+        )
+        assert exit_code == 3
+        # Some records written before abort
+        assert len(records) >= 1
+        assert len(records) < 5
+        assert "COST CAP EXCEEDED" in stdout
+        # All written records are valid
+        for rec in records:
+            assert "decline_interview_id" in rec
+
+    def test_execute_excluded_records_not_written(self, tmpdir: Path) -> None:
+        """failures-origin HTTPStatusError 400 -> SKIP logged to stderr, not in output."""
+        failures = [self._http_failure(i) for i in range(3)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            [], failures, tmpdir, source="failures"
+        )
+        assert exit_code == 0
+        assert len(records) == 0
+        assert stderr.count("SKIP:") == 3
+        for line in stderr.splitlines():
+            if "SKIP:" in line:
+                assert "http_infrastructure:HTTPStatusError" in line
+
+    def test_execute_version_drift_flag_computed(self, tmpdir: Path) -> None:
+        """MockAdapter returns different model_version_returned than originating informant
+        -> version_drift_flag=True on the DeclineInterview record."""
+        informants = [
+            _make_informant_with_prompts(
+                informant_id="drift_test_0001",
+                model_id="z-ai/glm-5.1",
+                domain_slug="family",
+                qa_passed=False,
+                qa_notes="0; 71000ms; 171",
+                parsed_items=[],
+                model_version_returned="glm-5.1-original-version",
+            )
+        ]
+        # MockAdapter returns "glm-5.1-v1-DIFFERENT" — different from "glm-5.1-original-version"
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, informants)
+        _write_jsonl(failures_path, [])
+        output_path.touch()
+
+        different_version_adapter = MockAdapter(
+            model_id="z-ai/glm-5.1",
+            model_version_returned="glm-5.1-DIFFERENT-version",
+        )
+
+        def adapter_factory(model_id: str) -> MockAdapter:
+            return different_version_adapter
+
+        with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
+            exit_code = run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                source="informants",
+                adapter_factory=adapter_factory,
+            )
+
+        assert exit_code == 0
+        records = [json.loads(ln) for ln in output_path.read_text().splitlines() if ln.strip()]
+        assert len(records) == 1
+        assert records[0]["version_drift_flag"] is True
+
+    def test_execute_recursive_decline_counted(self, tmpdir: Path) -> None:
+        """MockAdapter returns refusal text matching SAFETY_FILTER_MARKERS
+        -> recursive-decline count incremented; stderr emits RECURSIVE_DECLINE."""
+        informants = [self._glm_informant(0)]
+        # "I cannot describe what happened" contains "I cannot" which is in
+        # the DECLINE_ALLOWLIST but not SAFETY_FILTER_MARKERS.
+        # Use a response with "blocked" which IS in SAFETY_FILTER_MARKERS.
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir,
+            source="informants",
+            adapter_response="This content was blocked by the safety filter.",
+        )
+        assert exit_code == 0
+        assert "RECURSIVE_DECLINE:" in stderr
+        assert "Recursive declines observed:  1" in stdout
+
+    def test_execute_recursive_decline_empty_response_counted(self, tmpdir: Path) -> None:
+        """MockAdapter returns empty string -> also counted as recursive decline."""
+        informants = [self._glm_informant(0)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir,
+            source="informants",
+            adapter_response="",
+        )
+        assert exit_code == 0
+        assert "RECURSIVE_DECLINE:" in stderr
+        assert "Recursive declines observed:  1" in stdout
+
+    def test_execute_source_flag_forwarded_correctly(self, tmpdir: Path) -> None:
+        """--source informants with mixed fixture -> only informants records written."""
+        informants = [self._glm_informant(i) for i in range(2)]
+        failures = [self._parse_failure(0)]  # INCLUDE, but should not be written
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, failures, tmpdir, source="informants"
+        )
+        assert exit_code == 0
+        # Only informants-origin records written (failures excluded by source filter)
+        assert len(records) == 2
+        for rec in records:
+            assert rec["originating_informant_id"] is not None
+            assert rec["originating_failure_id"] is None
+
+    def test_execute_summary_includes_per_source_counters(self, tmpdir: Path) -> None:
+        """CLI summary prints informants-spend vs failures-spend splits."""
+        informants = [self._glm_informant(0)]
+        failures = [self._parse_failure(0)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, failures, tmpdir, source="all"
+        )
+        assert exit_code == 0
+        assert "Informants-origin spend:" in stdout
+        assert "Failures-origin spend:" in stdout
+
+    def test_execute_detection_rule_version_is_v1(self, tmpdir: Path) -> None:
+        """Every written record has detection_rule_version='v1'."""
+        informants = [self._glm_informant(i) for i in range(3)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir, source="informants"
+        )
+        assert exit_code == 0
+        for rec in records:
+            assert rec["detection_rule_version"] == "v1"
+
+    def test_execute_task_description_reconstructed_from_informant_step_4_freelist(
+        self, tmpdir: Path
+    ) -> None:
+        """Informants-origin with originating_step=freelist (trigger c: empty freelist)
+        -> task_description == originating InformantRecord.freelist.prompt_verbatim."""
+        # Build an informant where detect_from_informant fires trigger (c): empty freelist
+        # The originating_step will be "freelist"
+        informant = _make_informant_with_prompts(
+            informant_id="freelist_prompt_test_0001",
+            model_id="z-ai/glm-5.1",
+            domain_slug="family",
+            qa_passed=False,
+            qa_notes="0; 71000ms; 171",
+            parsed_items=[],   # empty freelist -> trigger (c) -> step=freelist
+            freelist_prompt="Please list every type of family relationship you can think of.",
+        )
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, [informant])
+        _write_jsonl(failures_path, [])
+        output_path.touch()
+
+        received_prompts: list[str] = []
+
+        class CapturingMockAdapter:
+            """Captures the prompt passed to complete() then delegates to MockAdapter."""
+            def __init__(self) -> None:
+                self._inner = MockAdapter(model_id="z-ai/glm-5.1")
+                self.model = self._inner.model
+
+            async def complete(self, prompt, *, json_schema=None, temperature=0.7):
+                received_prompts.append(prompt)
+                return await self._inner.complete(prompt, temperature=temperature)
+
+        _adapter_instance = CapturingMockAdapter()
+
+        def adapter_factory(model_id: str) -> CapturingMockAdapter:
+            return _adapter_instance
+
+        with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
+            exit_code = run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                source="informants",
+                adapter_factory=adapter_factory,
+            )
+
+        assert exit_code == 0
+        assert len(received_prompts) == 1
+        # The decline prompt includes task_description (freelist prompt_verbatim).
+        expected_fragment = "Please list every type of family relationship you can think of."
+        assert expected_fragment in received_prompts[0]
+
+    def test_execute_task_description_reconstructed_from_failure_with_prompt_verbatim(
+        self, tmpdir: Path
+    ) -> None:
+        """Failures-origin with prompt_verbatim present -> task_description == that value."""
+        failure = _make_failure_full(
+            model_id="z-ai/glm-5.1",
+            domain="family",
+            run_index=0,
+            error_type="ValueError",
+            error_message="Items missing from pile sort: expected 5, got 3",
+            prompt_verbatim="Sort the following family terms into groups: mother, father, sister.",
+        )
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, [])
+        _write_jsonl(failures_path, [failure])
+        output_path.touch()
+
+        received_prompts: list[str] = []
+
+        class CapturingMockAdapter2:
+            def __init__(self) -> None:
+                self._inner = MockAdapter(model_id="z-ai/glm-5.1")
+                self.model = self._inner.model
+
+            async def complete(self, prompt, *, json_schema=None, temperature=0.7):
+                received_prompts.append(prompt)
+                return await self._inner.complete(prompt, temperature=temperature)
+
+        _adapter_instance2 = CapturingMockAdapter2()
+
+        def adapter_factory(model_id: str) -> CapturingMockAdapter2:
+            return _adapter_instance2
+
+        with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
+            exit_code = run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                source="failures",
+                adapter_factory=adapter_factory,
+            )
+
+        assert exit_code == 0
+        assert len(received_prompts) == 1
+        expected_verbatim = "Sort the following family terms into groups: mother, father, sister."
+        assert expected_verbatim in received_prompts[0]
+
+    def test_execute_task_description_fallback_to_template_for_failure_without_prompt_verbatim(
+        self, tmpdir: Path
+    ) -> None:
+        """Failures-origin with prompt_verbatim=None -> task_description reconstructed from
+        template. This is RISK 1 territory (see run_execute docstring and
+        _task_description_from_failure). The template is the free_list.md for freelist-step
+        failures or pile_sort.md for pile_sort steps. The test verifies that:
+        1. The call succeeds (no exception).
+        2. The written record has a non-empty prompt_verbatim field (the decline prompt
+           was constructed from SOMETHING, not empty).
+        3. The originating_failure_id is set on the written record.
+
+        Reconstruction path: _task_description_from_failure() reads
+        packages/cdb_collect/cdb_collect/prompts/v1/pile_sort.md when failed_step=pile_sort
+        and prompt_verbatim is absent. The template will contain unfilled {{items}} markers.
+        This is documented behavior per Amendment 1 §6 RISK 1 note.
+        """
+        failure = _make_failure_full(
+            model_id="z-ai/glm-5.1",
+            domain="family",
+            run_index=0,
+            error_type="ValueError",
+            error_message="Items missing from pile sort: expected 5, got 3",
+            prompt_verbatim=None,   # RISK 1 case: no verbatim prompt available
+            failed_step="pile_sort",
+        )
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, [])
+        _write_jsonl(failures_path, [failure])
+        output_path.touch()
+
+        def adapter_factory(model_id: str) -> MockAdapter:
+            return MockAdapter(model_id="z-ai/glm-5.1")
+
+        with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
+            exit_code = run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                source="failures",
+                adapter_factory=adapter_factory,
+            )
+
+        assert exit_code == 0
+        records = [json.loads(ln) for ln in output_path.read_text().splitlines() if ln.strip()]
+        assert len(records) == 1
+        rec = records[0]
+        assert rec["originating_failure_id"] is not None
+        assert rec["originating_informant_id"] is None
+        # The decline prompt was constructed (prompt_verbatim on the DeclineInterview
+        # is the full decline-interview prompt, which wraps the reconstructed task_description)
+        assert len(rec["prompt_verbatim"]) > 0
+
+    def test_execute_response_verbatim_empty_string_when_missing(
+        self, tmpdir: Path
+    ) -> None:
+        """Failures-origin with response_verbatim=None -> passed as empty string."""
+        failure = _make_failure_full(
+            model_id="z-ai/glm-5.1",
+            domain="family",
+            run_index=0,
+            error_type="ValueError",
+            error_message="Items missing from pile sort: expected 5, got 3",
+            response_verbatim=None,  # absent -> should pass "" to run_decline_interview
+        )
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, [])
+        _write_jsonl(failures_path, [failure])
+        output_path.touch()
+
+        def adapter_factory(model_id: str) -> MockAdapter:
+            return MockAdapter(model_id="z-ai/glm-5.1")
+
+        # build_prompt() in run_decline_interview.py substitutes "(empty)"
+        # when response_verbatim is "" — no exception should be raised.
+        captured_out = StringIO()
+        captured_err = StringIO()
+        with patch("sys.stdout", captured_out), patch("sys.stderr", captured_err):
+            exit_code = run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                source="failures",
+                adapter_factory=adapter_factory,
+            )
+
+        assert exit_code == 0
+        records = [json.loads(ln) for ln in output_path.read_text().splitlines() if ln.strip()]
+        assert len(records) == 1
+        # The decline prompt should contain "(empty)" since response_verbatim was absent
+        assert "(empty)" in records[0]["prompt_verbatim"]
+
+    def test_execute_does_not_touch_informants_jsonl_or_failures_jsonl(
+        self, tmpdir: Path
+    ) -> None:
+        """mtime snapshot before and after: no writes to either source file."""
+        informants = [self._glm_informant(0)]
+        failures = [self._parse_failure(0)]
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, informants)
+        _write_jsonl(failures_path, failures)
+        output_path.touch()
+
+        mtime_inf_before = informants_path.stat().st_mtime
+        mtime_fail_before = failures_path.stat().st_mtime
+
+        def adapter_factory(model_id: str) -> MockAdapter:
+            return MockAdapter(model_id="z-ai/glm-5.1")
+
+        with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
+            run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                source="all",
+                adapter_factory=adapter_factory,
+            )
+
+        assert informants_path.stat().st_mtime == mtime_inf_before, (
+            "execute path must not modify informants.jsonl"
+        )
+        assert failures_path.stat().st_mtime == mtime_fail_before, (
+            "execute path must not modify failures.jsonl"
+        )
+
+
+# ── T2: TestCostCapAbortDuringExecute ────────────────────────────────────────
+
+class TestCostCapAbortDuringExecute:
+    """Tests for mid-batch cost cap abort behavior.
+
+    Exit code 3 is distinct from dry-run STOP (exit 2).
+    """
+
+    @pytest.fixture()
+    def tmpdir(self, tmp_path: Path) -> Path:
+        return tmp_path
+
+    def _glm_informant(self, idx: int) -> dict[str, Any]:
+        return _make_informant_with_prompts(
+            informant_id=f"cap_abort_{idx:04d}",
+            model_id="z-ai/glm-5.1",
+            domain_slug="family",
+            qa_passed=False,
+            qa_notes="0; 71000ms; 171",
+            parsed_items=[],
+        )
+
+    def test_cost_cap_abort_exits_3_not_2(self, tmpdir: Path) -> None:
+        """Mid-batch abort exits 3 (distinct from pre-flight STOP exit 2)."""
+        informants = [self._glm_informant(i) for i in range(5)]
+        exit_code, stdout, stderr, records = _run_execute_capture(
+            informants, [], tmpdir,
+            source="informants",
+            spend_cap=10.00,
+            adapter_cost=3.00,  # 4th call total > $10 -> abort
+        )
+        assert exit_code == 3
+        # If we had pre-flight fired, it would have been exit 2
+        # Pre-flight: 5 * 3.00 = $15.00 >= $8.00 -> would be exit 2!
+        # So we need a spend_cap where pre-flight passes but mid-batch fails.
+        # 5 * $3.00 = $15. Pre-flight threshold = 0.80 * cap.
+        # To pass pre-flight: $15.00 < 0.80 * cap => cap > $18.75
+        # Re-run with cap=$20 to exercise mid-batch abort:
+
+    def test_cost_cap_abort_exits_3_not_2_correct_cap(self, tmpdir: Path) -> None:
+        """With cap=$20: 5*$5=$25 total > $20 mid-batch; pre-flight $25 >= $16 fails.
+        Use cap=$30 so pre-flight passes ($25 < $24 fails too).
+        Use per-call=$4, 5 records, cap=$30: pre-flight=5*4=$20 < $24=0.8*30 -> passes.
+        After 8th call $32>$30 -> abort. But we only have 5 records, so let's do
+        per-call=$3.50, 4 records, cap=$12: pre-flight=4*3.5=$14 < $9.6 -> fails.
+        Try: per-call=$2, 4 records, cap=$7:
+          pre-flight = 4*2=$8 vs threshold=5.6 -> FAIL.
+        Try: per-call=$1, 5 records, cap=$4:
+          pre-flight = 5*1=$5 >= $3.20 -> FAIL.
+        We need: n*cost_per_call < 0.8*cap AND n*cost_per_call > cap at some point.
+        => cost_per_call < 0.8*cap/n AND cost_per_call > cap/n
+        => cap/n < cost_per_call < 0.8*cap/n (impossible since 0.8*cap/n < cap/n when n>0).
+        Hmm. Actually the mid-batch abort requires the RUNNING total to exceed cap
+        after some calls. Pre-flight uses projected (n * cost_per_call) vs 0.8*cap.
+        For pre-flight to PASS: n * cost_per_call < 0.8 * cap.
+        For mid-batch to FAIL after k calls: k * cost_per_call >= cap.
+        So: k * cost_per_call >= cap AND n * cost_per_call < 0.8 * cap.
+        => k >= cap/cost_per_call AND n < 0.8*cap/cost_per_call.
+        This is possible when k > 0.8*n (more than 80% of records complete before abort).
+        Example: cap=$1, cost=$0.20, n=4: pre-flight=4*0.20=$0.80 < $0.80 = 0.8*1 -> FAIL.
+        Example: cap=$1, cost=$0.20, n=3: pre-flight=3*0.20=$0.60 < $0.80 -> PASS.
+          After 5th call: 5*0.20=$1.00 >= $1.00 -> abort. But only 3 records!
+          After 3rd call: 3*0.20=$0.60 < $1.00 -> not aborted. No abort.
+        Example: cap=$0.60, cost=$0.20, n=3: pre-flight=3*0.20=$0.60 < 0.8*0.60=$0.48 -> FAIL.
+        Example: cap=$0.90, cost=$0.20, n=3: pre-flight=$0.60 < $0.72 -> PASS.
+          After 3rd: $0.60 < $0.90 -> passes. No abort.
+        Example: cap=$0.55, cost=$0.20, n=2: pre-flight=$0.40 < $0.44 -> PASS.
+          After 2nd call: $0.40 < $0.55 -> no abort.
+        Let me try cost=$0.30, n=2, cap=$0.55: pre-flight=$0.60 >= $0.44 -> FAIL.
+        cost=$0.25, n=2, cap=$0.55: pre=$0.50 >= $0.44 -> FAIL.
+        cost=$0.20, n=2, cap=$0.55: pre=$0.40 < $0.44 -> PASS. After 2: $0.40 < 0.55 -> no abort.
+        cost=$0.28, n=2, cap=$0.55: pre=$0.56 >= $0.44 -> FAIL.
+        I need: after k calls, running >= cap, and pre-flight passes.
+        With cap=$10 and cost=$3, n=4: pre=$12 >= $8 -> FAIL (exit 2).
+        With cap=$15 and cost=$3, n=4: pre=$12 < $12=$0.8*15 -> FAIL ($12 not < $12).
+        With cap=$16 and cost=$3, n=4: pre=$12 < $12.8 -> PASS.
+          After 6th call: $18 >= $16 -> abort. But n=4 so max 4 calls -> $12 < $16 -> no abort.
+        Add more records: n=6, cap=$16, cost=$3: pre=$18 >= $12.8 -> FAIL.
+        n=5: pre=$15 >= $12.8 -> FAIL.
+        n=4, cost=$4, cap=$16: pre=$16 >= $12.8 -> FAIL.
+        n=4, cost=$3.5, cap=$16: pre=$14 >= $12.8 -> FAIL.
+        n=4, cost=$3, cap=$16: pre=$12 < $12.8 -> PASS. 4*$3=$12 < $16. No abort.
+        Need: k*cost >= cap. k=4, cost=$3: $12 >= $12? No, $12 < $16.
+        Hmm, I need a setup where k*cost >= cap but n*cost < 0.8*cap.
+        Let me use adapter_cost=0.05 for 4 records but the adapter ACTUALLY charges
+        more than what cost_per_call says. In test_execute_cap_abort_mid_batch above,
+        we set adapter_cost=3.00 which means interview.cost_usd=$3.00 per call.
+        The pre-flight uses cost_per_call not adapter_cost!
+        So: set cost_per_call=0.05 (for pre-flight) and adapter_cost=3.00 (actual charge).
+        Pre-flight: 5*0.05=$0.25 < $8.00 -> PASS. After 4th call: 4*$3.00=$12 >= $10 -> abort!
+        """
+        # cap=$10, cost_per_call=0.05 (pre-flight), adapter charges $3/call (real cost)
+        informants = [self._glm_informant(i) for i in range(5)]
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, informants)
+        _write_jsonl(failures_path, [])
+        output_path.touch()
+
+        def adapter_factory(model_id: str) -> MockAdapter:
+            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=3.00)
+
+        captured_out = StringIO()
+        with patch("sys.stdout", captured_out), patch("sys.stderr", StringIO()):
+            exit_code = run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                cost_per_call=0.05,   # pre-flight uses this ($0.25 < $8 -> passes)
+                spend_cap=10.00,
+                source="informants",
+                adapter_factory=adapter_factory,
+            )
+
+        assert exit_code == 3, f"Expected exit 3 (mid-batch abort), got {exit_code}"
+
+    def test_cost_cap_abort_message_shows_records_written_so_far(
+        self, tmpdir: Path
+    ) -> None:
+        """Abort message shows how many records were written before abort."""
+        informants = [self._glm_informant(i) for i in range(5)]
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, informants)
+        _write_jsonl(failures_path, [])
+        output_path.touch()
+
+        def adapter_factory(model_id: str) -> MockAdapter:
+            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=3.00)
+
+        captured_out = StringIO()
+        with patch("sys.stdout", captured_out), patch("sys.stderr", StringIO()):
+            run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                cost_per_call=0.05,
+                spend_cap=10.00,
+                source="informants",
+                adapter_factory=adapter_factory,
+            )
+
+        output = captured_out.getvalue()
+        assert "COST CAP EXCEEDED" in output
+        assert "Records written before abort:" in output
+        assert "decline_interviews.jsonl stands (append-only)" in output
+
+    def test_cost_cap_abort_keeps_written_records_valid(self, tmpdir: Path) -> None:
+        """Post-abort JSONL contains only complete, valid DeclineInterview records."""
+        informants = [self._glm_informant(i) for i in range(5)]
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, informants)
+        _write_jsonl(failures_path, [])
+        output_path.touch()
+
+        def adapter_factory(model_id: str) -> MockAdapter:
+            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=3.00)
+
+        with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
+            run_execute(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+                cost_per_call=0.05,
+                spend_cap=10.00,
+                source="informants",
+                adapter_factory=adapter_factory,
+            )
+
+        # Read written records
+        lines = [ln.strip() for ln in output_path.read_text().splitlines() if ln.strip()]
+        assert len(lines) >= 1
+        assert len(lines) < 5  # not all 5 should be written
+        for line in lines:
+            rec = json.loads(line)
+            assert "decline_interview_id" in rec
+            assert "originating_informant_id" in rec or "originating_failure_id" in rec
+            assert rec["detection_rule_version"] == "v1"
+
+
+# ── T2: TestSafetyMarkerCommentA2N3 ──────────────────────────────────────────
+
+class TestSafetyMarkerCommentA2N3:
+    """Tests for SAFETY_FILTER_MARKERS content and the N3 comment requirement."""
+
+    def test_safety_marker_jailbreak_still_in_list(self) -> None:
+        """Regression: 'jailbreak' must remain in SAFETY_FILTER_MARKERS (SME A2)."""
+        markers = _mod.SAFETY_FILTER_MARKERS
+        assert "jailbreak" in markers, (
+            "SME A2 requires 'jailbreak' in SAFETY_FILTER_MARKERS"
+        )
+
+    def test_safety_marker_other_in_list(self) -> None:
+        """Gemini's generic content-block finish_reason 'OTHER' must be in markers."""
+        markers = _mod.SAFETY_FILTER_MARKERS
+        assert "OTHER" in markers
+
+    def test_safety_marker_comment_about_other_present_in_source(self) -> None:
+        """Reviewer N3: SAFETY_FILTER_MARKERS must have an inline comment documenting
+        the 'OTHER' false-positive risk (case-insensitive substring matching).
+
+        This test addresses T1-update Reviewer note N3 by checking that the
+        source file contains the warning comment near the 'OTHER' marker.
+        """
+        source = _SCRIPT_PATH.read_text(encoding="utf-8")
+        # The comment required by N3 must be present near the "OTHER" marker entry.
+        # We verify it mentions the false-positive risk and the trade-off rationale.
+        assert "false-positive" in source or "false positive" in source, (
+            "Source must document the 'OTHER' substring false-positive risk (Reviewer N3)"
+        )
+        assert "OTHER" in source
+        # Verify the specific context: the comment should be in proximity to the OTHER marker
+        other_idx = source.index('"OTHER"')
+        surrounding = source[max(0, other_idx - 500):other_idx + 200]
+        assert "substring" in surrounding.lower() or "case-insensitive" in surrounding.lower(), (
+            "Comment near 'OTHER' should explain case-insensitive substring matching behavior"
+        )
+
+    def test_is_recursive_decline_empty_string(self) -> None:
+        """Empty string -> recursive decline."""
+        assert _is_recursive_decline("") is True
+
+    def test_is_recursive_decline_whitespace_only(self) -> None:
+        """Whitespace-only string -> recursive decline."""
+        assert _is_recursive_decline("   \n\t  ") is True
+
+    def test_is_recursive_decline_safety_marker_match(self) -> None:
+        """Text containing SAFETY_FILTER_MARKERS substring -> recursive decline."""
+        assert _is_recursive_decline("This was blocked by the filter.") is True
+
+    def test_is_recursive_decline_normal_response(self) -> None:
+        """Normal response text -> NOT recursive decline."""
+        assert _is_recursive_decline(
+            "The model attempted to list family terms but the list was empty."
+        ) is False
