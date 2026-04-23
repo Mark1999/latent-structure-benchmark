@@ -129,7 +129,7 @@ If the slate shrinks below 12 via Decision 1, Notes C and E need revisiting.
 
 1. Read this doc first.
 2. Read `docs/status/2026-04-22-phase4a-t4-run-report.md` for T4 specifics.
-3. Use the new `scripts/inspect.py` (in this commit) to look at the raw records yourself before spawning any agent. Specifically, inspect the 20 pile-sort transcripts for `google/gemini-2.5-pro`, `z-ai/glm-5.1`, and `x-ai/grok-4` to diagnose the three failure classes.
+3. Use the `scripts/lsb_inspect.py` CLI to look at the raw records yourself before spawning any agent. Specifically, inspect the 20 pile-sort transcripts for `google/gemini-2.5-pro`, `z-ai/glm-5.1`, and `x-ai/grok-4` to diagnose the failure classes. (Renamed from `inspect.py` in task #30 to avoid shadowing the stdlib `inspect` module when Python prepends `scripts/` to `sys.path`.)
 4. Once the failure modes are understood, decide on Decision 1 (disposition). If any slate-changing option is chosen, spawn CDA SME.
 5. After disposition decides, spawn Reviewer on `b2b74e4`, then kick off the disposition actions (possibly T4.1 re-run, possibly proceed to T5 with reduced slate).
 

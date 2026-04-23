@@ -8,28 +8,28 @@ or a one-line summary. Read-only.
 Examples:
 
     # One-line summary of every record in data/raw/informants.jsonl
-    python scripts/inspect.py
+    python scripts/lsb_inspect.py
 
     # Records for one model on one domain
-    python scripts/inspect.py --model x-ai/grok-4 --domain family
+    python scripts/lsb_inspect.py --model x-ai/grok-4 --domain family
 
     # Only failed records
-    python scripts/inspect.py --failed
+    python scripts/lsb_inspect.py --failed
 
     # Show the pile_sort prompt + response for one specific record
-    python scripts/inspect.py --id 5e0930e7c2a32cd0 --step pile_sort --show prompt,response
+    python scripts/lsb_inspect.py --id 5e0930e7c2a32cd0 --step pile_sort --show prompt,response
 
     # Show all pile-sort responses for GLM (the T4 failure class)
-    python scripts/inspect.py --model z-ai/glm-5.1 --step pile_sort --show response
+    python scripts/lsb_inspect.py --model z-ai/glm-5.1 --step pile_sort --show response
 
     # Show reasoning traces where they exist
-    python scripts/inspect.py --model anthropic/claude-opus-4.6 --step pile_sort --show thinking
+    python scripts/lsb_inspect.py --model anthropic/claude-opus-4.6 --step pile_sort --show thinking
 
     # Dump one full record as JSON
-    python scripts/inspect.py --id 5e0930e7c2a32cd0 --format json
+    python scripts/lsb_inspect.py --id 5e0930e7c2a32cd0 --format json
 
     # Use a different JSONL file (e.g., the T3 canary subset)
-    python scripts/inspect.py --file data/raw/informants.jsonl --failed
+    python scripts/lsb_inspect.py --file data/raw/informants.jsonl --failed
 """
 
 from __future__ import annotations
