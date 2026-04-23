@@ -68,6 +68,9 @@ from cdb_collect.decline_detection import (
     detect_all,
     detect_from_failure,
 )
+from dotenv import load_dotenv
+
+load_dotenv()
 
 # ── Cost constants ─────────────────────────────────────────────────────────────
 COST_PER_CALL_USD: float = 0.05
