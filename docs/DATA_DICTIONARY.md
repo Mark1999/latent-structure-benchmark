@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.6** (2026-04-23) — Task #24: `failures.jsonl` entry shape expanded per the failures-as-findings directive. Added `prompt_verbatim`, `response_verbatim`, `thinking_verbatim`, `stop_reason`, `partial_session`, and `retry_attempts` to `append_failure`. No change to `InformantRecord`, `GroundingRef`, or any other pydantic schema. See §9 and `docs/status/2026-04-23-failures-as-findings-architect-verdict.md` §Stream A + Amendment A.
 - **v0.1.5** (2026-04-21) — F2-T02: `DomainResult` gains `romney_small_n_warning: bool` (default `False`). Set `True` when n_models < 8 at Romney CCM computation time — dual-threshold pass/fail is statistically underpowered below n=8 per SME 2026-04-20 verdict. Non-breaking addition. Companion wiring populates the previously-null `romney_eigenratio`, `romney_consensus_pass`, and `romney_consensus_warning` fields.
 - **v0.1.4** (2026-04-20) — Un-defer of SME §1.3 G1 split. `DomainResult` gains six new fields: `g1_salience_stability`, `g1_spatial_stability`, `g1_aggregate_stability`, `g1_salience_pass`, `g1_spatial_pass`, `g1_overall_pass`. All optional (default `None`); populated by the sensitivity study once it runs. The binding gate criterion is `g1_overall_pass` (True iff both salience and spatial axes are below the 0.5 threshold). The individual axis fields are diagnostic. No breaking changes. See ARCHITECTURE.md §5.3 Phase 4b for the split semantics.
 - **v0.1.3** (2026-04-20) — Post-F1 SME-review follow-up: `WithinModelResult` gains `deterministic_output: bool` marker (defaults `False`). Register 1 analysis is now wired into `run_pipeline` — `DomainResult.within_model_results` is populated on every run rather than left empty. Triggers the Register 2 visual convention in `DESIGN_SYSTEM.md` §3.3.5 (hollow triangle, no ellipse) when a model's N runs produce near-identical pile-sort structure. No breaking changes.
@@ -600,6 +601,192 @@ The `build_db.py` script is intentionally minimal — pure stdlib + `sqlite3` + 
 - **Schema clarification:** open a Discussion on the LSB GitHub repo. Mark and the CDA SME agent monitor.
 - **Reproducibility failure:** open an issue with the title `Reproducibility: {build_db.py error}` and the full error output. LSB takes reproducibility failures very seriously — they violate the project's headline guarantee.
 - **Citation help:** see the citation section of the LSB `README.md` and the methodology page on `cogstructurelab.com`.
+
+---
+
+## 9. The failures.jsonl file
+
+**Changelog:**
+- **v0.1.6** (2026-04-23) — Task #24: `failures.jsonl` entry shape expanded per the failures-as-findings directive and Architect Amendment A. Added `prompt_verbatim`, `response_verbatim`, `thinking_verbatim`, `stop_reason`, `partial_session`, and `retry_attempts`. See `docs/status/2026-04-23-failures-as-findings-architect-verdict.md` §Stream A + Amendment A and `docs/status/2026-04-23-verbatim-capture-audit.md` §5.
+
+### 9.1 Purpose and provenance
+
+`data/raw/failures.jsonl` captures every session the collection pipeline attempted but could not complete into an `InformantRecord`. It is **append-only**: existing lines are never edited or deleted. A bad entry stays in place with whatever fields were captured at failure time — the audit trail is inviolable.
+
+The file is **gitignored** (production data, not source-controlled). It is part of the open data bundle alongside `informants.jsonl`.
+
+**The invariant:** every session the API handled is traceable to either `informants.jsonl` (all three CDA steps completed, regardless of QA outcome) or `failures.jsonl` (at least one step did not complete). There is no third path.
+
+One entry per failed session. A session that is retried at the runner level (e.g., `run_pile_sort` retrying up to three times on parse failure) produces one entry — the per-retry bytes are captured in `retry_attempts`.
+
+### 9.2 Top-level fields
+
+| Field | Type | Always present | Semantics |
+|---|---|---|---|
+| `timestamp` | `str` (ISO 8601) | Yes | Wall-clock time the failure was appended. Not the time the session started. |
+| `error_type` | `str` | Yes | Python exception class name. Examples: `"ValueError"`, `"RuntimeError"`, `"httpx.HTTPStatusError"`. |
+| `error_message` | `str` | Yes | `str(error)` — the exception message. May include partial context (e.g., pile-sort parse failures include the truncated response text in the message). |
+| `context` | `dict` | Yes | At minimum `{model_id: str, domain: str, run_index: int}`. May include additional fields from the caller. |
+| `prompt_verbatim` | `str \| None` | No | The exact prompt sent to the step that failed (or the prompt sent on the final retry for pile-sort parse-retry exhaustion). Absent when no prompt was constructed before the exception (e.g., a pre-request setup error). |
+| `response_verbatim` | `str \| None` | No | The exact response text returned by the provider on the failing step (or final retry). May be an empty string `""` for HTTP 200 empty-body failures (Gemini/GLM class). Absent when the request never completed (e.g., HTTP 4xx raised before a response was received). |
+| `thinking_verbatim` | `str \| None` | No | The reasoning trace from the failing step, if the adapter surfaced one. Empty string `""` for models that do not produce thinking traces. Absent when no response was received. |
+| `stop_reason` | `str \| None` | No | The provider stop reason on the failing step (e.g., `"STOP"`, `"MAX_TOKENS"`, `"end_turn"`, `"unknown"`). Absent when no response was received. |
+| `partial_session` | `dict \| None` | No | Step records for any CDA steps that completed **before** the failure. Shape described in §9.3. **Omitted entirely** (not written as `null`) when nothing completed before the failure — keeps entries compact for the common Class 5 / 6 cases where the failure is at step 1. |
+| `retry_attempts` | `list[dict]` | Yes (min `[]`) | Per-retry dicts for pile-sort parse-retry exhaustion. Empty list `[]` for all failure modes that do not involve a parse-retry loop (all non-pile-sort failures, all HTTP-layer failures). Shape described in §9.4. **Always written**, even when empty, to make entries machine-parseable without a presence check. |
+
+**Field order** in the JSONL line (for human readability of `tail -f` output):
+`timestamp` → `error_type` → `error_message` → `context` → `prompt_verbatim` (if present) → `response_verbatim` (if present) → `thinking_verbatim` (if present) → `stop_reason` (if present) → `partial_session` (if present) → `retry_attempts` (always).
+
+### 9.3 partial_session shape
+
+`partial_session` is a JSON object with up to three optional keys, one per CDA step:
+
+```json
+{
+  "freelist": { ... },
+  "pile_sort": { ... },
+  "interview": { ... }
+}
+```
+
+Only the keys for steps that **completed** before the failure are present. A step that did not start is simply absent (not `null`). Example: if the failure occurred at step 2, only `"freelist"` is present.
+
+Each step sub-object carries the full step-record shape matching the corresponding schema type in `cdb_core/schemas.py`:
+
+**`freelist` sub-object** — mirrors `FreelistRecord`:
+
+| Key | Type | Semantics |
+|---|---|---|
+| `prompt_verbatim` | `str` | Exact prompt sent to the free-listing step. |
+| `response_verbatim` | `str` | Exact response from the free-listing step. |
+| `thinking_verbatim` | `str` | Thinking trace (empty string if not surfaced). |
+| `stop_reason` | `str` | Provider stop reason. |
+| `parsed_items` | `list[str]` | Parsed, normalized item list (may be empty if parsing was partial). |
+| `input_tokens` | `int` | Provider-reported input token count. |
+| `output_tokens` | `int` | Provider-reported output token count. |
+| `latency_ms` | `int` | Wall-clock latency in ms. |
+
+**`pile_sort` sub-object** — mirrors `PileSortRecord` (carried when step 2 completed before failure at step 3):
+
+| Key | Type | Semantics |
+|---|---|---|
+| `prompt_verbatim` | `str` | Exact prompt sent to the pile-sort step. |
+| `response_verbatim` | `str` | Exact response from the pile-sort step. |
+| `thinking_verbatim` | `str` | Thinking trace (empty string if not surfaced). |
+| `stop_reason` | `str` | Provider stop reason. |
+| `input_tokens` | `int` | Provider-reported input token count. |
+| `output_tokens` | `int` | Provider-reported output token count. |
+| `latency_ms` | `int` | Wall-clock latency in ms. |
+
+**`interview` sub-object** — mirrors `InterviewRecord` (carried when step 3 completed but a post-assembly step raised):
+
+| Key | Type | Semantics |
+|---|---|---|
+| `prompt_verbatim` | `str` | Exact prompt sent to the interview step. |
+| `response_verbatim` | `str` | Exact response from the interview step. |
+| `thinking_verbatim` | `str` | Thinking trace (empty string if not surfaced). |
+| `stop_reason` | `str` | Provider stop reason. |
+| `input_tokens` | `int` | Provider-reported input token count. |
+| `output_tokens` | `int` | Provider-reported output token count. |
+| `latency_ms` | `int` | Wall-clock latency in ms. |
+
+### 9.4 retry_attempts shape
+
+`retry_attempts` is present in every entry. It is non-empty **only** for pile-sort parse-retry exhaustion failures — where `run_pile_sort` retried the adapter call up to `_MAX_PARSE_RETRIES=3` times and all attempts failed to produce parseable JSON. It is `[]` for all other failure modes.
+
+The list is ordered: index 0 is the first attempt, index 1 is the second, etc. The final attempt's bytes are also captured at the top level in `response_verbatim`, `thinking_verbatim`, and `stop_reason` — the per-attempt list carries the diagnostic forensics; the top-level fields carry the "what did the model finally say" bytes at a glance.
+
+Each entry in the list:
+
+| Key | Type | Semantics |
+|---|---|---|
+| `attempt_index` | `int` | 0-indexed attempt number. `0` = first attempt, `1` = second, etc. |
+| `response_verbatim` | `str` | Exact response text from this attempt. May be `""` for empty-body HTTP 200 responses. |
+| `thinking_verbatim` | `str` | Thinking trace from this attempt (empty string if not surfaced). |
+| `stop_reason` | `str` | Provider stop reason for this attempt. |
+| `input_tokens` | `int` | Provider-reported input token count. |
+| `output_tokens` | `int` | Provider-reported output token count. |
+| `latency_ms` | `int` | Wall-clock latency for this attempt in ms. |
+| `parse_error_message` | `str` | The `str(parse_error)` that caused this attempt to fail. Useful for distinguishing "empty response" from "truncated JSON" from "items-missing" failure modes. |
+
+**Why `retry_attempts` is always written (even as `[]`):** downstream consumers (dashboard failure viewer, analysis scripts) can unconditionally read `entry["retry_attempts"]` without a presence check. An absent key would force every consumer to guard with `.get("retry_attempts", [])`. Consistency reduces consumer error surface.
+
+### 9.5 No pydantic model
+
+Per Amendment A.3 of the Architect verdict, `failures.jsonl` entries are dict-shaped JSONL and are not represented by a pydantic type in `cdb_core/schemas.py`. The `append_failure` function in `cdb_collect/jsonl.py` accepts the new fields as kwargs and serializes them as-is. A type-checked read model (`FailureEntry` / `RetryAttempt`) may be added to `cdb_core` if the Stream C dashboard work (Phase 6+) requires it.
+
+### 9.6 Example entry
+
+A pile-sort parse-retry exhaustion failure on a Gemini model that completed step 1 before failing at step 2 on all three retries:
+
+```json
+{
+  "timestamp": "2026-04-23T14:32:01.123456",
+  "error_type": "PileSortParseError",
+  "error_message": "Pile sort parsing failed after 3 attempts: Could not extract valid JSON from response: ",
+  "context": {"model_id": "google/gemini-2.5-pro", "domain": "family", "run_index": 2},
+  "prompt_verbatim": "Sort the following 25 family terms into piles...",
+  "response_verbatim": "",
+  "thinking_verbatim": "",
+  "stop_reason": "STOP",
+  "partial_session": {
+    "freelist": {
+      "prompt_verbatim": "List every family term you can think of...",
+      "response_verbatim": "1. Mother\n2. Father\n3. Sister\n...",
+      "thinking_verbatim": "",
+      "stop_reason": "STOP",
+      "parsed_items": ["mother", "father", "sister"],
+      "input_tokens": 85,
+      "output_tokens": 312,
+      "latency_ms": 4201
+    }
+  },
+  "retry_attempts": [
+    {
+      "attempt_index": 0,
+      "response_verbatim": "",
+      "thinking_verbatim": "",
+      "stop_reason": "STOP",
+      "input_tokens": 430,
+      "output_tokens": 0,
+      "latency_ms": 1843,
+      "parse_error_message": "Could not extract valid JSON from response: "
+    },
+    {
+      "attempt_index": 1,
+      "response_verbatim": "",
+      "thinking_verbatim": "",
+      "stop_reason": "STOP",
+      "input_tokens": 445,
+      "output_tokens": 0,
+      "latency_ms": 1901,
+      "parse_error_message": "Could not extract valid JSON from response: "
+    },
+    {
+      "attempt_index": 2,
+      "response_verbatim": "",
+      "thinking_verbatim": "",
+      "stop_reason": "STOP",
+      "input_tokens": 445,
+      "output_tokens": 0,
+      "latency_ms": 1755,
+      "parse_error_message": "Could not extract valid JSON from response: "
+    }
+  ]
+}
+```
+
+A simpler HTTP-layer failure (adapter raised before any response was received):
+
+```json
+{
+  "timestamp": "2026-04-23T15:10:44.987654",
+  "error_type": "httpx.HTTPStatusError",
+  "error_message": "Client error '400 Bad Request' for url ...",
+  "context": {"model_id": "microsoft/phi-4", "domain": "family", "run_index": 0},
+  "retry_attempts": []
+}
+```
 
 ---
 
