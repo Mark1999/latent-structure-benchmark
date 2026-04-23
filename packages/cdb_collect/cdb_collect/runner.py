@@ -19,6 +19,7 @@ from cdb_core import Domain, FreelistRecord, InformantRecord, InterviewRecord, P
 
 from cdb_collect.adapters.base import AdapterResult, ModelAdapter
 from cdb_collect.adapters.openai_compat import PROVIDER_CONFIGS
+from cdb_collect.exceptions import PartialSessionError, PileSortParseError
 from cdb_collect.manifest import compute_manifest
 from cdb_collect.protocol.free_list import run_free_list
 from cdb_collect.protocol.pile_interview import run_pile_interview
@@ -306,28 +307,86 @@ async def run_informant(
         campaign_id: Optional campaign identifier written into
             ``qa_notes`` per docs/SHAKEDOWN_PROTOCOL.md §2.
     """
-    freelist_record, freelist_result = await run_free_list(
-        adapter, domain, run_index,
-        prompt_version=prompt_version,
-        temperature=temperature,
-    )
+    # ── Step 1: Free list ──────────────────────────────────────────────────
+    try:
+        freelist_record, freelist_result = await run_free_list(
+            adapter, domain, run_index,
+            prompt_version=prompt_version,
+            temperature=temperature,
+        )
+    except Exception as exc:
+        raise PartialSessionError(
+            cause=exc,
+            failed_step="freelist",
+            partial_session={},
+            # No completed steps to carry; prompt was built inside run_free_list
+        ) from exc
 
-    pilesort_record, _ = await run_pile_sort(
-        adapter,
-        items=freelist_record.parsed_items,
-        domain_seed=domain.prompt_seed,
-        run_index=run_index,
-        prompt_version=prompt_version,
-        temperature=temperature,
-    )
+    partial: dict = {"freelist": freelist_record.model_dump()}
 
-    interview_record, _ = await run_pile_interview(
-        adapter,
-        piles=pilesort_record.parsed_piles,
-        run_index=run_index,
-        prompt_version=prompt_version,
-        temperature=temperature,
-    )
+    # ── Step 2: Pile sort ──────────────────────────────────────────────────
+    try:
+        pilesort_record, _ = await run_pile_sort(
+            adapter,
+            items=freelist_record.parsed_items,
+            domain_seed=domain.prompt_seed,
+            run_index=run_index,
+            prompt_version=prompt_version,
+            temperature=temperature,
+        )
+    except PileSortParseError as exc:
+        # All retries exhausted — map attempts[:-1] to retry_attempts,
+        # and attempts[-1] to top-level verbatim fields.
+        attempts = exc.attempts
+        errors = exc.per_attempt_errors
+        retry_attempts: list[dict] = [
+            {
+                "attempt_index": idx,
+                "response_verbatim": r.text,
+                "thinking_verbatim": r.thinking_text,
+                "stop_reason": r.stop_reason,
+                "input_tokens": r.input_tokens,
+                "output_tokens": r.output_tokens,
+                "latency_ms": r.latency_ms,
+                "parse_error_message": str(errors[idx]),
+            }
+            for idx, r in enumerate(attempts[:-1])
+        ]
+        final = attempts[-1]
+        raise PartialSessionError(
+            cause=exc,
+            failed_step="pile_sort",
+            partial_session=partial,
+            prompt_verbatim=exc.prompt_verbatim or None,
+            response_verbatim=final.text,
+            thinking_verbatim=final.thinking_text,
+            stop_reason=final.stop_reason,
+            retry_attempts=retry_attempts,
+        ) from exc
+    except Exception as exc:
+        raise PartialSessionError(
+            cause=exc,
+            failed_step="pile_sort",
+            partial_session=partial,
+        ) from exc
+
+    partial["pile_sort"] = pilesort_record.model_dump()
+
+    # ── Step 3: Pile interview ─────────────────────────────────────────────
+    try:
+        interview_record, _ = await run_pile_interview(
+            adapter,
+            piles=pilesort_record.parsed_piles,
+            run_index=run_index,
+            prompt_version=prompt_version,
+            temperature=temperature,
+        )
+    except Exception as exc:
+        raise PartialSessionError(
+            cause=exc,
+            failed_step="interview",
+            partial_session=partial,
+        ) from exc
 
     return _assemble_record(
         adapter, domain, run_index,
@@ -434,24 +493,66 @@ async def run_two_pass(
     for i in range(n_pile_sorts):
         run_idx = n_free_lists + i  # Offset to avoid ID collision
 
-        pilesort_record, ps_result = await run_pile_sort(
-            adapter,
-            items=consensus_items,
-            domain_seed=domain.prompt_seed,
-            run_index=run_idx,
-            prompt_version=prompt_version,
-        )
+        try:
+            pilesort_record, ps_result = await run_pile_sort(
+                adapter,
+                items=consensus_items,
+                domain_seed=domain.prompt_seed,
+                run_index=run_idx,
+                prompt_version=prompt_version,
+            )
+        except PileSortParseError as exc:
+            attempts = exc.attempts
+            errors = exc.per_attempt_errors
+            retry_attempts: list[dict] = [
+                {
+                    "attempt_index": idx,
+                    "response_verbatim": r.text,
+                    "thinking_verbatim": r.thinking_text,
+                    "stop_reason": r.stop_reason,
+                    "input_tokens": r.input_tokens,
+                    "output_tokens": r.output_tokens,
+                    "latency_ms": r.latency_ms,
+                    "parse_error_message": str(errors[idx]),
+                }
+                for idx, r in enumerate(attempts[:-1])
+            ]
+            final = attempts[-1]
+            raise PartialSessionError(
+                cause=exc,
+                failed_step="pile_sort",
+                partial_session={},
+                prompt_verbatim=exc.prompt_verbatim or None,
+                response_verbatim=final.text,
+                thinking_verbatim=final.thinking_text,
+                stop_reason=final.stop_reason,
+                retry_attempts=retry_attempts,
+            ) from exc
+        except Exception as exc:
+            raise PartialSessionError(
+                cause=exc,
+                failed_step="pile_sort",
+                partial_session={},
+            ) from exc
+
         # Set item_source on the pile sort record
         pilesort_record = pilesort_record.model_copy(
             update={"item_source": item_source},
         )
 
-        interview_record, _ = await run_pile_interview(
-            adapter,
-            piles=pilesort_record.parsed_piles,
-            run_index=run_idx,
-            prompt_version=prompt_version,
-        )
+        try:
+            interview_record, _ = await run_pile_interview(
+                adapter,
+                piles=pilesort_record.parsed_piles,
+                run_index=run_idx,
+                prompt_version=prompt_version,
+            )
+        except Exception as exc:
+            raise PartialSessionError(
+                cause=exc,
+                failed_step="interview",
+                partial_session={"pile_sort": pilesort_record.model_dump()},
+            ) from exc
 
         # Use placeholder free list (free lists were in pass 1).
         # The item set for this pile sort was elbow-truncated at elbow_k.
@@ -554,23 +655,65 @@ async def run_baseline_sort(
     records: list[InformantRecord] = []
 
     for i in range(n_sorts):
-        pilesort_record, ps_result = await run_pile_sort(
-            adapter,
-            items=items,
-            domain_seed=domain.prompt_seed,
-            run_index=i,
-            prompt_version=prompt_version,
-        )
+        try:
+            pilesort_record, ps_result = await run_pile_sort(
+                adapter,
+                items=items,
+                domain_seed=domain.prompt_seed,
+                run_index=i,
+                prompt_version=prompt_version,
+            )
+        except PileSortParseError as exc:
+            attempts = exc.attempts
+            errors = exc.per_attempt_errors
+            retry_attempts_bl: list[dict] = [
+                {
+                    "attempt_index": idx,
+                    "response_verbatim": r.text,
+                    "thinking_verbatim": r.thinking_text,
+                    "stop_reason": r.stop_reason,
+                    "input_tokens": r.input_tokens,
+                    "output_tokens": r.output_tokens,
+                    "latency_ms": r.latency_ms,
+                    "parse_error_message": str(errors[idx]),
+                }
+                for idx, r in enumerate(attempts[:-1])
+            ]
+            final = attempts[-1]
+            raise PartialSessionError(
+                cause=exc,
+                failed_step="pile_sort",
+                partial_session={},
+                prompt_verbatim=exc.prompt_verbatim or None,
+                response_verbatim=final.text,
+                thinking_verbatim=final.thinking_text,
+                stop_reason=final.stop_reason,
+                retry_attempts=retry_attempts_bl,
+            ) from exc
+        except Exception as exc:
+            raise PartialSessionError(
+                cause=exc,
+                failed_step="pile_sort",
+                partial_session={},
+            ) from exc
+
         pilesort_record = pilesort_record.model_copy(
             update={"item_source": item_source},
         )
 
-        interview_record, _ = await run_pile_interview(
-            adapter,
-            piles=pilesort_record.parsed_piles,
-            run_index=i,
-            prompt_version=prompt_version,
-        )
+        try:
+            interview_record, _ = await run_pile_interview(
+                adapter,
+                piles=pilesort_record.parsed_piles,
+                run_index=i,
+                prompt_version=prompt_version,
+            )
+        except Exception as exc:
+            raise PartialSessionError(
+                cause=exc,
+                failed_step="interview",
+                partial_session={"pile_sort": pilesort_record.model_dump()},
+            ) from exc
 
         fl_placeholder, fl_result_placeholder = _placeholder_freelist()
 

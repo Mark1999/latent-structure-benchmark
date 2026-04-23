@@ -11,6 +11,7 @@ from typing import Any
 from cdb_core import PileSortRecord
 
 from cdb_collect.adapters.base import AdapterResult, ModelAdapter
+from cdb_collect.exceptions import PileSortParseError
 
 logger = logging.getLogger(__name__)
 
@@ -214,16 +215,21 @@ async def run_pile_sort(
         (PileSortRecord, AdapterResult) tuple.
 
     Raises:
-        ValueError: If parsing fails after all retries.
+        PileSortParseError: If parsing fails after all retries. Carries all
+            AdapterResult objects (one per attempt) so the caller can write
+            verbatim bytes to failures.jsonl.
     """
     prompt = load_prompt(items, domain_seed, version=prompt_version)
-    last_error: Exception | None = None
     effective_temp = (
         temperature if temperature is not None else DEFAULT_PILESORT_TEMPERATURE
     )
 
+    all_results: list[AdapterResult] = []
+    all_errors: list[Exception] = []
+
     for attempt in range(max_retries):
         result = await adapter.complete(prompt, temperature=effective_temp)
+        all_results.append(result)
 
         try:
             piles, matrix = parse_pile_sort(result.text, items)
@@ -244,12 +250,15 @@ async def run_pile_sort(
             return record, result
 
         except ValueError as e:
-            last_error = e
+            all_errors.append(e)
             logger.warning(
                 "Pile sort parse failed (attempt %d/%d): %s",
                 attempt + 1, max_retries, e,
             )
 
-    raise ValueError(
-        f"Pile sort parsing failed after {max_retries} attempts: {last_error}"
+    raise PileSortParseError(
+        f"Pile sort parsing failed after {max_retries} attempts: {all_errors[-1]}",
+        attempts=all_results,
+        per_attempt_errors=all_errors,
+        prompt_verbatim=prompt,
     )

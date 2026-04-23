@@ -32,6 +32,7 @@ from cdb_collect.adapters import (
 )
 from cdb_collect.baselines import load_baseline_items
 from cdb_collect.domains import load_domain
+from cdb_collect.exceptions import PartialSessionError
 from cdb_collect.jsonl import append_failure, append_record
 from cdb_collect.model_ids import to_direct_id
 from cdb_collect.runner import run_baseline_sort, run_cross_model_sort, run_informant, run_two_pass
@@ -211,6 +212,25 @@ async def collect_single_pass(
             n_piles = len(record.pile_sort.parsed_piles)
             print(f"{status_str} — {n_items} items, {n_piles} piles")
             successful += 1
+        except PartialSessionError as e:
+            print(f"ERROR: {e.cause}", file=sys.stderr)
+            logger.exception("Run %d failed at step %s", run_index, e.failed_step)
+            append_failure(
+                e.cause,
+                {
+                    "model_id": adapter.model.model_id,
+                    "domain": domain_slug,
+                    "run_index": run_index,
+                    "failed_step": e.failed_step,
+                },
+                FAILURES_JSONL,
+                prompt_verbatim=e.prompt_verbatim,
+                response_verbatim=e.response_verbatim,
+                thinking_verbatim=e.thinking_verbatim,
+                stop_reason=e.stop_reason,
+                partial_session=e.partial_session if e.partial_session else None,
+                retry_attempts=e.retry_attempts if e.retry_attempts else None,
+            )
         except Exception as e:
             print(f"ERROR: {e}", file=sys.stderr)
             logger.exception("Run %d failed", run_index)
@@ -250,6 +270,26 @@ async def collect_two_pass(
             n_pile_sorts=n_pile_sorts,
             prompt_version=prompt_version,
         )
+    except PartialSessionError as e:
+        print(f"ERROR: {e.cause}", file=sys.stderr)
+        logger.exception("Two-pass collection failed at step %s", e.failed_step)
+        append_failure(
+            e.cause,
+            {
+                "model_id": adapter.model.model_id,
+                "domain": domain_slug,
+                "mode": "two_pass",
+                "failed_step": e.failed_step,
+            },
+            FAILURES_JSONL,
+            prompt_verbatim=e.prompt_verbatim,
+            response_verbatim=e.response_verbatim,
+            thinking_verbatim=e.thinking_verbatim,
+            stop_reason=e.stop_reason,
+            partial_session=e.partial_session if e.partial_session else None,
+            retry_attempts=e.retry_attempts if e.retry_attempts else None,
+        )
+        return 0
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         logger.exception("Two-pass collection failed")
@@ -394,6 +434,26 @@ async def collect_baseline(
             n_sorts=n_sorts,
             prompt_version=prompt_version,
         )
+    except PartialSessionError as e:
+        print(f"ERROR: {e.cause}", file=sys.stderr)
+        logger.exception("Baseline collection failed at step %s", e.failed_step)
+        append_failure(
+            e.cause,
+            {
+                "model_id": adapter.model.model_id,
+                "domain": domain_slug,
+                "baseline": baseline_id,
+                "failed_step": e.failed_step,
+            },
+            FAILURES_JSONL,
+            prompt_verbatim=e.prompt_verbatim,
+            response_verbatim=e.response_verbatim,
+            thinking_verbatim=e.thinking_verbatim,
+            stop_reason=e.stop_reason,
+            partial_session=e.partial_session if e.partial_session else None,
+            retry_attempts=e.retry_attempts if e.retry_attempts else None,
+        )
+        return 0
     except Exception as e:
         print(f"ERROR: {e}", file=sys.stderr)
         logger.exception("Baseline collection failed")
