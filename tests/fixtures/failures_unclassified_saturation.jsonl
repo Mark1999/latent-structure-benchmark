@@ -1,0 +1,3 @@
+{"timestamp": "2026-04-22T11:00:00", "error_type": "WeirdError", "error_message": "Something unexpected happened that no rule covers", "context": {"model_id": "some/model", "domain": "family", "run_index": 0}, "retry_attempts": []}
+{"timestamp": "2026-04-22T11:01:00", "error_type": "StrangeError", "error_message": "A strange condition with no classification path available", "context": {"model_id": "some/model", "domain": "family", "run_index": 1}, "retry_attempts": []}
+{"timestamp": "2026-04-22T11:02:00", "error_type": "UnknownError", "error_message": "Third unclassified exception type for tripwire testing", "context": {"model_id": "some/model", "domain": "family", "run_index": 2}, "retry_attempts": []}

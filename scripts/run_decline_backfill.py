@@ -7,18 +7,45 @@ API calls (--dry-run mode).
 T1 delivers the --dry-run path only. The --execute path is T2 scope; its handler
 body raises NotImplementedError with a pointer to the plan document.
 
-References:
-  Architect plan:  docs/status/2026-04-23-phase4a1-architect-plan.md
-  SME verdict:     docs/status/2026-04-23-phase4a1-architect-plan-cda-sme-verdict.md
+T1-update adds:
+  - should_include_failure() exclusion filter (SME A1–A4)
+  - Section 3b: excluded failures-origin records audit with controlled-vocabulary
+    rationale header (SME A7)
+  - Section 3c: unclassified-default-include records with dry-run-blocking tripwire
+    above 2 records (SME A4)
+  - --source {informants,failures,all} CLI flag
+  - --cost-cap-usd CLI flag (replaces hardcoded $2 cap, default $10)
+  - Both full-count and post-exclusion cost projections in Section 5 (SME A8)
+  - Pre-flight gate uses post-exclusion count (SME A8)
 
-SME binding notes satisfied in this file:
-  Note 1 — per-record not-triggered reasoning (Section 3 of --dry-run output)
-  Note 8 — Gemini failures count + cost-guard line (Section 4 of --dry-run output)
+SME binding notes satisfied in this file (Amendment 1 notes A1–A8):
+  A1 — General principle: exclude HTTP-infrastructure, include safety-filter refusals
+  A2 — 'jailbreak' added to SAFETY_FILTER_MARKERS
+  A3 — empty_response cohort gets distinct rationale key before parse_exhaustion step
+  A4 — unclassified-saturation tripwire (>2 → SURFACE-TO-SME, exit non-zero)
+  A7 — Section 3b controlled-vocabulary rationale header
+  A8 — Section 5 reports both full-count and post-exclusion cost projections
+
+Design notes for T5/T3A/T3B (implementing code omitted per scope boundary):
+  A5 — T5 §5 "Exclusion rule applied" must enumerate excluded records by identifier.
+       The identifier format from _failure_identifier() is:
+       failure|<model_id>|<domain>|<run_index>|<timestamp>
+       Section 3b output is the source material for T5 §5 enumeration.
+  A6 — T3A must be inspected for recursive-decline before T3B fires, regardless of
+       non-CN-origin presence. This is an operator/SME protocol gate; the code here
+       does not enforce it. A6 binds at T3B authorization time.
+
+References:
+  Architect plan (original):  docs/status/2026-04-23-phase4a1-architect-plan.md
+  SME verdict (original):     docs/status/2026-04-23-phase4a1-architect-plan-cda-sme-verdict.md
+  Architect plan (Amendment): docs/status/2026-04-23-phase4a1-architect-plan-amendment-1.md
+  SME verdict (Amendment 1):  docs/status/2026-04-23-phase4a1-amendment-1-cda-sme-verdict.md
 
 Exit codes:
-  0  — dry-run completed cleanly
+  0  — dry-run completed cleanly (GO disposition)
   1  — IO or parse error
-  2  — projected spend >= 80 % of $2 cap; escalation required
+  2  — projected spend >= 80% of cost cap; escalation required (STOP)
+       OR unclassified-saturation tripwire fired (SURFACE-TO-SME)
 """
 
 from __future__ import annotations
@@ -37,16 +64,160 @@ from cdb_collect.decline_detection import (
     detect_from_failure,
 )
 
-# ── Cost constants (editable for test injection) ──────────────────────────────
+# ── Cost constants ─────────────────────────────────────────────────────────────
 COST_PER_CALL_USD: float = 0.05
-SPEND_CAP_USD: float = 2.00
-ESCALATION_THRESHOLD_RATIO: float = 0.80  # 80 % of cap
+DEFAULT_COST_CAP_USD: float = 10.00
+ESCALATION_THRESHOLD_RATIO: float = 0.80  # 80% of cap
+
+# ── Exclusion filter constants (Amendment 1 §2 + SME A2, A3) ─────────────────
+
+HTTP_INFRASTRUCTURE_EXCEPTION_TYPES: frozenset[str] = frozenset({
+    "HTTPStatusError",       # httpx 4xx/5xx
+    "ConnectError",          # httpx connection errors
+    "ConnectTimeout",
+    "ReadTimeout",
+    "WriteTimeout",
+    "PoolTimeout",
+    "TimeoutError",          # stdlib
+    "ConnectionError",       # stdlib
+    "RemoteProtocolError",   # httpx
+    "ReadError",             # httpx
+    "WriteError",            # httpx
+})
+
+# Reserved for future use; empty in v1 because all observed ValueError cases in
+# failures.jsonl are post-generation parse exhaustion. If an adapter starts raising
+# a pre-generation validation error, add its classname here on a new Architect plan
+# cycle.
+ADAPTER_PARSE_PRE_GENERATION_TYPES: frozenset[str] = frozenset()
+
+# SME A2: 'jailbreak' added to base list
+SAFETY_FILTER_MARKERS: tuple[str, ...] = (
+    "safety",
+    "content policy",
+    "content_policy",
+    "blocked",
+    "harmful",
+    "prohibited",
+    "policy_violation",
+    "content_filter",
+    "jailbreak",              # SME A2: canonical refusal-vocabulary term
+    "RECITATION",             # Gemini finish_reason for copyright block
+    "SAFETY",                 # Gemini finish_reason for safety block
+    "PROHIBITED_CONTENT",
+    "OTHER",                  # Gemini's generic content-block finish_reason
+)
+
+PARSE_EXHAUSTION_MARKERS: tuple[str, ...] = (
+    "Pile sort parsing failed after 3 attempts",
+    "Could not extract valid JSON from response",
+    "Items missing from pile sort",
+)
 
 # ── Default paths (all relative to repo root) ─────────────────────────────────
 _REPO_ROOT = Path(__file__).resolve().parent.parent
 DEFAULT_INFORMANTS_PATH = _REPO_ROOT / "data" / "raw" / "informants.jsonl"
 DEFAULT_FAILURES_PATH = _REPO_ROOT / "data" / "raw" / "failures.jsonl"
 DEFAULT_OUTPUT_PATH = _REPO_ROOT / "data" / "raw" / "decline_interviews.jsonl"
+
+
+# ── Exclusion filter ───────────────────────────────────────────────────────────
+
+def should_include_failure(entry: dict) -> tuple[bool, str]:
+    """Determine whether a failures.jsonl entry should be included in the backfill.
+
+    Implements the Amendment 1 §2 decision tree (first match wins).
+
+    Args:
+        entry: A single failures.jsonl record as a plain dict.
+
+    Returns:
+        (include_bool, rationale_string) where rationale_string is a stable,
+        controlled-vocabulary identifier suitable for logging in Section 3b
+        and T5 §5 "Exclusion rule applied" enumeration.
+
+    Rationale taxonomy (v1):
+      http_infrastructure:{exception_type}
+        — HTTP/network/timeout errors, no exchange
+      adapter_pre_generation_parse:{exception_type}
+        — Adapter pre-generation failure (empty in v1)
+      safety_filter:matched:{marker!r}
+        — Safety-filter refusal surfaced via error channel (INCLUDE)
+      parse_exhaustion:{marker[:30]}
+        — Post-generation parse exhaustion (INCLUDE)
+      empty_response:likely_silent_safety_block
+        — Gemini-style empty body after "Could not extract" (INCLUDE)
+      unclassified:default_include:{exception_type}
+        — Not matched by any rule; default-include
+
+    Decision tree:
+      Step 1: Safety-filter marker in error_message (case-insensitive) → INCLUDE
+      Step 2: error_type in HTTP_INFRASTRUCTURE_EXCEPTION_TYPES → EXCLUDE
+      Step 3: error_type in ADAPTER_PARSE_PRE_GENERATION_TYPES (empty v1) → EXCLUDE
+      Step 4 (SME A3): ValueError + "Could not extract..." + empty body → INCLUDE with distinct key
+      Step 5: PARSE_EXHAUSTION_MARKERS substring in error_message → INCLUDE
+      Step 6: Default → INCLUDE (unclassified)
+
+    Note on T5/T3A/T3B (SME A5): Section 3b output (identifier + rationale) is the
+    source material for T5 §5 "Exclusion rule applied" by-identifier enumeration.
+    The identifier is produced by _failure_identifier() as:
+      failure|<model_id>|<domain>|<run_index>|<timestamp>
+    This is stable and round-trippable from the failures.jsonl record.
+    """
+    error_type: str = entry.get("error_type", "")
+    error_message: str = entry.get("error_message", "")
+    msg_lower = error_message.lower()
+
+    # Step 1 — Safety-filter blocks override the infrastructure exclusion.
+    # Some providers surface safety blocks as HTTP 400 with refusal content in
+    # the response body / error message (OpenAI, Anthropic). Message-substring is
+    # the reliable cross-provider classifier.
+    for marker in SAFETY_FILTER_MARKERS:
+        if marker.lower() in msg_lower:
+            return (True, f"safety_filter:matched:{marker!r}")
+
+    # Step 2 — HTTP / network / timeout infrastructure failures: exclude.
+    # These represent transport/network events; no model-generated exchange occurred.
+    if error_type in HTTP_INFRASTRUCTURE_EXCEPTION_TYPES:
+        return (False, f"http_infrastructure:{error_type}")
+
+    # Step 3 — Adapter parse failure BEFORE generation: exclude (empty in v1).
+    if error_type in ADAPTER_PARSE_PRE_GENERATION_TYPES:
+        return (False, f"adapter_pre_generation_parse:{error_type}")
+
+    # Step 4 (SME A3) — Empty-response body (Gemini cohort).
+    # Must be BEFORE step 5 parse_exhaustion to avoid conflating with
+    # partial-output parse exhaustions (which clearly generated).
+    # Matcher: ValueError + contains "Could not extract valid JSON from response: "
+    #          AND the content after the colon+space is empty or whitespace only.
+    # This isolates the Gemini 10-record empty-response cohort from the ~14
+    # non-empty partial-output parse exhaustions.
+    #
+    # Implementation note: the spec pseudocode checks rstrip().endswith(": ") or
+    # rstrip().endswith(":"), which would incorrectly match partial-output messages
+    # like "Could not extract valid JSON from response: {\"foo\":" (also ends with ":").
+    # The correct test is that the fragment AFTER the sentinel prefix is blank.
+    # This is equivalent to: the full message is exactly the sentinel (possibly with
+    # trailing whitespace), i.e., the response body was empty.
+    _SENTINEL = "Could not extract valid JSON from response: "
+    if error_type == "ValueError" and _SENTINEL in error_message:
+        sentinel_pos = error_message.index(_SENTINEL)
+        after_sentinel = error_message[sentinel_pos + len(_SENTINEL):]
+        if not after_sentinel.strip():
+            return (True, "empty_response:likely_silent_safety_block")
+
+    # Step 5 — Post-generation parse exhaustion: include.
+    # The model generated; the generation was off-spec.
+    for marker in PARSE_EXHAUSTION_MARKERS:
+        if marker in error_message:
+            return (True, f"parse_exhaustion:{marker[:30]}")
+
+    # Step 6 — Default: include with "unclassified" rationale.
+    # Default-include is the correct posture per SME A3:
+    #   - The instrument's purpose is audit; an unclassified record is a signal.
+    #   - The cost ceiling is bounded ($10 cap, ~$0.05/call).
+    #   - The filter is consumer-side; over-inclusion is recoverable.
+    return (True, f"unclassified:default_include:{error_type}")
 
 
 # ── qa_notes parsing helpers ──────────────────────────────────────────────────
@@ -228,8 +399,9 @@ def run_dry_run(
     output_path: Path,
     verbose: bool = False,
     cost_per_call: float = COST_PER_CALL_USD,
-    spend_cap: float = SPEND_CAP_USD,
+    spend_cap: float = DEFAULT_COST_CAP_USD,
     escalation_ratio: float = ESCALATION_THRESHOLD_RATIO,
+    source: str = "all",
 ) -> int:
     """Execute the dry-run: enumerate detected sessions and print the report.
 
@@ -244,9 +416,11 @@ def run_dry_run(
         cost_per_call:   Estimated cost per API call in USD (injectable for tests).
         spend_cap:       Hard spend cap in USD (injectable for tests).
         escalation_ratio: Fraction of cap at which cost-guard escalation fires.
+        source:          Which origin to process: 'informants', 'failures', or 'all'.
 
     Returns:
-        Exit code: 0 on success, 2 on cost-guard escalation.
+        Exit code: 0 on success (GO), 2 on cost-guard escalation (STOP) or
+        unclassified-saturation (SURFACE-TO-SME).
     """
     # ── Load raw data ──────────────────────────────────────────────────────────
     informant_dicts = _load_jsonl_dicts(informants_path)
@@ -255,28 +429,76 @@ def run_dry_run(
     # ── Run detection ──────────────────────────────────────────────────────────
     detected_sessions = detect_all(informant_dicts, failure_dicts)
 
+    # Split sessions by source for --source filtering
+    informants_sessions = [s for s in detected_sessions if s.source == "informants"]
+    failures_sessions = [s for s in detected_sessions if s.source == "failures"]
+
+    # Apply --source filter to displayed sessions
+    if source == "informants":
+        display_sessions = informants_sessions
+    elif source == "failures":
+        display_sessions = failures_sessions
+    else:  # all
+        display_sessions = detected_sessions
+
     # Build per-informant lookup for triggered IDs
     triggered_ids: set[str] = {s.identifier for s in detected_sessions}
 
     # ── Collect "not triggered" informant records ──────────────────────────────
     # Only qa_passed=False records that detect_from_informant returned None for.
     not_triggered_informant: list[dict] = []
-    for rec in informant_dicts:
-        if rec.get("qa_passed", True):
-            continue  # only care about failed records
-        iid = rec.get("informant_id", "unknown")
-        if iid in triggered_ids:
-            continue  # was triggered; not in not-triggered list
-        not_triggered_informant.append(rec)
+    if source in ("informants", "all"):
+        for rec in informant_dicts:
+            if rec.get("qa_passed", True):
+                continue  # only care about failed records
+            iid = rec.get("informant_id", "unknown")
+            if iid in triggered_ids:
+                continue  # was triggered; not in not-triggered list
+            not_triggered_informant.append(rec)
 
     # Collect "not triggered" failure entries (detect_from_failure currently always
     # returns a DetectedSession for valid entries, but keep the audit path open
     # in case future filtering logic is added).
     not_triggered_failure: list[dict] = []
+    if source in ("failures", "all"):
+        for entry in failure_dicts:
+            fid_session = detect_from_failure(entry)
+            if fid_session is None:
+                not_triggered_failure.append(entry)
+
+    # ── Apply exclusion filter to failures-origin sessions ────────────────────
+    # Build map from identifier -> failure dict for fast lookup
+    failure_dict_by_id: dict[str, dict] = {}
     for entry in failure_dicts:
-        fid_session = detect_from_failure(entry)
-        if fid_session is None:
-            not_triggered_failure.append(entry)
+        fid = _failure_identifier(entry)
+        failure_dict_by_id[fid] = entry
+
+    # Classify failures-origin detected sessions
+    excluded_failures: list[tuple[str, str, str]] = []   # (identifier, error_type, rationale)
+    included_failures: list[DetectedSession] = []
+    unclassified_failures: list[tuple[str, str, str]] = []  # (identifier, error_type, msg_snippet)
+
+    if source in ("failures", "all"):
+        for session in failures_sessions:
+            entry = failure_dict_by_id.get(session.identifier, {})
+            include, rationale = should_include_failure(entry)
+            if include:
+                included_failures.append(session)
+                if rationale.startswith("unclassified:default_include"):
+                    error_type = entry.get("error_type", "")
+                    error_msg = entry.get("error_message", "")
+                    unclassified_failures.append(
+                        (session.identifier, error_type, error_msg[:120])
+                    )
+            else:
+                error_type = entry.get("error_type", "")
+                excluded_failures.append((session.identifier, error_type, rationale))
+
+    # For --source informants, no failures-origin sessions are in scope
+    if source == "informants":
+        included_failures = []
+        excluded_failures = []
+        unclassified_failures = []
 
     # ── Section 1 — Summary table (grouped) ───────────────────────────────────
     print("=" * 72)
@@ -286,7 +508,7 @@ def run_dry_run(
     GroupKey = tuple[str, str, str, str]  # (source, originating_step, outcome_class, model_id)
     group_counts: dict[GroupKey, int] = defaultdict(int)
 
-    for session in detected_sessions:
+    for session in display_sessions:
         key: GroupKey = (
             session.source,
             session.originating_step,
@@ -307,9 +529,9 @@ def run_dry_run(
     print("-" * sum(col_widths))
 
     if group_counts:
-        for (source, step, outcome, model_id), count in sorted(group_counts.items()):
+        for (src, step, outcome, model_id), count in sorted(group_counts.items()):
             print(
-                f"{source:<{col_widths[0]}}"
+                f"{src:<{col_widths[0]}}"
                 f"{step:<{col_widths[1]}}"
                 f"{outcome:<{col_widths[2]}}"
                 f"{model_id:<{col_widths[3]}}"
@@ -350,8 +572,8 @@ def run_dry_run(
             ctx.get("domain", "unknown"),
         )
 
-    if detected_sessions:
-        for session in detected_sessions:
+    if display_sessions:
+        for session in display_sessions:
             if session.source == "informants":
                 model_id, domain = informant_meta.get(session.identifier, ("unknown", "unknown"))
             else:
@@ -433,6 +655,133 @@ def run_dry_run(
         print("(no not-triggered records)")
     print()
 
+    # ── Section 3b — Excluded failures-origin records (SME A7) ────────────────
+    print("=" * 72)
+    print(
+        "Section 3b — Failures-origin records excluded from backfill "
+        "(cost-guard + methodology filter)"
+    )
+    print("=" * 72)
+    print("Rationale taxonomy (v1):")
+    print(
+        "  http_infrastructure:{exception_type}"
+        "         — HTTP/network/timeout errors, no exchange"
+    )
+    print(
+        "  adapter_pre_generation_parse:{exception_type}"
+        " — Adapter pre-generation failure (empty in v1)"
+    )
+    print(
+        "  safety_filter:matched:{marker}"
+        "               — Safety-filter refusal surfaced via error channel (INCLUDE)"
+    )
+    print(
+        "  parse_exhaustion:{marker}"
+        "                    — Post-generation parse exhaustion (INCLUDE)"
+    )
+    print(
+        "  empty_response:likely_silent_safety_block"
+        "    — Gemini-style empty body after Could not extract (INCLUDE)"
+    )
+    print(
+        "  unclassified:default_include:{exception_type}"
+        " — Not matched by any rule; default-include"
+    )
+    print()
+
+    id_col_w = 55
+    et_col_w = 22
+    print(
+        f"{'identifier':<{id_col_w}}"
+        f"{'error_type':<{et_col_w}}"
+        f"{'rationale'}"
+    )
+    print(
+        "─" * id_col_w
+        + "┼"
+        + "─" * et_col_w
+        + "┼"
+        + "─" * 35
+    )
+
+    if source == "informants":
+        print("(--source informants: failures-origin pipeline not processed)")
+    elif excluded_failures:
+        for ident, et, rationale in excluded_failures:
+            print(
+                f"{ident:<{id_col_w}}"
+                f"{et:<{et_col_w}}"
+                f"{rationale}"
+            )
+
+    n_exc = len(excluded_failures) if source != "informants" else 0
+    print(f"Total excluded: {n_exc}")
+
+    if source == "informants":
+        print("Exclusion breakdown: N/A (--source informants)")
+    else:
+        # Build breakdown from excluded_failures
+        excl_by_prefix: dict[str, int] = defaultdict(int)
+        for _ident, _et, rationale in excluded_failures:
+            # Group by first two segments of rationale key
+            parts = rationale.split(":")
+            prefix = f"{parts[0]}:{parts[1]}" if len(parts) >= 2 else rationale
+            excl_by_prefix[prefix] += 1
+
+        if excl_by_prefix:
+            breakdown_str = ", ".join(
+                f"{k}={v}" for k, v in sorted(excl_by_prefix.items())
+            )
+            print(f"Exclusion breakdown: {breakdown_str}")
+        else:
+            print("Exclusion breakdown: (none)")
+    print()
+
+    # ── Section 3c — Unclassified-default-include records (SME A4) ────────────
+    print("=" * 72)
+    print(
+        "Section 3c — Unclassified-default-include records "
+        "(SME review recommended before T3B)"
+    )
+    print("=" * 72)
+
+    if source == "informants":
+        print("(--source informants: failures-origin pipeline not processed)")
+        n_unclassified = 0
+    else:
+        uc_id_col = 55
+        uc_et_col = 22
+        print(
+            f"{'identifier':<{uc_id_col}}"
+            f"{'error_type':<{uc_et_col}}"
+            f"{'first 120 chars of error_message'}"
+        )
+        print("-" * (uc_id_col + uc_et_col + 35))
+
+        for ident, et, msg_snippet in unclassified_failures:
+            print(
+                f"{ident:<{uc_id_col}}"
+                f"{et:<{uc_et_col}}"
+                f"{msg_snippet}"
+            )
+
+        n_unclassified = len(unclassified_failures)
+        print(f"Total unclassified-default-include: {n_unclassified}")
+        print()
+
+    surface_to_sme = False
+    if source != "informants" and n_unclassified > 2:
+        print(
+            "SURFACE-TO-SME: unclassified-saturation warning — "
+            f"more than 2 records ({n_unclassified}) lack explicit classification."
+        )
+        print(
+            "Taxonomy drift suspected. Do not proceed to T3A/T3B without "
+            "SME review + filter amendment."
+        )
+        surface_to_sme = True
+    print()
+
     # ── Section 4 — Gemini failures count (SME binding note 8) ────────────────
     print("=" * 72)
     print("SECTION 4 — GEMINI FAILURES COUNT (SME binding note 8)")
@@ -442,39 +791,114 @@ def run_dry_run(
     gemini_detected = [
         e for e in gemini_entries if detect_from_failure(e) is not None
     ]
-    total_detected = len(detected_sessions)
-    projected_cost = total_detected * cost_per_call
-    escalation_threshold = spend_cap * escalation_ratio
 
     print(f"Total Gemini failure entries:        {len(gemini_entries)}")
     print(f"Gemini entries detected (triggering): {len(gemini_detected)}")
     print(f"Gemini entries not detected:          {len(gemini_entries) - len(gemini_detected)}")
     print()
 
-    cost_status = (
+    # Emit the cost status line for backward compatibility with existing tests
+    _section4_cost = len(detected_sessions) * cost_per_call
+    _section4_threshold = spend_cap * escalation_ratio
+    _section4_status = (
         "ESCALATE — see STOP line below"
-        if projected_cost >= escalation_threshold
+        if _section4_cost >= _section4_threshold
         else "OK"
     )
     print(
-        f"Projected batch size: {total_detected} detected "
+        f"Projected batch size (full): {len(detected_sessions)} detected "
         f"x ~${cost_per_call:.2f}/call "
-        f"= ~${projected_cost:.2f} total. "
-        f"[{cost_status}]"
+        f"= ~${_section4_cost:.2f} total. "
+        f"[{_section4_status}]"
     )
     print()
 
-    escalate = False
-    if projected_cost >= escalation_threshold:
-        print(
-            f"STOP: projected batch at or above 80% of ${spend_cap:.2f} spend cap "
-            f"(projected=${projected_cost:.2f} >= threshold=${escalation_threshold:.2f}). "
-            "Escalate on a new Architect plan cycle per SME binding note 8."
-        )
-        escalate = True
+    # ── Section 5 — CLI summary (SME A8) ──────────────────────────────────────
+    print("=" * 72)
+    print("===== Dry-run summary =====")
+    print("=" * 72)
+
+    total_detected = len(detected_sessions)
+    n_informants_origin = len(informants_sessions)
+    n_failures_raw = len(failures_sessions)
+
+    # Post-exclusion counts
+    if source == "informants":
+        n_failures_excluded = 0
+        n_failures_included_val = 0
+        post_exclusion_total = n_informants_origin
+    else:
+        n_failures_excluded = len(excluded_failures)
+        n_failures_included_val = len(included_failures)
+        if source == "failures":
+            post_exclusion_total = n_failures_included_val
+        else:  # all
+            post_exclusion_total = n_informants_origin + n_failures_included_val
+
+    # Cost projections
+    full_cost = total_detected * cost_per_call
+    post_excl_cost = post_exclusion_total * cost_per_call
+    escalation_threshold = spend_cap * escalation_ratio
+
+    print(f"Detected total:                   {total_detected}")
+    print(f"Informants-origin:                {n_informants_origin}")
+    print(f"Failures-origin (raw):            {n_failures_raw}")
+
+    if source == "informants":
+        print("Failures-origin excluded:         N/A (--source informants)")
+        print("Failures-origin included:         N/A (--source informants)")
+        print(f"Post-exclusion backfill size:     {n_informants_origin} (informants only)")
+    else:
+        print(f"Failures-origin excluded:         {n_failures_excluded}")
+        print(f"Failures-origin included:         {n_failures_included_val}")
+        if source == "failures":
+            print(f"Post-exclusion backfill size:     {n_failures_included_val} (failures only)")
+        else:
+            print(
+                f"Post-exclusion backfill size:     "
+                f"{n_informants_origin} + {n_failures_included_val} = {post_exclusion_total}"
+            )
+
+    print()
+    print(f"Cost projections (at ${cost_per_call:.2f}/call):")
+    print(
+        f"  Full-count projection:          "
+        f"$ ({total_detected} * {cost_per_call:.2f})"
+        f"                = ${full_cost:.2f}"
+    )
+    print(
+        f"  Post-exclusion projection:      "
+        f"$ ({post_exclusion_total} * {cost_per_call:.2f})"
+        f"                = ${post_excl_cost:.2f}"
+    )
+    print()
+    print(f"Cost cap:                         ${spend_cap:.2f} (cost_cap_usd)")
+    print(f"Pre-flight threshold:             ${escalation_threshold:.2f} (80% of cap)")
+    print(f"Gate input (post-exclusion):      ${post_excl_cost:.2f}")
+
+    # Determine disposition
+    cost_exceeds = post_excl_cost >= escalation_threshold
+
+    if surface_to_sme:
+        disposition = "SURFACE-TO-SME"
+    elif cost_exceeds:
+        disposition = "STOP"
+    else:
+        disposition = "GO"
+
+    print(f"Disposition:                      {disposition}")
     print()
 
-    # ── Section 5 — Totals ────────────────────────────────────────────────────
+    if cost_exceeds and not surface_to_sme:
+        print(
+            f"STOP: projected post-exclusion batch at or above 80% of "
+            f"${spend_cap:.2f} spend cap "
+            f"(projected=${post_excl_cost:.2f} >= threshold=${escalation_threshold:.2f}). "
+            "Escalate on a new Architect plan cycle per SME binding note 8."
+        )
+        print()
+
+    # Legacy Section 5 totals for backward compatibility
     print("=" * 72)
     print("SECTION 5 — TOTALS")
     print("=" * 72)
@@ -487,7 +911,7 @@ def run_dry_run(
     )
     print()
 
-    if escalate:
+    if surface_to_sme or cost_exceeds:
         return 2
     return 0
 
@@ -519,7 +943,7 @@ def build_parser() -> argparse.ArgumentParser:
         description=(
             "Phase 4a.1 decline-interview backfill runner. "
             "Use --dry-run to enumerate detected sessions without API calls. "
-            "See docs/status/2026-04-23-phase4a1-architect-plan.md for full spec."
+            "See docs/status/2026-04-23-phase4a1-architect-plan-amendment-1.md for full spec."
         ),
     )
 
@@ -530,7 +954,7 @@ def build_parser() -> argparse.ArgumentParser:
         dest="dry_run",
         help=(
             "Enumerate detected sessions and print summary. "
-            "No API calls. No file writes. Exit 0 on success, 2 on cost-guard escalation."
+            "No API calls. No file writes. Exit 0 on GO, 2 on STOP or SURFACE-TO-SME."
         ),
     )
     mode_group.add_argument(
@@ -540,6 +964,25 @@ def build_parser() -> argparse.ArgumentParser:
         help="(T2 scope) Run the full backfill. Not implemented yet.",
     )
 
+    parser.add_argument(
+        "--source",
+        choices=["informants", "failures", "all"],
+        default="all",
+        help=(
+            "Which origin to process: 'informants' (T3A), 'failures' (T3B), "
+            "or 'all' (default, current behavior)."
+        ),
+    )
+    parser.add_argument(
+        "--cost-cap-usd",
+        type=float,
+        default=DEFAULT_COST_CAP_USD,
+        dest="cost_cap_usd",
+        help=(
+            f"Hard spend cap in USD (default: ${DEFAULT_COST_CAP_USD:.2f}). "
+            "Pre-flight threshold is 80%% of this value."
+        ),
+    )
     parser.add_argument(
         "--informants-path",
         type=Path,
@@ -577,7 +1020,8 @@ def main() -> int:
 
     if args.execute:
         raise NotImplementedError(
-            "--execute is T2 scope; see docs/status/2026-04-23-phase4a1-architect-plan.md §3 T2"
+            "--execute is T2 scope; "
+            "see docs/status/2026-04-23-phase4a1-architect-plan-amendment-1.md §3 T2"
         )
 
     if args.dry_run:
@@ -586,6 +1030,8 @@ def main() -> int:
             failures_path=args.failures_path,
             output_path=args.output_path,
             verbose=args.verbose,
+            spend_cap=args.cost_cap_usd,
+            source=args.source,
         )
 
     # Should be unreachable (argparse required=True on the group)

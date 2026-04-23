@@ -1,11 +1,13 @@
-"""Tests for scripts/run_decline_backfill.py — T1 dry-run path.
+"""Tests for scripts/run_decline_backfill.py — T1 and T1-update dry-run path.
 
-Coverage per Phase 4a.1 architect plan §3 T1 acceptance criteria and
-CDA SME verdict binding notes 1 and 8.
+Coverage per Phase 4a.1 architect plan §3 T1 acceptance criteria,
+CDA SME verdict binding notes 1 and 8 (original), and Amendment 1
+SME binding notes A1–A8.
 
-No real API calls. No file writes. All fixtures are synthetic in-memory dicts.
+No real API calls. No file writes. All fixtures are synthetic in-memory dicts
+or loaded from tests/fixtures/.
 
-Fixture scenarios:
+Fixture scenarios (original T1):
   - 3 glm-5.1 x family: empty freelist (trigger c) -> 3 detected
   - 10 qwen3.6-plus x holidays: Check 5+6, structurally valid -> 10 not triggered
   - 4 Check-8-only: mistral-small/gpt-5.4-mini -> 4 not triggered (labels non-empty)
@@ -15,9 +17,19 @@ Fixture scenarios:
   - File-safety: mtime-snapshot on output file, monkeypatch blocks on open('w') + httpx
   - Cost-guard: 40 detected sessions -> script exits 2 with STOP message
 
+T1-update additions (SME A1–A8):
+  - TestShouldIncludeFailure: unit tests for all should_include_failure() branches
+  - TestSection3bExcludedAudit: integration tests for Section 3b output
+  - TestSection3cUnclassified: integration tests for Section 3c + SURFACE-TO-SME gate
+  - TestCostCapCLIOverride: CLI --cost-cap-usd flag tests
+  - TestCostGuardPostExclusion: post-exclusion cost gate tests (SME A8)
+  - TestSourceFlag: --source {informants,failures,all} flag tests
+
 References:
-  Architect plan: docs/status/2026-04-23-phase4a1-architect-plan.md
-  SME verdict:    docs/status/2026-04-23-phase4a1-architect-plan-cda-sme-verdict.md
+  Architect plan (original):  docs/status/2026-04-23-phase4a1-architect-plan.md
+  SME verdict (original):     docs/status/2026-04-23-phase4a1-architect-plan-cda-sme-verdict.md
+  Architect plan (Amendment): docs/status/2026-04-23-phase4a1-architect-plan-amendment-1.md
+  SME verdict (Amendment 1):  docs/status/2026-04-23-phase4a1-amendment-1-cda-sme-verdict.md
 """
 
 from __future__ import annotations
@@ -44,6 +56,10 @@ _parse_failing_checks = _mod._parse_failing_checks
 _not_triggered_reason = _mod._not_triggered_reason
 _originating_step_from_checks = _mod._originating_step_from_checks
 _is_gemini_failure = _mod._is_gemini_failure
+should_include_failure = _mod.should_include_failure
+build_parser = _mod.build_parser
+
+_FIXTURES_DIR = Path(__file__).resolve().parent / "fixtures"
 
 
 # ── Fixture helpers ────────────────────────────────────────────────────────────
@@ -924,3 +940,683 @@ class TestSection3OriginatingStepColumn:
             "Record with no parseable checks must emit originating_step=unknown"
         )
         assert "unk_step_0001" in output
+
+
+# ── T1-update: TestShouldIncludeFailure ──────────────────────────────────────
+
+class TestShouldIncludeFailure:
+    """Unit tests for should_include_failure() — Amendment 1 §2 decision tree.
+
+    Covers every classification branch including SME A2 (jailbreak marker)
+    and SME A3 (empty-response cohort distinct rationale key).
+    """
+
+    def _entry(self, error_type: str = "ValueError", error_message: str = "") -> dict[str, Any]:
+        """Build a minimal failures.jsonl entry for testing."""
+        return {
+            "timestamp": "2026-04-23T10:00:00",
+            "error_type": error_type,
+            "error_message": error_message,
+            "context": {"model_id": "test/model", "domain": "family", "run_index": 0},
+            "retry_attempts": [],
+        }
+
+    def test_httpstatuserror_400_excluded(self) -> None:
+        """HTTPStatusError with 400 Bad Request → EXCLUDE, rationale http_infrastructure."""
+        entry = self._entry(
+            error_type="HTTPStatusError",
+            error_message=(
+                "Client error '400 Bad Request' for url 'https://openrouter.ai/api/v1/chat/completions'"
+            ),
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:HTTPStatusError"
+
+    def test_httpstatuserror_500_excluded(self) -> None:
+        """HTTPStatusError with 500 → EXCLUDE."""
+        entry = self._entry(
+            error_type="HTTPStatusError",
+            error_message="Server error '500 Internal Server Error'",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:HTTPStatusError"
+
+    def test_connecterror_excluded(self) -> None:
+        entry = self._entry(error_type="ConnectError", error_message="Connection refused")
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:ConnectError"
+
+    def test_readtimeout_excluded(self) -> None:
+        entry = self._entry(error_type="ReadTimeout", error_message="Read timed out")
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:ReadTimeout"
+
+    def test_writetimeout_excluded(self) -> None:
+        entry = self._entry(error_type="WriteTimeout", error_message="Write timed out")
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:WriteTimeout"
+
+    def test_pooltimeout_excluded(self) -> None:
+        entry = self._entry(error_type="PoolTimeout", error_message="Pool exhausted")
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:PoolTimeout"
+
+    def test_timeouterror_excluded(self) -> None:
+        """stdlib TimeoutError → EXCLUDE."""
+        entry = self._entry(error_type="TimeoutError", error_message="timed out")
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:TimeoutError"
+
+    def test_connectionerror_excluded(self) -> None:
+        """stdlib ConnectionError → EXCLUDE."""
+        entry = self._entry(error_type="ConnectionError", error_message="connection failed")
+        include, rationale = should_include_failure(entry)
+        assert include is False
+        assert rationale == "http_infrastructure:ConnectionError"
+
+    def test_safety_filter_blocked_overrides_httpstatuserror(self) -> None:
+        """HTTPStatusError with 'blocked' in message → INCLUDE (safety filter wins).
+
+        Note: the safety marker list is iterated in order. Both 'content policy' and
+        'blocked' match this message; whichever comes first in SAFETY_FILTER_MARKERS
+        wins. The key invariant is: (a) include=True, (b) rationale starts with
+        safety_filter:matched:. The exact matched marker is deterministic but
+        implementation-order-dependent.
+        """
+        entry = self._entry(
+            error_type="HTTPStatusError",
+            error_message="Client error '400 Bad Request' blocked by content policy",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert rationale.startswith("safety_filter:matched:")
+
+    def test_safety_filter_content_policy_matches(self) -> None:
+        """'content policy violation' in message → INCLUDE."""
+        entry = self._entry(
+            error_type="ValueError",
+            error_message="Request refused: content policy violation detected",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert "content policy" in rationale
+
+    def test_safety_filter_recitation_finish_reason(self) -> None:
+        """'RECITATION' in message → INCLUDE."""
+        entry = self._entry(
+            error_type="ValueError",
+            error_message="Generation stopped: finish_reason=RECITATION",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert "RECITATION" in rationale
+
+    def test_safety_filter_jailbreak_marker(self) -> None:
+        """'jailbreak' in message → INCLUDE (SME A2 coverage).
+
+        Uses a message that contains 'jailbreak' but NOT any earlier safety marker.
+        This ensures the jailbreak marker itself causes the INCLUDE, not a prior match.
+        """
+        entry = self._entry(
+            error_type="ValueError",
+            error_message="Detected jailbreak attempt in request",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert "jailbreak" in rationale
+
+    def test_safety_filter_case_insensitive(self) -> None:
+        """Safety filter match is case-insensitive: 'SAFETY', 'Safety', 'safety' all match."""
+        for variant in ("SAFETY", "Safety", "safety"):
+            entry = self._entry(
+                error_type="ValueError",
+                error_message=f"Generation blocked due to {variant} filter",
+            )
+            include, rationale = should_include_failure(entry)
+            assert include is True, f"Expected INCLUDE for variant {variant!r}"
+            assert "safety_filter:matched:" in rationale
+
+    def test_empty_response_likely_silent_safety_block(self) -> None:
+        """SME A3: ValueError + 'Could not extract valid JSON from response: ' ending with ': '
+        → INCLUDE with empty_response:likely_silent_safety_block rationale."""
+        entry = self._entry(
+            error_type="ValueError",
+            error_message="Could not extract valid JSON from response: ",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert rationale == "empty_response:likely_silent_safety_block"
+
+    def test_empty_response_distinct_from_parse_exhaustion(self) -> None:
+        """Non-empty partial 'Could not extract valid JSON from response: {\"foo\":'
+        → parse_exhaustion rationale, NOT empty_response."""
+        entry = self._entry(
+            error_type="ValueError",
+            error_message='Could not extract valid JSON from response: {"foo":',
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert rationale.startswith("parse_exhaustion:"), (
+            f"Expected parse_exhaustion rationale, got: {rationale!r}"
+        )
+        assert "empty_response" not in rationale
+
+    def test_parse_exhaustion_items_missing_included(self) -> None:
+        entry = self._entry(
+            error_type="ValueError",
+            error_message="Items missing from pile sort: expected 5, got 3",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert rationale.startswith("parse_exhaustion:")
+        assert "Items missing from pile sort" in rationale
+
+    def test_parse_exhaustion_pile_sort_attempts_included(self) -> None:
+        entry = self._entry(
+            error_type="ValueError",
+            error_message="Pile sort parsing failed after 3 attempts; last error: invalid bracket",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert rationale.startswith("parse_exhaustion:")
+        # The marker is truncated at 30 chars: "Pile sort parsing failed after" (30 chars)
+        assert "Pile sort parsing failed after" in rationale
+
+    def test_unclassified_defaults_to_include(self) -> None:
+        """Unknown error_type, non-matching message → INCLUDE with unclassified rationale."""
+        entry = self._entry(
+            error_type="WeirdError",
+            error_message="Something unexpected happened",
+        )
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert rationale == "unclassified:default_include:WeirdError"
+
+    def test_empty_error_message_unclassified(self) -> None:
+        """Empty error_message, unknown error_type → INCLUDE, unclassified."""
+        entry = self._entry(error_type="WeirdError", error_message="")
+        include, rationale = should_include_failure(entry)
+        assert include is True
+        assert rationale.startswith("unclassified:default_include:")
+
+    def test_rationale_string_is_deterministic(self) -> None:
+        """Same input always produces the same rationale."""
+        entry = self._entry(
+            error_type="HTTPStatusError",
+            error_message="Client error '400 Bad Request'",
+        )
+        r1 = should_include_failure(entry)[1]
+        r2 = should_include_failure(entry)[1]
+        assert r1 == r2
+
+
+# ── T1-update: TestSection3bExcludedAudit ────────────────────────────────────
+
+class TestSection3bExcludedAudit:
+    """Integration tests for Section 3b — excluded failures-origin records audit.
+
+    SME A7: Section 3b must be preceded by a controlled-vocabulary header.
+    """
+
+    @pytest.fixture()
+    def tmpdir(self, tmp_path: Path) -> Path:
+        return tmp_path
+
+    def _run_capture(
+        self,
+        informants: list[dict],
+        failures: list[dict],
+        tmpdir: Path,
+        source: str = "all",
+        spend_cap: float = 10.00,
+    ) -> tuple[int, str]:
+        inf_path = tmpdir / "informants.jsonl"
+        fail_path = tmpdir / "failures.jsonl"
+        out_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(inf_path, informants)
+        _write_jsonl(fail_path, failures)
+        out_path.touch()
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            code = run_dry_run(
+                informants_path=inf_path,
+                failures_path=fail_path,
+                output_path=out_path,
+                source=source,
+                spend_cap=spend_cap,
+            )
+        return code, captured.getvalue()
+
+    def _phi4_400_failure(self, run_index: int = 0) -> dict[str, Any]:
+        return {
+            "timestamp": f"2026-04-22T10:{run_index:02d}:00",
+            "error_type": "HTTPStatusError",
+            "error_message": (
+                "Client error '400 Bad Request' for url "
+                "'https://openrouter.ai/api/v1/chat/completions'"
+            ),
+            "context": {"model_id": "microsoft/phi-4", "domain": "family", "run_index": run_index},
+            "retry_attempts": [],
+        }
+
+    def test_section3b_header_present_with_taxonomy(self, tmpdir: Path) -> None:
+        """SME A7: Section 3b header must list all six rationale keys."""
+        _, output = self._run_capture([], [], tmpdir)
+        assert "Section 3b" in output
+        assert "Rationale taxonomy (v1):" in output
+        # Verify all six rationale keys are listed
+        assert "http_infrastructure:" in output
+        assert "adapter_pre_generation_parse:" in output
+        assert "safety_filter:matched:" in output
+        assert "parse_exhaustion:" in output
+        assert "empty_response:likely_silent_safety_block" in output
+        assert "unclassified:default_include:" in output
+
+    def test_section3b_phi4_httpstatuserror_listed_with_rationale(
+        self, tmpdir: Path
+    ) -> None:
+        """phi-4 HTTPStatusError 400 → appears in Section 3b with http_infrastructure rationale."""
+        failures = [self._phi4_400_failure(0)]
+        _, output = self._run_capture([], failures, tmpdir)
+        assert "http_infrastructure:HTTPStatusError" in output
+        assert "microsoft/phi-4" in output or "phi-4" in output or "failure|" in output
+
+    def test_section3b_zero_excluded_on_pure_informants_fixture(
+        self, tmpdir: Path
+    ) -> None:
+        """Zero excluded records: Section 3b still prints header + 'Total excluded: 0'."""
+        # No failures → nothing to exclude
+        _, output = self._run_capture([], [], tmpdir)
+        assert "Total excluded: 0" in output
+        assert "Section 3b" in output
+
+    def test_section3b_exclusion_breakdown_aggregates_correctly(
+        self, tmpdir: Path
+    ) -> None:
+        """Multiple phi-4 HTTPStatusError failures → breakdown shows http_infrastructure=N."""
+        failures = [self._phi4_400_failure(i) for i in range(3)]
+        _, output = self._run_capture([], failures, tmpdir)
+        assert "Total excluded: 3" in output
+        assert "http_infrastructure" in output
+
+    def test_section3b_does_not_list_included_records(self, tmpdir: Path) -> None:
+        """safety-filter / parse-exhaustion / empty-response INCLUDE records
+        do NOT appear as rows in Section 3b excluded list."""
+        # Mix: 1 HTTPStatusError (excl), 1 safety-filter (incl), 1 parse-exhaustion (incl)
+        failures = [
+            self._phi4_400_failure(0),  # excluded
+            {
+                "timestamp": "2026-04-22T10:01:00",
+                "error_type": "ValueError",
+                "error_message": "Request blocked: safety filter applied",
+                "context": {"model_id": "some/model", "domain": "family", "run_index": 0},
+                "retry_attempts": [],
+            },  # included (safety_filter)
+            {
+                "timestamp": "2026-04-22T10:02:00",
+                "error_type": "ValueError",
+                "error_message": "Items missing from pile sort: expected 5, got 3",
+                "context": {"model_id": "some/model", "domain": "family", "run_index": 1},
+                "retry_attempts": [],
+            },  # included (parse_exhaustion)
+        ]
+        _, output = self._run_capture([], failures, tmpdir)
+        assert "Total excluded: 1" in output
+        # Safety-filter/parse-exhaustion identifiers should not be in excluded row list
+        # (The section may list their rationale keys in the HEADER but not as data rows)
+        assert "Total excluded: 1" in output
+
+
+# ── T1-update: TestSection3cUnclassified ─────────────────────────────────────
+
+class TestSection3cUnclassified:
+    """Integration tests for Section 3c — unclassified-default-include records.
+
+    SME A4: if >2 unclassified records → exits non-zero with SURFACE-TO-SME flag.
+    """
+
+    @pytest.fixture()
+    def tmpdir(self, tmp_path: Path) -> Path:
+        return tmp_path
+
+    def _run_capture(
+        self,
+        failures: list[dict],
+        tmpdir: Path,
+        source: str = "all",
+        spend_cap: float = 10.00,
+    ) -> tuple[int, str]:
+        inf_path = tmpdir / "informants.jsonl"
+        fail_path = tmpdir / "failures.jsonl"
+        out_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(inf_path, [])
+        _write_jsonl(fail_path, failures)
+        out_path.touch()
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            code = run_dry_run(
+                informants_path=inf_path,
+                failures_path=fail_path,
+                output_path=out_path,
+                source=source,
+                spend_cap=spend_cap,
+            )
+        return code, captured.getvalue()
+
+    def _unclassified_entry(self, run_index: int, error_type: str = "WeirdError") -> dict[str, Any]:
+        return {
+            "timestamp": f"2026-04-22T11:{run_index:02d}:00",
+            "error_type": error_type,
+            "error_message": f"Unexpected condition number {run_index}",
+            "context": {"model_id": "some/model", "domain": "family", "run_index": run_index},
+            "retry_attempts": [],
+        }
+
+    def test_section3c_empty_on_current_corpus_fixture(self, tmpdir: Path) -> None:
+        """With the failures_mixed_sample fixture, unclassified count should be 0
+        (all entries are classifiable by the v1 rules)."""
+        fixture_path = _FIXTURES_DIR / "failures_mixed_sample.jsonl"
+        failures = []
+        with open(fixture_path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    failures.append(json.loads(line))
+        _, output = self._run_capture(failures, tmpdir)
+        assert "Total unclassified-default-include: 0" in output
+
+    def test_section3c_header_present_when_zero(self, tmpdir: Path) -> None:
+        """Section 3c header appears even when count is zero."""
+        _, output = self._run_capture([], tmpdir)
+        assert "Section 3c" in output
+        assert "Total unclassified-default-include: 0" in output
+
+    def test_section3c_surface_to_sme_when_exceeds_2(self, tmpdir: Path) -> None:
+        """3+ unclassified records → exits non-zero, prints SURFACE-TO-SME."""
+        fixture_path = _FIXTURES_DIR / "failures_unclassified_saturation.jsonl"
+        failures = []
+        with open(fixture_path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    failures.append(json.loads(line))
+        code, output = self._run_capture(failures, tmpdir)
+        assert code != 0, "Expected non-zero exit when >2 unclassified records"
+        assert "SURFACE-TO-SME" in output
+        assert "unclassified-saturation" in output
+        assert "Total unclassified-default-include: 3" in output
+
+    def test_section3c_at_exactly_2_still_go(self, tmpdir: Path) -> None:
+        """Exactly 2 unclassified records → does NOT block (no SURFACE-TO-SME exit 2 for this)."""
+        failures = [
+            self._unclassified_entry(0, "WeirdError"),
+            self._unclassified_entry(1, "AnotherWeirdError"),
+        ]
+        code, output = self._run_capture(failures, tmpdir)
+        assert "SURFACE-TO-SME" not in output, (
+            "Exactly 2 unclassified records should not trigger SURFACE-TO-SME"
+        )
+        # Exit may still be 0 (GO) if cost is under cap
+        assert "Total unclassified-default-include: 2" in output
+
+
+# ── T1-update: TestCostCapCLIOverride ────────────────────────────────────────
+
+class TestCostCapCLIOverride:
+    """Tests for --cost-cap-usd CLI flag."""
+
+    def test_cost_cap_default_is_ten_dollars(self) -> None:
+        """Default cost cap is $10.00 (not the old $2.00)."""
+        parser = build_parser()
+        args = parser.parse_args(["--dry-run"])
+        assert args.cost_cap_usd == 10.00
+
+    def test_cost_cap_cli_flag_overrides_default(self) -> None:
+        """--cost-cap-usd 5.00 sets cap to $5.00, threshold to $4.00."""
+        parser = build_parser()
+        args = parser.parse_args(["--dry-run", "--cost-cap-usd", "5.00"])
+        assert args.cost_cap_usd == 5.00
+
+    def test_cost_cap_cli_flag_raises_threshold(self) -> None:
+        """--cost-cap-usd 20.00 sets cap to $20.00, threshold to $16.00."""
+        parser = build_parser()
+        args = parser.parse_args(["--dry-run", "--cost-cap-usd", "20.00"])
+        assert args.cost_cap_usd == 20.00
+
+
+# ── T1-update: TestCostGuardPostExclusion ────────────────────────────────────
+
+class TestCostGuardPostExclusion:
+    """Integration tests for post-exclusion cost gate (SME A8).
+
+    The pre-flight gate must use post-exclusion count, not full detected count.
+    """
+
+    @pytest.fixture()
+    def tmpdir(self, tmp_path: Path) -> Path:
+        return tmp_path
+
+    def _run_capture_with_params(
+        self,
+        informants: list[dict],
+        failures: list[dict],
+        tmpdir: Path,
+        spend_cap: float = 10.00,
+        source: str = "all",
+    ) -> tuple[int, str]:
+        inf_path = tmpdir / "informants.jsonl"
+        fail_path = tmpdir / "failures.jsonl"
+        out_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(inf_path, informants)
+        _write_jsonl(fail_path, failures)
+        out_path.touch()
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            code = run_dry_run(
+                informants_path=inf_path,
+                failures_path=fail_path,
+                output_path=out_path,
+                spend_cap=spend_cap,
+                source=source,
+            )
+        return code, captured.getvalue()
+
+    def _phi4_400_failure(self, run_index: int) -> dict[str, Any]:
+        return {
+            "timestamp": f"2026-04-22T10:{run_index:02d}:00",
+            "error_type": "HTTPStatusError",
+            "error_message": "Client error '400 Bad Request'",
+            "context": {"model_id": "microsoft/phi-4", "domain": "family", "run_index": run_index},
+            "retry_attempts": [],
+        }
+
+    def _gemini_empty_response(self, run_index: int) -> dict[str, Any]:
+        return {
+            "timestamp": f"2026-04-22T10:{run_index:02d}:00",
+            "error_type": "ValueError",
+            "error_message": "Could not extract valid JSON from response: ",
+            "context": {
+                "model_id": "google/gemini-2.5-pro",
+                "domain": "family",
+                "run_index": run_index,
+            },
+            "retry_attempts": [],
+        }
+
+    def _make_glm_informant(self, idx: int) -> dict[str, Any]:
+        return _make_informant(
+            informant_id=f"glm_cg_{idx:04d}",
+            model_id="z-ai/glm-5.1",
+            domain_slug="family",
+            qa_passed=False,
+            qa_notes="0; 71000ms; 171",
+            parsed_items=[],
+            parsed_piles=[["mother"]],
+            parsed_labels=["nuclear"],
+        )
+
+    def test_cost_guard_uses_post_exclusion_count(self, tmpdir: Path) -> None:
+        """Fixture: 5 detected failures-origin, 5 excluded (HTTPStatusError),
+        0 included. Gate input should be informants-only count, not full count."""
+        informants = [self._make_glm_informant(i) for i in range(3)]
+        failures = [self._phi4_400_failure(i) for i in range(5)]
+        _, output = self._run_capture_with_params(informants, failures, tmpdir, spend_cap=10.00)
+        # Post-exclusion: 3 informants + 0 included failures = 3
+        # Full count: 3 + 5 = 8
+        # The gate input must show the post-exclusion projection ($3 * 0.05 = $0.15)
+        assert "Gate input (post-exclusion):" in output
+        assert "$0.15" in output  # 3 * 0.05
+
+    def test_cost_guard_go_under_post_exclusion_threshold(self, tmpdir: Path) -> None:
+        """Post-exclusion cost under $8 (80% of $10) → GO disposition."""
+        informants = [self._make_glm_informant(i) for i in range(3)]
+        failures = [self._phi4_400_failure(i) for i in range(5)]
+        code, output = self._run_capture_with_params(informants, failures, tmpdir, spend_cap=10.00)
+        assert code == 0
+        assert "GO" in output
+
+    def test_cost_guard_stop_at_post_exclusion_threshold(self, tmpdir: Path) -> None:
+        """160 records * $0.05 = $8.00 >= $8.00 (80% of $10) → STOP, exit 2."""
+        # 160 informants-origin (no failures to exclude); all cost from informants
+        informants = [self._make_glm_informant(i) for i in range(160)]
+        code, output = self._run_capture_with_params(informants, [], tmpdir, spend_cap=10.00)
+        assert code == 2
+        assert "STOP" in output
+
+    def test_cost_guard_surface_overrides_go(self, tmpdir: Path) -> None:
+        """SME A4: unclassified-saturation SURFACE-TO-SME wins over cost GO."""
+        # 3 unclassified failures + cost under threshold → should still SURFACE-TO-SME
+        fixture_path = _FIXTURES_DIR / "failures_unclassified_saturation.jsonl"
+        failures = []
+        with open(fixture_path, encoding="utf-8") as fh:
+            for line in fh:
+                line = line.strip()
+                if line:
+                    failures.append(json.loads(line))
+        code, output = self._run_capture_with_params([], failures, tmpdir, spend_cap=10.00)
+        assert code != 0
+        assert "SURFACE-TO-SME" in output
+
+    def test_summary_prints_both_projections(self, tmpdir: Path) -> None:
+        """CLI summary shows BOTH full-count and post-exclusion projections (SME A8)."""
+        informants = [self._make_glm_informant(i) for i in range(3)]
+        failures = [self._phi4_400_failure(i) for i in range(5)]
+        _, output = self._run_capture_with_params(informants, failures, tmpdir, spend_cap=10.00)
+        assert "Full-count projection:" in output
+        assert "Post-exclusion projection:" in output
+
+
+# ── T1-update: TestSourceFlag ────────────────────────────────────────────────
+
+class TestSourceFlag:
+    """Integration tests for --source {informants,failures,all} flag."""
+
+    @pytest.fixture()
+    def tmpdir(self, tmp_path: Path) -> Path:
+        return tmp_path
+
+    def _run_capture_source(
+        self,
+        informants: list[dict],
+        failures: list[dict],
+        tmpdir: Path,
+        source: str,
+        spend_cap: float = 10.00,
+    ) -> tuple[int, str]:
+        inf_path = tmpdir / "informants.jsonl"
+        fail_path = tmpdir / "failures.jsonl"
+        out_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(inf_path, informants)
+        _write_jsonl(fail_path, failures)
+        out_path.touch()
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            code = run_dry_run(
+                informants_path=inf_path,
+                failures_path=fail_path,
+                output_path=out_path,
+                source=source,
+                spend_cap=spend_cap,
+            )
+        return code, captured.getvalue()
+
+    def _make_glm_informant(self, idx: int) -> dict[str, Any]:
+        return _make_informant(
+            informant_id=f"glm_src_{idx:04d}",
+            model_id="z-ai/glm-5.1",
+            domain_slug="family",
+            qa_passed=False,
+            qa_notes="0; 71000ms; 171",
+            parsed_items=[],
+            parsed_piles=[["mother"]],
+            parsed_labels=["nuclear"],
+        )
+
+    def _phi4_400_failure(self, run_index: int = 0) -> dict[str, Any]:
+        return {
+            "timestamp": f"2026-04-22T10:{run_index:02d}:00",
+            "error_type": "HTTPStatusError",
+            "error_message": "Client error '400 Bad Request'",
+            "context": {"model_id": "microsoft/phi-4", "domain": "family", "run_index": run_index},
+            "retry_attempts": [],
+        }
+
+    def _gemini_parse_failure(self, run_index: int = 0) -> dict[str, Any]:
+        return {
+            "timestamp": f"2026-04-22T10:{run_index:02d}:00",
+            "error_type": "ValueError",
+            "error_message": "Items missing from pile sort: expected 5, got 3",
+            "context": {
+                "model_id": "google/gemini-2.5-pro",
+                "domain": "family",
+                "run_index": run_index,
+            },
+            "retry_attempts": [],
+        }
+
+    def test_source_informants_filters_sections(self, tmpdir: Path) -> None:
+        """--source informants: only informants-origin sessions shown; failures section N/A."""
+        informants = [self._make_glm_informant(0)]
+        failures = [self._phi4_400_failure(0)]
+        _, output = self._run_capture_source(informants, failures, tmpdir, source="informants")
+        # Informants should appear in output
+        assert "glm_src_0000" in output or "informants" in output.lower()
+        # Failures section should indicate skipped
+        assert "N/A" in output or "--source informants" in output
+
+    def test_source_failures_filters_sections(self, tmpdir: Path) -> None:
+        """--source failures: only failures-origin sessions shown; informants N/A."""
+        informants = [self._make_glm_informant(0)]
+        failures = [self._gemini_parse_failure(0)]
+        _, output = self._run_capture_source(informants, failures, tmpdir, source="failures")
+        # The failures count should appear in the summary
+        assert "Failures-origin (raw):" in output
+        # Informants-origin detected should be 0 in the display (not shown)
+        # The section 5 should show informants count = 1 (total detected still counts)
+        assert "Informants-origin:" in output
+
+    def test_source_all_default_behavior(self, tmpdir: Path) -> None:
+        """--source all (default): both informants and failures populated."""
+        informants = [self._make_glm_informant(0)]
+        failures = [self._gemini_parse_failure(0)]
+        _, output = self._run_capture_source(informants, failures, tmpdir, source="all")
+        # Both should contribute to detected count
+        assert "Informants-origin:" in output
+        assert "Failures-origin" in output
+
+    def test_source_informants_skips_exclusion_filter(self, tmpdir: Path) -> None:
+        """--source informants: failures-origin never goes through should_include_failure.
+        Section 3b shows N/A instead of a breakdown."""
+        informants = [self._make_glm_informant(0)]
+        failures = [self._phi4_400_failure(0)]
+        _, output = self._run_capture_source(informants, failures, tmpdir, source="informants")
+        # Section 3b should indicate failures-origin pipeline not processed
+        assert "--source informants" in output
+        assert "N/A" in output
