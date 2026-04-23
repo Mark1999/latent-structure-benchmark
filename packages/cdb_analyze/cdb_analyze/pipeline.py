@@ -299,7 +299,12 @@ def run_pipeline(
             romney_consensus_warning: bool | None = (
                 ROMNEY_THRESHOLD_CLASSIC <= romney_eigenratio < ROMNEY_THRESHOLD_LSB
             )
-            romney_small_n_warning: bool = len(model_ids) < 8
+            # Small-n threshold is n < 15, per CDA SME reconciliation
+            # (docs/status/2026-04-23-small-n-threshold-sme-amendment.md).
+            # Grounded in SME_REVIEW.md §1.1 small-n rationale (Anders &
+            # Batchelder 2015; RWB 1986 calibration at n=20-40). Supersedes
+            # the F2-T02 n<8 threshold from 2026-04-20.
+            romney_small_n_warning: bool = len(model_ids) < 15
             logger.info(
                 "Romney CCM: eigenratio=%.3f, pass=%s, warning=%s, small_n=%s",
                 romney_eigenratio,

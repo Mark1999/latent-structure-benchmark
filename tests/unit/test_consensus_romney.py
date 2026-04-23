@@ -211,11 +211,11 @@ def test_romney_eigenratio_populated_for_n4_shakedown_fixture():
 
 
 # ---------------------------------------------------------------------------
-# Test 5 — small-n warning True when n_models < 8
+# Test 5 — small-n warning True when n_models < 15
 # ---------------------------------------------------------------------------
 
-def test_romney_small_n_warning_true_when_n_less_than_8():
-    """n=4 models: romney_small_n_warning must be True (SME binding threshold n<8)."""
+def test_romney_small_n_warning_true_when_n_less_than_15():
+    """n=4 models: romney_small_n_warning must be True (SME binding threshold n<15)."""
     from cdb_analyze.pipeline import run_pipeline
 
     items = ["mother", "father", "sister", "brother"]
@@ -232,19 +232,26 @@ def test_romney_small_n_warning_true_when_n_less_than_8():
 
     result = run_pipeline(records, analysis_version="test", n_bootstrap=5)
 
-    # n=4 < 8 → small_n_warning must be True when eigenratio was computed
+    # n=4 < 15 → small_n_warning must be True when eigenratio was computed
     if result.romney_eigenratio is not None:
         assert result.romney_small_n_warning is True, (
-            "romney_small_n_warning should be True for n=4 (< 8 threshold)"
+            "romney_small_n_warning should be True for n=4 (< 15 threshold)"
         )
 
 
 # ---------------------------------------------------------------------------
-# Test 6 — small-n warning False when n_models >= 8
+# Test 5b — regression guard for the 2026-04-23 threshold reconciliation:
+# n=8 now triggers True (previously False under the superseded n<8 rule)
 # ---------------------------------------------------------------------------
 
-def test_romney_small_n_warning_false_when_n_geq_8():
-    """Synthetic 8-model fixture: romney_small_n_warning must be False."""
+def test_romney_small_n_warning_true_at_n_equals_8():
+    """n=8 models: flag must be True under the n<15 rule.
+
+    Regression guard against reverting to the pre-2026-04-23 n<8 threshold.
+    Under the old rule, 8 >= 8 meant flag=False; under the current rule,
+    8 < 15 means flag=True. See docs/status/2026-04-23-small-n-threshold-
+    sme-amendment.md.
+    """
     from cdb_analyze.pipeline import run_pipeline
 
     items = ["mother", "father", "sister", "brother"]
@@ -260,9 +267,37 @@ def test_romney_small_n_warning_false_when_n_geq_8():
 
     result = run_pipeline(records, analysis_version="test", n_bootstrap=5)
 
-    # n=8 >= 8 → small_n_warning must be False regardless of eigenratio
+    # n=8 < 15 → small_n_warning must be True
+    assert result.romney_small_n_warning is True, (
+        f"romney_small_n_warning should be True for n=8 under n<15 threshold; "
+        f"got {result.romney_small_n_warning}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 6 — small-n warning False when n_models >= 15
+# ---------------------------------------------------------------------------
+
+def test_romney_small_n_warning_false_when_n_geq_15():
+    """Synthetic 15-model fixture: romney_small_n_warning must be False."""
+    from cdb_analyze.pipeline import run_pipeline
+
+    items = ["mother", "father", "sister", "brother"]
+    records = []
+    # Alternate pile structures across 15 models to guarantee non-rank-1 matrix
+    for m in range(15):
+        if m % 2 == 0:
+            piles = [["mother", "father"], ["sister", "brother"]]
+        else:
+            piles = [["mother", "sister"], ["father", "brother"]]
+        for run in range(3):
+            records.append(_make_record(f"model-{m}", run, items, piles))
+
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=5)
+
+    # n=15 >= 15 → small_n_warning must be False regardless of eigenratio
     assert result.romney_small_n_warning is False, (
-        f"romney_small_n_warning should be False for n=8; got {result.romney_small_n_warning}"
+        f"romney_small_n_warning should be False for n=15; got {result.romney_small_n_warning}"
     )
 
 
