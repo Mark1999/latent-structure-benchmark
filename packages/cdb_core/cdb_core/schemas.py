@@ -13,7 +13,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Literal
 
-from pydantic import BaseModel
+from pydantic import BaseModel, model_validator
 
 # ─────────────────────────────────────────────────────────────────────
 # Utility schemas
@@ -540,3 +540,96 @@ class InformantRecord(BaseModel):
     # ── QA ──
     qa_passed: bool
     qa_notes: str = ""
+
+
+# ──────────────────────────────────────────────────────────────────────
+# DeclineInterview — follow-up elicitation for failed/refused sessions
+# (ARCHITECTURE.md §Stream B, CDA SME verdict 2026-04-23)
+# ──────────────────────────────────────────────────────────────────────
+
+class DeclineInterview(BaseModel):
+    """Follow-up interview record for a session that failed or returned
+    no interpretable primary-step output.
+
+    Produced by Phase 4a.1 remediation and by Phase 4b+ collection when
+    the decline-interview protocol triggers. Persisted to
+    ``data/raw/decline_interviews.jsonl``, one record per line.
+
+    Exactly one of ``originating_informant_id`` or
+    ``originating_failure_id`` must be set (xor invariant). The
+    ``_xor_originator`` validator enforces this at construction time.
+
+    ``thinking_verbatim`` captures the **follow-up call's** reasoning
+    trace (not the originating session's). Models that do not expose a
+    thinking trace will have an empty string here.
+
+    ``version_drift_flag`` is ``True`` when the follow-up's
+    ``model_version_returned`` differs from the originating session's
+    ``model_version_returned``. Indicates that the provider rolled a
+    snapshot between the original collection and the decline-interview
+    pass (expected in async Phase 4a.1 scenarios). See SME Note F
+    (2026-04-23 verdict).
+
+    See docs/DECLINE_INTERVIEW_PROTOCOL.md and
+    docs/DATA_DICTIONARY.md §10 for full field semantics.
+    """
+
+    # ── Identity ──
+    decline_interview_id: str
+    originating_informant_id: str | None = None
+    originating_failure_id: str | None = None
+
+    # ── Origin characterisation ──
+    originating_step: Literal["freelist", "pile_sort", "interview", "pre_session"]
+    originating_outcome_class: Literal[
+        "empty_output",
+        "refusal_string_match",
+        "single_degenerate_pile",
+        "parse_failure",
+        "http_error",
+        "timeout",
+        "other",
+    ]
+    detection_rule_version: str        # "v1" at this commit
+
+    # ── Timestamps ──
+    detection_timestamp: datetime
+    followup_timestamp: datetime
+
+    # ── Model identity ──
+    model_id: str
+    model_version_returned: str
+    provider: str
+    api_endpoint: str
+
+    # ── Prompt provenance ──
+    prompt_version: str                 # "decline_v1"
+    sha256_manifest: str
+    prompt_verbatim: str
+    response_verbatim: str
+    thinking_verbatim: str = ""         # follow-up call's trace, not originating's
+
+    # ── Token / cost accounting ──
+    input_tokens: int
+    output_tokens: int
+    latency_ms: int
+    stop_reason: str
+    cost_usd: float
+
+    # ── QA / drift ──
+    qa_notes: str = ""
+    version_drift_flag: bool = False    # True if follow-up model_version_returned
+                                        # differs from originating session's version
+
+    @model_validator(mode="after")
+    def _xor_originator(self) -> DeclineInterview:
+        """Enforce exactly-one-of originating_informant_id / originating_failure_id."""
+        a = self.originating_informant_id is not None
+        b = self.originating_failure_id is not None
+        if a == b:
+            raise ValueError(
+                "DeclineInterview requires exactly one of "
+                "originating_informant_id or originating_failure_id "
+                "(one must be set, the other must be None)"
+            )
+        return self

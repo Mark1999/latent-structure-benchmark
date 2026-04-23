@@ -123,12 +123,87 @@ CREATE TABLE interview_labels (
 );
 
 CREATE INDEX idx_interview_labels_informant ON interview_labels(informant_id);
+
+CREATE TABLE decline_interviews (
+  decline_interview_id TEXT PRIMARY KEY,
+  originating_informant_id TEXT,
+  originating_failure_id TEXT,
+  originating_step TEXT NOT NULL,
+  originating_outcome_class TEXT NOT NULL,
+  detection_rule_version TEXT NOT NULL,
+  detection_timestamp TEXT NOT NULL,
+  followup_timestamp TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  model_version_returned TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  api_endpoint TEXT NOT NULL,
+  prompt_version TEXT NOT NULL,
+  sha256_manifest TEXT NOT NULL,
+  prompt_verbatim TEXT NOT NULL,
+  response_verbatim TEXT NOT NULL,
+  thinking_verbatim TEXT NOT NULL DEFAULT '',
+  input_tokens INTEGER NOT NULL,
+  output_tokens INTEGER NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  stop_reason TEXT NOT NULL,
+  cost_usd REAL NOT NULL,
+  qa_notes TEXT NOT NULL DEFAULT '',
+  version_drift_flag INTEGER NOT NULL DEFAULT 0,
+  FOREIGN KEY (originating_informant_id) REFERENCES informants(informant_id)
+);
+
+CREATE INDEX idx_decline_interviews_informant ON decline_interviews(originating_informant_id);
+CREATE INDEX idx_decline_interviews_model ON decline_interviews(model_id);
+CREATE INDEX idx_decline_interviews_outcome ON decline_interviews(originating_outcome_class);
+CREATE INDEX idx_decline_interviews_step ON decline_interviews(originating_step);
 """
 
 
 def _parse_record(line: str) -> dict:
     """Parse one JSONL line into a dict, or raise on bad JSON."""
     return json.loads(line)
+
+
+def _insert_decline_interview(cur: sqlite3.Cursor, rec: dict) -> None:
+    """Insert one DeclineInterview record into the decline_interviews table."""
+    cur.execute(
+        """
+        INSERT OR IGNORE INTO decline_interviews VALUES (
+          ?, ?, ?, ?, ?,
+          ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?,
+          ?, ?, ?, ?, ?,
+          ?, ?, ?
+        )
+        """,
+        (
+            rec["decline_interview_id"],
+            rec.get("originating_informant_id"),
+            rec.get("originating_failure_id"),
+            rec["originating_step"],
+            rec["originating_outcome_class"],
+            rec["detection_rule_version"],
+            rec["detection_timestamp"],
+            rec["followup_timestamp"],
+            rec["model_id"],
+            rec["model_version_returned"],
+            rec["provider"],
+            rec["api_endpoint"],
+            rec["prompt_version"],
+            rec["sha256_manifest"],
+            rec["prompt_verbatim"],
+            rec["response_verbatim"],
+            rec.get("thinking_verbatim", ""),
+            rec["input_tokens"],
+            rec["output_tokens"],
+            rec["latency_ms"],
+            rec["stop_reason"],
+            rec["cost_usd"],
+            rec.get("qa_notes", ""),
+            1 if rec.get("version_drift_flag", False) else 0,
+        ),
+    )
 
 
 def _insert_informant(cur: sqlite3.Cursor, rec: dict) -> None:
@@ -260,12 +335,20 @@ def _refuse_shakedown_path(jsonl_path: Path) -> None:
         raise ValueError(msg)
 
 
-def build_db(jsonl_path: Path, db_path: Path) -> int:
-    """Read informants.jsonl and write lsb.sqlite. Returns record count."""
+def build_db(
+    jsonl_path: Path,
+    db_path: Path,
+    decline_interviews_path: Path | None = None,
+) -> tuple[int, int]:
+    """Read informants.jsonl (and optionally decline_interviews.jsonl) and write lsb.sqlite.
+
+    Returns:
+        (informant_count, decline_interview_count) tuple.
+    """
     _refuse_shakedown_path(jsonl_path)
     if not jsonl_path.exists():
         print(f"Error: {jsonl_path} not found.", file=sys.stderr)
-        return 0
+        return 0, 0
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -280,7 +363,7 @@ def build_db(jsonl_path: Path, db_path: Path) -> int:
 
     cur.executescript(_DDL)
 
-    count = 0
+    informant_count = 0
     with open(jsonl_path) as f:
         for line_num, line in enumerate(f, 1):
             line = line.strip()
@@ -289,16 +372,33 @@ def build_db(jsonl_path: Path, db_path: Path) -> int:
             try:
                 rec = _parse_record(line)
                 _insert_informant(cur, rec)
-                count += 1
+                informant_count += 1
             except (json.JSONDecodeError, KeyError) as e:
                 print(
-                    f"Warning: skipping line {line_num}: {e}",
+                    f"Warning: skipping informants line {line_num}: {e}",
                     file=sys.stderr,
                 )
 
+    decline_count = 0
+    if decline_interviews_path is not None and decline_interviews_path.exists():
+        with open(decline_interviews_path) as f:
+            for line_num, line in enumerate(f, 1):
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    rec = _parse_record(line)
+                    _insert_decline_interview(cur, rec)
+                    decline_count += 1
+                except (json.JSONDecodeError, KeyError) as e:
+                    print(
+                        f"Warning: skipping decline_interviews line {line_num}: {e}",
+                        file=sys.stderr,
+                    )
+
     conn.commit()
     conn.close()
-    return count
+    return informant_count, decline_count
 
 
 def main() -> int:
@@ -317,6 +417,14 @@ def main() -> int:
         nargs="?",
         default="data/open_bundle/lsb.sqlite",
         help="Output SQLite path (default: data/open_bundle/lsb.sqlite)",
+    )
+    parser.add_argument(
+        "--decline-interviews",
+        default=None,
+        help=(
+            "Path to decline_interviews.jsonl "
+            "(default: auto-detect at data/raw/decline_interviews.jsonl)"
+        ),
     )
     parser.add_argument(
         "--dry-run",
@@ -346,10 +454,19 @@ def main() -> int:
         return 0
 
     db_path = Path(args.db)
-    count = build_db(jsonl_path, db_path)
 
-    if count == 0:
-        print("No records written.", file=sys.stderr)
+    # Resolve the decline-interviews path: use the explicit arg if given,
+    # otherwise check the default sibling location.
+    if args.decline_interviews is not None:
+        decline_path: Path | None = Path(args.decline_interviews)
+    else:
+        default_decline = jsonl_path.parent / "decline_interviews.jsonl"
+        decline_path = default_decline if default_decline.exists() else None
+
+    informant_count, decline_count = build_db(jsonl_path, db_path, decline_path)
+
+    if informant_count == 0:
+        print("No informant records written.", file=sys.stderr)
         return 1
 
     # Report table counts
@@ -358,13 +475,15 @@ def main() -> int:
     fl_items = conn.execute("SELECT COUNT(*) FROM freelist_items").fetchone()[0]
     ps_cells = conn.execute("SELECT COUNT(*) FROM pilesort_cells").fetchone()[0]
     iv_labels = conn.execute("SELECT COUNT(*) FROM interview_labels").fetchone()[0]
+    di_rows = conn.execute("SELECT COUNT(*) FROM decline_interviews").fetchone()[0]
     conn.close()
 
     print(f"Built {db_path}:")
-    print(f"  informants:       {informants}")
-    print(f"  freelist_items:   {fl_items}")
-    print(f"  pilesort_cells:   {ps_cells}")
-    print(f"  interview_labels: {iv_labels}")
+    print(f"  informants:          {informants}")
+    print(f"  freelist_items:      {fl_items}")
+    print(f"  pilesort_cells:      {ps_cells}")
+    print(f"  interview_labels:    {iv_labels}")
+    print(f"  decline_interviews:  {di_rows}")
 
     return 0
 

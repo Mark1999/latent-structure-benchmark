@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.7** (2026-04-23) — Task #26: `DeclineInterview` pydantic schema added to `cdb_core/schemas.py`. New JSONL file `data/raw/decline_interviews.jsonl`. New `decline_interviews` table in `lsb.sqlite`. See §10 and `docs/DECLINE_INTERVIEW_PROTOCOL.md`. CDA SME verdict: `docs/status/2026-04-23-decline-interview-protocol-sme-verdict.md`.
 - **v0.1.6** (2026-04-23) — Task #24: `failures.jsonl` entry shape expanded per the failures-as-findings directive. Added `prompt_verbatim`, `response_verbatim`, `thinking_verbatim`, `stop_reason`, `partial_session`, and `retry_attempts` to `append_failure`. No change to `InformantRecord`, `GroundingRef`, or any other pydantic schema. See §9 and `docs/status/2026-04-23-failures-as-findings-architect-verdict.md` §Stream A + Amendment A.
 - **v0.1.5** (2026-04-21) — F2-T02: `DomainResult` gains `romney_small_n_warning: bool` (default `False`). Set `True` when n_models < 8 at Romney CCM computation time — dual-threshold pass/fail is statistically underpowered below n=8 per SME 2026-04-20 verdict. Non-breaking addition. Companion wiring populates the previously-null `romney_eigenratio`, `romney_consensus_pass`, and `romney_consensus_warning` fields.
 - **v0.1.4** (2026-04-20) — Un-defer of SME §1.3 G1 split. `DomainResult` gains six new fields: `g1_salience_stability`, `g1_spatial_stability`, `g1_aggregate_stability`, `g1_salience_pass`, `g1_spatial_pass`, `g1_overall_pass`. All optional (default `None`); populated by the sensitivity study once it runs. The binding gate criterion is `g1_overall_pass` (True iff both salience and spatial axes are below the 0.5 threshold). The individual axis fields are diagnostic. No breaking changes. See ARCHITECTURE.md §5.3 Phase 4b for the split semantics.
@@ -785,6 +786,175 @@ A simpler HTTP-layer failure (adapter raised before any response was received):
   "error_message": "Client error '400 Bad Request' for url ...",
   "context": {"model_id": "microsoft/phi-4", "domain": "family", "run_index": 0},
   "retry_attempts": []
+}
+```
+
+---
+
+## 10. The DeclineInterview schema and decline_interviews.jsonl
+
+**Changelog:**
+- **v0.1.7** (2026-04-23) — Task #26: new entity. Implements the Phase 4a.1 decline-interview protocol per CDA SME verdict PASS-WITH-NOTES (2026-04-23). See `docs/DECLINE_INTERVIEW_PROTOCOL.md`.
+
+### 10.1 Purpose and provenance
+
+When a primary collection step (free listing, pile sorting, or pile interview) produces no interpretable output — or when the session terminates as a failure entry in `failures.jsonl` — the decline-interview protocol issues a follow-up elicitation asking the model to describe what happened. This parallels the anthropological fieldwork convention of interviewing a declining informant.
+
+`data/raw/decline_interviews.jsonl` captures each follow-up call. It is **append-only** (like `informants.jsonl`) and is part of the open data bundle alongside `informants.jsonl` and `failures.jsonl`.
+
+**Xor invariant:** every `DeclineInterview` record references exactly one originating session — either via `originating_informant_id` (for sessions that completed into `informants.jsonl` with `qa_passed=False`) or via `originating_failure_id` (for sessions that landed in `failures.jsonl`). Both cannot be set simultaneously; neither can both be null. The pydantic `_xor_originator` validator enforces this at write time.
+
+**File path:** `data/raw/decline_interviews.jsonl` — gitignored via the `data/raw/` parent gitignore rule.
+
+**Prompt version:** `decline_v1`. Prompt template at `packages/cdb_collect/cdb_collect/prompts/decline/v1/prompt.txt`. Per `CLAUDE.md` §6 rule 8, the template is immutable; any wording change requires a new version directory (`decline/v2/`) and a new `DECLINE_INTERVIEW_PROTOCOL.md` version.
+
+**Temperature:** 0.7 — same as the free-list step per `ARCHITECTURE.md` §4.1.3.
+
+**Design note:** `docs/DECLINE_INTERVIEW_PROTOCOL.md`.
+**CDA SME verdict:** `docs/status/2026-04-23-decline-interview-protocol-sme-verdict.md`.
+**Architect verdict (Stream B):** `docs/status/2026-04-23-failures-as-findings-architect-verdict.md`.
+
+### 10.2 DeclineInterview fields
+
+#### Identity
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `decline_interview_id` | `str` | Yes | SHA256[:16] of `(originating_id, prompt_version, sha256_manifest)`. Deterministic. Primary key in `lsb.sqlite`. |
+| `originating_informant_id` | `str \| None` | XOR | `informant_id` of the `InformantRecord` being followed up. `None` when the origin is a `failures.jsonl` entry. |
+| `originating_failure_id` | `str \| None` | XOR | Synthetic identifier for the `failures.jsonl` entry being followed up. `None` when the origin is an `InformantRecord`. |
+
+**XOR invariant:** exactly one of `originating_informant_id` / `originating_failure_id` must be non-null. The pydantic `model_validator` raises `ValueError` if both are set or both are null.
+
+#### Origin characterisation
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `originating_step` | `Literal` | Yes | Which CDA step the decline occurred on. One of `freelist`, `pile_sort`, `interview`, `pre_session`. `pre_session` covers sessions that failed before any step ran. |
+| `originating_outcome_class` | `Literal` | Yes | Detection trigger class. One of `empty_output`, `refusal_string_match`, `single_degenerate_pile`, `parse_failure`, `http_error`, `timeout`, `other`. Derived from the deterministic ruleset in `cdb_collect/decline_detection.py` — not from any LLM classifier. |
+| `detection_rule_version` | `str` | Yes | The `DECLINE_ALLOWLIST_VERSION` constant at detection time (currently `"v1"`). Allows analysts to reproduce detection runs against frozen rulesets. Future allowlist extensions increment this version. |
+
+#### Timestamps
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `detection_timestamp` | `datetime` (ISO 8601, UTC) | Yes | When the detection pass ran. Supplied by the caller (Phase 4a.1 runner) rather than computed inside the runner so it is consistent across a batch. |
+| `followup_timestamp` | `datetime` (ISO 8601, UTC) | Yes | When the follow-up API call completed. Computed inside `run_decline_interview`. |
+
+#### Model identity
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `model_id` | `str` | Yes | The API model string used for the follow-up call. Should match the originating session's `model_id` unless an explicit substitution was made. |
+| `model_version_returned` | `str` | Yes | The exact version string returned by the provider for the follow-up call. May differ from the originating session's `model_version_returned` if the provider rolled a snapshot between the original run and the Phase 4a.1 remediation pass. See `version_drift_flag`. |
+| `provider` | `str` | Yes | Provider name. |
+| `api_endpoint` | `str` | Yes | Full URL of the endpoint called for the follow-up. |
+
+#### Prompt provenance
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `prompt_version` | `str` | Yes | Always `"decline_v1"` for records collected under this protocol version. Immutable per version. |
+| `sha256_manifest` | `str` | Yes | Single SHA256 hex digest covering `(prompt_verbatim, response_verbatim)` for the follow-up call. |
+| `prompt_verbatim` | `str` | Yes | The exact follow-up prompt sent to the model. Built by substituting `task_description` and `response_verbatim_or_empty` into the `decline/v1/prompt.txt` template. |
+| `response_verbatim` | `str` | Yes | The exact bytes the model returned in the follow-up call. |
+| `thinking_verbatim` | `str` | No (default `""`) | The reasoning/thinking trace from the **follow-up call** (not from the originating session). Empty string for models that do not surface a thinking trace. |
+
+#### Token / cost accounting
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `input_tokens` | `int` | Yes | Provider-reported input token count for the follow-up call. |
+| `output_tokens` | `int` | Yes | Provider-reported output token count. |
+| `latency_ms` | `int` | Yes | Wall-clock latency for the follow-up call in milliseconds. |
+| `stop_reason` | `str` | Yes | Provider stop reason. |
+| `cost_usd` | `float` | Yes | Computed cost in USD for the follow-up call. |
+
+#### QA / drift
+
+| Field | Type | Required | Semantics |
+|---|---|---|---|
+| `qa_notes` | `str` | No (default `""`) | Free-text QA annotation. Written by the Phase 4a.1 runner or by manual inspection. |
+| `version_drift_flag` | `bool` | No (default `False`) | `True` when the follow-up call's `model_version_returned` differs from the originating session's `model_version_returned`. Indicates that the provider rolled a snapshot between the original collection run and the Phase 4a.1 remediation pass. Records with `version_drift_flag=True` must be surfaced in the Phase 4a.1 run report per SME Note F (2026-04-23). |
+
+### 10.3 originating_outcome_class values
+
+| Value | Trigger | Source |
+|---|---|---|
+| `empty_output` | `parsed_piles` is empty (trigger a), `parsed_items` is empty (trigger c), or `parsed_pile_labels` is empty AND `response_verbatim` non-empty (trigger d) | `informants.jsonl` |
+| `refusal_string_match` | `pile_sort.response_verbatim` matches the `DECLINE_ALLOWLIST` (trigger b) | `informants.jsonl` |
+| `single_degenerate_pile` | `len(parsed_piles)==1` AND `items_in_pile / total_freelist_items >= 0.95` (trigger e) | `informants.jsonl` |
+| `parse_failure` | Error type name contains "parse", "json", or "value" | `failures.jsonl` |
+| `http_error` | Error type name contains "http", "status", or "connect" | `failures.jsonl` |
+| `timeout` | Error type name contains "timeout" | `failures.jsonl` |
+| `other` | Fallback for unclassified failure types | `failures.jsonl` |
+
+The detection rules live in `packages/cdb_collect/cdb_collect/decline_detection.py`. The allowlist version is `DECLINE_ALLOWLIST_VERSION = "v1"`. New entries require Architect sign-off per Reviewer rules.
+
+### 10.4 The decline_interviews table in lsb.sqlite
+
+`scripts/build_db.py` ingests `decline_interviews.jsonl` when it exists at the auto-detected path `data/raw/decline_interviews.jsonl` (sibling to `informants.jsonl`) or when passed via `--decline-interviews`. The table mirrors the `DeclineInterview` schema:
+
+```sql
+CREATE TABLE decline_interviews (
+  decline_interview_id TEXT PRIMARY KEY,
+  originating_informant_id TEXT,           -- NULL for failures.jsonl origins
+  originating_failure_id TEXT,             -- NULL for informants.jsonl origins
+  originating_step TEXT NOT NULL,
+  originating_outcome_class TEXT NOT NULL,
+  detection_rule_version TEXT NOT NULL,
+  detection_timestamp TEXT NOT NULL,
+  followup_timestamp TEXT NOT NULL,
+  model_id TEXT NOT NULL,
+  model_version_returned TEXT NOT NULL,
+  provider TEXT NOT NULL,
+  api_endpoint TEXT NOT NULL,
+  prompt_version TEXT NOT NULL,
+  sha256_manifest TEXT NOT NULL,
+  prompt_verbatim TEXT NOT NULL,
+  response_verbatim TEXT NOT NULL,
+  thinking_verbatim TEXT NOT NULL DEFAULT '',
+  input_tokens INTEGER NOT NULL,
+  output_tokens INTEGER NOT NULL,
+  latency_ms INTEGER NOT NULL,
+  stop_reason TEXT NOT NULL,
+  cost_usd REAL NOT NULL,
+  qa_notes TEXT NOT NULL DEFAULT '',
+  version_drift_flag INTEGER NOT NULL DEFAULT 0,  -- 0=False, 1=True
+  FOREIGN KEY (originating_informant_id) REFERENCES informants(informant_id)
+);
+```
+
+`originating_failure_id` has no FK constraint because `failures.jsonl` entries are dict-shaped and not represented by a pydantic type or a separate SQLite table in v1.
+
+### 10.5 Example entry
+
+```json
+{
+  "decline_interview_id": "a1b2c3d4e5f60001",
+  "originating_informant_id": "abc12345def67890",
+  "originating_failure_id": null,
+  "originating_step": "pile_sort",
+  "originating_outcome_class": "empty_output",
+  "detection_rule_version": "v1",
+  "detection_timestamp": "2026-04-24T09:00:00+00:00",
+  "followup_timestamp": "2026-04-24T09:00:02.341000+00:00",
+  "model_id": "google/gemini-2.5-pro",
+  "model_version_returned": "gemini-2.5-pro-20260401",
+  "provider": "openrouter",
+  "api_endpoint": "https://openrouter.ai/api/v1/chat/completions",
+  "prompt_version": "decline_v1",
+  "sha256_manifest": "e3b0c44298fc1c149afb...",
+  "prompt_verbatim": "A moment ago I asked you to perform the following task: Sort the following 25 family terms into piles based on how similar they are to each other... The output I received was: (empty). In your own words, please describe what happened in that exchange.",
+  "response_verbatim": "In that exchange, I received a request to sort family relationship terms into groups based on similarity. The output field being empty suggests that I either...",
+  "thinking_verbatim": "",
+  "input_tokens": 312,
+  "output_tokens": 148,
+  "latency_ms": 2341,
+  "stop_reason": "end_turn",
+  "cost_usd": 0.0028,
+  "qa_notes": "",
+  "version_drift_flag": false
 }
 ```
 

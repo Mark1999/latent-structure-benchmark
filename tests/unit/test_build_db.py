@@ -111,9 +111,10 @@ def test_build_db_creates_tables(tmp_path: Path):
     jsonl.write_text(json.dumps(_make_record()) + "\n")
 
     db = tmp_path / "lsb.sqlite"
-    count = build_db(jsonl, db)
+    informant_count, decline_count = build_db(jsonl, db)
 
-    assert count == 1
+    assert informant_count == 1
+    assert decline_count == 0
     assert db.exists()
 
     conn = sqlite3.connect(str(db))
@@ -127,6 +128,7 @@ def test_build_db_creates_tables(tmp_path: Path):
     assert "freelist_items" in tables
     assert "pilesort_cells" in tables
     assert "interview_labels" in tables
+    assert "decline_interviews" in tables
     conn.close()
 
 
@@ -218,9 +220,9 @@ def test_build_db_multiple_records(tmp_path: Path):
     jsonl.write_text("\n".join(lines) + "\n")
 
     db = tmp_path / "lsb.sqlite"
-    count = build_db(jsonl, db)
+    informant_count, _ = build_db(jsonl, db)
 
-    assert count == 3
+    assert informant_count == 3
 
     conn = sqlite3.connect(str(db))
     n = conn.execute("SELECT COUNT(*) FROM informants").fetchone()[0]
@@ -236,15 +238,16 @@ def test_build_db_skips_bad_json(tmp_path: Path):
     )
 
     db = tmp_path / "lsb.sqlite"
-    count = build_db(jsonl, db)
+    informant_count, _ = build_db(jsonl, db)
 
-    assert count == 1
+    assert informant_count == 1
 
 
 def test_build_db_nonexistent_jsonl(tmp_path: Path):
     db = tmp_path / "lsb.sqlite"
-    count = build_db(tmp_path / "nope.jsonl", db)
-    assert count == 0
+    informant_count, decline_count = build_db(tmp_path / "nope.jsonl", db)
+    assert informant_count == 0
+    assert decline_count == 0
     assert not db.exists()
 
 
@@ -256,9 +259,9 @@ def test_build_db_replaces_existing(tmp_path: Path):
     # Build once
     build_db(jsonl, db)
     # Build again — should replace, not append
-    count = build_db(jsonl, db)
+    informant_count, _ = build_db(jsonl, db)
 
-    assert count == 1
+    assert informant_count == 1
     conn = sqlite3.connect(str(db))
     n = conn.execute("SELECT COUNT(*) FROM informants").fetchone()[0]
     conn.close()

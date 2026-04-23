@@ -1,0 +1,1 @@
+A moment ago I asked you to perform the following task: {task_description}. The output I received was: {response_verbatim_or_empty}. In your own words, please describe what happened in that exchange.

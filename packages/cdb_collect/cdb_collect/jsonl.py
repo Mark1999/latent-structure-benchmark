@@ -1,4 +1,4 @@
-"""JSONL reader/writer for InformantRecords. Append-only by convention."""
+"""JSONL reader/writer for InformantRecords and DeclineInterviews. Append-only by convention."""
 
 from __future__ import annotations
 
@@ -8,6 +8,7 @@ from datetime import datetime
 from pathlib import Path
 
 from cdb_core import InformantRecord
+from cdb_core.schemas import DeclineInterview
 
 logger = logging.getLogger(__name__)
 
@@ -111,3 +112,13 @@ def append_failure(
     entry["retry_attempts"] = retry_attempts if retry_attempts is not None else []
     with open(path, "a", encoding="utf-8") as f:
         f.write(json.dumps(entry) + "\n")
+
+
+def append_decline_interview(interview: DeclineInterview, path: Path) -> None:
+    """Append one DeclineInterview as a JSONL line. Mirrors append_record.
+
+    Creates the file and parent directories if they don't exist.
+    """
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with open(path, "a", encoding="utf-8") as f:
+        f.write(interview.model_dump_json() + "\n")
