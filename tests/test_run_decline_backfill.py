@@ -42,6 +42,7 @@ _spec.loader.exec_module(_mod)  # type: ignore[union-attr]
 run_dry_run = _mod.run_dry_run
 _parse_failing_checks = _mod._parse_failing_checks
 _not_triggered_reason = _mod._not_triggered_reason
+_originating_step_from_checks = _mod._originating_step_from_checks
 _is_gemini_failure = _mod._is_gemini_failure
 
 
@@ -759,3 +760,167 @@ class TestDryRunScenarios:
         assert exit_code == 0
         for iid in ids:
             assert iid in output, f"Expected {iid!r} to appear in not-triggered per-record rows"
+
+
+# ── _originating_step_from_checks unit tests ──────────────────────────────────
+
+class TestOriginatingStepFromChecks:
+    """Unit tests for the failing_checks -> originating_step derivation function."""
+
+    def test_check5_only_returns_pile_sort(self) -> None:
+        """Check-5 latency-only records map to pile_sort (grok-4 fixture scenario)."""
+        result = _originating_step_from_checks(["check_5_latency_exceeded"])
+        assert result == "pile_sort"
+
+    def test_check8_only_returns_interview(self) -> None:
+        """Check-8 label-mismatch records map to interview."""
+        result = _originating_step_from_checks(["check_8_label_count_mismatch"])
+        assert result == "interview"
+
+    def test_check1_only_returns_freelist(self) -> None:
+        """Check-1 empty-freelist records map to freelist."""
+        result = _originating_step_from_checks(["check_1_freelist_empty"])
+        assert result == "freelist"
+
+    def test_check6_only_returns_pile_sort(self) -> None:
+        """Check-6 token-inconsistency alone maps to pile_sort."""
+        result = _originating_step_from_checks(["check_6_token_inconsistency"])
+        assert result == "pile_sort"
+
+    def test_check1_and_check5_returns_pile_sort(self) -> None:
+        """Compound check_1 + check_5: pile_sort is the deeper step (plan §3 T1 rule)."""
+        result = _originating_step_from_checks(
+            ["check_1_freelist_empty", "check_5_latency_exceeded"]
+        )
+        assert result == "pile_sort"
+
+    def test_check5_and_check8_returns_interview(self) -> None:
+        """Compound check_5 + check_8: interview is the deepest step."""
+        result = _originating_step_from_checks(
+            ["check_5_latency_exceeded", "check_8_label_count_mismatch"]
+        )
+        assert result == "interview"
+
+    def test_empty_checks_returns_unknown(self) -> None:
+        """Empty check list -> unknown (no crash)."""
+        result = _originating_step_from_checks([])
+        assert result == "unknown"
+
+    def test_unrecognised_check_returns_unknown(self) -> None:
+        """An unrecognised check name -> unknown (no crash)."""
+        result = _originating_step_from_checks(["check_99_something_new"])
+        assert result == "unknown"
+
+
+# ── Section 3 originating_step column integration tests ───────────────────────
+
+class TestSection3OriginatingStepColumn:
+    """Integration tests confirming originating_step column appears in Section 3 output."""
+
+    @pytest.fixture()
+    def tmpdir(self, tmp_path: Path) -> Path:
+        return tmp_path
+
+    def _run_dry_run_capture(
+        self,
+        informants: list,
+        failures: list,
+        tmpdir: Path,
+    ) -> tuple[int, str]:
+        informants_path = tmpdir / "informants.jsonl"
+        failures_path = tmpdir / "failures.jsonl"
+        output_path = tmpdir / "decline_interviews.jsonl"
+        _write_jsonl(informants_path, informants)
+        _write_jsonl(failures_path, failures)
+        output_path.touch()
+        captured = StringIO()
+        with patch("sys.stdout", captured):
+            exit_code = run_dry_run(
+                informants_path=informants_path,
+                failures_path=failures_path,
+                output_path=output_path,
+            )
+        return exit_code, captured.getvalue()
+
+    def test_section3_header_contains_originating_step(self, tmpdir: Path) -> None:
+        """Section 3 header must contain 'originating_step' as a column label."""
+        # Use a single latency-only not-triggered record so Section 3 emits a row.
+        informants = [
+            _make_informant(
+                informant_id="hdr_check_0001",
+                model_id="x-ai/grok-4",
+                domain_slug="holidays",
+                qa_passed=False,
+                qa_notes="91415ms",  # check_5 only -> not triggered
+                parsed_items=["christmas", "easter"],
+                parsed_piles=[["christmas"], ["easter"]],
+                parsed_labels=["holiday1", "holiday2"],
+            )
+        ]
+        _, output = self._run_dry_run_capture(informants, [], tmpdir)
+        assert "originating_step" in output, (
+            "Section 3 header must include 'originating_step' column"
+        )
+
+    def test_section3_grok4_check5_row_has_pile_sort(self, tmpdir: Path) -> None:
+        """grok-4 Check-5-only record -> originating_step=pile_sort in Section 3 row."""
+        informants = [
+            _make_informant(
+                informant_id="grok_step_0001",
+                model_id="x-ai/grok-4",
+                domain_slug="holidays",
+                qa_passed=False,
+                qa_notes="91415ms",  # check_5 only
+                parsed_items=["christmas", "easter"],
+                parsed_piles=[["christmas"], ["easter"]],
+                parsed_labels=["holiday1", "holiday2"],
+            )
+        ]
+        _, output = self._run_dry_run_capture(informants, [], tmpdir)
+        # The row for grok_step_0001 must contain pile_sort
+        assert "pile_sort" in output, (
+            "Check-5-only not-triggered record must emit originating_step=pile_sort"
+        )
+        assert "grok_step_0001" in output
+
+    def test_section3_check8_row_has_interview(self, tmpdir: Path) -> None:
+        """Check-8-only record -> originating_step=interview in Section 3 row."""
+        informants = [
+            _make_informant(
+                informant_id="chk8_step_0001",
+                model_id="mistralai/mistral-small",
+                domain_slug="family",
+                qa_passed=False,
+                qa_notes="label_count_mismatch:20/9",  # check_8 only
+                parsed_items=["mother", "father"],
+                parsed_piles=[["mother"], ["father"]],
+                parsed_labels=["nuclear", "extended"],  # non-empty -> not triggered
+            )
+        ]
+        _, output = self._run_dry_run_capture(informants, [], tmpdir)
+        assert "interview" in output, (
+            "Check-8-only not-triggered record must emit originating_step=interview"
+        )
+        assert "chk8_step_0001" in output
+
+    def test_section3_unknown_step_for_empty_notes(self, tmpdir: Path) -> None:
+        """A record with empty qa_notes and no parseable checks -> originating_step=unknown."""
+        # Craft a record that is qa_passed=False but has no qa_notes and no
+        # structural trigger (non-empty piles, non-empty labels, no allowlist string).
+        informants = [
+            _make_informant(
+                informant_id="unk_step_0001",
+                model_id="openai/gpt-5.4-mini",
+                domain_slug="food",
+                qa_passed=False,
+                qa_notes="",  # empty notes -> no check parses
+                parsed_items=["pizza", "sushi"],
+                parsed_piles=[["pizza"], ["sushi"]],
+                parsed_labels=["fast", "slow"],
+            )
+        ]
+        _, output = self._run_dry_run_capture(informants, [], tmpdir)
+        assert "unknown" in output, (
+            "Record with no parseable checks must emit originating_step=unknown"
+        )
+        assert "unk_step_0001" in output

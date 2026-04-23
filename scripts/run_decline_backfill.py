@@ -99,6 +99,36 @@ def _parse_failing_checks(qa_notes: str) -> list[str]:
     return checks
 
 
+def _originating_step_from_checks(failing_checks: list[str]) -> str:
+    """Derive the originating_step label for a not-triggered QA failure record.
+
+    Maps from the parsed failing_checks list to the CDA step that last failed,
+    following the step ordering: freelist < pile_sort < interview.
+
+    Rules:
+      - check_1_freelist_empty                          → freelist
+      - check_5_latency_exceeded / check_6_token_inconsistency → pile_sort
+      - check_8_label_count_mismatch                    → interview
+      - Compound: last (deepest) step that appears wins.
+        e.g. check_1 + check_5 → pile_sort
+             check_1 + check_8 → interview
+             check_5 + check_8 → interview
+      - No recognised check → unknown
+    """
+    check_set = set(failing_checks)
+    if not check_set:
+        return "unknown"
+
+    # Walk steps from deepest to shallowest; return the first (deepest) hit.
+    if "check_8_label_count_mismatch" in check_set:
+        return "interview"
+    if "check_5_latency_exceeded" in check_set or "check_6_token_inconsistency" in check_set:
+        return "pile_sort"
+    if "check_1_freelist_empty" in check_set:
+        return "freelist"
+    return "unknown"
+
+
 def _not_triggered_reason(failing_checks: list[str]) -> str:
     """Derive a one-phrase audit reason for a qa_passed=False record that detect_from_informant
     returned None for.
@@ -346,12 +376,13 @@ def run_dry_run(
     print("returned None. One row = one record (not a summary).")
     print()
 
-    s3_col = (20, 35, 12, 45)
+    s3_col = (20, 35, 12, 14, 45)
     s3_header = (
         f"{'id':<{s3_col[0]}}"
         f"{'model_id':<{s3_col[1]}}"
         f"{'domain':<{s3_col[2]}}"
-        f"{'failing_checks':<{s3_col[3]}}"
+        f"{'originating_step':<{s3_col[3]}}"
+        f"{'failing_checks':<{s3_col[4]}}"
         f"{'reason'}"
     )
     print(s3_header)
@@ -365,6 +396,7 @@ def run_dry_run(
         domain = rec.get("domain_slug", "unknown")
         qa_notes = rec.get("qa_notes", "")
         failing_checks = _parse_failing_checks(qa_notes)
+        originating_step = _originating_step_from_checks(failing_checks)
         reason = _not_triggered_reason(failing_checks)
         checks_str = ", ".join(failing_checks) if failing_checks else "(none parsed)"
 
@@ -372,7 +404,8 @@ def run_dry_run(
             f"{iid:<{s3_col[0]}}"
             f"{model_id:<{s3_col[1]}}"
             f"{domain:<{s3_col[2]}}"
-            f"{checks_str:<{s3_col[3]}}  "
+            f"{originating_step:<{s3_col[3]}}"
+            f"{checks_str:<{s3_col[4]}}  "
             f"{reason}"
         )
         not_triggered_count += 1
@@ -384,12 +417,14 @@ def run_dry_run(
         domain = ctx.get("domain", "unknown")
         error_type = entry.get("error_type", "unknown")
         checks_str = f"error_type={error_type}"
+        originating_step = "unknown"
         reason = "detect_from_failure returned None (unexpected; inspect entry)"
         print(
             f"{fid:<{s3_col[0]}}"
             f"{model_id:<{s3_col[1]}}"
             f"{domain:<{s3_col[2]}}"
-            f"{checks_str:<{s3_col[3]}}  "
+            f"{originating_step:<{s3_col[3]}}"
+            f"{checks_str:<{s3_col[4]}}  "
             f"{reason}"
         )
         not_triggered_count += 1
