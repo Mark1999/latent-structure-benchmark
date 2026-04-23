@@ -46,37 +46,37 @@ Master tip: `b2b74e4`. Many commits ahead of `origin/master` — nothing pushed 
 
 ---
 
-## 3. Decisions that must be made before T5 analysis
+## 3. Disposition — SUPERSEDED 2026-04-23 by binding directive
 
-This is Architect + CDA SME territory, not a Coder decision. Sample composition affects v1 claims.
+Mark issued a binding design directive on 2026-04-23 that resolves the prior "which models do we drop?" question and expands the methodology. The original Decisions 1–3 below are retained as a record of what the options looked like before the directive; the directive itself supersedes them.
 
-### Decision 1 — Disposition of the three failing models
+### Binding directive (2026-04-23, verbatim)
 
-Options (per model, may differ):
+> Treat partial data as a real finding. We should always record failed runs as a real finding. If the LLM connected but refused to respond, we save that session verbatim including all thinking or reasoning traces. If the failure was technical, again, it should be saved as well. If the LLM responds in an unexpected manner or for some reason refuses to do the task, then interview the LLM informant as follow up questions. Note for the future: we need a way for the dashboard to call out failed runs and allow the website viewer to review the reasons why and the raw logs.
 
-- **Drop from the slate.** Phase 4a ships as a 9-, 10-, or 11-model slate depending on which are dropped. Changes coverage counts (e.g., US-closed-weight 5→3 if both Gemini and Grok drop; CN-closed-weight 2→1 if GLM drops).
-- **Re-run with prompt adjustments.** Targeted intervention (e.g., reword probe to avoid Grok's jailbreak heuristic; inspect raw Gemini output to identify the parse-break pattern).
-- **Re-run with fallback parser.** If the output is recoverable but the parser is brittle (e.g., GLM's format differs by a trivial whitespace/keyword change).
-- **Accept partial data as a finding.** "Some models decline or can't complete CDA elicitation in canonical form" is itself a Register 2 observation worth reporting. Appropriate for Grok if the refusal is a safety policy; less appropriate for Gemini if it's a parser mismatch.
+### What this means for Phase 4a
 
-### Decision 2 — Updated slate composition vs claims
+- **No model is dropped.** The 12-model slate is preserved. Gemini-2.5-Pro (0 records), Qwen-3.6-Plus (10/10 FAIL), GLM-5.1 (4/4 FAIL), and Grok-4 (8/10 FAIL) stay in the slate. Their non-response, refusal, or degraded response IS the finding.
+- **101 records + 6 failures.jsonl entries + 19 missing cells = the dataset.** T5 analysis proceeds on that, not on a "fixed" 120-record corpus. Report the missing cells as a finding, not as incomplete collection.
+- **New CDA protocol step — "follow-up decline interview."** When a model refuses or responds unexpectedly on a primary step, a follow-up elicitation asks the model to explain. Grounded in anthropological fieldwork where a declining informant is interviewed about the decline. **Requires CDA SME methodological sign-off before design + implementation.**
+- **Verbatim capture audit required.** Any branch in current code that discards a session (caught exception without append, response that lands nowhere) is a bug to close. Architect decomposes an audit task.
+- **Dashboard failure-display feature** is Phase 6+, but now on the critical path for credibility — must expose failed runs with raw-log access, §1.5-compliant framing. Not just a nice-to-have.
 
-The CDA SME slate verdict's axis-1 PASS was predicated on the 12-model coverage. Dropping models changes claims validity:
+### Pre-directive options (retained as historical record)
 
-- If 3 drop (Gemini, GLM, Grok) → 9-model slate; 3 origins (US 4, EU 2, CN 1); coverage narrows sharply on CN closed-weight and on the xai/google adapters.
-- The SME will likely require a re-verdict on any composition change that drops more than one axis-category representative.
-
-### Decision 3 — Whether to re-run T4 partially
-
-If Decision 1 picks "re-run with adjustments," that's a new task (call it T4.1) that needs Architect scoping + potentially SME re-approval on prompt changes.
+~~Drop from the slate / re-run with adjustments / re-run with fallback parser / accept partial data as a finding.~~ The directive above resolves all four — accept partial data, preserve failures verbatim, add follow-up interview as a new step.
 
 ---
 
-## 4. Pending gate actions
+## 4. Pending gate actions (as of 2026-04-23 directive)
 
-- **T4 commit `b2b74e4` needs Reviewer.** The Coder finished and committed the runner script + run report. Reviewer has not yet issued a verdict on this commit. Normal R-rule check applies; nothing methodologically significant beyond the disposition question above.
-- **Architect ruling** on the three failing models (above Decision 1).
-- **CDA SME re-verdict** on any slate change resulting from Decision 1 (sample-composition impact).
+- **T4 commit `b2b74e4` needs Reviewer.** The Coder finished and committed the runner script + run report. Reviewer has not yet issued a verdict on this commit. Normal R-rule check applies.
+- **Architect decomposition of the 2026-04-23 directive.** Three work streams:
+  1. **Verbatim-capture audit** — confirm no code path silently discards a session. Immediate (Phase 4a).
+  2. **Follow-up decline-interview protocol design + implementation** — new CDA step. Phase 4a-adjacent (new sub-task T8 or similar). Requires CDA SME sign-off on methodology.
+  3. **Dashboard failure-display feature** — Phase 6+, scoped into the dashboard roadmap now rather than discovered later.
+- **CDA SME methodology sign-off** on the follow-up decline-interview protocol. Binding; do not implement without it.
+- **No slate re-verdict required** — the directive preserves the existing 12-model slate.
 
 ---
 
