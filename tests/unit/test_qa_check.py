@@ -23,6 +23,7 @@ from scripts.qa_check import (
     check_6_token_consistency,
     check_7_provider_request_id,
     check_9_backup_freshness,
+    check_record,
     post_infrastructure_alert,
     post_to_slack,
     run_infrastructure_checks,
@@ -542,3 +543,52 @@ def test_post_infrastructure_alert_posts_expected_fields() -> None:
         assert "Backup log missing" in payload_text
         assert str(MAX_BACKUP_AGE_HOURS) in payload_text
         assert "backup log missing" in payload_text
+
+
+# ─── Follow-up coverage tests (task #F2-T11 tester audit) ────────────
+
+def test_run_qa_checks_shim_concatenates_check_9_failures(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_qa_checks (the deprecated compat shim) must concatenate check 9 results
+    with checks 1–8. When _BACKUP_LOG_PATH is missing, the shim must include a
+    QAFailure with check_num==9 in its output — proving both batteries are called.
+
+    Regression guard: if the shim's concatenation is broken (e.g., only calls
+    run_record_checks), this test will catch it immediately.
+    """
+    nonexistent = tmp_path / "backup.log"
+    monkeypatch.setattr(_qa_check_module, "_BACKUP_LOG_PATH", nonexistent)
+    record = _record()
+    failures = run_qa_checks(record)
+    check_nines = [f for f in failures if f.check_num == 9]
+    assert len(check_nines) == 1, (
+        "run_qa_checks shim must include check 9 failures; "
+        f"got check_nums: {[f.check_num for f in failures]}"
+    )
+
+
+def test_check_record_does_not_route_check_9_through_post_to_slack(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """check_record (the per-record CLI helper at qa_check.py line 456) must call
+    only run_record_checks (checks 1–8). When backup.log is absent, check_record
+    must return True (no failures) and must NOT invoke post_to_slack.
+
+    This verifies that infrastructure failures are not routed through the
+    per-record alert path — the distinction mandated by the SME mandatory note 2
+    and the architecture of post_infrastructure_alert vs post_to_slack.
+    """
+    nonexistent = tmp_path / "backup.log"
+    monkeypatch.setattr(_qa_check_module, "_BACKUP_LOG_PATH", nonexistent)
+    record = _record()
+    with patch("scripts.qa_check.requests.post") as mock_post:
+        result = check_record(record, all_records=None)
+    assert result is True, (
+        "check_record must return True for a structurally valid record "
+        "even when backup.log is absent"
+    )
+    mock_post.assert_not_called(), (
+        "check_record must not call post_to_slack (requests.post) "
+        "for a check-9 infrastructure condition"
+    )
