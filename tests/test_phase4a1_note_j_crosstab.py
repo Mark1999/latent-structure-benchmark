@@ -1322,3 +1322,157 @@ def test_empty_decline_interviews_file_raises(tmp_path: Path) -> None:
 
     with pytest.raises(ValueError, match="No rows found"):
         load_all_inputs(di_path, informants_path, mc_path, sub_path)
+
+
+# ── Amendment 4 D24/D25 tests (task #21.T4.2-followup) ───────────────────────
+
+
+def test_d24_single_provider_mechanism_wording(tmp_path: Path) -> None:
+    """D24: Single-provider 9-row safety cohort emits single-provider mechanism wording.
+
+    The rendered mechanism string must contain "within a single provider (Google Gemini)"
+    and must NOT contain "cross-provider replication".
+
+    Uses a synthetic fixture where provider == "Google Gemini" to match the D23
+    canonical example string exactly.
+
+    References:
+        Amendment 4 D23/D24 — docs/status/2026-05-01-phase4a1-architect-plan-amendment-4.md
+        Amendment 4 SME PASS — docs/status/2026-05-01-phase4a1-amendment-4-cda-sme-verdict.md
+    """
+    safety_rows = [
+        {
+            "decline_interview_id": f"single-prov-d24-{i:03d}",
+            "provider": "Google Gemini",
+            "model_id": "google/gemini-2.5-pro",
+            "domain": "family" if i < 5 else "holidays",
+            "subtype": "k_frame" if i < 2 else "k_vocab_without_k_frame",
+        }
+        for i in range(9)
+    ]
+
+    di_path, informants_path, mc_path, sub_path = _build_cross_tab_fixture(
+        tmp_path, safety_rows=safety_rows
+    )
+    md, json_out = run(di_path, informants_path, mc_path, sub_path)
+
+    mechanism = json_out["note_k"]["mechanism_string"]
+
+    # D23: single-provider wording must name the provider
+    assert "within a single provider (Google Gemini)" in mechanism, (
+        f"Expected 'within a single provider (Google Gemini)' in mechanism string: {mechanism!r}"
+    )
+    # D24: single-provider branch must NOT emit the cross-provider phrasing
+    assert "cross-provider replication" not in mechanism, (
+        f"Unexpected 'cross-provider replication' in single-provider "
+        f"mechanism string: {mechanism!r}"
+    )
+    # Disposition must be CONFIRMED (1 provider, count >= 5)
+    assert json_out["note_k"]["disposition"] == "CONFIRMED"
+    assert json_out["note_k"]["n_providers"] == 1
+
+
+def test_d24_multi_provider_mechanism_wording(tmp_path: Path) -> None:
+    """D24: Multi-provider 6-row cohort emits cross-provider mechanism wording.
+
+    The rendered mechanism string must contain "cross-provider replication" and
+    must NOT contain "within a single provider".
+
+    References:
+        Amendment 4 D24 — docs/status/2026-05-01-phase4a1-architect-plan-amendment-4.md
+    """
+    safety_rows = [
+        {
+            "decline_interview_id": f"multi-google-{i:03d}",
+            "provider": "google",
+            "model_id": "google/gemini-2.5-pro",
+            "domain": "family",
+            "subtype": "k_frame",
+        }
+        for i in range(3)
+    ] + [
+        {
+            "decline_interview_id": f"multi-other-{i:03d}",
+            "provider": "openrouter",
+            "model_id": "z-ai/glm-5.1",
+            "domain": "holidays",
+            "subtype": "k_vocab_without_k_frame",
+        }
+        for i in range(3)
+    ]
+
+    di_path, informants_path, mc_path, sub_path = _build_cross_tab_fixture(
+        tmp_path, safety_rows=safety_rows
+    )
+    md, json_out = run(di_path, informants_path, mc_path, sub_path)
+
+    mechanism = json_out["note_k"]["mechanism_string"]
+
+    # D24: multi-provider branch must emit the cross-provider phrasing
+    assert "cross-provider replication" in mechanism, (
+        f"Expected 'cross-provider replication' in multi-provider mechanism string: {mechanism!r}"
+    )
+    # D24: multi-provider branch must NOT emit the single-provider parenthetical
+    assert "within a single provider" not in mechanism, (
+        f"Unexpected 'within a single provider' in multi-provider mechanism string: {mechanism!r}"
+    )
+    # Disposition must be CONFIRMED-with-mechanism (2 providers, count >= 5)
+    assert json_out["note_k"]["disposition"] == "CONFIRMED-with-mechanism"
+    assert json_out["note_k"]["n_providers"] == 2
+
+
+def test_d25_plain_confirmed_guardrail_in_markdown(tmp_path: Path) -> None:
+    """D25: Plain-CONFIRMED branch emits the four-line defensive guardrail in Markdown.
+
+    The rendered Markdown must contain the canonical guardrail substring:
+    "a mechanism description, not a claim about the model's internal state"
+    even when disposition is plain CONFIRMED (not CONFIRMED-with-mechanism).
+
+    This verifies the D25 symmetric guardrail — the guardrail fires in both
+    disposition branches, not only in CONFIRMED-with-mechanism.
+
+    References:
+        Amendment 4 D25 option (b) — docs/status/2026-05-01-phase4a1-architect-plan-amendment-4.md
+        D27 canonical wording — same document
+    """
+    safety_rows = [
+        {
+            "decline_interview_id": f"guardrail-d25-{i:03d}",
+            "provider": "google",
+            "model_id": "google/gemini-2.5-pro",
+            "domain": "family",
+            "subtype": "k_frame" if i < 2 else "k_vocab_without_k_frame",
+        }
+        for i in range(9)
+    ]
+
+    di_path, informants_path, mc_path, sub_path = _build_cross_tab_fixture(
+        tmp_path, safety_rows=safety_rows
+    )
+    md, json_out = run(di_path, informants_path, mc_path, sub_path)
+
+    # Confirm we're in the plain-CONFIRMED branch
+    assert json_out["note_k"]["disposition"] == "CONFIRMED", (
+        f"Expected CONFIRMED disposition, got {json_out['note_k']['disposition']!r}"
+    )
+    assert json_out["note_k"]["n_providers"] == 1
+
+    # D25 + D27 canonical wording: defensive guardrail must appear in plain-CONFIRMED branch.
+    # The guardrail text spans multiple markdown lines; normalise line-breaks before checking.
+    guardrail_substring = "a mechanism description, not a claim about the model's internal state"
+    md_normalised = md.replace("\n", " ")
+    assert guardrail_substring in md_normalised, (
+        f"Defensive guardrail not found in plain-CONFIRMED Markdown output.\n"
+        f"Expected substring: {guardrail_substring!r}\n"
+        f"Markdown (Note K section):\n"
+        + md[md.find("Note K Re-Evaluation"):] if "Note K Re-Evaluation" in md else md
+    )
+    # Mechanism description section must be present
+    assert "### Mechanism description" in md, (
+        "Mechanism description heading missing from plain-CONFIRMED Markdown output"
+    )
+    # The mechanism string must be blockquoted (> prefix), matching CONFIRMED-with-mechanism shape
+    mechanism = json_out["note_k"]["mechanism_string"]
+    assert f"> {mechanism}" in md, (
+        "Mechanism string not in blockquote in plain-CONFIRMED Markdown output"
+    )

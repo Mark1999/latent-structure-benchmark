@@ -540,15 +540,38 @@ def compute_note_k_disposition(
     domains_in_safety = sorted({row["domain"] for row in cross_provider_table})
     domain_str = " and ".join(domains_in_safety) if domains_in_safety else "unknown"
 
-    # Mechanism string per D20 — N values are computed from the actual artifact
-    # This string is the canonical D20 wording with actual counts substituted
-    mechanism_string = (
-        f"provider-safety-layer activation with two co-present trigger patterns "
-        f"— (a) AI-vs-human-research-subject framing (K-frame; N={k_frame_count}), "
-        f"(b) list-comprehensiveness/sensitivity vocabulary without K-frame "
-        f"(K-vocab; N={k_vocab_count}) "
-        f"— cross-provider replication on the {domain_str} domains"
-    )
+    # Mechanism string — D24 conditional wording based on n_providers.
+    # n_providers == 1: single-provider wording (D23) names the provider and narrows
+    #     the replication claim to cross-domain-within-provider.
+    # n_providers >= 2: original Amendment-3 D20 cross-provider wording, preserved for
+    #     any future cohort that does meet the cross-provider threshold.
+    # n_providers == 0 with CONFIRMED or higher: unreachable in valid state — raise.
+    if n_providers == 0 and total_safety_blocked >= NOTE_K_CONFIRMED_THRESHOLD:
+        raise ValueError(
+            "compute_note_k_disposition: n_providers == 0 but disposition would be "
+            "CONFIRMED or higher — this state is unreachable in valid data. "
+            f"total_safety_blocked={total_safety_blocked}, "
+            f"distinct_providers={distinct_providers!r}"
+        )
+    if n_providers == 1:
+        provider_name = next(iter(distinct_providers))
+        mechanism_string = (
+            f"provider-safety-layer activation with two co-present trigger patterns "
+            f"— (a) AI-vs-human-research-subject framing (K-frame; N={k_frame_count}), "
+            f"(b) list-comprehensiveness/sensitivity vocabulary without K-frame "
+            f"(K-vocab; N={k_vocab_count}) "
+            f"— cross-domain replication on the {domain_str} domains "
+            f"within a single provider ({provider_name})"
+        )
+    else:
+        # n_providers >= 2 (or n_providers == 0 with count below CONFIRMED threshold)
+        mechanism_string = (
+            f"provider-safety-layer activation with two co-present trigger patterns "
+            f"— (a) AI-vs-human-research-subject framing (K-frame; N={k_frame_count}), "
+            f"(b) list-comprehensiveness/sensitivity vocabulary without K-frame "
+            f"(K-vocab; N={k_vocab_count}) "
+            f"— cross-provider replication on the {domain_str} domains"
+        )
 
     # Disposition string (headline) per D20
     # For CONFIRMED-with-mechanism: mechanism string is the headline
@@ -839,7 +862,12 @@ def render_markdown(
         lines += [
             "### Mechanism description",
             "",
-            "Mechanism description: " + note_k["mechanism_string"],
+            "> " + note_k["mechanism_string"],
+            "",
+            "The framing above describes **what the model's output attributes the",
+            "safety event to** — a mechanism description, not a claim about the",
+            "model's internal state (per Amendment 3 §3.3 and Ruling 3",
+            "public-copy guardrails).",
             "",
             f"Note: disposition is `{note_k['disposition']}` (not",
             "CONFIRMED-with-mechanism) because the cross-provider replication",
