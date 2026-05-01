@@ -82,3 +82,10 @@ ignore_missing_imports = true
 [[tool.mypy.overrides]]
 module = "scipy.*"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# streamlit is an optional extra in apps/ops_dashboard/[ops]; not installed
+# in the base uv environment.  Ignore missing stubs rather than requiring the
+# full ops-extra install on every mypy run.
+module = "streamlit"
+ignore_missing_imports = true

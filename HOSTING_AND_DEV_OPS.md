@@ -126,6 +126,7 @@ Every PR against `main` gets an automatic preview deployment at a Cloudflare-gen
 | `scripts/qa_check.py` (the QA_Runner) | Validates each freshly written `InformantRecord` against the six deterministic checks; posts failures directly to `#lsb-alerts` | Automatically invoked by `runner.py` after each record, also invokable manually for backfills |
 | `cdb_social/runner.py` | Drafts social posts from new findings and writes them to `data/social_queue/pending/` for Mark to review | Cron, post-publish only |
 | Backup sync | Pushes new content from `data/raw/`, `data/processed/`, and `data/results/` to Backblaze B2 | Cron, nightly at 02:00 UTC |
+| `apps/ops_dashboard/app.py` (Streamlit) | Internal read-only inspection of collection results (freelist / pile-sort / decline interviews); bound to `127.0.0.1:8501`, accessible via `ssh -L 8501:localhost:8501 lsb-agent-02`; run on-demand in tmux with `uv run --with streamlit streamlit run apps/ops_dashboard/app.py --server.address=127.0.0.1` | On-demand in tmux |
 
 All VPS processes run as the `lsb` user (uid 999), not root. The `lsb-agent.service` systemd unit enforces `User=lsb`, `Group=lsb`. Claude Code runs from `/home/lsb/.local/bin/claude` under the `lsb` user.
 

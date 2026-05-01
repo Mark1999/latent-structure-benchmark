@@ -1,0 +1,13 @@
+[project]
+name = "lsb-ops-dashboard"
+version = "0.1.0"
+description = "Internal ops dashboard for LSB — read-only inspection of collection results"
+requires-python = ">=3.11"
+dependencies = []
+
+[project.optional-dependencies]
+# Install with: uv run --extra ops streamlit run apps/ops_dashboard/app.py
+# Or install the environment: uv pip install -e "apps/ops_dashboard[ops]"
+ops = [
+    "streamlit>=1.57,<1.58",
+]
