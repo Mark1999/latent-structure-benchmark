@@ -1476,3 +1476,97 @@ def test_d25_plain_confirmed_guardrail_in_markdown(tmp_path: Path) -> None:
     assert f"> {mechanism}" in md, (
         "Mechanism string not in blockquote in plain-CONFIRMED Markdown output"
     )
+
+
+# ── Amendment 4 augmenting tests (Tester, 2026-05-01) ────────────────────────
+# Gaps identified against the 7 Amendment 4 coverage points in task brief:
+#
+#  Gap #4 — n_providers == 0 error path: Architect §3 specifies "When n_providers == 0
+#            and disposition is CONFIRMED or higher, raise a clear error." No existing
+#            test exercises this path in compute_note_k_disposition. Added below.
+#
+#  Gap #5 — Symmetric guardrail in CONFIRMED-with-mechanism branch: D25 option (b)
+#            specifies the guardrail fires in BOTH branches.
+#            test_d25_plain_confirmed_guardrail_in_markdown covers plain-CONFIRMED;
+#            the CONFIRMED-with-mechanism branch has no explicit guardrail substring
+#            assertion. Added below.
+
+
+def test_n_providers_zero_with_confirmed_threshold_raises() -> None:
+    """compute_note_k_disposition raises ValueError when n_providers == 0
+    but total_safety_blocked >= NOTE_K_CONFIRMED_THRESHOLD.
+
+    This is the D24 error guard: n_providers == 0 with a CONFIRMED-level count
+    is an unreachable state in valid data and must raise rather than emit a
+    malformed mechanism string.
+
+    References:
+        Amendment 4 D24 — docs/status/2026-05-01-phase4a1-architect-plan-amendment-4.md §3
+    """
+    from cdb_analyze.manual_classification import DeclineManualClassification
+    from cdb_analyze.safety_subtype import SafetyAttributionSubtype
+
+    # Build 5 safety_event_attribution manual classifications (meets CONFIRMED threshold)
+    manual_classifications: dict[str, DeclineManualClassification] = {}
+    for i in range(5):
+        did = f"safety-zero-prov-{i:03d}"
+        manual_classifications[did] = DeclineManualClassification(
+            decline_interview_id=did,
+            manual_classification="safety_event_attribution",
+            manual_classification_rationale="Safety layer triggered.",
+            manual_classifier_id="mark",
+            response_verbatim_excerpt="Safety protocols prevented output.",
+            detector_flag_v1=True,
+        )
+
+    # 2 subtypes with k_frame
+    subtypes: dict[str, SafetyAttributionSubtype] = {}
+    for i in range(2):
+        did = f"safety-zero-prov-{i:03d}"
+        subtypes[did] = SafetyAttributionSubtype(
+            decline_interview_id=did,
+            safety_attribution_subtype="k_frame",
+            subtype_rationale="K-frame trigger.",
+            subtype_classifier_id="mark",
+        )
+
+    # secondary_view_a with empty cross_provider_table -> n_providers == 0
+    secondary_view_a_empty: dict = {
+        "matrix": {},
+        "triples": [],
+        "cross_provider_table": [],       # empty -> distinct_providers == set() -> n_providers == 0
+        "provider_subtype_counts": {},
+    }
+
+    with pytest.raises(ValueError, match="n_providers == 0"):
+        compute_note_k_disposition(manual_classifications, subtypes, secondary_view_a_empty)
+
+
+def test_d25_confirmed_with_mechanism_branch_also_has_guardrail(tmp_path: Path) -> None:
+    """D25 symmetric guardrail: CONFIRMED-with-mechanism branch must also emit
+    "a mechanism description, not a claim about the model's internal state".
+
+    The task brief coverage point #5 requires the guardrail in BOTH branches.
+    The existing test_d25_plain_confirmed_guardrail_in_markdown covers the plain-CONFIRMED
+    branch. This test covers the CONFIRMED-with-mechanism branch explicitly.
+
+    References:
+        Amendment 4 D25 option (b) —
+        docs/status/2026-05-01-phase4a1-architect-plan-amendment-4.md §3
+    """
+    # Use the standard 2-provider 9-row fixture which yields CONFIRMED-with-mechanism
+    di_path, informants_path, mc_path, sub_path = _build_amendment3_9row_fixture(tmp_path)
+    md, json_out = run(di_path, informants_path, mc_path, sub_path)
+
+    # Confirm we're in the CONFIRMED-with-mechanism branch
+    assert json_out["note_k"]["disposition"] == "CONFIRMED-with-mechanism", (
+        f"Expected CONFIRMED-with-mechanism, got {json_out['note_k']['disposition']!r}"
+    )
+
+    # D25: the symmetric guardrail must appear in the CONFIRMED-with-mechanism branch too
+    guardrail_substring = "a mechanism description, not a claim about the model's internal state"
+    md_normalised = md.replace("\n", " ")
+    assert guardrail_substring in md_normalised, (
+        f"Defensive guardrail not found in CONFIRMED-with-mechanism Markdown output.\n"
+        f"Expected substring: {guardrail_substring!r}"
+    )
