@@ -60,6 +60,11 @@ TOKEN_TOLERANCE = 1.0
 # transient failures (network blip, B2 outage) without false-positive noise.
 # Below this ceiling a single missed run still resolves before the alert fires.
 MAX_BACKUP_AGE_HOURS = 48
+# Check 9 is an infrastructure-tier check. It runs once per QA sweep (not once
+# per record) and never sets qa_passed=False on any InformantRecord. Its alert
+# path is post_infrastructure_alert, not post_to_slack. Adding this back into
+# run_record_checks is a methodology violation — see
+# docs/status/2026-05-01-check9-infra-split-cda-sme-verdict.md.
 
 # Check 8 (aggregate, per-(model, domain)): Minimum Spearman ρ between
 # Smith's S and Sutrop CSI rankings. Per docs/SME_REVIEW.md §2.1, Sutrop's
@@ -297,13 +302,15 @@ def check_9_backup_freshness(
     return None
 
 
-def run_qa_checks(
+def run_record_checks(
     record: InformantRecord,
     all_records: list[InformantRecord] | None = None,
 ) -> list[QAFailure]:
-    """Run all QA checks on an InformantRecord (checks 1–9).
+    """Run per-record QA checks on an InformantRecord (checks 1–8 only).
 
-    Returns a list of failures (empty if all pass).
+    Returns a list of failures (empty if all pass). Check 9 (backup freshness)
+    is an infrastructure-tier check and is intentionally excluded; call
+    run_infrastructure_checks() for that battery.
     """
     if all_records is None:
         all_records = [record]
@@ -319,7 +326,6 @@ def run_qa_checks(
         lambda: check_6_token_consistency(record),
         lambda: check_7_provider_request_id(record),
         lambda: check_8_label_count_match(record),
-        lambda: check_9_backup_freshness(),
     ]
 
     for check in checks:
@@ -328,6 +334,37 @@ def run_qa_checks(
             failures.append(result)
 
     return failures
+
+
+def run_infrastructure_checks() -> list[QAFailure]:
+    """Run infrastructure-tier QA checks.
+
+    Currently covers only backup freshness (Check 9). Future infrastructure
+    checks (e.g., disk free space, B2 reachability) may be added here without
+    changing the function signature. **Never mutates InformantRecord.qa_passed.**
+
+    Returns a list of failures (empty if all pass).
+    """
+    failures: list[QAFailure] = []
+    result = check_9_backup_freshness()
+    if result is not None:
+        failures.append(result)
+    return failures
+
+
+def run_qa_checks(
+    record: InformantRecord,
+    all_records: list[InformantRecord] | None = None,
+) -> list[QAFailure]:
+    """Run all QA checks on an InformantRecord (checks 1–8) plus infrastructure checks.
+
+    Deprecated for live collection. Prefer run_record_checks for per-record
+    contexts and run_infrastructure_checks for sweep contexts. Removal target:
+    F3 cleanup pass.
+
+    Returns a list of failures (empty if all pass).
+    """
+    return run_record_checks(record, all_records) + run_infrastructure_checks()
 
 
 def post_to_slack(
@@ -368,12 +405,64 @@ def post_to_slack(
         logger.error("Failed to post to Slack: %s", e)
 
 
+def post_infrastructure_alert(
+    failure: QAFailure,
+    webhook_url: str | None = None,
+) -> None:
+    """Post an infrastructure-tier QA failure to #lsb-alerts via Slack webhook.
+
+    Shape differs from post_to_slack because the failure is not tied to any
+    InformantRecord — it is a property of the operator's environment at sweep
+    time, not a property of any collected record. The header "QA Infrastructure
+    Failure" is distinct from the per-record "QA Failure" header so Mark can
+    distinguish the two alert types at a glance.
+
+    The alert body names the check, the threshold, the actual measured value,
+    and the path checked. No informant_id is included.
+    """
+    if webhook_url is None:
+        webhook_url = os.environ.get("LSB_ALERTS_WEBHOOK_URL")
+
+    if not webhook_url:
+        logger.warning(
+            "LSB_ALERTS_WEBHOOK_URL not set — logging infrastructure QA failure to stderr"
+        )
+        print(
+            f"QA INFRASTRUCTURE FAILURE: {failure}",
+            file=sys.stderr,
+        )
+        return
+
+    text = (
+        f":warning: *QA Infrastructure Failure* — Check {failure.check_num}\n"
+        f"Check: {failure.description}\n"
+        f"Threshold: {failure.threshold}\n"
+        f"Actual: {failure.actual}\n"
+        f"_No InformantRecord is affected. This reflects operator-environment "
+        f"state, not record-level QA. See ARCHITECTURE.md §4.1.6._"
+    )
+
+    try:
+        resp = requests.post(
+            webhook_url,
+            json={"text": text},
+            timeout=10,
+        )
+        resp.raise_for_status()
+    except Exception as e:
+        logger.error("Failed to post infrastructure alert to Slack: %s", e)
+
+
 def check_record(
     record: InformantRecord,
     all_records: list[InformantRecord] | None = None,
 ) -> bool:
-    """Run QA checks on a record and post failures. Returns True if all pass."""
-    failures = run_qa_checks(record, all_records)
+    """Run per-record QA checks on a record and post failures. Returns True if all pass.
+
+    Calls run_record_checks (checks 1–8 only). Infrastructure checks (check 9)
+    are handled separately by the CLI sweep via run_infrastructure_checks.
+    """
+    failures = run_record_checks(record, all_records)
     if failures:
         post_to_slack(record, failures)
         return False
@@ -546,7 +635,7 @@ def main() -> int:
 
     any_failed = False
     for record in records_to_check:
-        failures = run_qa_checks(record, all_records)
+        failures = run_record_checks(record, all_records)
         if failures:
             any_failed = True
             post_to_slack(record, failures)
@@ -557,6 +646,19 @@ def main() -> int:
                 )
         else:
             print(f"PASS: {record.informant_id}")
+
+    # Infrastructure checks (Check 9 — backup freshness).
+    # Runs once per sweep, not once per record. Never mutates qa_passed on
+    # any InformantRecord. Alert header is "QA Infrastructure Failure" to
+    # distinguish from per-record "QA Failure" alerts.
+    infra_failures = run_infrastructure_checks()
+    for infra_failure in infra_failures:
+        any_failed = True
+        post_infrastructure_alert(infra_failure)
+        print(
+            f"INFRASTRUCTURE FAIL: {infra_failure}",
+            file=sys.stderr,
+        )
 
     # Aggregate per-(model, domain) checks (Check 8 — salience agreement).
     # Runs on the same scope as the per-record checks.

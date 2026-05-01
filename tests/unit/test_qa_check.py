@@ -8,9 +8,11 @@ from datetime import date, datetime
 from pathlib import Path
 from unittest.mock import patch
 
+import pytest
 from cdb_core import FreelistRecord, InformantRecord, InterviewRecord, PileSortRecord
 
 # Import the check functions directly
+import scripts.qa_check as _qa_check_module
 from scripts.qa_check import (
     MAX_BACKUP_AGE_HOURS,
     check_1_freelist_count,
@@ -21,8 +23,11 @@ from scripts.qa_check import (
     check_6_token_consistency,
     check_7_provider_request_id,
     check_9_backup_freshness,
+    post_infrastructure_alert,
     post_to_slack,
+    run_infrastructure_checks,
     run_qa_checks,
+    run_record_checks,
 )
 
 
@@ -485,3 +490,55 @@ def test_check9_log_exactly_48h_returns_failure(tmp_path: Path) -> None:
     failure = check_9_backup_freshness(log_path=log_file)
     assert failure is not None
     assert failure.check_num == 9
+
+
+# ─── New split tests (task #F2-T11) ─────────────────────────────────
+
+def test_infrastructure_check_returns_check_9_when_log_missing(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_infrastructure_checks returns exactly one QAFailure with check_num==9
+    when _BACKUP_LOG_PATH points to a nonexistent file."""
+    nonexistent = tmp_path / "backup.log"
+    monkeypatch.setattr(_qa_check_module, "_BACKUP_LOG_PATH", nonexistent)
+    failures = run_infrastructure_checks()
+    assert len(failures) == 1
+    assert failures[0].check_num == 9
+
+
+def test_run_record_checks_does_not_invoke_check_9(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """run_record_checks never produces a QAFailure with check_num==9, even when
+    _BACKUP_LOG_PATH points to a nonexistent file."""
+    nonexistent = tmp_path / "backup.log"
+    monkeypatch.setattr(_qa_check_module, "_BACKUP_LOG_PATH", nonexistent)
+    record = _record()
+    failures = run_record_checks(record)
+    check_nines = [f for f in failures if f.check_num == 9]
+    assert check_nines == [], (
+        f"run_record_checks must not invoke check 9; got: {check_nines}"
+    )
+
+
+def test_post_infrastructure_alert_posts_expected_fields() -> None:
+    """post_infrastructure_alert posts to #lsb-alerts with the 'QA Infrastructure
+    Failure' header and includes check name, threshold, and actual value."""
+    from scripts.qa_check import QAFailure
+    failure = QAFailure(
+        9,
+        "Backup log missing",
+        f"< {MAX_BACKUP_AGE_HOURS}h since last backup",
+        "backup log missing: /opt/lsb-agent/logs/backup.log",
+    )
+    with patch("scripts.qa_check.requests.post") as mock_post:
+        mock_post.return_value.raise_for_status = lambda: None
+        post_infrastructure_alert(failure, webhook_url="https://hooks.test/infra")
+        mock_post.assert_called_once()
+        call_args = mock_post.call_args
+        assert call_args[0][0] == "https://hooks.test/infra"
+        payload_text = call_args[1]["json"]["text"]
+        assert "QA Infrastructure Failure" in payload_text
+        assert "Backup log missing" in payload_text
+        assert str(MAX_BACKUP_AGE_HOURS) in payload_text
+        assert "backup log missing" in payload_text

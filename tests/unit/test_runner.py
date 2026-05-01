@@ -7,6 +7,7 @@ from datetime import date
 from pathlib import Path
 from unittest.mock import MagicMock
 
+import pytest
 from cdb_collect.adapters.base import AdapterResult
 from cdb_collect.runner import run_baseline_sort, run_informant, run_two_pass
 from cdb_core import Domain, InformantRecord, ModelRef
@@ -265,3 +266,26 @@ def test_baseline_sort_returns_records():
         assert r.pile_sort.item_source == "baseline:romney_1996"
         assert r.pile_sort.stop_reason == "end_turn"
         assert r.freelist.stop_reason == "not_collected"
+
+
+# ─── Regression: check 9 must not affect runner qa_passed (task #F2-T11) ───
+
+
+def test_run_informant_no_backup_log_does_not_fail_qa(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """Even when logs/backup.log is absent, run_informant produces a record with
+    qa_passed=True (and empty qa_notes, or only the campaign_id tag if supplied).
+
+    Regression test for the infrastructure-split: the runner calls only
+    run_record_checks (checks 1–8), never run_infrastructure_checks (check 9).
+    A missing backup log is an operator-environment condition; it must not
+    corrupt the per-record qa_passed verdict.
+    """
+    import scripts.qa_check as _qa_check_module  # noqa: PLC0415
+    nonexistent_log = tmp_path / "backup.log"
+    monkeypatch.setattr(_qa_check_module, "_BACKUP_LOG_PATH", nonexistent_log)
+
+    record = asyncio.run(run_informant(_mock_adapter(), _domain(), 0))
+    assert record.qa_passed is True
+    assert record.qa_notes == ""

@@ -264,15 +264,15 @@ def _assemble_record(
     # run_qa_checks into cdb_collect.qa; deferred per CLAUDE.md §8 no-
     # scope-creep. See the F2-T10 re-shakedown surfacing.
     try:
-        from scripts.qa_check import run_qa_checks  # noqa: PLC0415
+        from scripts.qa_check import run_record_checks  # noqa: PLC0415
     except ModuleNotFoundError:
         import sys as _sys  # noqa: PLC0415
         from pathlib import Path as _Path  # noqa: PLC0415
         _project_root = str(_Path(__file__).resolve().parents[3])
         if _project_root not in _sys.path:
             _sys.path.insert(0, _project_root)
-        from scripts.qa_check import run_qa_checks  # noqa: PLC0415
-    failures = run_qa_checks(record)
+        from scripts.qa_check import run_record_checks  # noqa: PLC0415
+    failures = run_record_checks(record)
     qa_passed = len(failures) == 0
 
     failure_notes = "; ".join(f.actual for f in failures) if failures else ""
