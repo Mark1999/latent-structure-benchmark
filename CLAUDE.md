@@ -167,7 +167,6 @@ Default workflow for this repo is **direct commits to `master`**, not branch+PR.
 - A schema change would break the data dictionary or the open data bundle reproducibility guarantee
 - A frontend change would require a visual decision not in `DESIGN_SYSTEM.md`
 - A security or privacy concern arises that wasn't anticipated by `SECURITY_AND_HARDENING.md`
-- A spend cap is approaching the 80% warning threshold during a collection run
 
 In all of those cases, the right action is to stop, document the situation, and ask. The wrong action is to push through with a guess.
 

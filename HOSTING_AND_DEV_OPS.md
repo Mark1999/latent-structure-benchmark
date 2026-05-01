@@ -32,7 +32,7 @@ LSB has **four hosted surfaces** in v1, all small and most of them free or near-
 | **Project VPS** | Hetzner Cloud (Helsinki region) | ~$12 / month | `lsb-agent-01` runs the collection runner, the QA_Runner, the cron jobs, and the social pipeline. CPX32 instance: 4 vCPU, 8 GB RAM, 160 GB SSD |
 | **Open data bundle** | Backblaze B2 + Zenodo | ~$5 / month + free | Backblaze B2 hosts the bundle; Zenodo mints DOIs after Phase 4 validation. CC0 distribution per `ARCHITECTURE.md` §6.7 |
 
-**Total recurring cost:** approximately $17 / month for hosting + $50–90 / year for domains. This excludes LLM API spend (capped at $300/month per `ARCHITECTURE.md` §6.2 three-tier defense), which is the largest variable cost in the project but is *operational expense*, not hosting infrastructure.
+**Total recurring cost:** approximately $17 / month for hosting + $50–90 / year for domains. This excludes LLM API spend, which is the largest variable cost in the project but is *operational expense*, not hosting infrastructure.
 
 The architecture is deliberately **server-light**. There is no API server to maintain, no database server to maintain, no realtime backend, no auth system. The dashboard is static files; the analysis is batch; the collection runner is a cron job on a single VPS. v0.4 design decisions explicitly committed to this; see `ARCHITECTURE.md` §4.4.5 ("Why no FastAPI") and §1 commitment 5 ("Small surface area").
 
@@ -124,13 +124,12 @@ Every PR against `main` gets an automatic preview deployment at a Cloudflare-gen
 |---|---|---|
 | `cdb_collect/runner.py` | Pulls from the collection queue, makes API calls to Anthropic / OpenRouter / Hugging Face Inference Providers, writes `RawResponse` and `InformantRecord` records | Manually triggered by Mark via `python scripts/collect.py`, or via a cron during structured collection campaigns |
 | `scripts/qa_check.py` (the QA_Runner) | Validates each freshly written `InformantRecord` against the six deterministic checks; posts failures directly to `#lsb-alerts` | Automatically invoked by `runner.py` after each record, also invokable manually for backfills |
-| `scripts/cost_report.py` | Aggregates spend from the raw lake and posts a weekly summary | Cron, every Monday morning UTC |
 | `cdb_social/runner.py` | Drafts social posts from new findings and writes them to `data/social_queue/pending/` for Mark to review | Cron, post-publish only |
 | Backup sync | Pushes new content from `data/raw/`, `data/processed/`, and `data/results/` to Backblaze B2 | Cron, nightly at 02:00 UTC |
 
 All VPS processes run as the `lsb` user (uid 999), not root. The `lsb-agent.service` systemd unit enforces `User=lsb`, `Group=lsb`. Claude Code runs from `/home/lsb/.local/bin/claude` under the `lsb` user.
 
-**Note:** The cost report cron, social runner cron, and backup sync listed above are the target design. As of 2026-04-15, only `runner.py` and `qa_check.py` are active; the others are planned (see §3.4 and §4.1 for status).
+**Note:** The social runner cron and backup sync listed above are the target design. As of 2026-04-15, only `runner.py` and `qa_check.py` are active; the others are planned (see §3.4 and §4.1 for status).
 
 The VPS is **not** an inference host. There is no Ollama, no llama.cpp, no on-prem GPU. All model inference happens via the three remote API surfaces. The VPS just orchestrates calls and stores results.
 
@@ -173,7 +172,6 @@ When an orchestrator is reintroduced, only the `ExecStart=` line needs editing.
 The following timers are the target design but do not exist yet. They will be created as part of the automation implementation work:
 
 ```
-lsb-cost-report.timer          # Planned: Mondays 09:00 UTC, runs scripts/cost_report.py
 lsb-social-runner.timer        # Planned: Triggered post-publish via a hook, not a fixed schedule
 ```
 
@@ -252,10 +250,6 @@ All workflows live in `.github/workflows/`. Each is a single YAML file scoped to
 |---|---|---|---|
 | `ci.yml` | Push to any branch, PR against `main` | ruff check, mypy on `packages/`, pytest on `tests/`, the `cdb_analyze` no-LLM-imports static check (per `ARCHITECTURE.md` §1 commitment 6 and §4.2 binding constraint) | P0-T6 |
 | `publish.yml` | Push to `main` that touches `data/results/` | Runs `python scripts/publish.py`, commits the resulting JSON files to `apps/dashboard/public/data/`, pushes back to `main` (which triggers the Cloudflare Pages auto-deploy) | Phase 6 (manual until then) |
-| `weekly-cost-report.yml` | Cron, every Monday 09:00 UTC | Runs `scripts/cost_report.py --month current` and writes to `data/cost_reports/{YYYY-MM-DD}.txt`, commits and pushes | Phase 6 |
-| `weekly-cost-alert.yml` | Cron, every Monday 10:00 UTC (after the cost report) | Reads the latest cost report, checks if month-to-date actual spend exceeds 80% of `CDB_MAX_SPEND_USD`, if so posts an alert to `#lsb-alerts` | Phase 6 |
-
-The `weekly-cost-alert.yml` job is the third tier of the spend-cap defense per `ARCHITECTURE.md` §6.2 (tier 1 is the in-process runtime cap, tier 2 is the per-provider account caps, tier 3 is this weekly check). It posts to `#lsb-alerts` rather than to `#lsb-cda-sme` because it's an operational alert, not a development decision — see `ARCHITECTURE.md` §5.4 for the channel routing rules.
 
 ### 5.2 GitHub Actions secrets
 
@@ -263,7 +257,7 @@ The following secrets must be configured in the GitHub repository settings (Sett
 
 | Secret | Used by | Sourced from |
 |---|---|---|
-| `LSB_ALERTS_WEBHOOK_URL` | `weekly-cost-alert.yml` | The Slack webhook for `#lsb-alerts` |
+| `LSB_ALERTS_WEBHOOK_URL` | (none in v1; used when cron-based alerting is added) | The Slack webhook for `#lsb-alerts` |
 | `B2_KEY_ID` | (none in v1; Phase 6 if open bundle publishing moves to GitHub Actions) | Backblaze B2 |
 | `B2_APPLICATION_KEY` | (none in v1; Phase 6) | Backblaze B2 |
 | `CLOUDFLARE_API_TOKEN` | (none in v1; Cloudflare Pages auto-deploys without an API token) | — |
@@ -347,10 +341,9 @@ The full list of environment variables LSB reads, where each one is set, and wha
 | **`ANTHROPIC_API_KEY`** | Yes | `lsb-agent-01:.env` | `cdb_collect/adapters/anthropic.py` | Anthropic API auth |
 | **`OPENROUTER_API_KEY`** | Yes | `lsb-agent-01:.env` | `cdb_collect/adapters/openrouter.py` | OpenRouter API auth |
 | **`HUGGINGFACE_API_KEY`** | Yes | `lsb-agent-01:.env` | `cdb_collect/adapters/huggingface.py` | Hugging Face Inference Providers auth |
-| **`CDB_MAX_SPEND_USD`** | Yes (default `300`) | `lsb-agent-01:.env` | `cdb_collect/runner.py` (tier 1 of the three-tier spend defense) | Hard runtime spend cap per `ARCHITECTURE.md` §6.2 |
 | **`B2_KEY_ID`** | Yes (for backups and open bundle publishing) | `lsb-agent-01:.env` | Nightly backup script, `scripts/build_db.py` | Backblaze B2 API auth |
 | **`B2_APPLICATION_KEY`** | Yes | `lsb-agent-01:.env` | Same | Backblaze B2 API auth |
-| **`LSB_ALERTS_WEBHOOK_URL`** | Yes | `lsb-agent-01:.env` AND GitHub Actions secrets | `scripts/qa_check.py`, `weekly-cost-alert.yml` | Slack `#lsb-alerts` posting |
+| **`LSB_ALERTS_WEBHOOK_URL`** | Yes | `lsb-agent-01:.env` | `scripts/qa_check.py` | Slack `#lsb-alerts` posting |
 | **`LSB_CDA_SME_WEBHOOK_URL`** | Yes | Mark's local Claude Code env | CDA SME agent | Slack `#lsb-cda-sme` posting |
 | **`LSB_UI_UX_WEBHOOK_URL`** | Yes | Mark's local Claude Code env | UI/UX agent | Slack `#lsb-ui-ux` posting |
 | `OPENAI_API_KEY` | No | `lsb-agent-01:.env` (if used) | `cdb_collect/adapters/openai.py` (currently routed via OpenRouter; direct OpenAI is a future option) | Direct OpenAI API auth, not v1 |
@@ -377,9 +370,8 @@ The full list of environment variables LSB reads, where each one is set, and wha
 | HuggingFace Datasets | $0 | — | Free for public datasets |
 | ProtonMail security contact | ~$5 | monthly | Existing personal Proton account; LSB pays for the dedicated `security@cogstructurelab.ai` address as part of the existing plan |
 | **Total infrastructure** | **~$23 / month + ~$80 / year** | | Excluding LLM API spend |
-| LLM API spend (variable) | Up to $300 | monthly | Capped via the three-tier defense per `ARCHITECTURE.md` §6.2 |
 
-The infrastructure cost is small enough to be a personal expense for Mark and does not require external funding or grant support to sustain. The LLM API spend is the largest variable and is what the spend cap exists to control.
+The infrastructure cost is small enough to be a personal expense for Mark and does not require external funding or grant support to sustain.
 
 ---
 

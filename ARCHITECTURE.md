@@ -328,7 +328,7 @@ cdb/
 │   ├── publish.py                 # invokes cdb_publish.build
 │   ├── qa_check.py                # deterministic QA, §4.1.6
 │   ├── build_db.py                # JSONL → SQLite for the open data bundle, §6.7
-│   └── cost_report.py             # weekly spend summary, see §6.2
+│   └── cost_report.py             # spend summary (on-demand; see §6.2)
 └── tests/
     ├── unit/
     ├── integration/
@@ -716,9 +716,8 @@ The briefing mentions "multiple runs per model per domain to distinguish signal 
 - **Default:** `N=5` runs per `(model, domain, step)` tuple.
 - **Temperature:** 0.7 for free listing (we want variance to surface salience distribution), 0.3 for pile sorting (we want the model's modal categorization).
 - **Seed variation:** where the provider supports it, use distinct seeds per run. Where it doesn't, variance comes from sampling temperature alone.
-- **Prompt-sensitivity study (Phase 4b validation gate):** 8 prompt variants per step on 2 reference models (Claude Opus + GPT flagship) to estimate within-model variance for the G1 gate (§5.3). Cost is bounded — see §6.2 for the spend cap mechanics.
-- **Extended sensitivity (optional):** 16–32 prompt variants on selected open-weight models via OpenRouter and/or Hugging Face Inference Providers within the monthly spend cap — useful for comparing provider-routing variance without any local inference layer.
-- **Spend cap.** Collection runs honor a hard monthly cap (default `CDB_MAX_SPEND_USD=300`) and halt cleanly when reached. See §6.2 for the three-tier defense (runtime cap, per-provider account caps, weekly cost reports).
+- **Prompt-sensitivity study (Phase 4b validation gate):** 8 prompt variants per step on 2 reference models (Claude Opus + GPT flagship) to estimate within-model variance for the G1 gate (§5.3).
+- **Extended sensitivity (optional):** 16–32 prompt variants on selected open-weight models via OpenRouter and/or Hugging Face Inference Providers — useful for comparing provider-routing variance without any local inference layer.
 
 At analysis time, per-run data is aggregated into a consensus free list and a consensus co-occurrence matrix per `(model, domain)`. This is the standard CDA move when multiple informants (here, runs) represent the same "culture" (here, the model).
 
@@ -734,8 +733,6 @@ python scripts/collect.py --model claude-opus-4-6 --domain family
 # dry-run — prints what would be called, no API hits
 python scripts/collect.py --domain family --dry-run
 
-# show current month's spend without collecting
-python scripts/cost_report.py --month current
 ```
 
 #### 4.1.5 Open decisions
@@ -1307,7 +1304,7 @@ All collection runs use **three API endpoints** — no local inference mirror, n
 2. **OpenRouter** — frontier closed models and many open-weight models through a single HTTP API (including long-tail and regional routes where applicable).
 3. **Hugging Face Inference Providers** — specialist open models when OpenRouter is not the right fit.
 
-The runner and adapters live on ordinary project VPS (`lsb-agent-01`) / CI infrastructure; scaling is by concurrency limits and the spend cap, not by adding on-prem GPUs.
+The runner and adapters live on ordinary project VPS (`lsb-agent-01`) / CI infrastructure; scaling is by concurrency limits, not by adding on-prem GPUs.
 
 **Milestone A — smallest vertical slice (one session)**
 
@@ -1318,14 +1315,11 @@ The runner and adapters live on ordinary project VPS (`lsb-agent-01`) / CI infra
 - **`InformantRecord` written to `data/raw/informants.jsonl` with full provenance (provider request ID + SHA256 manifest)**
 - **`scripts/qa_check.py` (§4.1.6) wired up and posting to `#lsb-alerts` on failure**
 - Test with a fixture so the Coder doesn't burn the API budget
-- `scripts/cost_report.py` wired up with basic per-run cost tracking (the full three-tier defense is Phase 1's exit criterion for this milestone — see §6.2)
-- Spend cap enforcement: `CDB_MAX_SPEND_USD` env var read by the runner; hard halt at 100%, warning logged at 80%
 
 **Milestone B — full multi-provider collection (follow-on)**
 
 - OpenRouter adapter and Hugging Face Inference Providers adapter wired for the full 12-model slate (exact IDs per §3.2 `ModelRef` and the locked list in §7)
 - `collection_method` on each `ModelRef` set to `anthropic_api`, `openrouter`, or `huggingface` according to which integration point served that run
-- Per-provider account caps configured on each provider dashboard (~$100–150 each) as the second tier of the three-tier spend defense
 - `scripts/build_db.py` first cut: read `informants.jsonl`, write `lsb.sqlite`. Enables the Phase 6+ open data bundle (§6.7).
 
 **Phase 2 — Full protocol for one model (one session)**
@@ -1346,7 +1340,7 @@ This phase is a formal scientific gate, not a build step. Nothing downstream shi
 
 *4a. Multi-model collection.* Using the Phase 1 adapters (Anthropic, OpenRouter, Hugging Face Inference Providers as needed), run the full family domain across the 12-model slate with N=5 runs each. This produces the first real dataset.
 
-*4b. Prompt-sensitivity study (`sensitivity.py`).* Generate 8 paraphrased variants of the free-list and pile-sort prompts (semantically equivalent, lexically different). Run 2 reference models (Claude Opus 4.6 and the current GPT flagship) across all 8 variants with N=5 each. Compute within-model variance (across prompt variants) and between-model variance (across the 12 models from 4a). Optionally extend to 16 or 32 variants on selected open-weight models via OpenRouter and/or Hugging Face Inference Providers within the monthly spend cap.
+*4b. Prompt-sensitivity study (`sensitivity.py`).* Generate 8 paraphrased variants of the free-list and pile-sort prompts (semantically equivalent, lexically different). Run 2 reference models (Claude Opus 4.6 and the current GPT flagship) across all 8 variants with N=5 each. Compute within-model variance (across prompt variants) and between-model variance (across the 12 models from 4a). Optionally extend to 16 or 32 variants on selected open-weight models via OpenRouter and/or Hugging Face Inference Providers.
 
 **Reframe (post-F1 SME review).** The sensitivity study is not only a validity check for prompt stability — it is the **primary variance-generation mechanism** for the Register 2 cultural consensus analysis and, more importantly, will be the *only* variance mechanism available for deterministic future architectures (neurosymbolic systems, zero-temperature models). The gate semantics of G1 (below) are unchanged; the explanatory framing is updated throughout the docs and the generated text.
 
@@ -1435,24 +1429,7 @@ Three operational Slack channels carry agent and watchdog output. Each one has a
 
 ### 6.2 Cost tracking
 
-Every `RawResponse` carries `cost_usd`. The spend cap is enforced via three independent tiers — each tier catches failures the others miss.
-
-**Tier 1 — Runtime cap (in-process).** The collection runner reads `CDB_MAX_SPEND_USD` from the environment (default: `300`). Before each API call it checks cumulative spend for the current calendar month against this value. At 80% it logs a warning. At 100% it halts cleanly — writes the current run to the raw lake, flushes any in-flight state, and exits with a non-zero code and a clear message. No API call is made after the cap is reached. The cap value is set in `.env` and must never be committed.
-
-**Tier 2 — Per-provider account caps.** Each provider dashboard (Anthropic, OpenAI, Google AI Studio, OpenRouter) has a hard monthly spending limit set to approximately $100–150. These are configured directly in each provider's billing settings, independent of the codebase. If Tier 1 fails (e.g., due to a bug in the runner, a parallel process, or a different project using the same key), Tier 2 catches runaway spend before it reaches the monthly ceiling. Tier 2 caps should sum to approximately the Tier 1 cap — if `CDB_MAX_SPEND_USD=300`, set individual caps so no single provider exceeds $150.
-
-**Tier 3 — Weekly cost reports.** `scripts/cost_report.py` aggregates spend from the raw lake by model, domain, and time range and prints a summary. Running it weekly gives Mark visibility into month-to-date actuals before problems compound. In Phase 6+, a GitHub Actions cron job runs `cost_report.py --month current` every Monday and writes the output to `data/cost_reports/{YYYY-MM-DD}.txt` (git-tracked, small). Any week where month-to-date actual spend exceeds 80% of the cap triggers a Slack/email alert (implementation: a simple threshold check in the cron job). No pre-run or extrapolated projections — the alert fires on observed spend only.
-
-```bash
-# view current month's spend by model
-python scripts/cost_report.py --month current
-
-# view a specific month
-python scripts/cost_report.py --month 2026-03
-
-# view all time, grouped by domain
-python scripts/cost_report.py --all --group-by domain
-```
+**Cost tracking.** Authoritative spend lives on the provider dashboards (Anthropic, OpenAI, Google AI Studio, OpenRouter, Hugging Face). LSB does not track cost in-repo. Per-provider hard caps are configured directly on each account and are the only enforced spend constraint.
 
 **Anthropic prompt caching for orchestrator calls (added v0.6).** All static documents passed into agent API calls — `ARCHITECTURE.md`, `CLAUDE.md`, `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_4C_CANDIDATE_SOURCES.md`, `PHASE_0_TASKS.md`, `docs/DATA_DICTIONARY.md`, the §1.5.4 language guardrails table, and any other long-lived context the orchestrator passes into Claude — **must use Anthropic prompt caching**. These documents are large, change rarely, and are passed into nearly every agent task. Without caching, every task pays the full input-token cost on every invocation. With caching, the per-task orchestrator cost drops by approximately 80%. Implementation: pass `cache_control={"type": "ephemeral"}` on the relevant content blocks per the Anthropic API docs. The Reviewer agent must reject any orchestrator call that passes one of the listed static documents without prompt caching enabled — this is a binding cost-control rule, not a stylistic preference. Per-document caching keys should be derived from the file's git SHA so that an updated document invalidates its own cache without forcing a full rebuild.
 
@@ -1529,7 +1506,6 @@ LSB publishes its full result set as open data. This section is the contract.
 **What is *not* published:**
 
 - **API keys** — never. Anywhere. The bundle build script verifies that no `.env` file or key-shaped string is present in the bundle directory before upload.
-- **Cost reports** (`data/cost_reports/`) — internal financial information. Spend totals and per-provider breakdowns are LSB's internal accounting and not relevant to the research artifact.
 - **Backup snapshots, security logs, or anything from `SECURITY_AND_HARDENING.md` workflows.**
 - **Pre-Phase-4 data.** The bundle is published only after the Phase 4 validation gates have passed. Pre-validation collection runs are kept locally for the historical record but are not part of the public distribution — releasing data the project itself has not validated would undermine the validation gate's purpose.
 
@@ -1554,7 +1530,7 @@ All open decisions from §7 of v0.3.1 are resolved as of v0.4. The table below r
 | # | Decision | Resolution | Implemented in |
 |---|---|---|---|
 | 1 | **Hosting.** Cloudflare Pages vs. Vercel vs. self-host. | **Cloudflare Pages.** Free tier, global CDN, auto-deploy from main branch, `_headers` file for CSP enforcement. No Cloudflare Workers needed — the static publish architecture eliminates any server-side compute requirement. | §4.4, §4.4.3, §4.4.4 |
-| 2 | **Budget cap for collection runs.** What's the monthly ceiling? | **$300/month** with three-tier defense: (1) `CDB_MAX_SPEND_USD=300` runtime cap with hard halt at 100% and warning at 80%, (2) per-provider account caps of ~$100–150 each on every provider dashboard, (3) weekly `cost_report.py` run reporting actual spend against the cap. Pre-run cost projections are not produced — the $300 runtime cap is the binding guardrail. | §4.1.3, §6.2 |
+| 2 | **Budget cap for collection runs.** What's the monthly ceiling? | **SUPERSEDED 2026-05-01.** Original resolution: $300/month with three-tier defense. Superseded by task #F2-T12: spend tracking removed from the codebase; authoritative spend now lives on provider dashboards only. Per-provider hard caps are configured directly on each account. See §6.2. | §6.2 |
 | 3 | **Model inclusion list for v1.** How many models, which ones? | **12-model slate** filtered on three axes: origin (US, EU, China), openness (closed-weight, open-weight), and collection method (`anthropic_api`, `openrouter`, `huggingface`). Models are reached only via the three remote APIs in §5.3 Phase 1 — no local mirror. Exact model IDs per §3.2 and the locked list in this table's era. | §3.2 ModelRef schema, §4.1.3, §5.3 Phase 1 |
 | 4 | **Domain order.** Which domains ship in v1, in what order? | **family → holidays → food.** Family is the most interpretable and is grounded (Romney 1996). Holidays has the most visually obvious finding for a journalist. Food produces strong cross-model divergence. These three constitute a credible v1. | §5.3 Phase 4a, Phase 6 |
 | 5 | **Benchmark name.** "Cultural Domain Benchmark" is unmemorable. | **Latent Structure Benchmark (LSB)** for the benchmark; **Cognitive Structure Lab** for the website at `cogstructurelab.com` (with `cogstructurelab.ai` owned and redirecting — v0.5). Two-name split intentional — each name optimizes for its job. | §1.6 |
@@ -1576,7 +1552,7 @@ All open decisions from §7 of v0.3.1 are resolved as of v0.4. The table below r
 | 21 | **Cloudflare paid tier.** Upgrade for WAF/bot management? | **Free tier for v1.** Pro tier deferred until reputational attackers become a real pattern. | `SECURITY_AND_HARDENING.md` §10 |
 | 22 | **`unsafe-inline` in CSP.** Tailwind forces it for styles — accept or eliminate? | **Accept for v1** with Reviewer tracking. Drop `'unsafe-inline'` if build moves to fully external stylesheets. | `SECURITY_AND_HARDENING.md` §3.1 |
 | 23 | **Phase 0 scope.** Add security tasks to Phase 0 or defer? | **Add to Phase 0.** P0-T9 (security scaffolding) and P0-T10 (CSP + `_headers`) are Phase 0 deliverables. Phase 0 is now 10 tasks. | `PHASE_0_TASKS.md` P0-T9, P0-T10 |
-| 24 | **`data/cost_reports/` tracking.** Git-tracked or git-ignored? | **Git-tracked.** Small text files; free audit trail of spend over time. Written by the weekly cron. | §6.2 |
+| 24 | **`data/cost_reports/` tracking.** Git-tracked or git-ignored? | **SUPERSEDED 2026-05-01.** Original resolution: git-tracked. Superseded by task #F2-T12: `data/cost_reports/` directory removed in a follow-up commit (Task 3); LSB does not track cost in-repo. | §6.2 |
 
 ---
 
@@ -1629,7 +1605,6 @@ Listing these to keep the Coder agent from scope-creep:
 - **GroundingRef** — the pydantic schema type that tracks the human CDA baseline injected as a virtual informant into the analysis pipeline. Fields include source citation, year, n_informants, MDS coordinates, and distance to nearest model. See §3.2.
 - **Phase 1 (collection)** — unified phase: remote APIs only (Anthropic API, OpenRouter, Hugging Face Inference Providers) on project VPS; milestones A then B within §5.3. No Phase 1a/1b hardware split.
 - **Three-axis filtering** — the model-selection and display filter applied to the 12-model slate: origin (US / EU / China) × openness (closed-weight / open-weight) × collection method (`anthropic_api` / `openrouter` / `huggingface`). The dashboard's `ModelFilter` component exposes all three axes. See §3.2, §4.5.
-- **Spend cap three-tier defense** — the layered cost control: (1) `CDB_MAX_SPEND_USD` runtime cap in the collection runner, (2) per-provider account caps set in each provider's billing dashboard, (3) weekly `cost_report.py` run reporting month-to-date actual spend against the cap. See §6.2.
 - **`cdb_publish`** — the Python package responsible for reading `data/results/` and writing pre-shaped static JSON files to `apps/dashboard/public/data/` at build time. Replaces the former `cdb_api` FastAPI service. See §4.4.
 
 ---
