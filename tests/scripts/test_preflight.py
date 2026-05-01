@@ -175,8 +175,11 @@ def test_create_adapter_openai(registry_file: Path) -> None:
     assert isinstance(adapter, OpenAICompatAdapter)
 
 
-def test_create_adapter_google(registry_file: Path) -> None:
+def test_create_adapter_google(
+    registry_file: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
     from cdb_collect.adapters import GeminiAdapter
+    monkeypatch.setenv("GOOGLE_API_KEY", "test-dummy")
     ref = _load_model_ref("google/gemini-2.5-pro")
     adapter = _create_adapter(ref)
     assert isinstance(adapter, GeminiAdapter)
