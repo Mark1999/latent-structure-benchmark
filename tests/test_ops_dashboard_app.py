@@ -255,6 +255,13 @@ class TestAvailableDomains:
 
         assert result == ["animals", "music", "weather"]
 
+    def test_single_record(self) -> None:
+        """Single record returns a one-element list."""
+        records = [_make_record(informant_id="f01", domain_slug="solo-domain")]
+        result = available_domains(records)
+
+        assert result == ["solo-domain"]
+
 
 # ── apply_filters ──
 
@@ -311,6 +318,26 @@ class TestApplyFilters:
         # Both models are in the list — all five records should be returned
         assert len(result) == 5
 
+    def test_filter_multi_model_ids_or_semantics_with_phantom(
+        self, five_records: list[InformantRecord]
+    ) -> None:
+        """OR-within-axis: a nonexistent model in the list does not suppress
+        results for a model that does exist.
+
+        Proves that model_ids is treated as 'record.model_id IN set', not
+        'record.model_id == all listed values'.  If apply_filters mistakenly
+        ANDed the model values together, zero records would be returned here.
+        """
+        result = apply_filters(
+            five_records,
+            model_ids=["gpt-4o", "nonexistent-model"],
+            domains=[],
+        )
+
+        # Only gpt-4o records should be returned; the phantom entry is ignored
+        assert len(result) == 2
+        assert all(r.model_id == "gpt-4o" for r in result)
+
     def test_filter_multi_domains(
         self, five_records: list[InformantRecord]
     ) -> None:
@@ -324,6 +351,26 @@ class TestApplyFilters:
         assert len(result) == 3
         returned_domains = {r.domain_slug for r in result}
         assert returned_domains == {"family", "holidays"}
+
+    def test_filter_multi_domains_or_semantics_with_phantom(
+        self, five_records: list[InformantRecord]
+    ) -> None:
+        """OR-within-axis: a nonexistent domain in the list does not suppress
+        results for a domain that does exist.
+
+        Mirrors test_filter_multi_model_ids_or_semantics_with_phantom for the
+        domain axis.  Verifies that domains is treated as a set membership
+        check rather than an AND across all listed values.
+        """
+        result = apply_filters(
+            five_records,
+            model_ids=[],
+            domains=["food", "nonexistent-domain"],
+        )
+
+        # Only food records should be returned; the phantom entry is ignored
+        assert len(result) == 2
+        assert all(r.domain_slug == "food" for r in result)
 
     def test_filter_multi_model_and_multi_domain(
         self, five_records: list[InformantRecord]
