@@ -146,7 +146,6 @@ CREATE TABLE decline_interviews (
   output_tokens INTEGER NOT NULL,
   latency_ms INTEGER NOT NULL,
   stop_reason TEXT NOT NULL,
-  cost_usd REAL NOT NULL,
   qa_notes TEXT NOT NULL DEFAULT '',
   version_drift_flag INTEGER NOT NULL DEFAULT 0,
   FOREIGN KEY (originating_informant_id) REFERENCES informants(informant_id)
@@ -173,7 +172,7 @@ def _insert_decline_interview(cur: sqlite3.Cursor, rec: dict) -> None:
           ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?,
-          ?, ?, ?, ?, ?,
+          ?, ?, ?, ?,
           ?, ?, ?
         )
         """,
@@ -199,7 +198,6 @@ def _insert_decline_interview(cur: sqlite3.Cursor, rec: dict) -> None:
             rec["output_tokens"],
             rec["latency_ms"],
             rec["stop_reason"],
-            rec["cost_usd"],
             rec.get("qa_notes", ""),
             1 if rec.get("version_drift_flag", False) else 0,
         ),

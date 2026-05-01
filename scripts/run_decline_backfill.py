@@ -1438,7 +1438,7 @@ def run_execute(
         t_end = time.monotonic()
 
         call_latency_ms = (t_end - t_start) * 1000.0
-        call_cost = interview.cost_usd if interview.cost_usd else cost_per_call
+        call_cost = cost_per_call
         running_total += call_cost
         latency_ms_list.append(call_latency_ms)
 

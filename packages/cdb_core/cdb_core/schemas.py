@@ -97,7 +97,6 @@ class RawResponse(BaseModel):
     request: dict
     response: dict
     latency_ms: int
-    cost_usd: float | None
 
 
 class FreeList(BaseModel):
@@ -617,7 +616,6 @@ class DeclineInterview(BaseModel):
     output_tokens: int
     latency_ms: int
     stop_reason: str
-    cost_usd: float
 
     # ── QA / drift ──
     qa_notes: str = ""

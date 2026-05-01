@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1 (first draft, aligned with `ARCHITECTURE.md` v0.7)  
+**Version:** v0.1.10 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.10** (2026-05-01) — Task #F2-T13: `cost_usd` field removed from `RawResponse` and `DeclineInterview`. The field was a token-count × table-rate estimate, not authoritative billing data; authoritative spend lives on provider dashboards per `ARCHITECTURE.md` §6.2. Pydantic v2 default `extra='ignore'` semantics handle existing on-disk records: the legacy field is silently dropped on read; no edits to existing JSONL lines. `cost_usd` column also removed from the `decline_interviews` table DDL in `scripts/build_db.py` and from `DATA_DICTIONARY.md` §10.2, §10.4, and §10.5. Reference: Task 1 commit `d491ad9` (§6.2 stub). Task 3 follows (delete `spend.py`, sweep adapter call-sites).
 - **v0.1.9** (2026-04-23) — Task #15 (Phase 4a T7): Added §1.6 documenting stored-vs-rerun `qa_passed` semantics. `qa_passed` is a point-in-time snapshot; re-running `scripts/qa_check.py` may produce different results when pool-aggregation Check 2 (free-list cross-run uniqueness) flips as the cohort grows. The divergence materialized in the shakedown corpus (Position C replay, 2026-04-22) but NOT in Phase 4a (T6 QA sweep: zero divergences, 101 records, 12-model diversity distributes the pool). Downstream consumers wanting the "final" QA status against the full corpus should re-run the check battery. No schema change. Cross-reference: `docs/status/2026-04-22-position-c-replay-verdict.md`, `docs/status/2026-04-23-phase4a-t6-qa-sweep.md`.
 - **v0.1.8** (2026-04-23) — Task #28: `romney_small_n_warning` threshold updated from `n < 8` to `n < 15` per CDA SME reconciliation (`docs/status/2026-04-23-small-n-threshold-sme-amendment.md`). Grounded in `SME_REVIEW.md` §1.1 small-n rationale (Anders & Batchelder 2015; Romney-Weller-Batchelder 1986 calibration at n=20-40). Field value changes for n=8-14 (previously False, now True). Pipeline, schema docstring, tests, and this doc co-updated.
 - **v0.1.7** (2026-04-23) — Task #26: `DeclineInterview` pydantic schema added to `cdb_core/schemas.py`. New JSONL file `data/raw/decline_interviews.jsonl`. New `decline_interviews` table in `lsb.sqlite`. See §10 and `docs/DECLINE_INTERVIEW_PROTOCOL.md`. CDA SME verdict: `docs/status/2026-04-23-decline-interview-protocol-sme-verdict.md`.
@@ -882,7 +883,6 @@ When a primary collection step (free listing, pile sorting, or pile interview) p
 | `output_tokens` | `int` | Yes | Provider-reported output token count. |
 | `latency_ms` | `int` | Yes | Wall-clock latency for the follow-up call in milliseconds. |
 | `stop_reason` | `str` | Yes | Provider stop reason. |
-| `cost_usd` | `float` | Yes | Computed cost in USD for the follow-up call. |
 
 #### QA / drift
 
@@ -932,7 +932,6 @@ CREATE TABLE decline_interviews (
   output_tokens INTEGER NOT NULL,
   latency_ms INTEGER NOT NULL,
   stop_reason TEXT NOT NULL,
-  cost_usd REAL NOT NULL,
   qa_notes TEXT NOT NULL DEFAULT '',
   version_drift_flag INTEGER NOT NULL DEFAULT 0,  -- 0=False, 1=True
   FOREIGN KEY (originating_informant_id) REFERENCES informants(informant_id)
@@ -966,7 +965,6 @@ CREATE TABLE decline_interviews (
   "output_tokens": 148,
   "latency_ms": 2341,
   "stop_reason": "end_turn",
-  "cost_usd": 0.0028,
   "qa_notes": "",
   "version_drift_flag": false
 }

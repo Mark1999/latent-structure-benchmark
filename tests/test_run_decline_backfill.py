@@ -1925,7 +1925,7 @@ class TestExecutePath:
         """Final summary total matches the sum of per-call costs."""
         informants = [self._glm_informant(i) for i in range(3)]
         exit_code, stdout, stderr, records = _run_execute_capture(
-            informants, [], tmpdir, source="informants", adapter_cost=0.07
+            informants, [], tmpdir, source="informants", cost_per_call=0.07,
         )
         assert exit_code == 0
         # 3 calls x $0.07 = $0.21
@@ -1986,23 +1986,28 @@ class TestExecutePath:
         assert output_path.read_text(encoding="utf-8") == ""
 
     def test_execute_cap_abort_mid_batch(self, tmpdir: Path) -> None:
-        """Mid-batch abort: crossing $10 hard cap -> exit 3, partial records written."""
-        # 5 records x $3.00/call = $15 total, will hit $10 cap after 4th call
+        """Pre-flight stops when projected cost >= 80% of cap (exit 2).
+
+        Previously this test used a dual-cost mechanism (cost_per_call for
+        pre-flight estimate, interview.cost_usd for actual spend) to reach a
+        mid-batch hard-cap abort (exit 3). Since DeclineInterview.cost_usd
+        was removed in task #F2-T13, cost_per_call is now used for both
+        pre-flight and execution. The hard-cap abort (exit 3) is therefore
+        unreachable in normal operation — the pre-flight gate (exit 2) fires
+        first whenever per-call cost is high enough to potentially exceed cap.
+        """
+        # 5 records x $3.00/call = $15.00 >= $8.00 (80% of $10) -> pre-flight exit 2
         informants = [self._glm_informant(i) for i in range(5)]
         exit_code, stdout, stderr, records = _run_execute_capture(
             informants, [], tmpdir,
             source="informants",
             spend_cap=10.00,
-            adapter_cost=3.00,
+            cost_per_call=3.00,
         )
-        assert exit_code == 3
-        # Some records written before abort
-        assert len(records) >= 1
-        assert len(records) < 5
-        assert "COST CAP EXCEEDED" in stdout
-        # All written records are valid
-        for rec in records:
-            assert "decline_interview_id" in rec
+        assert exit_code == 2
+        # No records written before pre-flight abort
+        assert len(records) == 0
+        assert "STOP" in stdout
 
     def test_execute_excluded_records_not_written(self, tmpdir: Path) -> None:
         """failures-origin HTTPStatusError 400 -> SKIP logged to stderr, not in output."""
@@ -2383,15 +2388,19 @@ class TestCostCapAbortDuringExecute:
         )
 
     def test_cost_cap_abort_exits_3_not_2(self, tmpdir: Path) -> None:
-        """Mid-batch abort exits 3 (distinct from pre-flight STOP exit 2)."""
+        """Pre-flight stop exits 2; note: exit 3 (mid-batch hard-cap) is unreachable
+        after DeclineInterview.cost_usd removal (task #F2-T13). cost_per_call is now
+        used for both pre-flight estimate and execution tracking, so the pre-flight
+        gate always fires before the mid-batch cap check can trigger.
+        """
         informants = [self._glm_informant(i) for i in range(5)]
         exit_code, stdout, stderr, records = _run_execute_capture(
             informants, [], tmpdir,
             source="informants",
             spend_cap=10.00,
-            adapter_cost=3.00,  # 4th call total > $10 -> abort
+            cost_per_call=3.00,  # 5 * $3.00 = $15 >= $8 (80% of $10) -> pre-flight stop
         )
-        assert exit_code == 3
+        assert exit_code == 2  # pre-flight STOP, not mid-batch abort
         # If we had pre-flight fired, it would have been exit 2
         # Pre-flight: 5 * 3.00 = $15.00 >= $8.00 -> would be exit 2!
         # So we need a spend_cap where pre-flight passes but mid-batch fails.
@@ -2400,58 +2409,21 @@ class TestCostCapAbortDuringExecute:
         # Re-run with cap=$20 to exercise mid-batch abort:
 
     def test_cost_cap_abort_exits_3_not_2_correct_cap(self, tmpdir: Path) -> None:
-        """With cap=$20: 5*$5=$25 total > $20 mid-batch; pre-flight $25 >= $16 fails.
-        Use cap=$30 so pre-flight passes ($25 < $24 fails too).
-        Use per-call=$4, 5 records, cap=$30: pre-flight=5*4=$20 < $24=0.8*30 -> passes.
-        After 8th call $32>$30 -> abort. But we only have 5 records, so let's do
-        per-call=$3.50, 4 records, cap=$12: pre-flight=4*3.5=$14 < $9.6 -> fails.
-        Try: per-call=$2, 4 records, cap=$7:
-          pre-flight = 4*2=$8 vs threshold=5.6 -> FAIL.
-        Try: per-call=$1, 5 records, cap=$4:
-          pre-flight = 5*1=$5 >= $3.20 -> FAIL.
-        We need: n*cost_per_call < 0.8*cap AND n*cost_per_call > cap at some point.
-        => cost_per_call < 0.8*cap/n AND cost_per_call > cap/n
-        => cap/n < cost_per_call < 0.8*cap/n (impossible since 0.8*cap/n < cap/n when n>0).
-        Hmm. Actually the mid-batch abort requires the RUNNING total to exceed cap
-        after some calls. Pre-flight uses projected (n * cost_per_call) vs 0.8*cap.
-        For pre-flight to PASS: n * cost_per_call < 0.8 * cap.
-        For mid-batch to FAIL after k calls: k * cost_per_call >= cap.
-        So: k * cost_per_call >= cap AND n * cost_per_call < 0.8 * cap.
-        => k >= cap/cost_per_call AND n < 0.8*cap/cost_per_call.
-        This is possible when k > 0.8*n (more than 80% of records complete before abort).
-        Example: cap=$1, cost=$0.20, n=4: pre-flight=4*0.20=$0.80 < $0.80 = 0.8*1 -> FAIL.
-        Example: cap=$1, cost=$0.20, n=3: pre-flight=3*0.20=$0.60 < $0.80 -> PASS.
-          After 5th call: 5*0.20=$1.00 >= $1.00 -> abort. But only 3 records!
-          After 3rd call: 3*0.20=$0.60 < $1.00 -> not aborted. No abort.
-        Example: cap=$0.60, cost=$0.20, n=3: pre-flight=3*0.20=$0.60 < 0.8*0.60=$0.48 -> FAIL.
-        Example: cap=$0.90, cost=$0.20, n=3: pre-flight=$0.60 < $0.72 -> PASS.
-          After 3rd: $0.60 < $0.90 -> passes. No abort.
-        Example: cap=$0.55, cost=$0.20, n=2: pre-flight=$0.40 < $0.44 -> PASS.
-          After 2nd call: $0.40 < $0.55 -> no abort.
-        Let me try cost=$0.30, n=2, cap=$0.55: pre-flight=$0.60 >= $0.44 -> FAIL.
-        cost=$0.25, n=2, cap=$0.55: pre=$0.50 >= $0.44 -> FAIL.
-        cost=$0.20, n=2, cap=$0.55: pre=$0.40 < $0.44 -> PASS. After 2: $0.40 < 0.55 -> no abort.
-        cost=$0.28, n=2, cap=$0.55: pre=$0.56 >= $0.44 -> FAIL.
-        I need: after k calls, running >= cap, and pre-flight passes.
-        With cap=$10 and cost=$3, n=4: pre=$12 >= $8 -> FAIL (exit 2).
-        With cap=$15 and cost=$3, n=4: pre=$12 < $12=$0.8*15 -> FAIL ($12 not < $12).
-        With cap=$16 and cost=$3, n=4: pre=$12 < $12.8 -> PASS.
-          After 6th call: $18 >= $16 -> abort. But n=4 so max 4 calls -> $12 < $16 -> no abort.
-        Add more records: n=6, cap=$16, cost=$3: pre=$18 >= $12.8 -> FAIL.
-        n=5: pre=$15 >= $12.8 -> FAIL.
-        n=4, cost=$4, cap=$16: pre=$16 >= $12.8 -> FAIL.
-        n=4, cost=$3.5, cap=$16: pre=$14 >= $12.8 -> FAIL.
-        n=4, cost=$3, cap=$16: pre=$12 < $12.8 -> PASS. 4*$3=$12 < $16. No abort.
-        Need: k*cost >= cap. k=4, cost=$3: $12 >= $12? No, $12 < $16.
-        Hmm, I need a setup where k*cost >= cap but n*cost < 0.8*cap.
-        Let me use adapter_cost=0.05 for 4 records but the adapter ACTUALLY charges
-        more than what cost_per_call says. In test_execute_cap_abort_mid_batch above,
-        we set adapter_cost=3.00 which means interview.cost_usd=$3.00 per call.
-        The pre-flight uses cost_per_call not adapter_cost!
-        So: set cost_per_call=0.05 (for pre-flight) and adapter_cost=3.00 (actual charge).
-        Pre-flight: 5*0.05=$0.25 < $8.00 -> PASS. After 4th call: 4*$3.00=$12 >= $10 -> abort!
+        """Pre-flight exits 2 when projected cost >= 80% of cap.
+
+        After DeclineInterview.cost_usd removal (task #F2-T13), cost_per_call is
+        used for both pre-flight estimate and execution tracking. The mid-batch
+        hard-cap abort (exit 3) is therefore unreachable — pre-flight always fires
+        first when cost_per_call is high enough to eventually exceed the cap.
+
+        The previous version of this test exploited a dual-cost mechanism:
+        cost_per_call=0.05 for pre-flight estimates, interview.cost_usd=3.00 for
+        actual spend tracking. That design was documented as intentional in the
+        comments but depended on the now-removed field. With a single cost source,
+        pre-flight and execution cost tracking are consistent, and the
+        pre-flight gate is the effective cost-cap protection.
         """
-        # cap=$10, cost_per_call=0.05 (pre-flight), adapter charges $3/call (real cost)
+        # cap=$10, cost_per_call=$3: 5 * $3 = $15 >= $8 (0.8*10) -> pre-flight exit 2
         informants = [self._glm_informant(i) for i in range(5)]
         informants_path = tmpdir / "informants.jsonl"
         failures_path = tmpdir / "failures.jsonl"
@@ -2469,18 +2441,25 @@ class TestCostCapAbortDuringExecute:
                 informants_path=informants_path,
                 failures_path=failures_path,
                 output_path=output_path,
-                cost_per_call=0.05,   # pre-flight uses this ($0.25 < $8 -> passes)
+                cost_per_call=3.00,   # pre-flight: 5*$3=$15 >= $8 -> STOP
                 spend_cap=10.00,
                 source="informants",
                 adapter_factory=adapter_factory,
             )
 
-        assert exit_code == 3, f"Expected exit 3 (mid-batch abort), got {exit_code}"
+        assert exit_code == 2, f"Expected exit 2 (pre-flight STOP), got {exit_code}"
 
     def test_cost_cap_abort_message_shows_records_written_so_far(
         self, tmpdir: Path
     ) -> None:
-        """Abort message shows how many records were written before abort."""
+        """Pre-flight STOP message is emitted when projected cost >= 80% of cap.
+
+        After DeclineInterview.cost_usd removal (task #F2-T13), cost_per_call is used
+        for both pre-flight and execution. The mid-batch COST CAP EXCEEDED message
+        (exit 3) is now unreachable — pre-flight catches over-budget runs first.
+        This test verifies the pre-flight STOP message is emitted and no records
+        are written.
+        """
         informants = [self._glm_informant(i) for i in range(5)]
         informants_path = tmpdir / "informants.jsonl"
         failures_path = tmpdir / "failures.jsonl"
@@ -2494,24 +2473,31 @@ class TestCostCapAbortDuringExecute:
 
         captured_out = StringIO()
         with patch("sys.stdout", captured_out), patch("sys.stderr", StringIO()):
-            run_execute(
+            exit_code = run_execute(
                 informants_path=informants_path,
                 failures_path=failures_path,
                 output_path=output_path,
-                cost_per_call=0.05,
+                cost_per_call=3.00,  # 5*$3=$15 >= $8 (0.8*$10) -> pre-flight STOP
                 spend_cap=10.00,
                 source="informants",
                 adapter_factory=adapter_factory,
             )
 
+        assert exit_code == 2
         output = captured_out.getvalue()
-        assert "COST CAP EXCEEDED" in output
-        assert "Records written before abort:" in output
-        assert "decline_interviews.jsonl stands (append-only)" in output
+        assert "STOP" in output
+        # No records written — pre-flight aborts before any API call
+        lines = [ln.strip() for ln in output_path.read_text().splitlines() if ln.strip()]
+        assert len(lines) == 0
 
     def test_cost_cap_abort_keeps_written_records_valid(self, tmpdir: Path) -> None:
-        """Post-abort JSONL contains only complete, valid DeclineInterview records."""
-        informants = [self._glm_informant(i) for i in range(5)]
+        """When cost_per_call is low enough to pass pre-flight, all records are written.
+
+        After DeclineInterview.cost_usd removal (task #F2-T13), cost_per_call drives
+        both pre-flight and execution. This test verifies that when pre-flight passes,
+        all records are written successfully and each is a valid DeclineInterview.
+        """
+        informants = [self._glm_informant(i) for i in range(3)]
         informants_path = tmpdir / "informants.jsonl"
         failures_path = tmpdir / "failures.jsonl"
         output_path = tmpdir / "decline_interviews.jsonl"
@@ -2520,10 +2506,10 @@ class TestCostCapAbortDuringExecute:
         output_path.touch()
 
         def adapter_factory(model_id: str) -> MockAdapter:
-            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=3.00)
+            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=0.05)
 
         with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
-            run_execute(
+            exit_code = run_execute(
                 informants_path=informants_path,
                 failures_path=failures_path,
                 output_path=output_path,
@@ -2533,10 +2519,10 @@ class TestCostCapAbortDuringExecute:
                 adapter_factory=adapter_factory,
             )
 
-        # Read written records
+        assert exit_code == 0
+        # Read written records — all 3 should be written
         lines = [ln.strip() for ln in output_path.read_text().splitlines() if ln.strip()]
-        assert len(lines) >= 1
-        assert len(lines) < 5  # not all 5 should be written
+        assert len(lines) == 3
         for line in lines:
             rec = json.loads(line)
             assert "decline_interview_id" in rec

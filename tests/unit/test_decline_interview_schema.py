@@ -199,7 +199,6 @@ def test_model_dump_contains_required_fields():
         "output_tokens",
         "latency_ms",
         "stop_reason",
-        "cost_usd",
         "version_drift_flag",
     }
     for field in required_fields:

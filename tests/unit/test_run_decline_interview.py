@@ -145,7 +145,6 @@ def test_runner_returns_decline_interview():
     assert result.detection_rule_version == "v1"
     assert result.input_tokens == 100
     assert result.output_tokens == 80
-    assert result.cost_usd == 0.02
     assert result.stop_reason == "end_turn"
 
 

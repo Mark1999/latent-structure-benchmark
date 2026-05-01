@@ -173,6 +173,5 @@ async def run_decline_interview(
         output_tokens=result.output_tokens,
         latency_ms=result.latency_ms,
         stop_reason=result.stop_reason,
-        cost_usd=result.cost_usd,
         version_drift_flag=version_drift_flag,
     )
