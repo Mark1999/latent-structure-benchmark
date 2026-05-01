@@ -73,6 +73,14 @@ disallow_untyped_defs = false
 # without those packages needing a py.typed marker.  This is safe: mypy
 # already finds the same files when invoked against packages/ directly.
 mypy_path = ["packages/cdb_core", "packages/cdb_collect", "packages/cdb_analyze", "packages/cdb_publish", "packages/cdb_social"]
+# Resolve "source file found twice" when running mypy against a standalone
+# app directory (e.g. apps/ops_dashboard/) that also appears in the
+# workspace tree via mypy_path above.  explicit_package_bases tells mypy
+# to anchor all package names to the current working directory, so
+# apps/ops_dashboard/lib/loader.py is only ever known as
+# apps.ops_dashboard.lib.loader — never as lib.loader.
+# See OPS-T3 (task 2026-05-01).
+explicit_package_bases = true
 # Exclude the remaining pre-architecture scratch file from type checking.
 # main.py will be cleaned up post-Phase 0.
 exclude = [
