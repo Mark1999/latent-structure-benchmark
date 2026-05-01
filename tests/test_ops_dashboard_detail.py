@@ -13,6 +13,14 @@ CDA SME binding notes tested:
 - Note 5: Read-only classification fields surfaced or omitted correctly.
 - Forbidden vocabulary: regex scan on all rendered string output.
 
+Augmented (OPS-T4 tester pass):
+- #3: whitespace-only freelist items preserved verbatim (format_freelist).
+- #11: pile labels with punctuation/special chars preserved verbatim.
+- #16: multiple declines for the same informant all returned.
+- #17: classification row for a different informant's decline is not joined
+  to the wrong informant (cross-informant join correctness).
+- #25: format_pile_sort output is deterministic across two invocations.
+
 See ARCHITECTURE.md §3.2 (InformantRecord / DeclineInterview schemas) and
 docs/DATA_DICTIONARY.md §1.1 / §10 for field semantics.
 """
@@ -231,6 +239,15 @@ class TestFormatFreelist:
         result.append("extra")
         assert format_freelist(record) == ["mother", "father"]
 
+    def test_whitespace_only_items_preserved(self) -> None:
+        """Whitespace-only freelist items are preserved verbatim (format_freelist
+        is a read-only presenter — it does not filter or normalise items).
+        Coverage point #3."""
+        items = ["mother", "   ", "father"]
+        record = _make_record(freelist_items=items)
+        result = format_freelist(record)
+        assert result == items
+
 
 # ── build_thinking_trace tests ────────────────────────────────────────────────
 
@@ -330,6 +347,34 @@ class TestFormatPileSort:
         result = format_pile_sort(record)
         assert result[0].label == "Only one label"
         assert result[1].label == ""
+
+    def test_pile_labels_with_special_chars_preserved(self) -> None:
+        """Pile labels containing punctuation, parens, or slashes are preserved
+        verbatim without escaping or transformation.  Coverage point #11."""
+        label = 'Wrong group of words (?)  — misc/other: "unclassified"'
+        record = _make_record(
+            piles=[["cousin", "nephew"]],
+            pile_labels=[label],
+        )
+        result = format_pile_sort(record)
+        assert result[0].label == label
+
+    def test_format_pile_sort_deterministic(self) -> None:
+        """Two calls on the same record return identical PileDetail lists.
+        Coverage point #25."""
+        record = _make_record(
+            piles=[["mother", "father"], ["sister", "brother"], ["cousin"]],
+            pile_labels=["Parents", "Siblings", "Extended"],
+        )
+        first = format_pile_sort(record)
+        second = format_pile_sort(record)
+        assert len(first) == len(second)
+        for a, b in zip(first, second, strict=True):
+            assert a.pile_number == b.pile_number
+            assert a.label == b.label
+            assert a.members == b.members
+            assert a.is_singleton == b.is_singleton
+            assert a.is_empty == b.is_empty
 
 
 # ── find_decline_events tests ─────────────────────────────────────────────────
@@ -458,6 +503,86 @@ class TestFindDeclineEvents:
             subtypes=[],
         )
         assert result[0].thinking_verbatim == trace
+
+    def test_multiple_declines_same_informant_all_returned(self) -> None:
+        """Multiple decline interviews for the same informant are all returned
+        in input order.  Coverage point #16."""
+        di1 = _make_decline_interview(
+            decline_interview_id="dec_multi_01",
+            originating_informant_id="aaaa0000bbbb1111",
+            originating_step="freelist",
+            response_verbatim="First decline.",
+        )
+        di2 = _make_decline_interview(
+            decline_interview_id="dec_multi_02",
+            originating_informant_id="aaaa0000bbbb1111",
+            originating_step="pile_sort",
+            response_verbatim="Second decline.",
+        )
+        di3 = _make_decline_interview(
+            decline_interview_id="dec_multi_03",
+            originating_informant_id="aaaa0000bbbb1111",
+            originating_step="interview",
+            response_verbatim="Third decline.",
+        )
+        result = find_decline_events(
+            informant_id="aaaa0000bbbb1111",
+            decline_interviews=[di1, di2, di3],
+            classifications=[],
+            subtypes=[],
+        )
+        assert len(result) == 3
+        assert [d.decline_interview_id for d in result] == [
+            "dec_multi_01",
+            "dec_multi_02",
+            "dec_multi_03",
+        ]
+
+    def test_classification_for_other_informants_decline_not_joined(self) -> None:
+        """A classification row whose decline_interview_id belongs to a different
+        informant's decline is not surfaced for the queried informant.
+
+        Scenario: two informants, each with one decline.  The classification
+        artifact covers the OTHER informant's decline_interview_id only.  The
+        queried informant's DeclineDetail must have manual_classification=None.
+
+        Coverage point #17 (cross-informant join correctness).
+        """
+        # target informant's decline (unclassified)
+        di_target = _make_decline_interview(
+            decline_interview_id="dec_join_target",
+            originating_informant_id="target_informant_id",
+            response_verbatim="Target's decline text.",
+        )
+        # other informant's decline (classified)
+        di_other = _make_decline_interview(
+            decline_interview_id="dec_join_other",
+            originating_informant_id="other_informant_id",
+            response_verbatim="Other informant's decline text.",
+        )
+        # Classification row points to the OTHER informant's decline_interview_id
+        cls = [
+            {
+                "decline_interview_id": "dec_join_other",
+                "manual_classification": "safety_event_attribution",
+                "manual_classifier_id": "mark",
+            }
+        ]
+
+        result = find_decline_events(
+            informant_id="target_informant_id",
+            decline_interviews=[di_target, di_other],
+            classifications=cls,
+            subtypes=[],
+        )
+
+        # Only target's decline is returned
+        assert len(result) == 1
+        assert result[0].decline_interview_id == "dec_join_target"
+        # And it must not have picked up the classification that belongs to
+        # the other informant's decline
+        assert result[0].manual_classification is None
+        assert result[0].manual_classifier_id is None
 
 
 # ── Forbidden vocabulary scan ─────────────────────────────────────────────────

@@ -1,11 +1,16 @@
 """Tests for apps/ops_dashboard/lib/loader.py.
 
-All tests use synthetic InformantRecord fixtures constructed in-memory or
-written to a tmp_path JSONL file. No real API calls. No reads from
-data/raw/informants.jsonl.
+All tests use synthetic InformantRecord / DeclineInterview fixtures constructed
+in-memory or written to a tmp_path JSONL file. No real API calls. No reads
+from data/raw/informants.jsonl or data/raw/decline_interviews.jsonl.
 
-See ARCHITECTURE.md §3.2 (InformantRecord schema) and
-docs/DATA_DICTIONARY.md §1.1 for field semantics.
+Augmented (OPS-T4 tester pass):
+- TestLoadDeclineInterviews: valid JSONL parse, cost_usd extra-field tolerance,
+  malformed-line error (coverage points #18, #19, #20).
+- TestLoadJsonlDicts: plain-dict return, empty/missing file (points #21, #22).
+
+See ARCHITECTURE.md §3.2 (InformantRecord / DeclineInterview schemas) and
+docs/DATA_DICTIONARY.md §1.1 / §10 for field semantics.
 """
 
 from __future__ import annotations
@@ -16,6 +21,7 @@ from pathlib import Path
 
 import pytest
 from cdb_core.schemas import (
+    DeclineInterview,
     FreelistRecord,
     InformantRecord,
     InterviewRecord,
@@ -27,7 +33,9 @@ from apps.ops_dashboard.lib.loader import (
     index_by_domain,
     index_by_model_id,
     index_by_run_id,
+    load_decline_interviews,
     load_informants,
+    load_jsonl_dicts,
 )
 
 # ── Shared manifest keys (DATA_DICTIONARY.md §1.1 — eight required keys) ──
@@ -429,3 +437,183 @@ class TestFilterRecords:
         result = filter_records([], model_id="gpt-4o", domain="family")
 
         assert result == []
+
+
+# ── DeclineInterview builder ──────────────────────────────────────────────────
+
+def _make_decline_interview(
+    *,
+    decline_interview_id: str = "dec_loader_001",
+    originating_informant_id: str = "aaaa0000bbbb1111",
+    originating_step: str = "freelist",
+    originating_outcome_class: str = "refusal_string_match",
+    response_verbatim: str = "I cannot help with that.",
+) -> DeclineInterview:
+    """Minimal valid DeclineInterview for loader tests."""
+    return DeclineInterview(
+        decline_interview_id=decline_interview_id,
+        originating_informant_id=originating_informant_id,
+        originating_failure_id=None,
+        originating_step=originating_step,  # type: ignore[arg-type]
+        originating_outcome_class=originating_outcome_class,  # type: ignore[arg-type]
+        detection_rule_version="v1",
+        detection_timestamp=datetime(2026, 5, 1, 10, 0, 0),
+        followup_timestamp=datetime(2026, 5, 1, 10, 1, 0),
+        model_id="fixture-model-001",
+        model_version_returned="fixture-model-001-20260501",
+        provider="fixture_provider",
+        api_endpoint="https://api.fixture.invalid/v1/messages",
+        prompt_version="decline_v1",
+        sha256_manifest="b" * 64,
+        prompt_verbatim="Describe what happened in that exchange.",
+        response_verbatim=response_verbatim,
+        input_tokens=50,
+        output_tokens=30,
+        latency_ms=800,
+        stop_reason="stop",
+    )
+
+
+def _write_decline_interviews_jsonl(
+    path: Path, records: list[DeclineInterview]
+) -> None:
+    """Serialize DeclineInterview records to a JSONL file (test helper)."""
+    with path.open("w", encoding="utf-8") as fh:
+        for rec in records:
+            fh.write(rec.model_dump_json() + "\n")
+
+
+# ── load_decline_interviews ───────────────────────────────────────────────────
+
+
+class TestLoadDeclineInterviews:
+    def test_loads_valid_jsonl(self, tmp_path: Path) -> None:
+        """Valid JSONL with two DeclineInterview rows parses to two objects.
+        Coverage point #18."""
+        records = [
+            _make_decline_interview(
+                decline_interview_id="dec_load_01",
+                originating_informant_id="inf0000000000001",
+                response_verbatim="First decline.",
+            ),
+            _make_decline_interview(
+                decline_interview_id="dec_load_02",
+                originating_informant_id="inf0000000000002",
+                response_verbatim="Second decline.",
+            ),
+        ]
+        jsonl_file = tmp_path / "decline_interviews.jsonl"
+        _write_decline_interviews_jsonl(jsonl_file, records)
+
+        result = load_decline_interviews(jsonl_file)
+
+        assert len(result) == 2
+        assert all(isinstance(r, DeclineInterview) for r in result)
+        assert result[0].decline_interview_id == "dec_load_01"
+        assert result[1].originating_informant_id == "inf0000000000002"
+
+    def test_missing_file_returns_empty_list(self, tmp_path: Path) -> None:
+        """A missing file returns an empty list without raising (normal first-class
+        state — no decline data collected yet)."""
+        path = tmp_path / "decline_interviews.jsonl"
+        assert not path.exists()
+        result = load_decline_interviews(path)
+        assert result == []
+
+    def test_empty_file_returns_empty_list(self, tmp_path: Path) -> None:
+        """An empty JSONL file returns an empty list."""
+        jsonl_file = tmp_path / "decline_interviews.jsonl"
+        jsonl_file.write_text("", encoding="utf-8")
+        result = load_decline_interviews(jsonl_file)
+        assert result == []
+
+    def test_tolerates_extra_cost_usd_field(self, tmp_path: Path) -> None:
+        """Legacy records carrying a cost_usd field are parsed without error.
+
+        DeclineInterview uses Pydantic v2 default (extra='ignore'), so unknown
+        fields are silently dropped.  This test is a regression guard for the
+        schema-strip task that removed cost_usd (F2-T13).
+
+        Coverage point #19.
+        """
+        di = _make_decline_interview(decline_interview_id="dec_cost_01")
+        # Inject the legacy field into the serialised dict
+        as_dict = json.loads(di.model_dump_json())
+        as_dict["cost_usd"] = 0.00042  # field removed in F2-T13
+        jsonl_file = tmp_path / "decline_interviews.jsonl"
+        jsonl_file.write_text(json.dumps(as_dict) + "\n", encoding="utf-8")
+
+        result = load_decline_interviews(jsonl_file)
+
+        assert len(result) == 1
+        assert result[0].decline_interview_id == "dec_cost_01"
+        assert not hasattr(result[0], "cost_usd")
+
+    def test_malformed_line_raises_with_line_number(self, tmp_path: Path) -> None:
+        """A line with invalid JSON raises ValueError naming the 1-indexed line
+        number.  Coverage point #20."""
+        di = _make_decline_interview(decline_interview_id="dec_malf_good")
+        good_line = di.model_dump_json()
+        bad_line = '{"decline_interview_id": "broken", INVALID JSON}'
+        jsonl_file = tmp_path / "decline_interviews.jsonl"
+        jsonl_file.write_text(
+            good_line + "\n" + bad_line + "\n", encoding="utf-8"
+        )
+
+        with pytest.raises(ValueError, match=r"line 2"):
+            load_decline_interviews(jsonl_file)
+
+
+# ── load_jsonl_dicts ──────────────────────────────────────────────────────────
+
+
+class TestLoadJsonlDicts:
+    def test_returns_plain_dicts(self, tmp_path: Path) -> None:
+        """Each line is parsed to a plain dict (no Pydantic coercion).
+        Coverage point #21."""
+        rows = [
+            {"decline_interview_id": "d001", "manual_classification": "k_frame"},
+            {"decline_interview_id": "d002", "manual_classification": "k_vocab"},
+        ]
+        jsonl_file = tmp_path / "manual_classification.jsonl"
+        with jsonl_file.open("w") as fh:
+            for row in rows:
+                fh.write(json.dumps(row) + "\n")
+
+        result = load_jsonl_dicts(jsonl_file)
+
+        assert len(result) == 2
+        assert all(isinstance(r, dict) for r in result)
+        assert result[0]["decline_interview_id"] == "d001"
+        assert result[1]["manual_classification"] == "k_vocab"
+
+    def test_empty_file_returns_empty_list(self, tmp_path: Path) -> None:
+        """An empty file returns an empty list.  Coverage point #22."""
+        jsonl_file = tmp_path / "empty.jsonl"
+        jsonl_file.write_text("", encoding="utf-8")
+        assert load_jsonl_dicts(jsonl_file) == []
+
+    def test_missing_file_returns_empty_list(self, tmp_path: Path) -> None:
+        """A missing file returns an empty list (caller need not check existence).
+        Coverage point #22."""
+        path = tmp_path / "nonexistent.jsonl"
+        assert not path.exists()
+        assert load_jsonl_dicts(path) == []
+
+    def test_malformed_line_raises_with_line_number(self, tmp_path: Path) -> None:
+        """A line with invalid JSON raises ValueError naming the line number."""
+        jsonl_file = tmp_path / "broken.jsonl"
+        jsonl_file.write_text(
+            '{"ok": 1}\n' + "NOT JSON AT ALL\n", encoding="utf-8"
+        )
+        with pytest.raises(ValueError, match=r"line 2"):
+            load_jsonl_dicts(jsonl_file)
+
+    def test_blank_lines_are_skipped(self, tmp_path: Path) -> None:
+        """Blank lines within the file are skipped without error."""
+        jsonl_file = tmp_path / "with_blanks.jsonl"
+        jsonl_file.write_text(
+            '{"x": 1}\n\n{"x": 2}\n', encoding="utf-8"
+        )
+        result = load_jsonl_dicts(jsonl_file)
+        assert len(result) == 2
