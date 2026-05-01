@@ -24,7 +24,7 @@ SME binding notes satisfied in this file (Amendment 1 notes A1–A8):
   A3 — empty_response cohort gets distinct rationale key before parse_exhaustion step
   A4 — unclassified-saturation tripwire (>2 → SURFACE-TO-SME, exit non-zero)
   A7 — Section 3b controlled-vocabulary rationale header
-  A8 — Section 5 reports both full-count and post-exclusion cost projections
+  A8 — Section 5 reports both full-count and post-exclusion call-count projections
 
 Design notes for T5/T3A/T3B (implementing code omitted per scope boundary):
   A5 — T5 §5 "Exclusion rule applied" must enumerate excluded records by identifier.
@@ -678,7 +678,7 @@ def run_dry_run(
     print("=" * 72)
     print(
         "Section 3b — Failures-origin records excluded from backfill "
-        "(cost-guard + methodology filter)"
+        "(call-count gate + methodology filter)"
     )
     print("=" * 72)
     print("Rationale taxonomy (v1):")
