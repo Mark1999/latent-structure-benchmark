@@ -1177,3 +1177,148 @@ def test_cross_provider_subtype_asymmetry_surfaced_not_disposition_shifted(
     assert psc.get("openrouter", {}).get("k_vocab_without_k_frame", 0) == 4
     assert psc.get("openrouter", {}).get("k_frame", 0) == 0
     assert psc.get("google", {}).get("k_vocab_without_k_frame", 0) == 0
+
+
+# ── Augmented tests (Tester, 2026-05-01) ─────────────────────────────────────
+# Gaps identified against the 10 Amendment 3 §3.2 coverage points:
+#
+#  Gap A — 1-provider 9-row path: Reviewer "Notes for Tester" item 1 flagged that
+#           the amendment3 9-row fixture exercises only the 2-provider branch
+#           (CONFIRMED-with-mechanism). A single-provider 9-row fixture matching
+#           actual production data should yield CONFIRMED, not CONFIRMED-with-mechanism.
+#
+#  Gap B — JSON output determinism: test_run_is_deterministic only compares md1==md2.
+#           The spec (Amendment 3 §3.2 / task brief point 9) says
+#           "byte-identical Markdown + JSON output." JSON side is untested.
+#
+#  Gap C — Note K mechanism breakdown two-row minimum explicit check: Amendment 3 §3.2
+#           acceptance criteria states "Two-row format minimum: one row per subtype."
+#           test_amendment3_9row_note_k_mechanism_breakdown_in_markdown checks the
+#           section header but does not assert that both subtype rows appear in the
+#           Markdown table body.
+#
+#  Gap D — Empty decline_interviews file: load_all_inputs raises ValueError if the
+#           decline_interviews.jsonl file exists but has zero rows (line 164 of script).
+#           No test exercises this code path.
+
+
+def test_nine_row_single_provider_yields_confirmed(tmp_path: Path) -> None:
+    """9-row safety cohort from a single provider yields CONFIRMED, not CONFIRMED-with-mechanism.
+
+    Matches the Reviewer "Notes for Tester" item 1: the 2-provider fixture exercises the
+    CONFIRMED-with-mechanism branch; a 1-provider 9-row fixture must exercise CONFIRMED.
+
+    This mirrors the actual production data shape (all 9 safety rows from google).
+    """
+    safety_rows = [
+        {
+            "decline_interview_id": f"single-prov-{i:03d}",
+            "provider": "google",
+            "model_id": "google/gemini-2.5-pro",
+            "domain": "family",
+            "subtype": "k_frame" if i < 2 else "k_vocab_without_k_frame",
+        }
+        for i in range(9)
+    ]
+
+    di_path, informants_path, mc_path, sub_path = _build_cross_tab_fixture(
+        tmp_path, safety_rows=safety_rows
+    )
+    md, json_out = run(di_path, informants_path, mc_path, sub_path)
+
+    note_k = json_out["note_k"]
+    assert note_k["disposition"] == "CONFIRMED", (
+        f"Expected CONFIRMED (single provider, 9 rows), got {note_k['disposition']!r}"
+    )
+    assert note_k["total_safety_blocked"] == 9
+    assert note_k["n_providers"] == 1
+    # Disposition string must be the bare tier label (no mechanism fragment), per D20
+    assert note_k["disposition_string"] == "Note K: CONFIRMED", (
+        f"Unexpected disposition_string: {note_k['disposition_string']!r}"
+    )
+    # Mechanism string still computed and present in JSON (it is the mechanism description
+    # in a subordinate section); only the headline disposition_string must not carry it
+    assert "mechanism_string" in note_k
+    # Markdown must NOT carry the mechanism fragment in the disposition headline
+    assert "Note K: CONFIRMED-with-mechanism" not in md, (
+        "Mechanism headline must not appear when single-provider"
+    )
+    # The Note K section must still be present in Markdown
+    assert "Note K Re-Evaluation" in md
+
+
+def test_run_json_output_is_deterministic(tmp_path: Path) -> None:
+    """Running the script twice on the same inputs produces byte-identical JSON output.
+
+    Closes gap B: test_run_is_deterministic only compared Markdown.
+    Amendment 3 §3.2 / task brief point 9 requires both outputs to be deterministic.
+    """
+    di_path, informants_path, mc_path, sub_path = _build_amendment3_9row_fixture(tmp_path)
+
+    _, json_out1 = run(di_path, informants_path, mc_path, sub_path)
+    _, json_out2 = run(di_path, informants_path, mc_path, sub_path)
+
+    serial1 = json.dumps(json_out1, sort_keys=True, ensure_ascii=False)
+    serial2 = json.dumps(json_out2, sort_keys=True, ensure_ascii=False)
+    assert serial1 == serial2, "JSON output is not deterministic on repeated runs"
+
+
+def test_note_k_mechanism_breakdown_table_has_both_subtype_rows(tmp_path: Path) -> None:
+    """Note K mechanism breakdown table in Markdown contains one row per subtype.
+
+    Closes gap C: the two-row minimum (one row per subtype) in the Markdown table body
+    is required by Amendment 3 §3.2 acceptance criteria.
+    The section header test (test_amendment3_9row_note_k_mechanism_breakdown_in_markdown)
+    only checks the heading; this test checks the table content.
+    """
+    di_path, informants_path, mc_path, sub_path = _build_amendment3_9row_fixture(tmp_path)
+    md, _ = run(di_path, informants_path, mc_path, sub_path)
+
+    # Locate the "Note K Mechanism Breakdown" section in the Markdown
+    assert "Note K Mechanism Breakdown" in md
+
+    # Both subtype row labels must appear in the Markdown (they are used as table row keys)
+    assert "k_frame" in md, "Expected 'k_frame' row in Note K Mechanism Breakdown table"
+    assert "k_vocab_without_k_frame" in md, (
+        "Expected 'k_vocab_without_k_frame' row in Note K Mechanism Breakdown table"
+    )
+
+    # The table must contain at least two data rows — verify by counting subtype occurrences
+    # in the markdown section after the breakdown heading
+    breakdown_start = md.index("Note K Mechanism Breakdown")
+    breakdown_section = md[breakdown_start:]
+    # Both subtypes must appear as table cell content in the section
+    assert "k_frame" in breakdown_section
+    assert "k_vocab_without_k_frame" in breakdown_section
+
+    # Verify the provider_subtype_counts JSON also has both keys populated
+    # (belt-and-suspenders for the Markdown test above)
+    _, json_out = run(di_path, informants_path, mc_path, sub_path)
+    psc = json_out["secondary_view_a"]["provider_subtype_counts"]
+    all_subtypes = {st for provider_dict in psc.values() for st in provider_dict}
+    assert "k_frame" in all_subtypes, (
+        "provider_subtype_counts missing k_frame subtype"
+    )
+    assert "k_vocab_without_k_frame" in all_subtypes, (
+        "provider_subtype_counts missing k_vocab_without_k_frame subtype"
+    )
+
+
+def test_empty_decline_interviews_file_raises(tmp_path: Path) -> None:
+    """load_all_inputs raises ValueError when decline_interviews.jsonl exists but has zero rows.
+
+    Closes gap D: the script's line 164 (ValueError on empty decline_rows) has no test.
+    """
+    di_path = tmp_path / "di.jsonl"
+    informants_path = tmp_path / "informants.jsonl"
+    mc_path = tmp_path / "mc.jsonl"
+    sub_path = tmp_path / "subtype.jsonl"
+
+    # Write an empty (but valid, existing) decline interviews file
+    di_path.write_text("", encoding="utf-8")
+    _write_minimal_informants(informants_path)
+    _write_jsonl(mc_path, [])
+    _write_jsonl(sub_path, [])
+
+    with pytest.raises(ValueError, match="No rows found"):
+        load_all_inputs(di_path, informants_path, mc_path, sub_path)
