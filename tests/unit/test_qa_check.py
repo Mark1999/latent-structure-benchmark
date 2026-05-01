@@ -269,11 +269,11 @@ def test_check7_fail_empty():
     assert failure.check_num == 7
 
 
-# ─── Integration: run_qa_checks ─────────────────────────────────────
+# ─── Integration: run_record_checks ─────────────────────────────────
 
 def test_passing_record_no_failures():
     record = _record()
-    failures = run_qa_checks(record)
+    failures = run_record_checks(record)
     assert failures == []
 
 
@@ -282,7 +282,7 @@ def test_failing_record_has_failures():
         freelist=_freelist(items=["a", "b"]),  # Only 2 items
         provider_request_id="",  # Empty
     )
-    failures = run_qa_checks(record)
+    failures = run_record_checks(record)
     assert len(failures) >= 2
     check_nums = {f.check_num for f in failures}
     assert 1 in check_nums
