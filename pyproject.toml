@@ -68,6 +68,11 @@ python_version = "3.11"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = false
+# Expose workspace source roots to mypy so that standalone apps (e.g.
+# apps/ops_dashboard/) can import workspace packages (cdb_core, etc.)
+# without those packages needing a py.typed marker.  This is safe: mypy
+# already finds the same files when invoked against packages/ directly.
+mypy_path = ["packages/cdb_core", "packages/cdb_collect", "packages/cdb_analyze", "packages/cdb_publish", "packages/cdb_social"]
 # Exclude the remaining pre-architecture scratch file from type checking.
 # main.py will be cleaned up post-Phase 0.
 exclude = [
