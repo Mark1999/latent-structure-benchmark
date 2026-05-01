@@ -1,2 +1,9 @@
-- [QA_Runner aggregate-check pattern](project_qa_check_aggregate_pattern.md) — Check 8 semantics, function-scope cdb_analyze imports, aggregate alerts do not mutate qa_passed
+- [QA_Runner check tiers (per-record / aggregate / infrastructure)](project_qa_check_aggregate_pattern.md) — only Tier 1 (Checks 1–7) may mutate qa_passed; Tier 2 (Check 8) and Tier 3 (Check 9, infra) never do. F2-T11 ruling 2026-05-01.
 - [Review rigor on thresholds](feedback_review_rigor_on_thresholds.md) — always stress-test rank/correlation thresholds at small-N before PASS
+- [Romney small-n threshold](project_romney_small_n_threshold.md) — `romney_small_n_warning` is n_models < 15 (reconciled 2026-04-23)
+- [CN-origin decline clustering Phase 4a](project_cn_decline_clustering_phase4a.md) — 4 of 5 decline-interviewable cells are CN-origin; shapes Note K methodology-page framing
+- [Detector role-change gate](feedback_detector_role_change_gate.md) — reusing detector helper across semantic boundaries (input→output classification etc.) triggers SME review before batch executes
+- [Phase 4a.1 T3C classification PASS](project_phase4a1_t3c_classification_complete.md) — 7/7 spot-check agreement, 0/27 genuine recursive declines, T4 unblocked, B10/B11/B12 added (28 total binding notes)
+- [Phase 4a.1 Amendment 3 PASS-WITH-NOTES](project_phase4a1_amendment3_complete.md) — B11 operationalized into T4.1+T4.2; D17–D22 approved; B13/B14/B15 added (31 total)
+- [Phase 4a.1 T4 output PASS-WITH-NOTES](project_phase4a1_t4_output_verdict.md) — single-provider cohort falsified D20 cross-provider prediction; disposition correctly CONFIRMED (not -with-mechanism); Amendment 4 needed for mechanism wording; K-frame 2/7 (strict B11 reading correct)
+- [Phase 4a.1 Amendment 4 PASS](project_phase4a1_amendment4_complete.md) — D23/D24/D25/D27 resolve T4 Required items; T4.2-followup unblocks immediately; no fresh SME on regenerated markdown; 31 notes unchanged
