@@ -630,3 +630,119 @@ def test_seed_builder_module_importable_without_dotenv() -> None:
     assert callable(build_seed), (
         "build_seed is not callable — seed builder module failed to import cleanly"
     )
+
+
+# ── Tester augmentation (task #21.T4.1) — gaps identified at Tester audit ────
+
+
+def test_loader_unclassified_error_message_names_hand_code_instruction(
+    tmp_path: Path,
+) -> None:
+    """The UNCLASSIFIED sentinel error message contains the 'Mark must hand-code' instruction.
+
+    The implementation raises a ValueError with the text
+    'Mark must hand-code all 9 rows before T4.2 runs.'
+    Pinning this operator-friendly phrase ensures it cannot silently disappear
+    in future refactors without a test failure.  The Tester audit identified
+    that test_loader_rejects_unclassified_sentinel checks for the word
+    'UNCLASSIFIED' and test_loader_rejects_unclassified_names_the_row checks
+    for the row ID, but neither test pins the instructional phrase itself.
+
+    This test closes that gap (Tester audit, 2026-05-01).
+    """
+    parent_path = _make_parent_jsonl(tmp_path, _PARENT_ROWS)
+
+    sentinel_row = {
+        "decline_interview_id": "safety-id-001",
+        "safety_attribution_subtype": "UNCLASSIFIED",
+        "subtype_rationale": "",
+        "subtype_classifier_id": "",
+    }
+    subtype_path = _make_subtype_jsonl(tmp_path, [sentinel_row])
+
+    with pytest.raises(ValueError, match="Mark must hand-code"):
+        load_safety_attribution_subtypes(subtype_path, parent_path)
+
+
+def test_loader_9row_simultaneous_round_trip(tmp_path: Path) -> None:
+    """Load 9 subtype rows simultaneously and verify all keys and values are correct.
+
+    9 is the real artifact size for Phase 4a.1.  Loading all 9 at once exercises
+    the dict-building loop for a non-trivial batch and serves as the T4.2 fixture
+    prototype (Reviewer note 1, 2026-04-30-phase4a1-t4-1-reviewer-verdict.md).
+
+    Parent fixture has 9 safety rows (safety-id-000..008) + 2 non-safety rows so
+    the loader's parent-join logic is exercised against a realistic parent size.
+    """
+    # Build parent rows: 9 safety + 2 non-safety
+    parent_rows = [
+        _make_manual_classification_row(
+            decline_interview_id=f"safety-id-{i:03d}",
+            manual_classification="safety_event_attribution",
+        )
+        for i in range(9)
+    ] + [
+        _make_manual_classification_row(
+            decline_interview_id="other-id-000",
+            manual_classification="technical_glitch_attribution",
+            manual_classification_rationale="Technical glitch.",
+            detector_flag_v1=False,
+        ),
+        _make_manual_classification_row(
+            decline_interview_id="other-id-001",
+            manual_classification="no_prior_context_acknowledgment",
+            manual_classification_rationale="No prior context.",
+            detector_flag_v1=False,
+        ),
+    ]
+    parent_path = _make_parent_jsonl(tmp_path, parent_rows)
+
+    # Build 9 subtype rows — first 5 are k_frame, last 4 are k_vocab_without_k_frame
+    # (the expected B11 distribution: 5 k_frame, 4 k_vocab_without_k_frame)
+    subtype_rows = [
+        _make_subtype(
+            decline_interview_id=f"safety-id-{i:03d}",
+            safety_attribution_subtype="k_frame",
+            subtype_rationale=(
+                f"Cognitive anthropology framing triggered safety layer (row {i})."
+            ),
+        )
+        for i in range(5)
+    ] + [
+        _make_subtype(
+            decline_interview_id=f"safety-id-{i:03d}",
+            safety_attribution_subtype="k_vocab_without_k_frame",
+            subtype_rationale=(
+                f"Uncurated comprehensive list triggered safety filter (row {i})."
+            ),
+        )
+        for i in range(5, 9)
+    ]
+    subtype_path = _make_subtype_jsonl(tmp_path, subtype_rows)
+
+    result = load_safety_attribution_subtypes(subtype_path, parent_path)
+
+    # All 9 rows loaded
+    assert len(result) == 9
+    assert set(result.keys()) == {f"safety-id-{i:03d}" for i in range(9)}
+
+    # k_frame count = 5
+    k_frame_ids = [
+        did for did, rec in result.items() if rec.safety_attribution_subtype == "k_frame"
+    ]
+    assert len(k_frame_ids) == 5, f"Expected 5 k_frame rows, got {len(k_frame_ids)}"
+
+    # k_vocab_without_k_frame count = 4
+    k_vocab_ids = [
+        did
+        for did, rec in result.items()
+        if rec.safety_attribution_subtype == "k_vocab_without_k_frame"
+    ]
+    assert len(k_vocab_ids) == 4, f"Expected 4 k_vocab_without_k_frame rows, got {len(k_vocab_ids)}"
+
+    # Every record's subtype_classifier_id is "mark" (default fixture value)
+    for did, rec in result.items():
+        assert rec.subtype_classifier_id == "mark", (
+            f"Expected subtype_classifier_id='mark' for {did!r}, "
+            f"got {rec.subtype_classifier_id!r}"
+        )
