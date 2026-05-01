@@ -100,7 +100,6 @@ def _make_source_row(
         "output_tokens": 20,
         "latency_ms": 1000,
         "stop_reason": "stop",
-        "cost_usd": 0.001,
         "qa_notes": "",
         "version_drift_flag": False,
     }

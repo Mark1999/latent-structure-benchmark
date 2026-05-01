@@ -49,7 +49,6 @@ def _make_decline_interview(
         output_tokens=50,
         latency_ms=1200,
         stop_reason="end_turn",
-        cost_usd=0.01,
         qa_notes=qa_notes,
         version_drift_flag=version_drift_flag,
     )

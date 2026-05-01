@@ -11,7 +11,6 @@ import httpx
 from cdb_core import ModelRef
 
 from cdb_collect.adapters.base import AdapterResult
-from cdb_collect.spend import compute_cost
 
 logger = logging.getLogger(__name__)
 
@@ -128,7 +127,6 @@ class HuggingFaceAdapter:
         usage = data.get("usage", {})
         input_tokens = usage.get("prompt_tokens", 0)
         output_tokens = usage.get("completion_tokens", 0)
-        cost_usd = compute_cost(input_tokens, output_tokens, self.model.model_id)
 
         raw_response = _scrub_response(data)
 
@@ -136,7 +134,6 @@ class HuggingFaceAdapter:
             text=text,
             raw_response=raw_response,
             latency_ms=latency_ms,
-            cost_usd=cost_usd,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             provider_request_id=data.get("id", ""),

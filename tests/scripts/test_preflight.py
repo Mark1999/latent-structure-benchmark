@@ -207,7 +207,6 @@ def test_write_report_creates_file(tmp_path: Path, monkeypatch: pytest.MonkeyPat
             reason="test",
             passed=True,
             latency_ms=500,
-            cost_usd=0.000120,
             model_version_returned="claude-sonnet-4-6",
             input_tokens=20,
             output_tokens=4,
@@ -220,7 +219,6 @@ def test_write_report_creates_file(tmp_path: Path, monkeypatch: pytest.MonkeyPat
             reason="test",
             passed=False,
             latency_ms=1000,
-            cost_usd=0.0,
             model_version_returned="",
             input_tokens=0,
             output_tokens=0,
@@ -244,8 +242,6 @@ def test_write_report_creates_file(tmp_path: Path, monkeypatch: pytest.MonkeyPat
     assert "**FAIL**" in text
     # Error detail
     assert "HTTP 401: Unauthorized" in text
-    # Total cost
-    assert "$0.000120" in text
 
 
 def test_write_report_all_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) -> None:
@@ -259,7 +255,6 @@ def test_write_report_all_pass(tmp_path: Path, monkeypatch: pytest.MonkeyPatch) 
             reason="test",
             passed=True,
             latency_ms=100 * i,
-            cost_usd=0.001 * i,
             model_version_returned=f"model-{i}-snapshot",
             input_tokens=10,
             output_tokens=2,

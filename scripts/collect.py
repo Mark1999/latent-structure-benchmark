@@ -36,7 +36,6 @@ from cdb_collect.exceptions import PartialSessionError
 from cdb_collect.jsonl import append_failure, append_record
 from cdb_collect.model_ids import to_direct_id
 from cdb_collect.runner import run_baseline_sort, run_cross_model_sort, run_informant, run_two_pass
-from cdb_collect.spend import check_spend, get_monthly_spend
 from cdb_core import ModelRef
 from dotenv import load_dotenv
 
@@ -184,14 +183,6 @@ async def collect_single_pass(
     successful = 0
 
     for run_index in range(runs):
-        monthly = get_monthly_spend(output_path)
-        status = check_spend(monthly)
-        if status == "halt":
-            print(f"SPEND CAP REACHED (${monthly:.2f}).", file=sys.stderr)
-            break
-        if status == "warning":
-            logger.warning("Spend at 80%%+ of cap: $%.2f", monthly)
-
         print(
             f"Run {run_index + 1}/{runs} — "
             f"{adapter.model.model_id} × {domain_slug}...",
@@ -636,9 +627,6 @@ def main() -> int:
             print(f"  Pile sorts: {args.pile_sorts}")
         elif args.mode == "cross_model":
             print(f"  Pile sorts: {args.pile_sorts} per model")
-        monthly = get_monthly_spend(args.output)
-        status = check_spend(monthly)
-        print(f"  Monthly spend: ${monthly:.2f} (status: {status})")
         return 0
 
     if args.mode == "baseline" and not args.baseline:

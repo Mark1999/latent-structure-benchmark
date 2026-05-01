@@ -21,7 +21,7 @@ T1-update additions (SME A1–A8):
   - TestShouldIncludeFailure: unit tests for all should_include_failure() branches
   - TestSection3bExcludedAudit: integration tests for Section 3b output
   - TestSection3cUnclassified: integration tests for Section 3c + SURFACE-TO-SME gate
-  - TestCostCapCLIOverride: CLI --cost-cap-usd flag tests
+  - TestMaxBatchCallsCLIOverride: CLI --max-batch-calls flag tests
   - TestCostGuardPostExclusion: post-exclusion cost gate tests (SME A8)
   - TestSourceFlag: --source {informants,failures,all} flag tests
 
@@ -238,10 +238,15 @@ class TestDryRunScenarios:
         failures: list[dict],
         tmpdir: Path,
         verbose: bool = False,
-        cost_per_call: float = 0.05,
-        spend_cap: float = 2.00,
+        cost_per_call: float = 0.05,  # ignored; kept for call-site compat
+        spend_cap: float = 2.00,      # used to derive max_batch_calls for tests
     ) -> tuple[int, str]:
-        """Write fixtures to temp files, run dry-run, capture stdout, return (exit_code, output)."""
+        """Write fixtures to temp files, run dry-run, capture stdout, return (exit_code, output).
+
+        cost_per_call is ignored (cost tracking removed). spend_cap is converted to
+        a call-count cap: max_batch_calls = int(spend_cap / cost_per_call) so that
+        existing test thresholds remain meaningful (e.g. $2/$0.05 = 40 calls).
+        """
         informants_path = tmpdir / "informants.jsonl"
         failures_path = tmpdir / "failures.jsonl"
         output_path = tmpdir / "decline_interviews.jsonl"
@@ -251,6 +256,9 @@ class TestDryRunScenarios:
         # Create output file so we can snapshot its mtime
         output_path.touch()
 
+        # Derive max_batch_calls from legacy spend_cap / cost_per_call ratio
+        max_batch_calls = max(1, int(spend_cap / cost_per_call))
+
         captured = StringIO()
         with patch("sys.stdout", captured):
             exit_code = run_dry_run(
@@ -258,8 +266,7 @@ class TestDryRunScenarios:
                 failures_path=failures_path,
                 output_path=output_path,
                 verbose=verbose,
-                cost_per_call=cost_per_call,
-                spend_cap=spend_cap,
+                max_batch_calls=max_batch_calls,
             )
         return exit_code, captured.getvalue()
 
@@ -1373,34 +1380,34 @@ class TestSection3cUnclassified:
         assert "Total unclassified-default-include: 2" in output
 
 
-# ── T1-update: TestCostCapCLIOverride ────────────────────────────────────────
+# ── T1-update: TestMaxBatchCallsCLIOverride ───────────────────────────────────
 
-class TestCostCapCLIOverride:
-    """Tests for --cost-cap-usd CLI flag."""
+class TestMaxBatchCallsCLIOverride:
+    """Tests for --max-batch-calls CLI flag."""
 
-    def test_cost_cap_default_is_ten_dollars(self) -> None:
-        """Default cost cap is $10.00 (not the old $2.00)."""
+    def test_max_batch_calls_default_is_200(self) -> None:
+        """Default call cap is 200."""
         parser = build_parser()
         args = parser.parse_args(["--dry-run"])
-        assert args.cost_cap_usd == 10.00
+        assert args.max_batch_calls == 200
 
-    def test_cost_cap_cli_flag_overrides_default(self) -> None:
-        """--cost-cap-usd 5.00 sets cap to $5.00, threshold to $4.00."""
+    def test_max_batch_calls_cli_flag_overrides_default(self) -> None:
+        """--max-batch-calls 50 sets cap to 50, threshold to 40."""
         parser = build_parser()
-        args = parser.parse_args(["--dry-run", "--cost-cap-usd", "5.00"])
-        assert args.cost_cap_usd == 5.00
+        args = parser.parse_args(["--dry-run", "--max-batch-calls", "50"])
+        assert args.max_batch_calls == 50
 
-    def test_cost_cap_cli_flag_raises_threshold(self) -> None:
-        """--cost-cap-usd 20.00 sets cap to $20.00, threshold to $16.00."""
+    def test_max_batch_calls_cli_flag_raises_threshold(self) -> None:
+        """--max-batch-calls 500 sets cap to 500, threshold to 400."""
         parser = build_parser()
-        args = parser.parse_args(["--dry-run", "--cost-cap-usd", "20.00"])
-        assert args.cost_cap_usd == 20.00
+        args = parser.parse_args(["--dry-run", "--max-batch-calls", "500"])
+        assert args.max_batch_calls == 500
 
 
 # ── T1-update: TestCostGuardPostExclusion ────────────────────────────────────
 
 class TestCostGuardPostExclusion:
-    """Integration tests for post-exclusion cost gate (SME A8).
+    """Integration tests for post-exclusion call-count gate (SME A8).
 
     The pre-flight gate must use post-exclusion count, not full detected count.
     """
@@ -1414,7 +1421,7 @@ class TestCostGuardPostExclusion:
         informants: list[dict],
         failures: list[dict],
         tmpdir: Path,
-        spend_cap: float = 10.00,
+        max_batch_calls: int = 200,
         source: str = "all",
     ) -> tuple[int, str]:
         inf_path = tmpdir / "informants.jsonl"
@@ -1429,7 +1436,7 @@ class TestCostGuardPostExclusion:
                 informants_path=inf_path,
                 failures_path=fail_path,
                 output_path=out_path,
-                spend_cap=spend_cap,
+                max_batch_calls=max_batch_calls,
                 source=source,
             )
         return code, captured.getvalue()
@@ -1468,37 +1475,39 @@ class TestCostGuardPostExclusion:
             parsed_labels=["nuclear"],
         )
 
-    def test_cost_guard_uses_post_exclusion_count(self, tmpdir: Path) -> None:
+    def test_call_guard_uses_post_exclusion_count(self, tmpdir: Path) -> None:
         """Fixture: 5 detected failures-origin, 5 excluded (HTTPStatusError),
         0 included. Gate input should be informants-only count, not full count."""
         informants = [self._make_glm_informant(i) for i in range(3)]
         failures = [self._phi4_400_failure(i) for i in range(5)]
-        _, output = self._run_capture_with_params(informants, failures, tmpdir, spend_cap=10.00)
+        _, output = self._run_capture_with_params(informants, failures, tmpdir, max_batch_calls=200)
         # Post-exclusion: 3 informants + 0 included failures = 3
         # Full count: 3 + 5 = 8
-        # The gate input must show the post-exclusion projection ($3 * 0.05 = $0.15)
+        # The gate input must show the post-exclusion call count (3 calls)
         assert "Gate input (post-exclusion):" in output
-        assert "$0.15" in output  # 3 * 0.05
+        assert "3 calls" in output  # 3 informants
 
-    def test_cost_guard_go_under_post_exclusion_threshold(self, tmpdir: Path) -> None:
-        """Post-exclusion cost under $8 (80% of $10) → GO disposition."""
+    def test_call_guard_go_under_post_exclusion_threshold(self, tmpdir: Path) -> None:
+        """Post-exclusion count under 160 (80% of 200) → GO disposition."""
         informants = [self._make_glm_informant(i) for i in range(3)]
         failures = [self._phi4_400_failure(i) for i in range(5)]
-        code, output = self._run_capture_with_params(informants, failures, tmpdir, spend_cap=10.00)
+        code, output = self._run_capture_with_params(
+            informants, failures, tmpdir, max_batch_calls=200
+        )
         assert code == 0
         assert "GO" in output
 
-    def test_cost_guard_stop_at_post_exclusion_threshold(self, tmpdir: Path) -> None:
-        """160 records * $0.05 = $8.00 >= $8.00 (80% of $10) → STOP, exit 2."""
-        # 160 informants-origin (no failures to exclude); all cost from informants
+    def test_call_guard_stop_at_post_exclusion_threshold(self, tmpdir: Path) -> None:
+        """160 records >= 160 (80% of 200) → STOP, exit 2."""
+        # 160 informants-origin (no failures to exclude); all from informants
         informants = [self._make_glm_informant(i) for i in range(160)]
-        code, output = self._run_capture_with_params(informants, [], tmpdir, spend_cap=10.00)
+        code, output = self._run_capture_with_params(informants, [], tmpdir, max_batch_calls=200)
         assert code == 2
         assert "STOP" in output
 
-    def test_cost_guard_surface_overrides_go(self, tmpdir: Path) -> None:
-        """SME A4: unclassified-saturation SURFACE-TO-SME wins over cost GO."""
-        # 3 unclassified failures + cost under threshold → should still SURFACE-TO-SME
+    def test_call_guard_surface_overrides_go(self, tmpdir: Path) -> None:
+        """SME A4: unclassified-saturation SURFACE-TO-SME wins over call-count GO."""
+        # 3 unclassified failures + count under threshold → should still SURFACE-TO-SME
         fixture_path = _FIXTURES_DIR / "failures_unclassified_saturation.jsonl"
         failures = []
         with open(fixture_path, encoding="utf-8") as fh:
@@ -1506,7 +1515,7 @@ class TestCostGuardPostExclusion:
                 line = line.strip()
                 if line:
                     failures.append(json.loads(line))
-        code, output = self._run_capture_with_params([], failures, tmpdir, spend_cap=10.00)
+        code, output = self._run_capture_with_params([], failures, tmpdir, max_batch_calls=200)
         assert code != 0
         assert "SURFACE-TO-SME" in output
 
@@ -1514,7 +1523,7 @@ class TestCostGuardPostExclusion:
         """CLI summary shows BOTH full-count and post-exclusion projections (SME A8)."""
         informants = [self._make_glm_informant(i) for i in range(3)]
         failures = [self._phi4_400_failure(i) for i in range(5)]
-        _, output = self._run_capture_with_params(informants, failures, tmpdir, spend_cap=10.00)
+        _, output = self._run_capture_with_params(informants, failures, tmpdir, max_batch_calls=200)
         assert "Full-count projection:" in output
         assert "Post-exclusion projection:" in output
 
@@ -1722,17 +1731,22 @@ def _run_execute_capture(
     failures: list[dict],
     tmpdir: Path,
     source: str = "all",
-    spend_cap: float = 10.00,
-    cost_per_call: float = 0.05,
+    max_batch_calls: int = 200,
     adapter_response: str = "The model described the exchange clearly.",
-    adapter_cost: float = 0.05,
     adapter_model_version: str | None = None,
     adapter_model_id: str = "z-ai/glm-5.1",
+    # Legacy params accepted but ignored (cost tracking removed)
+    spend_cap: float = 10.00,
+    cost_per_call: float = 0.05,
+    adapter_cost: float = 0.05,
 ) -> tuple[int, str, str, list[dict]]:
     """Write fixtures to temp files, run run_execute, capture stdout+stderr.
 
     Returns (exit_code, stdout, stderr, written_records) where written_records
     is the list of DeclineInterview dicts read from the output JSONL.
+
+    spend_cap, cost_per_call, and adapter_cost are ignored (cost tracking removed
+    in task #F2-T14). max_batch_calls is the call-count gate.
     """
     informants_path = tmpdir / "informants.jsonl"
     failures_path = tmpdir / "failures.jsonl"
@@ -1745,7 +1759,6 @@ def _run_execute_capture(
     mock_adapter = MockAdapter(
         model_id=adapter_model_id,
         response_text=adapter_response,
-        cost_per_call=adapter_cost,
         model_version_returned=adapter_model_version,
     )
 
@@ -1760,8 +1773,7 @@ def _run_execute_capture(
             informants_path=informants_path,
             failures_path=failures_path,
             output_path=output_path,
-            cost_per_call=cost_per_call,
-            spend_cap=spend_cap,
+            max_batch_calls=max_batch_calls,
             source=source,
             adapter_factory=adapter_factory,
         )
@@ -1903,7 +1915,7 @@ class TestExecutePath:
                 f"failure_id={rec.get('originating_failure_id')!r}"
             )
 
-    def test_execute_per_call_cost_printed_to_stdout(self, tmpdir: Path) -> None:
+    def test_execute_per_call_progress_printed_to_stdout(self, tmpdir: Path) -> None:
         """Stdout captures one [N/M] progress line per call."""
         informants = [self._glm_informant(i) for i in range(3)]
         exit_code, stdout, stderr, records = _run_execute_capture(
@@ -1914,27 +1926,27 @@ class TestExecutePath:
         assert "[1/3]" in stdout
         assert "[2/3]" in stdout
         assert "[3/3]" in stdout
-        # Each line should contain cost= and total=
+        # Each line should contain model= and domain= (no cost tracking)
         lines = [ln for ln in stdout.splitlines() if ln.startswith("[")]
         assert len(lines) == 3
         for ln in lines:
-            assert "cost=$" in ln
-            assert "total=$" in ln
+            assert "model=" in ln
+            assert "step=" in ln
 
-    def test_execute_running_total_accumulates(self, tmpdir: Path) -> None:
-        """Final summary total matches the sum of per-call costs."""
+    def test_execute_summary_shows_call_counts(self, tmpdir: Path) -> None:
+        """Final summary shows call counts per source, not dollar totals."""
         informants = [self._glm_informant(i) for i in range(3)]
         exit_code, stdout, stderr, records = _run_execute_capture(
-            informants, [], tmpdir, source="informants", cost_per_call=0.07,
+            informants, [], tmpdir, source="informants",
         )
         assert exit_code == 0
-        # 3 calls x $0.07 = $0.21
-        assert "Total spend:                  $0.21" in stdout
+        assert "Records written:              3" in stdout
+        assert "Informants-origin calls:      3" in stdout
 
     def test_execute_pre_flight_stop_at_cap(self, tmpdir: Path) -> None:
-        """Pre-flight check: projected cost >= 80% of cap -> exit 2 BEFORE any API call.
+        """Pre-flight check: projected calls >= 80% of cap -> exit 2 BEFORE any API call.
 
-        160 records x $0.05 = $8.00 >= $8.00 (80% of $10). No writes to JSONL.
+        160 records >= 160 (80% of 200). No writes to JSONL.
         """
         informants = [
             _make_informant_with_prompts(
@@ -1972,8 +1984,7 @@ class TestExecutePath:
                 informants_path=informants_path,
                 failures_path=failures_path,
                 output_path=output_path,
-                cost_per_call=0.05,
-                spend_cap=10.00,
+                max_batch_calls=200,
                 source="informants",
                 adapter_factory=adapter_factory,
             )
@@ -1986,23 +1997,19 @@ class TestExecutePath:
         assert output_path.read_text(encoding="utf-8") == ""
 
     def test_execute_cap_abort_mid_batch(self, tmpdir: Path) -> None:
-        """Pre-flight stops when projected cost >= 80% of cap (exit 2).
+        """Pre-flight stops when projected calls >= 80% of cap (exit 2).
 
-        Previously this test used a dual-cost mechanism (cost_per_call for
-        pre-flight estimate, interview.cost_usd for actual spend) to reach a
-        mid-batch hard-cap abort (exit 3). Since DeclineInterview.cost_usd
-        was removed in task #F2-T13, cost_per_call is now used for both
-        pre-flight and execution. The hard-cap abort (exit 3) is therefore
-        unreachable in normal operation — the pre-flight gate (exit 2) fires
-        first whenever per-call cost is high enough to potentially exceed cap.
+        The exit-3 mid-batch hard-cap abort has been removed (task #F2-T14).
+        The pre-flight gate (exit 2) fires before any API call when the batch
+        is projected to exceed 80% of max_batch_calls.
+
+        5 records >= 4 (80% of 5) -> pre-flight exit 2.
         """
-        # 5 records x $3.00/call = $15.00 >= $8.00 (80% of $10) -> pre-flight exit 2
         informants = [self._glm_informant(i) for i in range(5)]
         exit_code, stdout, stderr, records = _run_execute_capture(
             informants, [], tmpdir,
             source="informants",
-            spend_cap=10.00,
-            cost_per_call=3.00,
+            max_batch_calls=5,
         )
         assert exit_code == 2
         # No records written before pre-flight abort
@@ -2109,15 +2116,15 @@ class TestExecutePath:
             assert rec["originating_failure_id"] is None
 
     def test_execute_summary_includes_per_source_counters(self, tmpdir: Path) -> None:
-        """CLI summary prints informants-spend vs failures-spend splits."""
+        """CLI summary prints informants-origin vs failures-origin call counts."""
         informants = [self._glm_informant(0)]
         failures = [self._parse_failure(0)]
         exit_code, stdout, stderr, records = _run_execute_capture(
             informants, failures, tmpdir, source="all"
         )
         assert exit_code == 0
-        assert "Informants-origin spend:" in stdout
-        assert "Failures-origin spend:" in stdout
+        assert "Informants-origin calls:" in stdout
+        assert "Failures-origin calls:" in stdout
 
     def test_execute_detection_rule_version_is_v1(self, tmpdir: Path) -> None:
         """Every written record has detection_rule_version='v1'."""
@@ -2387,43 +2394,27 @@ class TestCostCapAbortDuringExecute:
             parsed_items=[],
         )
 
-    def test_cost_cap_abort_exits_3_not_2(self, tmpdir: Path) -> None:
-        """Pre-flight stop exits 2; note: exit 3 (mid-batch hard-cap) is unreachable
-        after DeclineInterview.cost_usd removal (task #F2-T13). cost_per_call is now
-        used for both pre-flight estimate and execution tracking, so the pre-flight
-        gate always fires before the mid-batch cap check can trigger.
+    def test_call_cap_abort_exits_2(self, tmpdir: Path) -> None:
+        """Pre-flight stop exits 2 when projected calls >= 80% of max_batch_calls.
+
+        The exit-3 mid-batch hard-cap abort has been removed (task #F2-T14).
+        Call-count gate: 5 records >= 4 (80% of 5) -> pre-flight exit 2.
         """
         informants = [self._glm_informant(i) for i in range(5)]
         exit_code, stdout, stderr, records = _run_execute_capture(
             informants, [], tmpdir,
             source="informants",
-            spend_cap=10.00,
-            cost_per_call=3.00,  # 5 * $3.00 = $15 >= $8 (80% of $10) -> pre-flight stop
+            max_batch_calls=5,
         )
-        assert exit_code == 2  # pre-flight STOP, not mid-batch abort
-        # If we had pre-flight fired, it would have been exit 2
-        # Pre-flight: 5 * 3.00 = $15.00 >= $8.00 -> would be exit 2!
-        # So we need a spend_cap where pre-flight passes but mid-batch fails.
-        # 5 * $3.00 = $15. Pre-flight threshold = 0.80 * cap.
-        # To pass pre-flight: $15.00 < 0.80 * cap => cap > $18.75
-        # Re-run with cap=$20 to exercise mid-batch abort:
+        assert exit_code == 2  # pre-flight STOP
 
-    def test_cost_cap_abort_exits_3_not_2_correct_cap(self, tmpdir: Path) -> None:
-        """Pre-flight exits 2 when projected cost >= 80% of cap.
+    def test_call_cap_abort_exits_2_correct_cap(self, tmpdir: Path) -> None:
+        """Pre-flight exits 2 when projected calls >= 80% of max_batch_calls.
 
-        After DeclineInterview.cost_usd removal (task #F2-T13), cost_per_call is
-        used for both pre-flight estimate and execution tracking. The mid-batch
-        hard-cap abort (exit 3) is therefore unreachable — pre-flight always fires
-        first when cost_per_call is high enough to eventually exceed the cap.
-
-        The previous version of this test exploited a dual-cost mechanism:
-        cost_per_call=0.05 for pre-flight estimates, interview.cost_usd=3.00 for
-        actual spend tracking. That design was documented as intentional in the
-        comments but depended on the now-removed field. With a single cost source,
-        pre-flight and execution cost tracking are consistent, and the
-        pre-flight gate is the effective cost-cap protection.
+        Exit-3 mid-batch hard-cap abort was removed in task #F2-T14.
+        The pre-flight gate is now the sole cost-protection mechanism.
+        5 records >= 4 (80% of 5) -> pre-flight exit 2.
         """
-        # cap=$10, cost_per_call=$3: 5 * $3 = $15 >= $8 (0.8*10) -> pre-flight exit 2
         informants = [self._glm_informant(i) for i in range(5)]
         informants_path = tmpdir / "informants.jsonl"
         failures_path = tmpdir / "failures.jsonl"
@@ -2433,7 +2424,7 @@ class TestCostCapAbortDuringExecute:
         output_path.touch()
 
         def adapter_factory(model_id: str) -> MockAdapter:
-            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=3.00)
+            return MockAdapter(model_id="z-ai/glm-5.1")
 
         captured_out = StringIO()
         with patch("sys.stdout", captured_out), patch("sys.stderr", StringIO()):
@@ -2441,22 +2432,19 @@ class TestCostCapAbortDuringExecute:
                 informants_path=informants_path,
                 failures_path=failures_path,
                 output_path=output_path,
-                cost_per_call=3.00,   # pre-flight: 5*$3=$15 >= $8 -> STOP
-                spend_cap=10.00,
+                max_batch_calls=5,   # pre-flight: 5 >= 4 (80% of 5) -> STOP
                 source="informants",
                 adapter_factory=adapter_factory,
             )
 
         assert exit_code == 2, f"Expected exit 2 (pre-flight STOP), got {exit_code}"
 
-    def test_cost_cap_abort_message_shows_records_written_so_far(
+    def test_call_cap_abort_message_and_no_records_written(
         self, tmpdir: Path
     ) -> None:
-        """Pre-flight STOP message is emitted when projected cost >= 80% of cap.
+        """Pre-flight STOP message is emitted; no records written before abort.
 
-        After DeclineInterview.cost_usd removal (task #F2-T13), cost_per_call is used
-        for both pre-flight and execution. The mid-batch COST CAP EXCEEDED message
-        (exit 3) is now unreachable — pre-flight catches over-budget runs first.
+        The exit-3 mid-batch COST CAP EXCEEDED path has been removed (task #F2-T14).
         This test verifies the pre-flight STOP message is emitted and no records
         are written.
         """
@@ -2469,7 +2457,7 @@ class TestCostCapAbortDuringExecute:
         output_path.touch()
 
         def adapter_factory(model_id: str) -> MockAdapter:
-            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=3.00)
+            return MockAdapter(model_id="z-ai/glm-5.1")
 
         captured_out = StringIO()
         with patch("sys.stdout", captured_out), patch("sys.stderr", StringIO()):
@@ -2477,8 +2465,7 @@ class TestCostCapAbortDuringExecute:
                 informants_path=informants_path,
                 failures_path=failures_path,
                 output_path=output_path,
-                cost_per_call=3.00,  # 5*$3=$15 >= $8 (0.8*$10) -> pre-flight STOP
-                spend_cap=10.00,
+                max_batch_calls=5,   # 5 >= 4 (80% of 5) -> pre-flight STOP
                 source="informants",
                 adapter_factory=adapter_factory,
             )
@@ -2490,12 +2477,10 @@ class TestCostCapAbortDuringExecute:
         lines = [ln.strip() for ln in output_path.read_text().splitlines() if ln.strip()]
         assert len(lines) == 0
 
-    def test_cost_cap_abort_keeps_written_records_valid(self, tmpdir: Path) -> None:
-        """When cost_per_call is low enough to pass pre-flight, all records are written.
+    def test_call_cap_pass_writes_all_records(self, tmpdir: Path) -> None:
+        """When batch is under 80% of cap, all records are written.
 
-        After DeclineInterview.cost_usd removal (task #F2-T13), cost_per_call drives
-        both pre-flight and execution. This test verifies that when pre-flight passes,
-        all records are written successfully and each is a valid DeclineInterview.
+        3 records with max_batch_calls=200: 3 < 160 (80% of 200) -> GO.
         """
         informants = [self._glm_informant(i) for i in range(3)]
         informants_path = tmpdir / "informants.jsonl"
@@ -2506,15 +2491,14 @@ class TestCostCapAbortDuringExecute:
         output_path.touch()
 
         def adapter_factory(model_id: str) -> MockAdapter:
-            return MockAdapter(model_id="z-ai/glm-5.1", cost_per_call=0.05)
+            return MockAdapter(model_id="z-ai/glm-5.1")
 
         with patch("sys.stdout", StringIO()), patch("sys.stderr", StringIO()):
             exit_code = run_execute(
                 informants_path=informants_path,
                 failures_path=failures_path,
                 output_path=output_path,
-                cost_per_call=0.05,
-                spend_cap=10.00,
+                max_batch_calls=200,
                 source="informants",
                 adapter_factory=adapter_factory,
             )

@@ -146,7 +146,6 @@ def test_raw_response_round_trip():
         request={"prompt": "test"},
         response={"text": "result"},
         latency_ms=1000,
-        cost_usd=0.01,
     )
     json_str = obj.model_dump_json()
     restored = RawResponse.model_validate_json(json_str)

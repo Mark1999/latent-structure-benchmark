@@ -58,7 +58,6 @@ def test_complete_returns_adapter_result():
     assert result.input_tokens == 85
     assert result.output_tokens == 142
     assert result.latency_ms >= 0
-    assert result.cost_usd > 0
 
 
 def test_api_key_not_in_raw_response():

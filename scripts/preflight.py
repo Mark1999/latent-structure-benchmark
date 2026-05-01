@@ -1,18 +1,17 @@
 """Adapter preflight for Phase 4a — exercises all 5 collection_methods.
 
-For each collection_method in the Phase 4a slate, fires one minimum-cost
-probe call and verifies:
+For each collection_method in the Phase 4a slate, fires one probe call
+and verifies:
   - Auth works (no 401/403 or credential error)
   - model_version_returned is populated in the response
   - Response parses into the adapter's AdapterResult shape (no parse error)
-  - cost_usd is non-zero and plausible for the token counts
   - The call completes within 60 seconds
 
 The probe prompt is NOT a CDA domain prompt. It does not reference cultural
 domain terms and produces no data that could leak into the canonical corpus.
 This script DOES NOT write to data/raw/informants.jsonl.
 
-See ARCHITECTURE.md §4.1 (adapter interface) and §6.2 (spend cap).
+See ARCHITECTURE.md §4.1 (adapter interface).
 Task spec: docs/status/2026-04-22-phase4a-kickoff-architect-verdict.md §4 T1
 """
 
@@ -190,7 +189,6 @@ class ProbeResult:
     reason: str
     passed: bool
     latency_ms: int
-    cost_usd: float
     model_version_returned: str
     input_tokens: int
     output_tokens: int
@@ -218,7 +216,6 @@ async def _run_probe(
             reason=reason,
             passed=False,
             latency_ms=0,
-            cost_usd=0.0,
             model_version_returned="",
             input_tokens=0,
             output_tokens=0,
@@ -240,7 +237,6 @@ async def _run_probe(
             reason=reason,
             passed=False,
             latency_ms=int(PROBE_TIMEOUT_S * 1000),
-            cost_usd=0.0,
             model_version_returned="",
             input_tokens=0,
             output_tokens=0,
@@ -255,7 +251,6 @@ async def _run_probe(
             reason=reason,
             passed=False,
             latency_ms=0,
-            cost_usd=0.0,
             model_version_returned="",
             input_tokens=0,
             output_tokens=0,
@@ -269,12 +264,6 @@ async def _run_probe(
     if not result.model_version_returned:
         failures.append("model_version_returned is empty")
 
-    if result.cost_usd <= 0.0:
-        failures.append(
-            f"cost_usd is {result.cost_usd} (expected > 0); "
-            f"input_tokens={result.input_tokens}, output_tokens={result.output_tokens}"
-        )
-
     if result.input_tokens <= 0:
         failures.append(f"input_tokens is {result.input_tokens} (expected > 0)")
 
@@ -285,7 +274,6 @@ async def _run_probe(
             reason=reason,
             passed=False,
             latency_ms=result.latency_ms,
-            cost_usd=result.cost_usd,
             model_version_returned=result.model_version_returned,
             input_tokens=result.input_tokens,
             output_tokens=result.output_tokens,
@@ -299,7 +287,6 @@ async def _run_probe(
         reason=reason,
         passed=True,
         latency_ms=result.latency_ms,
-        cost_usd=result.cost_usd,
         model_version_returned=result.model_version_returned,
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
@@ -315,29 +302,27 @@ async def _run_probe(
 def _write_report(results: list[ProbeResult], timestamp: str) -> None:
     """Write a Markdown summary to REPORT_PATH."""
     passed_count = sum(1 for r in results if r.passed)
-    total_cost = sum(r.cost_usd for r in results)
 
     lines: list[str] = [
         "# Phase 4a Adapter Preflight Report",
         "",
         f"**Timestamp:** {timestamp}",
         f"**Verdict:** {passed_count}/{len(results)} collection_methods PASS",
-        f"**Total preflight cost:** ${total_cost:.6f}",
         "",
         "---",
         "",
         "## Per-method results",
         "",
-        "| collection_method | model_id | result | ms | cost_usd"
+        "| collection_method | model_id | result | ms"
         " | model_version_returned | in/out |",
-        "|---|---|---|---|---|---|---|",
+        "|---|---|---|---|---|---|",
     ]
 
     for r in results:
         status = "PASS" if r.passed else "**FAIL**"
         lines.append(
             f"| `{r.collection_method}` | `{r.model_id}` | {status} "
-            f"| {r.latency_ms} | ${r.cost_usd:.6f} "
+            f"| {r.latency_ms} "
             f"| `{r.model_version_returned}` "
             f"| {r.input_tokens}/{r.output_tokens} |"
         )
@@ -352,7 +337,6 @@ def _write_report(results: list[ProbeResult], timestamp: str) -> None:
             f"- **Reason for selection:** {r.reason}",
             f"- **model_version_returned:** `{r.model_version_returned}`",
             f"- **Latency:** {r.latency_ms} ms",
-            f"- **Cost:** ${r.cost_usd:.6f}",
             f"- **Tokens:** {r.input_tokens} input / {r.output_tokens} output",
             f"- **Response text (truncated):** `{r.response_text}`",
         ]
@@ -374,7 +358,6 @@ def _write_report(results: list[ProbeResult], timestamp: str) -> None:
         "",
         f"- Probe prompt: `{PROBE_PROMPT}`",
         f"- Timeout per probe: {PROBE_TIMEOUT_S}s",
-        f"- Total cost: ${total_cost:.6f}",
         f"- Passed: {passed_count}/{len(results)}",
         "",
         "## References",
@@ -406,7 +389,7 @@ async def _main() -> int:
 
         if r.passed:
             print(
-                f"PASS  {r.latency_ms}ms  ${r.cost_usd:.6f}  "
+                f"PASS  {r.latency_ms}ms  "
                 f"model_version_returned={r.model_version_returned!r}"
             )
         else:
@@ -420,10 +403,8 @@ async def _main() -> int:
     # Summary table
     passed = [r for r in results if r.passed]
     failed = [r for r in results if not r.passed]
-    total_cost = sum(r.cost_usd for r in results)
 
     print(f"Results: {len(passed)}/{len(results)} PASS")
-    print(f"Total cost: ${total_cost:.6f}")
     print()
 
     if failed:
@@ -434,15 +415,6 @@ async def _main() -> int:
 
     _write_report(results, timestamp)
     print(f"Report written to: {REPORT_PATH}")
-
-    # Cost sanity check: >$1 indicates something is seriously wrong
-    if total_cost > 1.0:
-        print(
-            f"WARNING: Total preflight cost ${total_cost:.4f} exceeds $1.00. "
-            "This is unexpected for 5 minimum-cost probe calls. "
-            "Investigate before proceeding to T3.",
-            file=sys.stderr,
-        )
 
     return 0 if len(failed) == 0 else 1
 

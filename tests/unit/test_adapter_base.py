@@ -8,7 +8,6 @@ def test_adapter_result_creation():
         text="hello world",
         raw_response={"id": "msg_123", "content": [{"text": "hello world"}]},
         latency_ms=150,
-        cost_usd=0.001,
         input_tokens=50,
         output_tokens=10,
         provider_request_id="req_abc123",
@@ -17,7 +16,6 @@ def test_adapter_result_creation():
     )
     assert result.text == "hello world"
     assert result.latency_ms == 150
-    assert result.cost_usd == 0.001
     assert result.input_tokens == 50
     assert result.output_tokens == 10
     assert result.provider_request_id == "req_abc123"
@@ -30,7 +28,6 @@ def test_adapter_result_frozen():
         text="test",
         raw_response={},
         latency_ms=100,
-        cost_usd=0.0,
         input_tokens=10,
         output_tokens=5,
         provider_request_id="req_1",

@@ -18,7 +18,6 @@ class AdapterResult:
     text: str
     raw_response: dict
     latency_ms: int
-    cost_usd: float
     input_tokens: int
     output_tokens: int
     provider_request_id: str

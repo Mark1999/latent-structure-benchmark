@@ -24,24 +24,24 @@ class MockAdapter:
     Args:
         model_id: The model_id to use for the ModelRef.
         response_text: Fixed response text returned by all complete() calls.
-        cost_per_call: Fixed cost_usd returned per call (default $0.05).
         model_version_returned: The model_version_returned value to include
             in AdapterResult. Defaults to f"{model_id}-v1" if not provided.
         latency_ms: Fixed latency_ms value per call (default 100).
         collection_method: Collection method for ModelRef (default "openrouter").
+        cost_per_call: Accepted but ignored. Kept for backward compatibility with
+            test helpers that were written before cost tracking was removed.
     """
 
     def __init__(
         self,
         model_id: str = "test/mock-model",
         response_text: str = "This is a mock response from the decline interview.",
-        cost_per_call: float = 0.05,
         model_version_returned: str | None = None,
         latency_ms: int = 100,
         collection_method: str = "openrouter",
+        cost_per_call: float = 0.05,  # ignored; kept for backward compat
     ) -> None:
         self._response_text = response_text
-        self._cost_per_call = cost_per_call
         self._model_version_returned = model_version_returned or f"{model_id}-v1"
         self._latency_ms = latency_ms
         self.model = ModelRef(
@@ -68,7 +68,6 @@ class MockAdapter:
             text=self._response_text,
             raw_response={"mock": True, "prompt_len": len(prompt)},
             latency_ms=self._latency_ms,
-            cost_usd=self._cost_per_call,
             input_tokens=len(prompt.split()),
             output_tokens=len(self._response_text.split()),
             provider_request_id="mock-req-id",

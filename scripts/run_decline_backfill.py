@@ -14,8 +14,8 @@ T1-update adds:
   - Section 3c: unclassified-default-include records with dry-run-blocking tripwire
     above 2 records (SME A4)
   - --source {informants,failures,all} CLI flag
-  - --cost-cap-usd CLI flag (replaces hardcoded $2 cap, default $10)
-  - Both full-count and post-exclusion cost projections in Section 5 (SME A8)
+  - --max-batch-calls CLI flag (default 200); replaces cost-based gate
+  - Both full-count and post-exclusion call projections in Section 5 (SME A8)
   - Pre-flight gate uses post-exclusion count (SME A8)
 
 SME binding notes satisfied in this file (Amendment 1 notes A1–A8):
@@ -44,7 +44,7 @@ References:
 Exit codes:
   0  — dry-run completed cleanly (GO disposition)
   1  — IO or parse error
-  2  — projected spend >= 80% of cost cap; escalation required (STOP)
+  2  — projected batch >= 80% of call cap; escalation required (STOP)
        OR unclassified-saturation tripwire fired (SURFACE-TO-SME)
 """
 
@@ -72,10 +72,9 @@ from dotenv import load_dotenv
 
 load_dotenv()
 
-# ── Cost constants ─────────────────────────────────────────────────────────────
-COST_PER_CALL_USD: float = 0.05
-DEFAULT_COST_CAP_USD: float = 10.00
-ESCALATION_THRESHOLD_RATIO: float = 0.80  # 80% of cap
+# ── Call-count gate constants ─────────────────────────────────────────────────
+DEFAULT_MAX_BATCH_CALLS: int = 200
+ESCALATION_THRESHOLD_RATIO: float = 0.80  # 80% of cap → SURFACE-TO-SME
 
 # ── Exclusion filter constants (Amendment 1 §2 + SME A2, A3) ─────────────────
 
@@ -412,10 +411,12 @@ def run_dry_run(
     failures_path: Path,
     output_path: Path,
     verbose: bool = False,
-    cost_per_call: float = COST_PER_CALL_USD,
-    spend_cap: float = DEFAULT_COST_CAP_USD,
+    max_batch_calls: int = DEFAULT_MAX_BATCH_CALLS,
     escalation_ratio: float = ESCALATION_THRESHOLD_RATIO,
     source: str = "all",
+    # Legacy keyword kept for backward compatibility with test helpers that
+    # still pass spend_cap= by keyword; maps to max_batch_calls via int cast.
+    spend_cap: float | None = None,
 ) -> int:
     """Execute the dry-run: enumerate detected sessions and print the report.
 
@@ -427,15 +428,19 @@ def run_dry_run(
         output_path:     Declared output path (not written; present for T2 symmetry).
         verbose:         If True, emit per-record rows in the not-triggered section
                          even when the count is zero.
-        cost_per_call:   Estimated cost per API call in USD (injectable for tests).
-        spend_cap:       Hard spend cap in USD (injectable for tests).
-        escalation_ratio: Fraction of cap at which cost-guard escalation fires.
+        max_batch_calls: Maximum calls permitted in one execute batch (injectable
+                         for tests). Pre-flight fires STOP/SURFACE-TO-SME when
+                         projected calls >= 80% of this value.
+        escalation_ratio: Fraction of cap at which call-guard escalation fires.
         source:          Which origin to process: 'informants', 'failures', or 'all'.
+        spend_cap:       Ignored. Accepted for backward compatibility only.
 
     Returns:
-        Exit code: 0 on success (GO), 2 on cost-guard escalation (STOP) or
+        Exit code: 0 on success (GO), 2 on call-guard escalation (STOP) or
         unclassified-saturation (SURFACE-TO-SME).
     """
+    # spend_cap is accepted but ignored — call-count gate only
+    _ = spend_cap
     # ── Load raw data ──────────────────────────────────────────────────────────
     informant_dicts = _load_jsonl_dicts(informants_path)
     failure_dicts = _load_jsonl_dicts(failures_path)
@@ -811,18 +816,16 @@ def run_dry_run(
     print(f"Gemini entries not detected:          {len(gemini_entries) - len(gemini_detected)}")
     print()
 
-    # Emit the cost status line for backward compatibility with existing tests
-    _section4_cost = len(detected_sessions) * cost_per_call
-    _section4_threshold = spend_cap * escalation_ratio
+    # Emit the call-count status line
+    _section4_n = len(detected_sessions)
+    _section4_threshold_n = max_batch_calls * escalation_ratio
     _section4_status = (
         "ESCALATE — see STOP line below"
-        if _section4_cost >= _section4_threshold
+        if _section4_n >= _section4_threshold_n
         else "OK"
     )
     print(
-        f"Projected batch size (full): {len(detected_sessions)} detected "
-        f"x ~${cost_per_call:.2f}/call "
-        f"= ~${_section4_cost:.2f} total. "
+        f"Projected batch size (full): {_section4_n} detected calls. "
         f"[{_section4_status}]"
     )
     print()
@@ -849,10 +852,8 @@ def run_dry_run(
         else:  # all
             post_exclusion_total = n_informants_origin + n_failures_included_val
 
-    # Cost projections
-    full_cost = total_detected * cost_per_call
-    post_excl_cost = post_exclusion_total * cost_per_call
-    escalation_threshold = spend_cap * escalation_ratio
+    # Call-count projections
+    escalation_threshold_n = int(max_batch_calls * escalation_ratio)
 
     print(f"Detected total:                   {total_detected}")
     print(f"Informants-origin:                {n_informants_origin}")
@@ -874,28 +875,20 @@ def run_dry_run(
             )
 
     print()
-    print(f"Cost projections (at ${cost_per_call:.2f}/call):")
-    print(
-        f"  Full-count projection:          "
-        f"$ ({total_detected} * {cost_per_call:.2f})"
-        f"                = ${full_cost:.2f}"
-    )
-    print(
-        f"  Post-exclusion projection:      "
-        f"$ ({post_exclusion_total} * {cost_per_call:.2f})"
-        f"                = ${post_excl_cost:.2f}"
-    )
+    print("Call-count projections:")
+    print(f"  Full-count projection:          {total_detected} calls")
+    print(f"  Post-exclusion projection:      {post_exclusion_total} calls")
     print()
-    print(f"Cost cap:                         ${spend_cap:.2f} (cost_cap_usd)")
-    print(f"Pre-flight threshold:             ${escalation_threshold:.2f} (80% of cap)")
-    print(f"Gate input (post-exclusion):      ${post_excl_cost:.2f}")
+    print(f"Call cap (--max-batch-calls):     {max_batch_calls}")
+    print(f"Pre-flight threshold:             {escalation_threshold_n} (80% of cap)")
+    print(f"Gate input (post-exclusion):      {post_exclusion_total} calls")
 
     # Determine disposition
-    cost_exceeds = post_excl_cost >= escalation_threshold
+    calls_exceed = post_exclusion_total >= escalation_threshold_n
 
     if surface_to_sme:
         disposition = "SURFACE-TO-SME"
-    elif cost_exceeds:
+    elif calls_exceed:
         disposition = "STOP"
     else:
         disposition = "GO"
@@ -903,11 +896,11 @@ def run_dry_run(
     print(f"Disposition:                      {disposition}")
     print()
 
-    if cost_exceeds and not surface_to_sme:
+    if calls_exceed and not surface_to_sme:
         print(
             f"STOP: projected post-exclusion batch at or above 80% of "
-            f"${spend_cap:.2f} spend cap "
-            f"(projected=${post_excl_cost:.2f} >= threshold=${escalation_threshold:.2f}). "
+            f"{max_batch_calls} call cap "
+            f"(projected={post_exclusion_total} >= threshold={escalation_threshold_n}). "
             "Escalate on a new Architect plan cycle per SME binding note 8."
         )
         print()
@@ -925,7 +918,7 @@ def run_dry_run(
     )
     print()
 
-    if surface_to_sme or cost_exceeds:
+    if surface_to_sme or calls_exceed:
         return 2
     return 0
 
@@ -988,13 +981,15 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     parser.add_argument(
-        "--cost-cap-usd",
-        type=float,
-        default=DEFAULT_COST_CAP_USD,
-        dest="cost_cap_usd",
+        "--max-batch-calls",
+        type=int,
+        default=DEFAULT_MAX_BATCH_CALLS,
+        dest="max_batch_calls",
         help=(
-            f"Hard spend cap in USD (default: ${DEFAULT_COST_CAP_USD:.2f}). "
-            "Pre-flight threshold is 80%% of this value."
+            f"Maximum API calls per execute batch (default: {DEFAULT_MAX_BATCH_CALLS}). "
+            "Pre-flight threshold is 80%% of this value. "
+            "Batches projected to exceed 80%% must be authorized by the CDA SME "
+            "(SME Amendment 1 binding note A8)."
         ),
     )
     parser.add_argument(
@@ -1259,45 +1254,54 @@ def run_execute(
     failures_path: Path,
     output_path: Path,
     verbose: bool = False,
-    cost_per_call: float = COST_PER_CALL_USD,
-    spend_cap: float = DEFAULT_COST_CAP_USD,
+    max_batch_calls: int = DEFAULT_MAX_BATCH_CALLS,
     escalation_ratio: float = ESCALATION_THRESHOLD_RATIO,
     source: str = "all",
     adapter_factory: object | None = None,
+    # Legacy keyword kept for backward compatibility with test helpers that
+    # still pass cost_per_call= or spend_cap= by keyword; both are ignored.
+    cost_per_call: float | None = None,
+    spend_cap: float | None = None,
 ) -> int:
     """Execute the decline-interview backfill: issue API calls and write records.
 
     T2 scope per Amendment 1 §6. Implements:
     - --source filter (informants / failures / all)
     - should_include_failure() exclusion on failures-origin
-    - Pre-flight cost check at 80% of cap (same gate as dry-run)
-    - Sequential execution with per-call cost + running total to stdout
-    - Abort at hard cap (exit 3, distinct from dry-run STOP=2)
+    - Pre-flight call-count check at 80% of cap (same gate as dry-run)
+    - Sequential execution with per-call progress to stdout
     - Single batch_start detection_timestamp shared across all records (SME A6)
-    - Per-sub-batch cost counters in execute summary
     - Recursive-decline capture and counting (SME binding note 6 + A6)
     - Excluded records logged to stderr with SKIP: prefix
+
+    The SME Amendment 1 authorization checkpoint (binding note A8) is
+    preserved as a call-count gate: batches projected to exceed 80% of
+    max_batch_calls must surface to the SME on a new Architect plan cycle.
 
     Args:
         informants_path: Path to informants.jsonl.
         failures_path:   Path to failures.jsonl.
         output_path:     Path to decline_interviews.jsonl (append-only writes).
         verbose:         If True, emit extra diagnostic output.
-        cost_per_call:   Estimated cost per API call in USD (injectable for tests).
-        spend_cap:       Hard spend cap in USD (injectable for tests).
+        max_batch_calls: Maximum API calls permitted in this batch (injectable
+                         for tests). Pre-flight fires at 80% of this value.
         escalation_ratio: Fraction of cap at which pre-flight STOP fires.
         source:          Which origin to process: 'informants', 'failures', or 'all'.
         adapter_factory: Optional callable(model_id: str) -> ModelAdapter.
                          When None, uses _build_adapter_for_model (real adapters).
                          Inject a MockAdapter factory in tests — never real API calls.
+        cost_per_call:   Ignored. Accepted for backward compatibility only.
+        spend_cap:       Ignored. Accepted for backward compatibility only.
 
     Returns:
         Exit code:
           0 — batch completed cleanly
           1 — IO or parse error
-          2 — pre-flight projected cost >= 80% of cap (STOP before any API call)
-          3 — hard cap exceeded mid-batch (partial records written; JSONL stands)
+          2 — pre-flight projected calls >= 80% of cap (STOP before any API call)
     """
+    # Legacy params accepted but ignored — call-count gate only
+    _ = cost_per_call
+    _ = spend_cap
     # ── Load raw data ──────────────────────────────────────────────────────────
     informant_dicts = _load_jsonl_dicts(informants_path)
     failure_dicts = _load_jsonl_dicts(failures_path)
@@ -1338,15 +1342,14 @@ def run_execute(
     for identifier, rationale in excluded_sessions:
         print(f"SKIP: {identifier} — {rationale}", file=sys.stderr)
 
-    # ── Pre-flight cost check (same gate as dry-run) ───────────────────────────
+    # ── Pre-flight call-count check (same gate as dry-run) ────────────────────
     n_work = len(work_items)
-    projected_cost = n_work * cost_per_call
-    escalation_threshold = spend_cap * escalation_ratio
+    escalation_threshold_n = int(max_batch_calls * escalation_ratio)
 
-    if projected_cost >= escalation_threshold:
+    if n_work >= escalation_threshold_n:
         print(
-            f"STOP: projected cost ${projected_cost:.2f} >= "
-            f"${escalation_threshold:.2f} (80% of ${spend_cap:.2f} cap). "
+            f"STOP: projected batch of {n_work} calls >= "
+            f"{escalation_threshold_n} (80% of {max_batch_calls} call cap). "
             "Escalate on a new Architect plan cycle per SME binding note 8. "
             "No API calls made.",
             file=sys.stdout,
@@ -1368,9 +1371,6 @@ def run_execute(
 
     # ── Execute sequentially ───────────────────────────────────────────────────
     n_total = len(work_items)
-    running_total: float = 0.0
-    informants_spend: float = 0.0
-    failures_spend: float = 0.0
     n_written = 0
     n_recursive = 0
     n_version_drift = 0
@@ -1438,14 +1438,7 @@ def run_execute(
         t_end = time.monotonic()
 
         call_latency_ms = (t_end - t_start) * 1000.0
-        call_cost = cost_per_call
-        running_total += call_cost
         latency_ms_list.append(call_latency_ms)
-
-        if session.source == "informants":
-            informants_spend += call_cost
-        else:
-            failures_spend += call_cost
 
         if interview.version_drift_flag:
             n_version_drift += 1
@@ -1470,28 +1463,12 @@ def run_execute(
             f"[{call_index}/{n_total}] "
             f"model={model_id} "
             f"domain={domain} "
-            f"step={session.originating_step} "
-            f"cost=${call_cost:.3f} "
-            f"total=${running_total:.3f}"
+            f"step={session.originating_step}"
         )
 
         # Append to output JSONL (append-only)
         append_decline_interview(interview, output_path)
         n_written += 1
-
-        # Hard-cap check after each call
-        if running_total >= spend_cap:
-            print(
-                f"\nCOST CAP EXCEEDED: ${running_total:.2f} >= ${spend_cap:.2f}. "
-                "Batch aborted.",
-                file=sys.stdout,
-            )
-            print(
-                f"Records written before abort: {n_written}. "
-                "decline_interviews.jsonl stands (append-only).",
-                file=sys.stdout,
-            )
-            return 3
 
     # ── CLI summary ────────────────────────────────────────────────────────────
     print()
@@ -1499,9 +1476,10 @@ def run_execute(
     print(f"Source:                       {source}")
     print(f"Records written:              {n_written}")
     print(f"Records excluded:             {len(excluded_sessions)}")
-    print(f"Total spend:                  ${running_total:.2f}")
-    print(f"Informants-origin spend:      ${informants_spend:.2f}")
-    print(f"Failures-origin spend:        ${failures_spend:.2f}")
+    n_inf_calls = sum(1 for s, _ in work_items if s.source == "informants")
+    n_fail_calls = sum(1 for s, _ in work_items if s.source != "informants")
+    print(f"Informants-origin calls:      {n_inf_calls}")
+    print(f"Failures-origin calls:        {n_fail_calls}")
     print(f"Detection timestamp:          {batch_start.isoformat()}")
     print(f"Version drift flags:          {n_version_drift}")
 
@@ -1530,7 +1508,7 @@ def main() -> int:
             failures_path=args.failures_path,
             output_path=args.output_path,
             verbose=args.verbose,
-            spend_cap=args.cost_cap_usd,
+            max_batch_calls=args.max_batch_calls,
             source=args.source,
         )
 
@@ -1540,7 +1518,7 @@ def main() -> int:
             failures_path=args.failures_path,
             output_path=args.output_path,
             verbose=args.verbose,
-            spend_cap=args.cost_cap_usd,
+            max_batch_calls=args.max_batch_calls,
             source=args.source,
         )
 

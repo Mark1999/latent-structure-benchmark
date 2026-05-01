@@ -85,7 +85,7 @@ def _placeholder_freelist() -> tuple[FreelistRecord, AdapterResult]:
         parsed_raw_order=[],
     )
     result = AdapterResult(
-        text="", raw_response={}, latency_ms=0, cost_usd=0.0,
+        text="", raw_response={}, latency_ms=0,
         input_tokens=0, output_tokens=0, provider_request_id="",
         model_version_returned="", stop_reason="not_collected",
     )

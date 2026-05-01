@@ -11,7 +11,6 @@ import anthropic
 from cdb_core import ModelRef
 
 from cdb_collect.adapters.base import AdapterResult
-from cdb_collect.spend import compute_cost
 
 logger = logging.getLogger(__name__)
 
@@ -115,7 +114,6 @@ class AnthropicAdapter:
 
         input_tokens = response.usage.input_tokens
         output_tokens = response.usage.output_tokens
-        cost_usd = compute_cost(input_tokens, output_tokens, self.model.model_id)
 
         # Build the raw response dict, scrubbing the API key
         raw_response = _scrub_response(response.model_dump())
@@ -124,7 +122,6 @@ class AnthropicAdapter:
             text=text,
             raw_response=raw_response,
             latency_ms=latency_ms,
-            cost_usd=cost_usd,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             provider_request_id=response.id,

@@ -26,7 +26,6 @@ import httpx
 from cdb_core import ModelRef
 
 from cdb_collect.adapters.base import AdapterResult
-from cdb_collect.spend import compute_cost
 
 logger = logging.getLogger(__name__)
 
@@ -211,21 +210,12 @@ class OpenAICompatAdapter:
         input_tokens = usage.get("prompt_tokens", 0)
         output_tokens = usage.get("completion_tokens", 0)
 
-        # Reasoning tokens tracked separately in usage details
-        output_details = usage.get("completion_tokens_details") or {}
-        reasoning_tokens = output_details.get("reasoning_tokens", 0)
-
-        # Include reasoning tokens in cost calculation (billed as output)
-        total_output_for_cost = output_tokens + reasoning_tokens
-        cost_usd = compute_cost(input_tokens, total_output_for_cost, self.model.model_id)
-
         raw_response = _scrub_response(data)
 
         return AdapterResult(
             text=text,
             raw_response=raw_response,
             latency_ms=latency_ms,
-            cost_usd=cost_usd,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
             provider_request_id=data.get("id", ""),

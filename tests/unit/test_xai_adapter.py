@@ -62,7 +62,6 @@ def test_complete_returns_adapter_result():
     assert result.input_tokens == 87
     assert result.output_tokens == 152
     assert result.latency_ms >= 0
-    assert result.cost_usd > 0
 
 
 def test_thinking_text_captured():

@@ -105,7 +105,7 @@ Pause and surface the question to the Architect or Mark when:
 - A schema change would break the data dictionary or open data reproducibility
 - A frontend change requires a visual decision not in DESIGN_SYSTEM.md
 - A security or privacy concern arises not anticipated by SECURITY_AND_HARDENING.md
-- A spend cap is approaching 80% warning threshold during a collection run
+- A collection run appears to be producing an unexpectedly large number of API calls
 
 **The wrong action is to push through with a guess.** The cost of pausing is
 hours; the cost of an undocumented architectural decision is months.
