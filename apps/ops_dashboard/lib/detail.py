@@ -1,4 +1,4 @@
-"""Pure helper functions for the single-informant detail view (OPS-T4).
+"""Pure helper functions for the single-informant detail view (OPS-T4/T5).
 
 All functions are pure (no side effects, no I/O, no Streamlit calls).
 Extracted here so that tests can unit-test them without spinning up a
@@ -17,6 +17,13 @@ CDA SME binding notes (2026-05-01 OPS-T4 verdict):
 - Note 4: Disclaimer above decline verbatim text is rendered by the caller.
 - Note 5: Read-only classification fields surface manual_classification and
   safety_attribution_subtype if present; omit if absent.
+
+CDA SME binding notes (2026-05-02 OPS-T5 verdict):
+- Q1: Section 4 disclaimer text is rendered by the caller verbatim.
+- Q2: Subheader label inside each expander is "Extended-thinking output
+  (verbatim)" — not "Thinking trace (verbatim)".
+- Q3: Empty-thinking placeholder is "No extended-thinking output for this
+  step." — rendered by the caller.
 """
 
 from __future__ import annotations
@@ -224,3 +231,110 @@ def find_decline_events(
             )
         )
     return results
+
+
+# ── Raw transcript helpers (OPS-T5) ──────────────────────────────────────────
+
+
+@dataclass
+class TranscriptStep:
+    """Rendered view of one CDA dialog step's verbatim transcript.
+
+    Attributes:
+        step_name: Internal identifier — one of "freelist", "pile_sort",
+            "interview".
+        step_label: Display label for the expander widget, e.g.
+            "Step 1 — Freelist transcript".
+        prompt_version: The prompt version string (e.g. "v1").
+        prompt_verbatim: The exact prompt text sent to the model.
+        thinking_verbatim: The model's extended-thinking output text as
+            returned. Empty string when no extended-thinking output was
+            produced; never None.
+        has_thinking: True when thinking_verbatim contains non-whitespace
+            content. The renderer reads this flag rather than re-evaluating
+            the string.
+        response_verbatim: The model's response text as returned verbatim.
+        input_tokens: Token count for the input (prompt) side.
+        output_tokens: Token count for the output (response) side.
+        latency_ms: Round-trip latency for this step in milliseconds.
+        stop_reason: The stop reason string returned by the provider API.
+    """
+
+    step_name: str
+    step_label: str
+    prompt_version: str
+    prompt_verbatim: str
+    thinking_verbatim: str
+    has_thinking: bool
+    response_verbatim: str
+    input_tokens: int
+    output_tokens: int
+    latency_ms: int
+    stop_reason: str
+
+
+def build_step_transcripts(record: InformantRecord) -> list[TranscriptStep]:
+    """Return the verbatim three-step dialog for one informant.
+
+    Returns exactly three TranscriptStep objects in CDA protocol order:
+    Step 1 (freelist), Step 2 (pile-sort), Step 3 (interview / pile-naming).
+
+    No filtering, no re-summarisation. Empty extended-thinking output is
+    preserved as an empty string — has_thinking is the flag the renderer
+    reads to decide whether to show the placeholder caption.
+
+    READ-ONLY INVARIANT: reads only from the InformantRecord argument.
+    No file I/O, no network calls, no LLM client imports.
+
+    Args:
+        record: An InformantRecord with freelist, pile_sort, and interview
+            sub-records.
+
+    Returns:
+        List of three TranscriptStep objects in CDA order.
+    """
+    fl = record.freelist
+    ps = record.pile_sort
+    iv = record.interview
+
+    return [
+        TranscriptStep(
+            step_name="freelist",
+            step_label="Step 1 — Freelist transcript",
+            prompt_version=fl.prompt_version,
+            prompt_verbatim=fl.prompt_verbatim,
+            thinking_verbatim=fl.thinking_verbatim,
+            has_thinking=bool(fl.thinking_verbatim and fl.thinking_verbatim.strip()),
+            response_verbatim=fl.response_verbatim,
+            input_tokens=fl.input_tokens,
+            output_tokens=fl.output_tokens,
+            latency_ms=fl.latency_ms,
+            stop_reason=fl.stop_reason,
+        ),
+        TranscriptStep(
+            step_name="pile_sort",
+            step_label="Step 2 — Pile-sort transcript",
+            prompt_version=ps.prompt_version,
+            prompt_verbatim=ps.prompt_verbatim,
+            thinking_verbatim=ps.thinking_verbatim,
+            has_thinking=bool(ps.thinking_verbatim and ps.thinking_verbatim.strip()),
+            response_verbatim=ps.response_verbatim,
+            input_tokens=ps.input_tokens,
+            output_tokens=ps.output_tokens,
+            latency_ms=ps.latency_ms,
+            stop_reason=ps.stop_reason,
+        ),
+        TranscriptStep(
+            step_name="interview",
+            step_label="Step 3 — Interview / pile-naming transcript",
+            prompt_version=iv.prompt_version,
+            prompt_verbatim=iv.prompt_verbatim,
+            thinking_verbatim=iv.thinking_verbatim,
+            has_thinking=bool(iv.thinking_verbatim and iv.thinking_verbatim.strip()),
+            response_verbatim=iv.response_verbatim,
+            input_tokens=iv.input_tokens,
+            output_tokens=iv.output_tokens,
+            latency_ms=iv.latency_ms,
+            stop_reason=iv.stop_reason,
+        ),
+    ]

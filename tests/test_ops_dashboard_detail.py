@@ -40,6 +40,7 @@ from cdb_core.schemas import (
 )
 
 from apps.ops_dashboard.lib.detail import (
+    build_step_transcripts,
     build_thinking_trace,
     find_decline_events,
     format_freelist,
@@ -583,6 +584,224 @@ class TestFindDeclineEvents:
         # the other informant's decline
         assert result[0].manual_classification is None
         assert result[0].manual_classifier_id is None
+
+
+# ── build_step_transcripts tests (OPS-T5) ────────────────────────────────────
+
+
+class TestBuildStepTranscripts:
+    """Unit tests for build_step_transcripts (OPS-T5).
+
+    All tests use synthetic fixtures constructed in-memory.
+    No real API calls. No reads from data/raw/*.jsonl.
+    """
+
+    def test_returns_exactly_three_steps(self) -> None:
+        """build_step_transcripts always returns a list of length 3."""
+        record = _make_record()
+        result = build_step_transcripts(record)
+        assert len(result) == 3
+
+    def test_steps_in_cda_order(self) -> None:
+        """Steps are returned in CDA order: freelist, pile_sort, interview."""
+        record = _make_record()
+        result = build_step_transcripts(record)
+        assert result[0].step_name == "freelist"
+        assert result[1].step_name == "pile_sort"
+        assert result[2].step_name == "interview"
+
+    def test_step_labels_correct(self) -> None:
+        """Step labels match the Architect plan / SME-approved expander labels."""
+        record = _make_record()
+        result = build_step_transcripts(record)
+        assert result[0].step_label == "Step 1 — Freelist transcript"
+        assert result[1].step_label == "Step 2 — Pile-sort transcript"
+        assert result[2].step_label == "Step 3 — Interview / pile-naming transcript"
+
+    def test_all_three_populated_field_values(self) -> None:
+        """All three steps carry the correct field values from their step records."""
+        record = _make_record(
+            freelist_items=["mother", "father"],
+            freelist_thinking="Step 1: analyze.",
+        )
+        result = build_step_transcripts(record)
+
+        fl = result[0]
+        assert fl.prompt_version == "v1"
+        assert fl.prompt_verbatim == "List every family term you can think of."
+        assert fl.thinking_verbatim == "Step 1: analyze."
+        assert fl.has_thinking is True
+        assert fl.response_verbatim == "1. mother\n2. father"
+        assert fl.input_tokens == 50
+        assert fl.output_tokens == 20
+        assert fl.latency_ms == 900
+        assert fl.stop_reason == "end_turn"
+
+        ps = result[1]
+        assert ps.prompt_version == "v1"
+        assert ps.prompt_verbatim == "Sort these items into piles."
+        assert ps.thinking_verbatim == ""
+        assert ps.has_thinking is False
+        assert ps.response_verbatim == "(raw pile sort output)"
+        assert ps.input_tokens == 60
+        assert ps.output_tokens == 30
+        assert ps.latency_ms == 1100
+        assert ps.stop_reason == "end_turn"
+
+        iv = result[2]
+        assert iv.prompt_version == "v1"
+        assert iv.prompt_verbatim == "Name each pile."
+        assert iv.thinking_verbatim == ""
+        assert iv.has_thinking is False
+        assert iv.response_verbatim == "(raw interview output)"
+        assert iv.input_tokens == 40
+        assert iv.output_tokens == 15
+        assert iv.latency_ms == 700
+        assert iv.stop_reason == "end_turn"
+
+    def test_empty_thinking_on_freelist_has_thinking_false(self) -> None:
+        """Empty thinking_verbatim on freelist → has_thinking=False for that
+        step; other steps are unaffected."""
+        record = _make_record(freelist_thinking="")
+        result = build_step_transcripts(record)
+        assert result[0].has_thinking is False
+        # Pile-sort and interview also have no thinking in the fixture defaults
+        assert result[1].has_thinking is False
+        assert result[2].has_thinking is False
+
+    def test_whitespace_only_thinking_has_thinking_false(self) -> None:
+        """Whitespace-only thinking_verbatim → has_thinking=False.
+
+        Mirrors the OPS-T4 build_thinking_trace behavior.
+        """
+        fl = _freelist_record(thinking="   \n  ")
+        ps = _pilesort_record()
+        iv = _interview_record()
+        record = InformantRecord(
+            informant_id="ws_test",
+            domain_slug="family",
+            run_index=0,
+            collection_date=datetime(2026, 5, 1),
+            model_id="claude-opus-4-6",
+            model_version_returned="claude-opus-4-6-20260501",
+            family="claude",
+            provider="anthropic",
+            provider_request_id="req_ws_test",
+            knowledge_cutoff=None,
+            open_weights=False,
+            origin_country="us",
+            alignment_method=None,
+            collection_method="anthropic_api",
+            api_endpoint="https://api.anthropic.com/v1/messages",
+            api_version="2023-06-01",
+            temperature=0.7,
+            top_p=None,
+            max_tokens=4096,
+            system_prompt="You are participating in a cognitive anthropology study.",
+            freelist=fl,
+            pile_sort=ps,
+            interview=iv,
+            sha256_manifest={k: "0" * 64 for k in _MANIFEST_KEYS},
+            qa_passed=True,
+        )
+        result = build_step_transcripts(record)
+        assert result[0].has_thinking is False
+        assert result[0].thinking_verbatim == "   \n  "
+
+    def test_multi_kb_bodies_preserved_verbatim(self) -> None:
+        """Multi-KB prompt and response strings round-trip identically (verbatim
+        invariant). A10 / A6 coverage."""
+        big_prompt = "A" * 15_000
+        big_response = "B" * 15_000
+        fl = FreelistRecord(
+            prompt_verbatim=big_prompt,
+            prompt_version="v1",
+            response_verbatim=big_response,
+            response_object_json={"id": "msg_big"},
+            input_tokens=5000,
+            output_tokens=5000,
+            latency_ms=5000,
+            stop_reason="end_turn",
+            parsed_items=[],
+            parsed_raw_order=[],
+            thinking_verbatim="",
+        )
+        record = InformantRecord(
+            informant_id="big_test",
+            domain_slug="family",
+            run_index=0,
+            collection_date=datetime(2026, 5, 1),
+            model_id="claude-opus-4-6",
+            model_version_returned="claude-opus-4-6-20260501",
+            family="claude",
+            provider="anthropic",
+            provider_request_id="req_big_test",
+            knowledge_cutoff=None,
+            open_weights=False,
+            origin_country="us",
+            alignment_method=None,
+            collection_method="anthropic_api",
+            api_endpoint="https://api.anthropic.com/v1/messages",
+            api_version="2023-06-01",
+            temperature=0.7,
+            top_p=None,
+            max_tokens=4096,
+            system_prompt="You are participating in a cognitive anthropology study.",
+            freelist=fl,
+            pile_sort=_pilesort_record(),
+            interview=_interview_record(),
+            sha256_manifest={k: "0" * 64 for k in _MANIFEST_KEYS},
+            qa_passed=True,
+        )
+        result = build_step_transcripts(record)
+        assert result[0].prompt_verbatim == big_prompt
+        assert result[0].response_verbatim == big_response
+        assert len(result[0].prompt_verbatim) == 15_000
+        assert len(result[0].response_verbatim) == 15_000
+
+    def test_deterministic_output(self) -> None:
+        """Two calls with the same record produce equal output."""
+        record = _make_record(
+            freelist_items=["mother", "father", "sister"],
+            freelist_thinking="Analyzing...",
+        )
+        first = build_step_transcripts(record)
+        second = build_step_transcripts(record)
+        assert len(first) == len(second)
+        for a, b in zip(first, second, strict=True):
+            assert a.step_name == b.step_name
+            assert a.step_label == b.step_label
+            assert a.prompt_version == b.prompt_version
+            assert a.prompt_verbatim == b.prompt_verbatim
+            assert a.thinking_verbatim == b.thinking_verbatim
+            assert a.has_thinking == b.has_thinking
+            assert a.response_verbatim == b.response_verbatim
+            assert a.input_tokens == b.input_tokens
+            assert a.output_tokens == b.output_tokens
+            assert a.latency_ms == b.latency_ms
+            assert a.stop_reason == b.stop_reason
+
+    def test_thinking_verbatim_is_never_none(self) -> None:
+        """thinking_verbatim is always a string, never None — empty string when
+        no extended-thinking output was produced."""
+        record = _make_record(freelist_thinking="")
+        result = build_step_transcripts(record)
+        for step in result:
+            assert step.thinking_verbatim is not None
+            assert isinstance(step.thinking_verbatim, str)
+
+    def test_forbidden_vocabulary_in_step_labels(self) -> None:
+        """Step labels and step_name values must not contain forbidden vocabulary
+        (A10 coverage)."""
+        record = _make_record()
+        result = build_step_transcripts(record)
+        label_strings = [s.step_name for s in result] + [s.step_label for s in result]
+        for pattern in _FORBIDDEN_PATTERNS:
+            rx = re.compile(pattern, re.IGNORECASE)
+            for s in label_strings:
+                assert not rx.search(s), (
+                    f"Forbidden pattern '{pattern}' found in step label: {s!r}"
+                )
 
 
 # ── Forbidden vocabulary scan ─────────────────────────────────────────────────

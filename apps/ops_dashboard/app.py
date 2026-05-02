@@ -33,6 +33,7 @@ from cdb_core.schemas import DeclineInterview, InformantRecord
 
 from apps.ops_dashboard.lib.detail import (
     DeclineDetail,
+    build_step_transcripts,
     build_thinking_trace,
     find_decline_events,
     format_freelist,
@@ -342,3 +343,36 @@ else:
                 f"{subtype_classifier_label}"
             )
         st.divider()
+
+# ── Section 4 — Raw transcripts ───────────────────────────────────────────────
+
+st.markdown("### Raw transcripts")
+st.caption(
+    "Verbatim model output below — prompts as sent, model output text as returned. "
+    "Extended-thinking text is the model's literal output, not a claim about "
+    "internal reasoning."
+)
+
+_steps = build_step_transcripts(_rec)
+
+for _step in _steps:
+    with st.expander(_step.step_label, expanded=False):
+        st.markdown("**Prompt**")
+        st.code(_step.prompt_verbatim, language=None)
+
+        st.markdown("**Extended-thinking output (verbatim)**")
+        if _step.has_thinking:
+            st.code(_step.thinking_verbatim, language=None)
+        else:
+            st.caption("No extended-thinking output for this step.")
+
+        st.markdown("**Response**")
+        st.code(_step.response_verbatim, language=None)
+
+        st.caption(
+            f"prompt_version: `{_step.prompt_version}` | "
+            f"input_tokens: {_step.input_tokens} | "
+            f"output_tokens: {_step.output_tokens} | "
+            f"latency_ms: {_step.latency_ms} | "
+            f"stop_reason: `{_step.stop_reason}`"
+        )
