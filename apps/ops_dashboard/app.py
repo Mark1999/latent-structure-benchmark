@@ -18,7 +18,15 @@ SSH tunnel: ssh -L 8501:localhost:8501 lsb-agent-02
 
 from __future__ import annotations
 
+import sys
 from pathlib import Path
+
+# Streamlit puts only the script's directory on sys.path; insert the repo root
+# so `from apps.ops_dashboard.lib...` resolves the same way pytest sees it
+# (pythonpath = ["."] in the root pyproject.toml).
+_REPO_ROOT_FOR_IMPORTS = Path(__file__).resolve().parents[2]
+if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
+    sys.path.insert(0, str(_REPO_ROOT_FOR_IMPORTS))
 
 import streamlit as st
 from cdb_core.schemas import DeclineInterview, InformantRecord
