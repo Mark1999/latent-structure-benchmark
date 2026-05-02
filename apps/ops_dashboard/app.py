@@ -28,10 +28,10 @@ _REPO_ROOT_FOR_IMPORTS = Path(__file__).resolve().parents[2]
 if str(_REPO_ROOT_FOR_IMPORTS) not in sys.path:
     sys.path.insert(0, str(_REPO_ROOT_FOR_IMPORTS))
 
-import streamlit as st
-from cdb_core.schemas import DeclineInterview, InformantRecord
+import streamlit as st  # noqa: E402  (must follow sys.path shim above)
+from cdb_core.schemas import DeclineInterview, InformantRecord  # noqa: E402
 
-from apps.ops_dashboard.lib.detail import (
+from apps.ops_dashboard.lib.detail import (  # noqa: E402
     DeclineDetail,
     build_step_transcripts,
     build_thinking_trace,
@@ -39,12 +39,12 @@ from apps.ops_dashboard.lib.detail import (
     format_freelist,
     format_pile_sort,
 )
-from apps.ops_dashboard.lib.loader import (
+from apps.ops_dashboard.lib.loader import (  # noqa: E402
     load_decline_interviews,
     load_informants,
     load_jsonl_dicts,
 )
-from apps.ops_dashboard.lib.picker import (
+from apps.ops_dashboard.lib.picker import (  # noqa: E402
     apply_filters,
     available_domains,
     available_informant_ids,
