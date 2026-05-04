@@ -101,15 +101,28 @@ class OpenRouterAdapter:
         # PROVIDER fallback (same model, different host) is left enabled;
         # same weights, just different serving infra, improves uptime.
         # model_version_returned captures whatever actually responded.
-        # Cap max_tokens at 4096. Models like microsoft/phi-4 have a 16384-token
-        # total context window; requesting max_tokens=16384 leaves no room for
-        # the prompt and triggers a 400 Bad Request. 4096 is well above any
-        # CDA step output (freelist ~250 tokens, pilesort matrix ~2000 tokens,
-        # interview labels ~500 tokens) and safe for all models on the slate.
+        #
+        # max_tokens=16384. The original cap of 4096 was introduced in
+        # docs/status/2026-04-22-phase4a-adapter-fix-verdict.md to protect
+        # microsoft/phi-4 (16K total context window; 4096 max_tokens left
+        # headroom for the prompt). phi-4 is no longer in the active slate.
+        # Stage 1.5b (commit 11a36c0, script
+        # scripts/probe_openrouter_cap_bump_2026_05_04.py) confirmed that
+        # the 4096 cap was the root cause of glm-5.1 (×6) and
+        # llama-4-maverick (×4) Phase 4a failures — cap-exhausted reasoning
+        # consumed the entire budget before any visible output was emitted.
+        # 16384 unblocks all current slate models (all have ≥163K context).
+        # include_reasoning=True surfaces reasoning tokens in the response
+        # for thinking-capable models (required to populate
+        # thoughts_token_count and thinking_text). Per OpenRouter docs,
+        # this is a no-op for models that do not support reasoning.
+        # See docs/status/2026-05-04-task-16-architect-plan.md §2 Task 16.A.
+        # Supersedes docs/status/2026-04-22-phase4a-adapter-fix-verdict.md.
         payload: dict = {
             "model": self.model.model_id,
-            "max_tokens": 4096,
+            "max_tokens": 16384,
             "temperature": temperature,
+            "include_reasoning": True,
             "messages": [{"role": "user", "content": prompt}],
         }
 
@@ -151,6 +164,12 @@ class OpenRouterAdapter:
         usage = data.get("usage", {})
         input_tokens = usage.get("prompt_tokens", 0)
         output_tokens = usage.get("completion_tokens", 0)
+        # Reasoning token count: OpenRouter surfaces this as
+        # usage.completion_tokens_details.reasoning_tokens for thinking-capable
+        # models (e.g. DeepSeek, Qwen, glm-5.1). Default to 0 when the path
+        # is absent (non-reasoning models or providers that omit the field).
+        completion_details = usage.get("completion_tokens_details") or {}
+        thoughts_token_count = completion_details.get("reasoning_tokens") or 0
 
         raw_response = _scrub_response(data)
 
@@ -163,6 +182,7 @@ class OpenRouterAdapter:
             provider_request_id=data.get("id", ""),
             model_version_returned=data.get("model", self.model.model_id),
             stop_reason=choice.get("finish_reason") or "unknown",
+            thoughts_token_count=thoughts_token_count,
             thinking_text=thinking_text,
         )
 

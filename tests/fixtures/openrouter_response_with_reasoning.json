@@ -1,0 +1,27 @@
+{
+  "id": "gen-reasoning-0123456789ab",
+  "object": "chat.completion",
+  "created": 1746316800,
+  "model": "z-ai/glm-5.1",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Grandmother",
+        "reasoning_content": "The user wants types of family members. Let me think through immediate and extended family systematically."
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 95,
+    "completion_tokens": 45,
+    "total_tokens": 1140,
+    "completion_tokens_details": {
+      "reasoning_tokens": 1000,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  }
+}

@@ -110,11 +110,23 @@ class GeminiAdapter:
 
         start = time.monotonic()
 
+        # Cap values confirmed by Stage 1.6 end-to-end probe (commit 19d67f1,
+        # script scripts/probe_gemini_fullcycle_2026_05_04.py): 10/10 valid
+        # informants on family + holidays at max_output_tokens=16384,
+        # thinking_budget=1024. The prior max_output_tokens=4096 was the root
+        # cause of 29 Phase 4a failures (cap-exhausted reasoning before any
+        # visible output was emitted). The prior thinking_budget=8192 was not
+        # based on probe data; 1024 proved sufficient and reclaims headroom for
+        # visible output. Single global cap for all three CDA steps — per-step
+        # adaptive sizing rejected as premature optimisation (see plan §2
+        # Task 16.A, Q1 and Q6 SME rulings). Supersedes the cap value from
+        # docs/status/2026-04-22-phase4a-adapter-fix-verdict.md.
+        # See docs/status/2026-05-04-task-16-architect-plan.md §2 Task 16.A.
         config = types.GenerateContentConfig(
             temperature=temperature,
-            max_output_tokens=4096,  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
+            max_output_tokens=16384,
             thinking_config=types.ThinkingConfig(
-                thinking_budget=8192,
+                thinking_budget=1024,
             ),
         )
 
@@ -149,6 +161,14 @@ class GeminiAdapter:
         usage = response.usage_metadata
         input_tokens = usage.prompt_token_count or 0 if usage else 0
         output_tokens = usage.candidates_token_count or 0 if usage else 0
+        # Reasoning token count: Google exposes thoughts_token_count as a
+        # sibling of prompt_token_count and candidates_token_count on
+        # usage_metadata. Default to 0 when the attribute is absent (older
+        # SDK versions or non-thinking model variants).
+        thoughts_token_count = (
+            getattr(usage, "thoughts_token_count", None) or 0
+            if usage else 0
+        )
         # Build raw response dict for provenance
         raw_response = _build_raw_response(response)
 
@@ -168,6 +188,7 @@ class GeminiAdapter:
             stop_reason=response.candidates[0].finish_reason.name
             if response.candidates and response.candidates[0].finish_reason
             else "unknown",
+            thoughts_token_count=thoughts_token_count,
             thinking_text=thinking_text,
         )
 
