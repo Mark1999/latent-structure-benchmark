@@ -358,3 +358,98 @@ class TestAdditionalEdgeCases:
         result = interpret_qa_notes("171")
         assert len(result) == 1
         assert result[0].code == "freelist_too_low"
+
+
+# ── QI-T16: verbatim SME binding-edit impact strings ─────────────────────────
+
+
+class TestQIT16VerbatimSMEImpactStrings:
+    """Assert that the three SME Q1 binding-edit impact strings appear verbatim
+    in the output of interpret_qa_notes.
+
+    The SME verdict (docs/status/2026-05-06-OPS-T7-cda-sme-verdict.md §Q1)
+    mandated specific replacement text for three rows:
+    - freelist_too_low: "Operator should exclude or flag"
+    - uniqueness_too_low: "independent elicitation across runs"
+    - token_inconsistency_or_campaign_tag: "chars/4 heuristic"
+
+    QI-T14 scans for *forbidden* vocabulary; this class asserts the *required*
+    replacement text is present verbatim (not just substring-of-category).
+    """
+
+    def test_freelist_too_low_impact_operator_should_exclude(self) -> None:
+        """QI-T16a: freelist_too_low impact must contain the SME Q1 binding text
+        'Operator should exclude or flag this run when computing grouped salience'.
+
+        Rationale (SME Q1): the original 'Excluded from grouped salience aggregates'
+        overstates what qa_passed=False does; the corrected text makes clear the
+        flag is operator-actionable advice, not automated filtering.
+        """
+        result = interpret_qa_notes("0")  # bare integer only-segment
+        assert len(result) == 1
+        assert result[0].code == "freelist_too_low"
+        assert "Operator should exclude or flag this run" in result[0].impact, (
+            "QI-T16a: SME Q1 binding text 'Operator should exclude or flag this run' "
+            f"not found in freelist_too_low impact. Got: {result[0].impact!r}"
+        )
+        assert "does not currently filter on" in result[0].impact, (
+            "QI-T16a: SME Q1 binding text 'does not currently filter on' "
+            f"not found in freelist_too_low impact. Got: {result[0].impact!r}"
+        )
+
+    def test_uniqueness_too_low_impact_independent_elicitation(self) -> None:
+        """QI-T16b: uniqueness_too_low impact must contain the SME Q1 binding text
+        'independent elicitation across runs'.
+
+        Rationale (SME Q1): 'informed elicitation' was §1.5-adjacent; the
+        corrected phrase is statistically descriptive and clean.
+        """
+        result = interpret_qa_notes("12.3%")
+        assert len(result) == 1
+        assert result[0].code == "uniqueness_too_low"
+        assert "independent elicitation across runs" in result[0].impact, (
+            "QI-T16b: SME Q1 binding text 'independent elicitation across runs' "
+            f"not found in uniqueness_too_low impact. Got: {result[0].impact!r}"
+        )
+        assert ">=2 runs" in result[0].impact, (
+            "QI-T16b: SME Q1 binding text '>=2 runs' "
+            f"not found in uniqueness_too_low impact. Got: {result[0].impact!r}"
+        )
+
+    def test_token_inconsistency_impact_chars4_heuristic(self) -> None:
+        """QI-T16c: token_inconsistency_or_campaign_tag impact must contain the
+        SME Q1 binding text 'chars/4 heuristic'.
+
+        Rationale (SME Q1): the original gave equal weight to non-ASCII and
+        provider-side anomaly; the corrected text is honest that the heuristic
+        is the loose part, not the provider count.
+        """
+        result = interpret_qa_notes("247348ms; 4779")  # trailing bare int = ambiguous
+        assert len(result) == 2
+        ambiguous = result[1]
+        assert ambiguous.code == "token_inconsistency_or_campaign_tag"
+        assert "chars/4" in ambiguous.impact, (
+            "QI-T16c: SME Q1 binding text 'chars/4' "
+            f"not found in token_inconsistency_or_campaign_tag impact. "
+            f"Got: {ambiguous.impact!r}"
+        )
+        assert "campaign" in ambiguous.impact.lower(), (
+            "QI-T16c: 'campaign' not found in token_inconsistency_or_campaign_tag "
+            f"impact. Got: {ambiguous.impact!r}"
+        )
+
+    def test_freelist_too_low_impact_no_automated_exclusion_claim(self) -> None:
+        """QI-T16d (negative): the rejected 'Excluded from grouped salience aggregates'
+        phrase must NOT appear in the freelist_too_low impact.
+
+        Guards against future drift back to the pre-SME-edit wording that overstated
+        what qa_passed=False does. SME Q1 explicitly replaced this phrase.
+        """
+        result = interpret_qa_notes("7")
+        assert len(result) == 1
+        assert result[0].code == "freelist_too_low"
+        assert "Excluded from grouped salience aggregates" not in result[0].impact, (
+            "QI-T16d: rejected pre-SME text 'Excluded from grouped salience "
+            "aggregates' found in freelist_too_low impact. SME Q1 binding "
+            "replaced this with operator-advisory language."
+        )

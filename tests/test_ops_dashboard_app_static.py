@@ -596,3 +596,91 @@ class TestOPST7MandatedCopy:
             f"OPS-T7 AST-T5: forbidden pattern {pattern!r} found in "
             f"lib/detail.py."
         )
+
+    def test_ast_t6_decline_banner_precedes_qa_badge_in_source(
+        self, app_source: str
+    ) -> None:
+        """AST-T6 (source-position ordering): the decline banner template must
+        appear at a lower character position than the QA badge literal.
+
+        CDA SME Q2 binding (a): banner ABOVE the QA badge. A future refactor that
+        re-orders these blocks would break the SME-mandated hierarchy (decline event
+        is prior to structural QA). This test guards against silent regressions.
+
+        The banner literal searched is 'classified decline event' (the distinctive
+        phrase from the SME Q3 binding; see test_ast_t1_decline_banner_template_substring).
+        The badge literal searched is ':green-background' (the PASS badge, unique to
+        the QA badge section in app.py).
+
+        See docs/status/2026-05-06-OPS-T7-cda-sme-verdict.md §Q2.
+        See docs/status/2026-05-06-OPS-T7-reviewer-verdict.md §SME binding edits #5.
+        """
+        banner_needle = "classified decline event"
+        badge_needle = ":green-background"
+        assert banner_needle in app_source, (
+            f"AST-T6: banner needle {banner_needle!r} not found in app.py — "
+            "cannot assert ordering."
+        )
+        assert badge_needle in app_source, (
+            f"AST-T6: badge needle {badge_needle!r} not found in app.py — "
+            "cannot assert ordering."
+        )
+        banner_pos = app_source.index(banner_needle)
+        badge_pos = app_source.index(badge_needle)
+        assert banner_pos < badge_pos, (
+            f"AST-T6: decline banner (char {banner_pos}) is NOT before the QA badge "
+            f"(char {badge_pos}). CDA SME Q2 binding (a) requires the banner to "
+            "appear above the QA badge. A refactor may have re-ordered the blocks."
+        )
+
+    def test_ast_t7_interpret_qa_notes_call_inside_fail_branch(
+        self, app_source: str
+    ) -> None:
+        """AST-T7: the interpret_qa_notes loop must appear AFTER the 'else:' that
+        opens the QA-FAIL rendering branch, not in the PASS branch.
+
+        app.py structure (lines 260–279):
+            if _rec.qa_passed:
+                st.markdown("**QA:** :green-background[**PASS**]")
+            else:
+                st.markdown("**QA:** :red-background[**FAIL**]")
+            if _rec.qa_notes:
+                if _rec.qa_passed:
+                    with st.expander(...)  # PASS path — informational only
+                else:
+                    st.error(...)          # FAIL path — surface verbatim
+                    for _interp in interpret_qa_notes(...):  ← THIS
+                        st.warning(...)
+
+        The interpret_qa_notes call must be inside the `else:` block (FAIL path).
+        A passing record (qa_passed=True) must never trigger the interpreter loop.
+        This test verifies that by checking source position: the 'for _interp in
+        interpret_qa_notes' call must appear AFTER the nearest preceding 'else:'
+        in app.py, which in turn appears AFTER 'st.expander("QA notes'.
+
+        See docs/status/2026-05-06-OPS-T7-architect-plan.md §3 A1.5.
+        """
+        interp_needle = "for _interp in interpret_qa_notes"
+        expander_needle = "st.expander(\"QA notes"
+        else_needle = "else:"
+        assert interp_needle in app_source, (
+            f"AST-T7: '{interp_needle}' not found in app.py."
+        )
+        assert expander_needle in app_source, (
+            f"AST-T7: '{expander_needle}' not found in app.py."
+        )
+        interp_pos = app_source.index(interp_needle)
+        expander_pos = app_source.index(expander_needle)
+        # Find the last 'else:' that precedes the interpret call
+        preceding_source = app_source[:interp_pos]
+        last_else_pos = preceding_source.rfind(else_needle)
+        assert last_else_pos != -1, (
+            "AST-T7: no 'else:' found before the interpret_qa_notes call."
+        )
+        # The else: that guards the FAIL branch must be AFTER the QA-notes expander
+        # (which is inside the PASS branch)
+        assert last_else_pos > expander_pos, (
+            f"AST-T7: the 'else:' preceding interpret_qa_notes (char {last_else_pos}) "
+            f"is not after the QA-notes expander (char {expander_pos}). "
+            "The interpreter call may have moved outside the FAIL branch."
+        )
