@@ -197,3 +197,19 @@ After T5 completion, I will update `.claude/agent-memory/cda_sme/project_cn_decl
 ---
 
 *Posted to `#lsb-cda-sme`. Binding for T1–T5 unless superseded by a subsequent Architect plan cycle with SME re-review.*
+
+---
+
+## Retroactive clarification — 2026-05-04
+
+**Source:** CDA SME verdict on Phase 4a.1 T3B detector miscalibration (`docs/status/2026-04-23-phase4a1-t3b-detector-cda-sme-verdict.md`), specifically R7.
+
+**Clarification on binding note 6 (RISK 2 two-tier rule):**
+
+The two-tier rule — "any recursive decline in a non-CN-origin model → narrow SME prompt re-review; ≥ 33% recursive across full population → broad SME prompt re-review" — applies to the **true** recursive-decline rate as determined by the corrected `_is_recursive_decline()` detector (per Q1.D of the T3B-detector verdict), not to the raw output of any detector implementation that may have been miscalibrated.
+
+In the Phase 4a.1 T3B run, the pre-correction detector flagged 18/24 (75%) and the post-correction true rate is 0/24. Binding note 6's two-tier rule did not fire because the true rate is 0; the 75% pre-correction count was an instrument calibration artifact, not a methodology event.
+
+This clarification does NOT retire binding note 6. The rule remains in force for any future T3-equivalent batch and would fire correctly under a corrected detector if a genuine recursive-decline pattern appeared.
+
+Cross-reference: `docs/status/2026-04-23-phase4a1-t3b-detector-cda-sme-verdict.md` R7.

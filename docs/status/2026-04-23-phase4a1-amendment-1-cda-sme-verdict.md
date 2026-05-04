@@ -265,3 +265,19 @@ No memory file update required for this verdict. The existing `project_cn_declin
 ---
 
 *Posted to `#lsb-cda-sme`. Binding for T1-update through T5 unless superseded by a subsequent Architect plan cycle with SME re-review.*
+
+---
+
+## Retroactive clarification — 2026-05-04
+
+**Source:** CDA SME verdict on Phase 4a.1 T3B detector miscalibration (`docs/status/2026-04-23-phase4a1-t3b-detector-cda-sme-verdict.md`), specifically R7.
+
+**Clarification on binding note A6 (T3A pre-T3B recursive-decline gate):**
+
+Note A6 — "if any T3A record produces a recursive decline, T3B is paused until SME review" — applies to the **true** recursive-decline rate as determined by the corrected `_is_recursive_decline()` detector (per Q1.D of the T3B-detector verdict), not to the raw output of any detector implementation that may have been miscalibrated.
+
+In the Phase 4a.1 T3A run, both the pre-correction and the manual-inspection rates were 0/3, so A6's gate did not fire and T3B proceeded under normal authorization. The T3B run subsequently surfaced the detector miscalibration, but A6 itself was not affected (its gate was already cleanly passed at the T3A boundary).
+
+This clarification does NOT retire binding note A6. The rule remains in force for any future T3-equivalent split-batch sequence and would fire correctly under a corrected detector if a T3A record produced a true recursive decline.
+
+Cross-reference: `docs/status/2026-04-23-phase4a1-t3b-detector-cda-sme-verdict.md` R7.
