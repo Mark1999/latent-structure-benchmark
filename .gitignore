@@ -25,6 +25,17 @@ data/transcripts/
 # (see SHAKEDOWN_PROTOCOL.md §2).
 data/shakedown/
 
+# One-off diagnostic probes (e.g., reproducibility checks against the live
+# API). The probe script under scripts/ is committed; the captured output
+# is treated like shakedown data — local-only, reproducible by re-running
+# the script.
+data/probes/
+
+# Open data bundle build artifact — produced by scripts/build_db.py from
+# the canonical data sources. ~600+ MB, not suitable for git. The .gitkeep
+# preserves the directory in the tree.
+data/open_bundle/*.sqlite
+
 # Note: data/cost_reports/*.txt is NOT ignored (git-tracked per ARCHITECTURE.md §6.2)
 
 # Dashboard build artifacts
