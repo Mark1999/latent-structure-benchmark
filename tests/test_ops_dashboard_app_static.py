@@ -367,3 +367,69 @@ class TestOPST6MandatedCopy:
             f"app.py. The SME renamed the column from 'manual_classification' "
             f"to 'disposition'."
         )
+
+    def test_qa_notes_empty_string_guard_present(self, app_source: str) -> None:
+        """A5: When qa_notes is the empty string (the schema default), no notes
+        block renders at all.
+
+        The guard 'if _rec.qa_notes:' must appear in app.py so that the
+        empty-string default short-circuits both rendering branches (st.error
+        and st.expander). This is a static assertion that the guard is not
+        accidentally removed in a future edit.
+
+        See OPS-T6 architect plan §3 step 3 and acceptance criterion A5.
+        """
+        required = "if _rec.qa_notes:"
+        assert required in app_source, (
+            f"OPS-T6 A5: guard {required!r} not found in app.py. "
+            "Without this guard, a qa_notes='' record would render an empty "
+            "notes block. The schema default is '' (empty string, not None)."
+        )
+
+    def test_no_declines_st_success_appears_twice(self, app_source: str) -> None:
+        """A7/A8: st.success with the no-declines message must appear in BOTH
+        the new summary block and the existing decline-events block.
+
+        A8 requires the framing change in both locations. If either is missing,
+        one block still uses st.info (blue/neutral) instead of st.success
+        (green/positive), violating the CDA SME Q4 binding.
+
+        See OPS-T6 architect plan §3 steps 4–5 and acceptance criterion A8.
+        """
+        needle = 'st.success("No decline events recorded for this informant.")'
+        count = app_source.count(needle)
+        assert count >= 2, (
+            f"OPS-T6 A8: {needle!r} appears {count} time(s) in app.py; "
+            "expected at least 2 (one in the summary block, one in the "
+            "decline-events block). CDA SME Q4 binding requires st.success "
+            "in both locations."
+        )
+
+    def test_decline_summary_column_order(self, app_source: str) -> None:
+        """A9: The summary table columns must appear in the expected order:
+        decline_interview_id, originating_step, outcome_class,
+        disposition, safety_subtype.
+
+        Python dicts preserve insertion order (3.7+). The table dict literal
+        in app.py defines the column order. This test verifies that each
+        column key appears at a lower string position than the next, enforcing
+        the order specified in the architect plan §3 step 4 and A9.
+        """
+        keys_in_order = [
+            '"decline_interview_id"',
+            '"originating_step"',
+            '"outcome_class"',
+            '"disposition"',
+            '"safety_subtype"',
+        ]
+        positions = [app_source.index(k) for k in keys_in_order if k in app_source]
+        assert len(positions) == len(keys_in_order), (
+            "OPS-T6 A9: one or more column keys not found in app.py: "
+            f"{[k for k in keys_in_order if k not in app_source]}"
+        )
+        for i in range(len(positions) - 1):
+            assert positions[i] < positions[i + 1], (
+                f"OPS-T6 A9: column order violation — {keys_in_order[i]!r} "
+                f"(pos {positions[i]}) does not precede "
+                f"{keys_in_order[i+1]!r} (pos {positions[i+1]}) in app.py."
+            )
