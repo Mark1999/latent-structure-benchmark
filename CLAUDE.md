@@ -200,6 +200,8 @@ These are mistakes that have happened on similar projects, or that the LSB desig
 
 12. **Assuming `data/grounding/{domain}/` is a single directory with one baseline.** The v0.7 schema makes it `data/grounding/{domain}/{baseline_id}/`. A single-baseline domain has one subdirectory; a multi-baseline domain has many. Code that hard-codes a path like `data/grounding/family/cooccurrence.csv` is broken — it should be `data/grounding/family/{baseline_id}/cooccurrence.csv` and iterate over all baselines in the parent directory.
 
+13. **Reusing a detector / marker list across input↔output classification boundaries without SME review at code-review time.** Detector helpers and substring lists carry an implicit role assumption — "this list classifies failure-record `error_message` fields" (input) is a different role from "this list classifies decline-interview `response_verbatim` text" (output). The same vocabulary that signals a safety event in an input string can appear naturally in a substantive narrative describing that event. Reusing the list across the boundary is a category error. The Phase 4a.1 T3B detector miscalibration was an instance of this — `SAFETY_FILTER_MARKERS`, designed for `should_include_failure()` (input classification), was reused inside `_is_recursive_decline()` (output classification) and produced an 18/24 false-positive rate. The Reviewer must flag any change that introduces or modifies such cross-boundary reuse and route it to the CDA SME for review at code-review time, before the helper is exercised on production data. See `docs/status/2026-04-23-phase4a1-t3b-detector-cda-sme-verdict.md` (R6) for the originating ruling.
+
 ---
 
 ## 10. When you're stuck
