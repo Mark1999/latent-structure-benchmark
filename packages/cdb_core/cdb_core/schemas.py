@@ -414,6 +414,7 @@ class FreelistRecord(BaseModel):
     response_object_json: dict
     input_tokens: int
     output_tokens: int
+    thoughts_token_count: int = 0
     latency_ms: int
     stop_reason: str
     parsed_items: list[str]
@@ -429,6 +430,7 @@ class PileSortRecord(BaseModel):
     response_object_json: dict
     input_tokens: int
     output_tokens: int
+    thoughts_token_count: int = 0
     latency_ms: int
     stop_reason: str
     parsed_piles: list[list[str]]
@@ -445,6 +447,7 @@ class InterviewRecord(BaseModel):
     response_object_json: dict
     input_tokens: int
     output_tokens: int
+    thoughts_token_count: int = 0
     latency_ms: int
     stop_reason: str
     parsed_pile_labels: list[str]

@@ -59,6 +59,7 @@ CREATE TABLE informants (
   freelist_response_verbatim TEXT NOT NULL,
   freelist_input_tokens INTEGER NOT NULL,
   freelist_output_tokens INTEGER NOT NULL,
+  freelist_thoughts_token_count INTEGER NOT NULL DEFAULT 0,
   freelist_latency_ms INTEGER NOT NULL,
   freelist_stop_reason TEXT NOT NULL,
 
@@ -66,6 +67,7 @@ CREATE TABLE informants (
   pilesort_response_verbatim TEXT NOT NULL,
   pilesort_input_tokens INTEGER NOT NULL,
   pilesort_output_tokens INTEGER NOT NULL,
+  pilesort_thoughts_token_count INTEGER NOT NULL DEFAULT 0,
   pilesort_latency_ms INTEGER NOT NULL,
   pilesort_stop_reason TEXT NOT NULL,
   pilesort_item_source TEXT NOT NULL DEFAULT 'own_freelist',
@@ -74,6 +76,7 @@ CREATE TABLE informants (
   interview_response_verbatim TEXT NOT NULL,
   interview_input_tokens INTEGER NOT NULL,
   interview_output_tokens INTEGER NOT NULL,
+  interview_thoughts_token_count INTEGER NOT NULL DEFAULT 0,
   interview_latency_ms INTEGER NOT NULL,
   interview_stop_reason TEXT NOT NULL,
 
@@ -217,9 +220,9 @@ def _insert_informant(cur: sqlite3.Cursor, rec: dict) -> None:
           ?, ?, ?, ?, ?,
           ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?,
           ?, ?, ?, ?, ?, ?, ?,
-          ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?, ?,
+          ?, ?, ?, ?, ?, ?, ?,
           ?,
           ?, ?
         )
@@ -253,6 +256,7 @@ def _insert_informant(cur: sqlite3.Cursor, rec: dict) -> None:
             fl["response_verbatim"],
             fl["input_tokens"],
             fl["output_tokens"],
+            fl.get("thoughts_token_count", 0),
             fl["latency_ms"],
             fl["stop_reason"],
             # Pile sort step
@@ -260,6 +264,7 @@ def _insert_informant(cur: sqlite3.Cursor, rec: dict) -> None:
             ps["response_verbatim"],
             ps["input_tokens"],
             ps["output_tokens"],
+            ps.get("thoughts_token_count", 0),
             ps["latency_ms"],
             ps["stop_reason"],
             ps.get("item_source", "own_freelist"),
@@ -268,6 +273,7 @@ def _insert_informant(cur: sqlite3.Cursor, rec: dict) -> None:
             iv["response_verbatim"],
             iv["input_tokens"],
             iv["output_tokens"],
+            iv.get("thoughts_token_count", 0),
             iv["latency_ms"],
             iv["stop_reason"],
             # Provenance

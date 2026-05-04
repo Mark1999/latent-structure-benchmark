@@ -301,3 +301,123 @@ class TestShakedownRefusal:
         canonical.touch()
         # Should not raise
         _refuse_shakedown_path(canonical)
+
+
+# ── Task 16.B: thoughts_token_count column in the informants table ──────────
+
+def _make_record_with_thoughts(
+    informant_id: str = "ttc_test",
+    freelist_ttc: int = 128,
+    pilesort_ttc: int = 256,
+    interview_ttc: int = 64,
+) -> dict:
+    """Minimal InformantRecord dict with non-zero thoughts_token_count values."""
+    base = _make_record(informant_id=informant_id)
+    base["freelist"]["thoughts_token_count"] = freelist_ttc
+    base["pile_sort"]["thoughts_token_count"] = pilesort_ttc
+    base["interview"]["thoughts_token_count"] = interview_ttc
+    return base
+
+
+def _make_record_without_thoughts(informant_id: str = "legacy_test") -> dict:
+    """Minimal InformantRecord dict WITHOUT thoughts_token_count (legacy record)."""
+    base = _make_record(informant_id=informant_id)
+    # Explicitly remove the field to simulate a pre-v0.1.11 JSONL line
+    base["freelist"].pop("thoughts_token_count", None)
+    base["pile_sort"].pop("thoughts_token_count", None)
+    base["interview"].pop("thoughts_token_count", None)
+    return base
+
+
+def test_build_db_thoughts_token_count_column_exists(tmp_path: Path):
+    """The informants table has the three thoughts_token_count columns."""
+    jsonl = tmp_path / "informants.jsonl"
+    jsonl.write_text(json.dumps(_make_record()) + "\n")
+    db = tmp_path / "lsb.sqlite"
+    build_db(jsonl, db)
+
+    conn = sqlite3.connect(str(db))
+    cols = {row[1] for row in conn.execute("PRAGMA table_info(informants)").fetchall()}
+    conn.close()
+
+    assert "freelist_thoughts_token_count" in cols
+    assert "pilesort_thoughts_token_count" in cols
+    assert "interview_thoughts_token_count" in cols
+
+
+def test_build_db_thoughts_token_count_nonzero_values(tmp_path: Path):
+    """Non-zero thoughts_token_count values are stored correctly."""
+    jsonl = tmp_path / "informants.jsonl"
+    jsonl.write_text(
+        json.dumps(_make_record_with_thoughts(
+            informant_id="ttc_new",
+            freelist_ttc=128,
+            pilesort_ttc=256,
+            interview_ttc=64,
+        )) + "\n"
+    )
+    db = tmp_path / "lsb.sqlite"
+    build_db(jsonl, db)
+
+    conn = sqlite3.connect(str(db))
+    row = conn.execute(
+        "SELECT freelist_thoughts_token_count, pilesort_thoughts_token_count, "
+        "interview_thoughts_token_count FROM informants WHERE informant_id='ttc_new'"
+    ).fetchone()
+    conn.close()
+
+    assert row[0] == 128
+    assert row[1] == 256
+    assert row[2] == 64
+
+
+def test_build_db_thoughts_token_count_legacy_record_defaults_to_zero(tmp_path: Path):
+    """Legacy JSONL records lacking thoughts_token_count are inserted with 0."""
+    jsonl = tmp_path / "informants.jsonl"
+    jsonl.write_text(
+        json.dumps(_make_record_without_thoughts(informant_id="legacy")) + "\n"
+    )
+    db = tmp_path / "lsb.sqlite"
+    build_db(jsonl, db)
+
+    conn = sqlite3.connect(str(db))
+    row = conn.execute(
+        "SELECT freelist_thoughts_token_count, pilesort_thoughts_token_count, "
+        "interview_thoughts_token_count FROM informants WHERE informant_id='legacy'"
+    ).fetchone()
+    conn.close()
+
+    assert row[0] == 0
+    assert row[1] == 0
+    assert row[2] == 0
+
+
+def test_build_db_thoughts_token_count_mixed_old_and_new(tmp_path: Path):
+    """DB built from a mix of legacy and new records populates both correctly."""
+    jsonl = tmp_path / "informants.jsonl"
+    lines = [
+        json.dumps(_make_record_without_thoughts(informant_id="old_rec")),
+        json.dumps(_make_record_with_thoughts(
+            informant_id="new_rec", freelist_ttc=99, pilesort_ttc=77, interview_ttc=33,
+        )),
+    ]
+    jsonl.write_text("\n".join(lines) + "\n")
+    db = tmp_path / "lsb.sqlite"
+    informant_count, _ = build_db(jsonl, db)
+    assert informant_count == 2
+
+    conn = sqlite3.connect(str(db))
+    old_row = conn.execute(
+        "SELECT freelist_thoughts_token_count, pilesort_thoughts_token_count, "
+        "interview_thoughts_token_count FROM informants WHERE informant_id='old_rec'"
+    ).fetchone()
+    new_row = conn.execute(
+        "SELECT freelist_thoughts_token_count, pilesort_thoughts_token_count, "
+        "interview_thoughts_token_count FROM informants WHERE informant_id='new_rec'"
+    ).fetchone()
+    conn.close()
+
+    # Legacy record: all zeros
+    assert old_row == (0, 0, 0)
+    # New record: values from JSONL
+    assert new_row == (99, 77, 33)

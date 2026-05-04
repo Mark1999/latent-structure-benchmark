@@ -119,6 +119,7 @@ async def run_free_list(
         response_object_json=result.raw_response,
         input_tokens=result.input_tokens,
         output_tokens=result.output_tokens,
+        thoughts_token_count=result.thoughts_token_count,
         latency_ms=result.latency_ms,
         stop_reason=result.stop_reason,
         parsed_items=parsed_items,

@@ -402,3 +402,80 @@ def test_append_failure_partial_session_none_omitted(tmp_path: Path) -> None:
     )
     entry = _read_failure_entry(path)
     assert "partial_session" not in entry
+
+
+# ── Task 16.B: thoughts_token_count in append_failure ──────────────────────
+
+def test_append_failure_thoughts_token_count_written(tmp_path: Path) -> None:
+    """thoughts_token_count is written after stop_reason when non-None."""
+    path = tmp_path / "failures.jsonl"
+    append_failure(
+        ValueError("pile sort empty output"),
+        {"model_id": "google/gemini-2.5-pro", "domain": "family", "run_index": 0},
+        path,
+        stop_reason="MAX_TOKENS",
+        thoughts_token_count=512,
+    )
+    entry = _read_failure_entry(path)
+    assert entry["thoughts_token_count"] == 512
+    # Verify thoughts_token_count appears after stop_reason in field order
+    keys = list(entry.keys())
+    assert keys.index("stop_reason") < keys.index("thoughts_token_count")
+
+
+def test_append_failure_thoughts_token_count_zero_written(tmp_path: Path) -> None:
+    """thoughts_token_count=0 is explicitly written (non-None, should appear)."""
+    path = tmp_path / "failures.jsonl"
+    append_failure(
+        ValueError("empty output"),
+        {"model_id": "m", "domain": "family", "run_index": 1},
+        path,
+        stop_reason="STOP",
+        thoughts_token_count=0,
+    )
+    entry = _read_failure_entry(path)
+    assert "thoughts_token_count" in entry
+    assert entry["thoughts_token_count"] == 0
+
+
+def test_append_failure_thoughts_token_count_none_omitted(tmp_path: Path) -> None:
+    """thoughts_token_count=None (default) means the key is absent from the entry."""
+    path = tmp_path / "failures.jsonl"
+    append_failure(
+        ValueError("http error"),
+        {"model_id": "m", "domain": "holidays", "run_index": 3},
+        path,
+        stop_reason="unknown",
+    )
+    entry = _read_failure_entry(path)
+    assert "thoughts_token_count" not in entry
+
+
+def test_append_failure_thoughts_token_count_before_partial_session(tmp_path: Path) -> None:
+    """thoughts_token_count appears before partial_session in the field order."""
+    path = tmp_path / "failures.jsonl"
+    partial = {
+        "freelist": {
+            "prompt_verbatim": "test",
+            "response_verbatim": "items",
+            "thinking_verbatim": "",
+            "stop_reason": "end_turn",
+            "parsed_items": ["item"],
+            "input_tokens": 10,
+            "output_tokens": 5,
+            "thoughts_token_count": 0,
+            "latency_ms": 100,
+        }
+    }
+    append_failure(
+        ValueError("pile sort failed"),
+        {"model_id": "google/gemini-2.5-pro", "domain": "family", "run_index": 0},
+        path,
+        stop_reason="MAX_TOKENS",
+        thoughts_token_count=1024,
+        partial_session=partial,
+    )
+    entry = _read_failure_entry(path)
+    assert entry["thoughts_token_count"] == 1024
+    keys = list(entry.keys())
+    assert keys.index("thoughts_token_count") < keys.index("partial_session")

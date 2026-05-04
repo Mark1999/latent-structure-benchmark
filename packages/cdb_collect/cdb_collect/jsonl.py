@@ -51,6 +51,7 @@ def append_failure(
     response_verbatim: str | None = None,
     thinking_verbatim: str | None = None,
     stop_reason: str | None = None,
+    thoughts_token_count: int | None = None,
     partial_session: dict | None = None,
     retry_attempts: list[dict] | None = None,
 ) -> None:
@@ -65,7 +66,8 @@ def append_failure(
       timestamp, error_type, error_message, context,
       prompt_verbatim (if present), response_verbatim (if present),
       thinking_verbatim (if present), stop_reason (if present),
-      partial_session (if present), retry_attempts (always, min []).
+      thoughts_token_count (if non-None), partial_session (if present),
+      retry_attempts (always, min []).
 
     Args:
         error: The exception that caused the failure.
@@ -78,6 +80,12 @@ def append_failure(
         thinking_verbatim: Reasoning trace if the adapter surfaced one
             on the failing step.
         stop_reason: The adapter's stop_reason on the failing step.
+        thoughts_token_count: Provider-reported reasoning token count for
+            the failing step. Written as a top-level field after
+            stop_reason when non-None. Use 0 for providers that do not
+            surface reasoning tokens (Anthropic, HuggingFace). Omitted
+            entirely when None (request never completed or not captured).
+            See docs/DATA_DICTIONARY.md §9.2 for field semantics.
         partial_session: Dict shaped as
             {freelist?: FreelistRecord-dict,
              pile_sort?: PileSortRecord-dict,
@@ -88,8 +96,8 @@ def append_failure(
         retry_attempts: Ordered list of per-retry dicts for pile-sort
             parse-retry exhaustion. Each entry carries:
             {attempt_index, response_verbatim, thinking_verbatim,
-             stop_reason, input_tokens, output_tokens, latency_ms,
-             parse_error_message}.
+             stop_reason, input_tokens, output_tokens,
+             thoughts_token_count, latency_ms, parse_error_message}.
             Written as [] when None (no retry loop fired).
     """
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -107,6 +115,8 @@ def append_failure(
         entry["thinking_verbatim"] = thinking_verbatim
     if stop_reason is not None:
         entry["stop_reason"] = stop_reason
+    if thoughts_token_count is not None:
+        entry["thoughts_token_count"] = thoughts_token_count
     if partial_session is not None:
         entry["partial_session"] = partial_session
     entry["retry_attempts"] = retry_attempts if retry_attempts is not None else []

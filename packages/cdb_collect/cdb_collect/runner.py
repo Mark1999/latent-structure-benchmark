@@ -347,6 +347,7 @@ async def run_informant(
                 "stop_reason": r.stop_reason,
                 "input_tokens": r.input_tokens,
                 "output_tokens": r.output_tokens,
+                "thoughts_token_count": r.thoughts_token_count,
                 "latency_ms": r.latency_ms,
                 "parse_error_message": str(errors[idx]),
             }
@@ -521,6 +522,7 @@ async def run_two_pass(
                     "stop_reason": r.stop_reason,
                     "input_tokens": r.input_tokens,
                     "output_tokens": r.output_tokens,
+                    "thoughts_token_count": r.thoughts_token_count,
                     "latency_ms": r.latency_ms,
                     "parse_error_message": str(errors[idx]),
                 }
@@ -690,6 +692,7 @@ async def run_baseline_sort(
                     "stop_reason": r.stop_reason,
                     "input_tokens": r.input_tokens,
                     "output_tokens": r.output_tokens,
+                    "thoughts_token_count": r.thoughts_token_count,
                     "latency_ms": r.latency_ms,
                     "parse_error_message": str(errors[idx]),
                 }

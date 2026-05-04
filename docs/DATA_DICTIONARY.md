@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.10 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
+**Version:** v0.1.11 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.11** (2026-05-04) — Task #16.B: Added `thoughts_token_count: int = 0` to `FreelistRecord`, `PileSortRecord`, and `InterviewRecord` step schemas. Field captures provider-reported reasoning/thoughts token count per step, enabling the cap-exhausted-reasoning diagnostic (`output_tokens == 0 AND thoughts_token_count > 0`). Default `0` (not `None`) preserves arithmetic ergonomics and prevents false-positives on providers that do not surface reasoning tokens (Anthropic, HuggingFace at this version). Added `thoughts_token_count` as an optional top-level field in `failures.jsonl` entries (§9.2) and to both `freelist` and `pile_sort` sub-objects in `partial_session` (§9.3). Added three new columns (`freelist_thoughts_token_count`, `pilesort_thoughts_token_count`, `interview_thoughts_token_count`) to the `informants` table DDL in `scripts/build_db.py`. Backward-compatible: Pydantic v2 with `int = 0` default loads old JSONL lines lacking the field with the value materialised as `0`. Architect sign-off: `docs/status/2026-05-04-task-16-architect-plan.md` §2 Task 16.B. CDA SME verdict: `docs/status/2026-05-04-task-16-cda-sme-verdict.md` (notes S1–S4 applied to field semantics below). Predecessor: Task 16.A (commit `7f8f7f7`) added `thoughts_token_count` to `AdapterResult` and both adapters.
 - **v0.1.10** (2026-05-01) — Task #F2-T13: `cost_usd` field removed from `RawResponse` and `DeclineInterview`. The field was a token-count × table-rate estimate, not authoritative billing data; authoritative spend lives on provider dashboards per `ARCHITECTURE.md` §6.2. Pydantic v2 default `extra='ignore'` semantics handle existing on-disk records: the legacy field is silently dropped on read; no edits to existing JSONL lines. `cost_usd` column also removed from the `decline_interviews` table DDL in `scripts/build_db.py` and from `DATA_DICTIONARY.md` §10.2, §10.4, and §10.5. Reference: Task 1 commit `d491ad9` (§6.2 stub). Task 3 follows (delete `spend.py`, sweep adapter call-sites).
 - **v0.1.9** (2026-04-23) — Task #15 (Phase 4a T7): Added §1.6 documenting stored-vs-rerun `qa_passed` semantics. `qa_passed` is a point-in-time snapshot; re-running `scripts/qa_check.py` may produce different results when pool-aggregation Check 2 (free-list cross-run uniqueness) flips as the cohort grows. The divergence materialized in the shakedown corpus (Position C replay, 2026-04-22) but NOT in Phase 4a (T6 QA sweep: zero divergences, 101 records, 12-model diversity distributes the pool). Downstream consumers wanting the "final" QA status against the full corpus should re-run the check battery. No schema change. Cross-reference: `docs/status/2026-04-22-position-c-replay-verdict.md`, `docs/status/2026-04-23-phase4a-t6-qa-sweep.md`.
 - **v0.1.8** (2026-04-23) — Task #28: `romney_small_n_warning` threshold updated from `n < 8` to `n < 15` per CDA SME reconciliation (`docs/status/2026-04-23-small-n-threshold-sme-amendment.md`). Grounded in `SME_REVIEW.md` §1.1 small-n rationale (Anders & Batchelder 2015; Romney-Weller-Batchelder 1986 calibration at n=20-40). Field value changes for n=8-14 (previously False, now True). Pipeline, schema docstring, tests, and this doc co-updated.
@@ -143,6 +144,7 @@ The free listing step asks the model to enumerate every item it can think of in 
 | `response_object_json` | `dict` | Yes | The full provider response object, including all metadata fields the provider returned (token counts, stop reason, model version string, request IDs, etc.). Stored as a JSON object. |
 | `input_tokens` | `int` | Yes | Provider-reported input token count. |
 | `output_tokens` | `int` | Yes | Provider-reported output token count. |
+| `thoughts_token_count` | `int` | No (default `0`) | Provider-reported reasoning/thoughts token count for this step, as reported by the provider. When `output_tokens == 0 AND thoughts_token_count > 0`, the model consumed reasoning tokens against the `max_tokens` budget without producing visible output — a sufficient diagnostic signature of cap-exhausted reasoning at the cohort level for distinguishing cap-exhausted reasoning from a substantively empty response, but not a deterministic per-record proof of cap exhaustion. A value of `0` is ambiguous: it can mean either (a) the provider does not surface reasoning tokens at all (Anthropic, HuggingFace at v0.1.11), or (b) the model did not engage internal reasoning on this call. The field cannot distinguish these two cases. Values are as reported by the provider and are NOT directly comparable across providers — Gemini's `thoughts_token_count` and OpenRouter's `completion_tokens_details.reasoning_tokens` may be measured under different conventions. Within-provider comparisons are valid; cross-provider comparisons require provider-internal context. |
 | `latency_ms` | `int` | Yes | Wall-clock latency from request send to response received, in milliseconds. |
 | `stop_reason` | `str` | Yes | Provider-reported stop reason. Examples: `end_turn`, `max_tokens`, `stop_sequence`. |
 | `parsed_items` | `list[str]` | Yes | The parsed, normalized, deduplicated item list, truncated to `domain.truncation_k` (default 25). Lowercase, punctuation stripped, whitespace collapsed, deduped preserving first-occurrence order. |
@@ -161,6 +163,7 @@ The pile sort step asks the model to group items into similarity-based piles. Th
 | `response_object_json` | `dict` | Yes | Same semantics. |
 | `input_tokens` | `int` | Yes | Same semantics. |
 | `output_tokens` | `int` | Yes | Same semantics. |
+| `thoughts_token_count` | `int` | No (default `0`) | Same semantics as `FreelistRecord.thoughts_token_count`. |
 | `latency_ms` | `int` | Yes | Same semantics. |
 | `stop_reason` | `str` | Yes | Same semantics. |
 | `parsed_piles` | `list[list[str]]` | Yes | Each inner list is one pile. Item order within a pile is not significant. The union of all inner lists must equal the input item set (the model is required to put every item somewhere). |
@@ -180,6 +183,7 @@ The pile interview step asks the model to name each pile from Step 2. This is th
 | `response_object_json` | `dict` | Yes | Same. |
 | `input_tokens` | `int` | Yes | Same. |
 | `output_tokens` | `int` | Yes | Same. |
+| `thoughts_token_count` | `int` | No (default `0`) | Same semantics as `FreelistRecord.thoughts_token_count`. |
 | `latency_ms` | `int` | Yes | Same. |
 | `stop_reason` | `str` | Yes | Same. |
 | `parsed_pile_labels` | `list[str]` | Yes | One label per pile, in the same order as `PileSortRecord.parsed_piles`. The label is the model's free-text name for the pile. |
@@ -394,6 +398,7 @@ CREATE TABLE informants (
   freelist_response_verbatim TEXT NOT NULL,
   freelist_input_tokens INTEGER NOT NULL,
   freelist_output_tokens INTEGER NOT NULL,
+  freelist_thoughts_token_count INTEGER NOT NULL DEFAULT 0,  -- v0.1.11; 0 for legacy records
   freelist_latency_ms INTEGER NOT NULL,
   freelist_stop_reason TEXT NOT NULL,
 
@@ -401,6 +406,7 @@ CREATE TABLE informants (
   pilesort_response_verbatim TEXT NOT NULL,
   pilesort_input_tokens INTEGER NOT NULL,
   pilesort_output_tokens INTEGER NOT NULL,
+  pilesort_thoughts_token_count INTEGER NOT NULL DEFAULT 0,  -- v0.1.11; 0 for legacy records
   pilesort_latency_ms INTEGER NOT NULL,
   pilesort_stop_reason TEXT NOT NULL,
 
@@ -408,6 +414,7 @@ CREATE TABLE informants (
   interview_response_verbatim TEXT NOT NULL,
   interview_input_tokens INTEGER NOT NULL,
   interview_output_tokens INTEGER NOT NULL,
+  interview_thoughts_token_count INTEGER NOT NULL DEFAULT 0, -- v0.1.11; 0 for legacy records
   interview_latency_ms INTEGER NOT NULL,
   interview_stop_reason TEXT NOT NULL,
 
@@ -647,11 +654,12 @@ One entry per failed session. A session that is retried at the runner level (e.g
 | `response_verbatim` | `str \| None` | No | The exact response text returned by the provider on the failing step (or final retry). May be an empty string `""` for HTTP 200 empty-body failures (Gemini/GLM class). Absent when the request never completed (e.g., HTTP 4xx raised before a response was received). |
 | `thinking_verbatim` | `str \| None` | No | The reasoning trace from the failing step, if the adapter surfaced one. Empty string `""` for models that do not produce thinking traces. Absent when no response was received. |
 | `stop_reason` | `str \| None` | No | The provider stop reason on the failing step (e.g., `"STOP"`, `"MAX_TOKENS"`, `"end_turn"`, `"unknown"`). Absent when no response was received. |
+| `thoughts_token_count` | `int \| None` | No | Provider-reported reasoning/thoughts token count for the failing step (or final retry), as reported by the provider. When `output_tokens == 0 AND thoughts_token_count > 0`, the model consumed reasoning tokens against the `max_tokens` budget without producing visible output — a sufficient diagnostic signature of cap-exhausted reasoning at the cohort level, but not a deterministic per-record proof of cap exhaustion. A value of `0` is ambiguous: it can mean either (a) the provider does not surface reasoning tokens at all (Anthropic, HuggingFace at v0.1.11), or (b) the model did not engage internal reasoning on this call. Absent when the request never completed (e.g., HTTP error before any response was received). Values are as reported by the provider and are NOT directly comparable across providers — Gemini's `thoughts_token_count` and OpenRouter's `completion_tokens_details.reasoning_tokens` may be measured under different conventions. Within-provider comparisons are valid; cross-provider comparisons require provider-internal context. |
 | `partial_session` | `dict \| None` | No | Step records for any CDA steps that completed **before** the failure. Shape described in §9.3. **Omitted entirely** (not written as `null`) when nothing completed before the failure — keeps entries compact for the common Class 5 / 6 cases where the failure is at step 1. |
 | `retry_attempts` | `list[dict]` | Yes (min `[]`) | Per-retry dicts for pile-sort parse-retry exhaustion. Empty list `[]` for all failure modes that do not involve a parse-retry loop (all non-pile-sort failures, all HTTP-layer failures). Shape described in §9.4. **Always written**, even when empty, to make entries machine-parseable without a presence check. |
 
 **Field order** in the JSONL line (for human readability of `tail -f` output):
-`timestamp` → `error_type` → `error_message` → `context` → `prompt_verbatim` (if present) → `response_verbatim` (if present) → `thinking_verbatim` (if present) → `stop_reason` (if present) → `partial_session` (if present) → `retry_attempts` (always).
+`timestamp` → `error_type` → `error_message` → `context` → `prompt_verbatim` (if present) → `response_verbatim` (if present) → `thinking_verbatim` (if present) → `stop_reason` (if present) → `thoughts_token_count` (if non-None) → `partial_session` (if present) → `retry_attempts` (always).
 
 ### 9.3 partial_session shape
 
@@ -680,6 +688,7 @@ Each step sub-object carries the full step-record shape matching the correspondi
 | `parsed_items` | `list[str]` | Parsed, normalized item list (may be empty if parsing was partial). |
 | `input_tokens` | `int` | Provider-reported input token count. |
 | `output_tokens` | `int` | Provider-reported output token count. |
+| `thoughts_token_count` | `int` | Provider-reported reasoning/thoughts token count. `0` for providers that do not surface reasoning tokens or when no reasoning occurred. Same semantics and non-comparability caveats as `FreelistRecord.thoughts_token_count` in §1.2. |
 | `latency_ms` | `int` | Wall-clock latency in ms. |
 
 **`pile_sort` sub-object** — mirrors `PileSortRecord` (carried when step 2 completed before failure at step 3):
@@ -692,6 +701,7 @@ Each step sub-object carries the full step-record shape matching the correspondi
 | `stop_reason` | `str` | Provider stop reason. |
 | `input_tokens` | `int` | Provider-reported input token count. |
 | `output_tokens` | `int` | Provider-reported output token count. |
+| `thoughts_token_count` | `int` | Provider-reported reasoning/thoughts token count. `0` for providers that do not surface reasoning tokens or when no reasoning occurred. Same semantics and non-comparability caveats as `FreelistRecord.thoughts_token_count` in §1.2. |
 | `latency_ms` | `int` | Wall-clock latency in ms. |
 
 **`interview` sub-object** — mirrors `InterviewRecord` (carried when step 3 completed but a post-assembly step raised):

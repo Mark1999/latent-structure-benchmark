@@ -522,3 +522,129 @@ def test_informant_record_collection_mode_two_pass():
     json_str = obj.model_dump_json()
     restored = InformantRecord.model_validate_json(json_str)
     assert restored.collection_mode == "two_pass"
+
+
+# ── Task 16.B: thoughts_token_count backward compat and round-trip tests ──
+
+def test_step_records_thoughts_token_count_default():
+    """thoughts_token_count defaults to 0 on all three step record types."""
+    assert _freelist_record().thoughts_token_count == 0
+    assert _pilesort_record().thoughts_token_count == 0
+    assert _interview_record().thoughts_token_count == 0
+
+
+def test_freelist_record_missing_thoughts_token_count_loads_as_zero():
+    """Old JSONL lines lacking thoughts_token_count load with value 0 (backward compat)."""
+    import json
+    record = _freelist_record()
+    raw = json.loads(record.model_dump_json())
+    # Simulate a legacy record written before v0.1.11
+    del raw["thoughts_token_count"]
+    json_str = json.dumps(raw)
+    restored = FreelistRecord.model_validate_json(json_str)
+    assert restored.thoughts_token_count == 0
+
+
+def test_pilesort_record_missing_thoughts_token_count_loads_as_zero():
+    """Old JSONL lines lacking thoughts_token_count load with value 0 (backward compat)."""
+    import json
+    record = _pilesort_record()
+    raw = json.loads(record.model_dump_json())
+    del raw["thoughts_token_count"]
+    json_str = json.dumps(raw)
+    restored = PileSortRecord.model_validate_json(json_str)
+    assert restored.thoughts_token_count == 0
+
+
+def test_interview_record_missing_thoughts_token_count_loads_as_zero():
+    """Old JSONL lines lacking thoughts_token_count load with value 0 (backward compat)."""
+    import json
+    record = _interview_record()
+    raw = json.loads(record.model_dump_json())
+    del raw["thoughts_token_count"]
+    json_str = json.dumps(raw)
+    restored = InterviewRecord.model_validate_json(json_str)
+    assert restored.thoughts_token_count == 0
+
+
+def _make_manifest() -> dict:
+    return {k: "0" * 64 for k in [
+        "freelist_prompt", "freelist_response",
+        "pilesort_prompt", "pilesort_response",
+        "interview_prompt", "interview_response",
+        "request_params", "informant_record_total",
+    ]}
+
+
+def test_informant_record_with_nonzero_thoughts_token_count_round_trips():
+    """Non-zero thoughts_token_count on all three step records survives round-trip."""
+    fl = FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim="1. mother\n2. father",
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=0,
+        thoughts_token_count=128,
+        latency_ms=1200,
+        stop_reason="MAX_TOKENS",
+        parsed_items=["mother", "father"],
+        parsed_raw_order=["mother", "father"],
+    )
+    ps = PileSortRecord(
+        prompt_verbatim="sort them",
+        prompt_version="v1",
+        response_verbatim="",
+        response_object_json={},
+        input_tokens=80,
+        output_tokens=0,
+        thoughts_token_count=256,
+        latency_ms=2000,
+        stop_reason="MAX_TOKENS",
+        parsed_piles=[["mother", "father"]],
+        parsed_matrix=[[1, 1], [1, 1]],
+    )
+    iv = InterviewRecord(
+        prompt_verbatim="name the piles",
+        prompt_version="v1",
+        response_verbatim="Parents",
+        response_object_json={},
+        input_tokens=40,
+        output_tokens=5,
+        thoughts_token_count=64,
+        latency_ms=800,
+        stop_reason="end_turn",
+        parsed_pile_labels=["Parents"],
+    )
+    record = InformantRecord(
+        informant_id="ttc_test_001",
+        domain_slug="family",
+        run_index=0,
+        collection_date=datetime(2026, 5, 4, 10, 0, 0),
+        model_id="google/gemini-2.5-pro",
+        model_version_returned="gemini-2.5-pro-20260504",
+        family="gemini",
+        provider="google",
+        provider_request_id="req_ttc123",
+        knowledge_cutoff=None,
+        open_weights=False,
+        origin_country="us",
+        alignment_method=None,
+        collection_method="google_ai",
+        api_endpoint="https://generativelanguage.googleapis.com/v1beta/models",
+        api_version="",
+        temperature=0.7,
+        top_p=None,
+        max_tokens=16384,
+        system_prompt="",
+        freelist=fl,
+        pile_sort=ps,
+        interview=iv,
+        sha256_manifest=_make_manifest(),
+        qa_passed=True,
+    )
+    json_str = record.model_dump_json()
+    restored = InformantRecord.model_validate_json(json_str)
+    assert restored.freelist.thoughts_token_count == 128
+    assert restored.pile_sort.thoughts_token_count == 256
+    assert restored.interview.thoughts_token_count == 64
