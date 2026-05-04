@@ -286,3 +286,95 @@ def test_run_informant_no_backup_log_does_not_fail_qa(
     record = asyncio.run(run_informant(_mock_adapter(), _domain(), 0))
     assert record.qa_passed is True
     assert record.qa_notes == ""
+
+
+# ─── Task 16.B: protocol-layer wiring of thoughts_token_count ───────────────
+
+
+def _mock_adapter_with_thoughts(
+    freelist_ttc: int = 0,
+    pilesort_ttc: int = 0,
+    interview_ttc: int = 0,
+) -> MagicMock:
+    """Mock adapter that returns non-zero thoughts_token_count on each step."""
+    adapter = MagicMock()
+    adapter.model = _model_ref()
+
+    async def mock_complete(prompt, *, json_schema=None, temperature=0.7):
+        lower = prompt.lower()
+        if "label" in lower or "organizing principle" in lower:
+            result = _interview_result()
+            # Return a new AdapterResult with the specified thoughts_token_count
+            return AdapterResult(
+                text=result.text,
+                raw_response=result.raw_response,
+                latency_ms=result.latency_ms,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                provider_request_id=result.provider_request_id,
+                model_version_returned=result.model_version_returned,
+                stop_reason=result.stop_reason,
+                thoughts_token_count=interview_ttc,
+            )
+        elif "sort" in lower:
+            result = _pile_sort_result()
+            return AdapterResult(
+                text=result.text,
+                raw_response=result.raw_response,
+                latency_ms=result.latency_ms,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                provider_request_id=result.provider_request_id,
+                model_version_returned=result.model_version_returned,
+                stop_reason=result.stop_reason,
+                thoughts_token_count=pilesort_ttc,
+            )
+        else:
+            result = _free_list_result()
+            return AdapterResult(
+                text=result.text,
+                raw_response=result.raw_response,
+                latency_ms=result.latency_ms,
+                input_tokens=result.input_tokens,
+                output_tokens=result.output_tokens,
+                provider_request_id=result.provider_request_id,
+                model_version_returned=result.model_version_returned,
+                stop_reason=result.stop_reason,
+                thoughts_token_count=freelist_ttc,
+            )
+
+    adapter.complete = mock_complete
+    return adapter
+
+
+def test_run_informant_propagates_thoughts_token_count_to_step_records():
+    """Non-zero thoughts_token_count from AdapterResult flows through the protocol
+    layer to each of the three step records on InformantRecord.
+
+    This is the end-to-end wiring test for Task 16.B acceptance criterion 2:
+    runner / persistence wiring populates the new field from
+    AdapterResult.thoughts_token_count for all three steps.
+    """
+    adapter = _mock_adapter_with_thoughts(
+        freelist_ttc=128,
+        pilesort_ttc=256,
+        interview_ttc=64,
+    )
+    record = asyncio.run(run_informant(adapter, _domain(), 0))
+
+    assert record.freelist.thoughts_token_count == 128
+    assert record.pile_sort.thoughts_token_count == 256
+    assert record.interview.thoughts_token_count == 64
+
+
+def test_run_informant_thoughts_token_count_zero_by_default():
+    """When the adapter returns no thoughts (default 0), all step records are 0.
+
+    Confirms that the default-0 convention does not create false positives in the
+    diagnostic invariant output_tokens == 0 AND thoughts_token_count > 0.
+    """
+    record = asyncio.run(run_informant(_mock_adapter(), _domain(), 0))
+
+    assert record.freelist.thoughts_token_count == 0
+    assert record.pile_sort.thoughts_token_count == 0
+    assert record.interview.thoughts_token_count == 0
