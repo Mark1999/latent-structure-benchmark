@@ -33,6 +33,7 @@ from cdb_core.schemas import DeclineInterview, InformantRecord  # noqa: E402
 
 from apps.ops_dashboard.lib.detail import (  # noqa: E402
     DeclineDetail,
+    build_decline_summary,
     build_step_transcripts,
     build_thinking_trace,
     find_decline_events,
@@ -225,9 +226,24 @@ _rec: InformantRecord = _record_map[_detail_id]
 
 st.divider()
 st.subheader(f"Detail — `{_detail_id}`")
+
+if _rec.qa_passed:
+    st.markdown("**QA:** :green-background[**PASS**]")
+else:
+    st.markdown("**QA:** :red-background[**FAIL**]")
+
+if _rec.qa_notes:
+    if _rec.qa_passed:
+        # Informational note on a passing record — keep quiet
+        with st.expander("QA notes (informational)"):
+            st.text(_rec.qa_notes)
+    else:
+        # Failing record — surface verbatim immediately under the badge
+        st.error(f"**QA notes:** {_rec.qa_notes}")
+
 st.caption(
     f"model_id: `{_rec.model_id}` | domain: `{_rec.domain_slug}` | "
-    f"run_index: {_rec.run_index} | qa_passed: {_rec.qa_passed}"
+    f"run_index: {_rec.run_index}"
 )
 
 # ── Section 1 — Freelist ──────────────────────────────────────────────────────
@@ -285,12 +301,6 @@ else:
 
 # ── Section 3 — Decline events ───────────────────────────────────────────────
 
-st.markdown("### Decline events")
-st.caption(
-    "*The verbatim text below contains the model's stated attributions. "
-    "Any claims about reality are the model's attributions, not facts.*"
-)
-
 _decline_interviews = _load_decline_interviews()
 _classifications = _load_manual_classifications()
 _subtypes = _load_safety_subtypes()
@@ -302,8 +312,36 @@ _declines: list[DeclineDetail] = find_decline_events(
     subtypes=_subtypes,
 )
 
+st.markdown("### Decline summary")
+_summary_rows = build_decline_summary(_declines)
+if not _summary_rows:
+    st.success("No decline events recorded for this informant.")
+else:
+    st.caption(
+        "*One row per decline event for this informant. "
+        "Disposition and safety-subtype labels (k_frame / k_vocab) are defined in "
+        "docs/DECLINE_INTERVIEW_PROTOCOL.md.*"
+    )
+    _table_rows = [
+        {
+            "decline_interview_id": r.decline_interview_id,
+            "originating_step": r.originating_step,
+            "outcome_class": r.originating_outcome_class,
+            "disposition": r.manual_classification or "—",
+            "safety_subtype": r.safety_attribution_subtype or "—",
+        }
+        for r in _summary_rows
+    ]
+    st.table(_table_rows)
+
+st.markdown("### Decline events")
+st.caption(
+    "*The verbatim text below contains the model's stated attributions. "
+    "Any claims about reality are the model's attributions, not facts.*"
+)
+
 if not _declines:
-    st.info("*No decline events recorded for this informant.*")
+    st.success("No decline events recorded for this informant.")
 else:
     for decline in _declines:
         st.markdown(

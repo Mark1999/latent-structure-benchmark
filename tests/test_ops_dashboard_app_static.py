@@ -231,3 +231,139 @@ class TestOPST5MandatedCopy:
             f"OPS-T5 Q3: empty-thinking placeholder {required!r} not found "
             f"in app.py."
         )
+
+
+class TestOPST6MandatedCopy:
+    """Verify OPS-T6 CDA SME-required strings are present in app.py.
+
+    Tests cover: QA badge text, qa_notes blocks, decline summary section
+    title, decline summary gloss caption (with SME binding edits applied),
+    no-declines wording, and the st.info → st.success framing change.
+
+    Two SME binding edits applied (PASS-WITH-NOTES verdict Q3 and Q5):
+    - Q3: column header `manual_classification` → `disposition`
+    - Q5: gloss caption gains "Disposition and" prefix for the label group
+
+    See docs/status/2026-05-06-OPS-T6-cda-sme-verdict.md.
+    """
+
+    def test_qa_badge_pass_text(self, app_source: str) -> None:
+        """A1: QA PASS badge literal must appear in app.py."""
+        required = ":green-background[**PASS**]"
+        fallback = ":green[**PASS**]"
+        assert required in app_source or fallback in app_source, (
+            f"OPS-T6 A1: QA PASS badge not found in app.py. "
+            f"Expected {required!r} (or fallback {fallback!r})."
+        )
+
+    def test_qa_badge_fail_text(self, app_source: str) -> None:
+        """A1: QA FAIL badge literal must appear in app.py."""
+        required = ":red-background[**FAIL**]"
+        fallback = ":red[**FAIL**]"
+        assert required in app_source or fallback in app_source, (
+            f"OPS-T6 A1: QA FAIL badge not found in app.py. "
+            f"Expected {required!r} (or fallback {fallback!r})."
+        )
+
+    def test_qa_caption_no_longer_carries_qa_passed(self, app_source: str) -> None:
+        """A2: The f-string caption must NOT contain 'qa_passed:' as a
+        displayed value (badge replaces it).
+
+        The old caption was:
+          f"... | qa_passed: {_rec.qa_passed}"
+        The new caption omits this. We guard against the old literal string
+        fragment which combines the label and template expression.
+        """
+        # The old caption carried the literal fragment below. If it reappears,
+        # the badge has been reverted and the caption still carries qa_passed.
+        rejected = "qa_passed: {_rec.qa_passed}"
+        assert rejected not in app_source, (
+            f"OPS-T6 A2 regression: {rejected!r} still present in app.py. "
+            "The QA badge replaces it — remove 'qa_passed:' from the caption."
+        )
+
+    def test_qa_notes_block_present(self, app_source: str) -> None:
+        """A3/A4: Both qa_notes block literals must appear in app.py."""
+        fail_literal = "**QA notes:**"
+        expander_literal = "QA notes (informational)"
+        assert fail_literal in app_source, (
+            f"OPS-T6 A3: FAIL-path qa_notes literal {fail_literal!r} not found "
+            f"in app.py."
+        )
+        assert expander_literal in app_source, (
+            f"OPS-T6 A4: PASS-with-notes expander label {expander_literal!r} not "
+            f"found in app.py."
+        )
+
+    def test_decline_summary_section_title(self, app_source: str) -> None:
+        """A7: '### Decline summary' section title must appear in app.py."""
+        required = "### Decline summary"
+        assert required in app_source, (
+            f"OPS-T6 A7: section title {required!r} not found in app.py."
+        )
+
+    def test_decline_summary_caption_q5_wording(self, app_source: str) -> None:
+        """A9 / SME binding edit Q5: gloss caption must contain the SME-approved
+        wording naming both the disposition column and the safety-subtype labels.
+
+        Full approved text (binding):
+        'One row per decline event for this informant. Disposition and
+        safety-subtype labels (k_frame / k_vocab) are defined in
+        docs/DECLINE_INTERVIEW_PROTOCOL.md.'
+        """
+        fragment_1 = "One row per decline event for this informant."
+        fragment_2 = "Disposition and safety-subtype labels (k_frame / k_vocab)"
+        fragment_3 = "docs/DECLINE_INTERVIEW_PROTOCOL.md"
+        for frag in (fragment_1, fragment_2, fragment_3):
+            assert frag in app_source, (
+                f"OPS-T6 Q5 binding edit: gloss caption fragment {frag!r} not "
+                f"found in app.py."
+            )
+
+    def test_no_declines_success_wording(self, app_source: str) -> None:
+        """A8: no-declines message text must appear in app.py."""
+        required = "No decline events recorded for this informant."
+        assert required in app_source, (
+            f"OPS-T6 A8: no-declines wording {required!r} not found in app.py."
+        )
+
+    def test_no_declines_uses_st_success(self, app_source: str) -> None:
+        """A8 / SME Q4 binding: st.success must be used for the no-declines
+        message (not st.info).
+
+        Checks that the literal st.success(...) with the no-declines message
+        text appears in app.py.
+        """
+        required = 'st.success("No decline events recorded for this informant.")'
+        assert required in app_source, (
+            f"OPS-T6 A8: {required!r} not found in app.py. "
+            "The no-declines message must use st.success (green), not st.info."
+        )
+
+    def test_no_declines_does_not_use_st_info(self, app_source: str) -> None:
+        """A8 regression guard: the old st.info no-declines literal must NOT
+        appear in app.py.
+
+        The SME Q4 binding changes the primitive from st.info (blue/neutral)
+        to st.success (green/positive) to reflect 'no declines' as a clearly
+        positive run state.
+        """
+        rejected = 'st.info("*No decline events recorded for this informant.*")'
+        assert rejected not in app_source, (
+            f"OPS-T6 A8 regression: rejected literal {rejected!r} still present "
+            f"in app.py. Replace with st.success (SME Q4 binding)."
+        )
+
+    def test_disposition_column_header_present(self, app_source: str) -> None:
+        """A9 / SME binding edit Q3: column header must be 'disposition',
+        not 'manual_classification'.
+
+        The SME renamed the displayed column from 'manual_classification'
+        (the process) to 'disposition' (the value).
+        """
+        required = '"disposition"'
+        assert required in app_source, (
+            f"OPS-T6 Q3 binding edit: column key {required!r} not found in "
+            f"app.py. The SME renamed the column from 'manual_classification' "
+            f"to 'disposition'."
+        )

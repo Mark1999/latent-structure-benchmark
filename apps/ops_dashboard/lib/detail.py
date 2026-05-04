@@ -233,6 +233,59 @@ def find_decline_events(
     return results
 
 
+# ── Decline summary helpers (OPS-T6) ─────────────────────────────────────────
+
+
+@dataclass
+class DeclineSummaryRow:
+    """Compact summary projection of one decline event for the summary table.
+
+    Attributes:
+        decline_interview_id: Unique ID of the DeclineInterview.
+        originating_step: Which CDA step triggered the decline-interview.
+            One of: "freelist", "pile_sort", "interview", "pre_session".
+        originating_outcome_class: Machine-detected outcome class.
+            One of the seven Literal values in DeclineInterview.
+        manual_classification: Human-assigned disposition label, or None when
+            no classification row has been joined yet.
+        safety_attribution_subtype: Human-assigned subtype label
+            ("k_frame" / "k_vocab"), or None when not applicable or not yet
+            classified.
+    """
+
+    decline_interview_id: str
+    originating_step: str
+    originating_outcome_class: str
+    manual_classification: str | None
+    safety_attribution_subtype: str | None
+
+
+def build_decline_summary(declines: list[DeclineDetail]) -> list[DeclineSummaryRow]:
+    """Project a list of DeclineDetail objects into compact summary rows.
+
+    Pure, deterministic, no I/O. Preserves input order. Reads only from
+    its argument.
+
+    Args:
+        declines: List of DeclineDetail objects for one informant, as returned
+            by find_decline_events.
+
+    Returns:
+        List of DeclineSummaryRow objects in input order. Empty list when
+        declines is empty.
+    """
+    return [
+        DeclineSummaryRow(
+            decline_interview_id=d.decline_interview_id,
+            originating_step=d.originating_step,
+            originating_outcome_class=d.originating_outcome_class,
+            manual_classification=d.manual_classification,
+            safety_attribution_subtype=d.safety_attribution_subtype,
+        )
+        for d in declines
+    ]
+
+
 # ── Raw transcript helpers (OPS-T5) ──────────────────────────────────────────
 
 

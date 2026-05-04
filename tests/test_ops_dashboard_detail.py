@@ -40,6 +40,7 @@ from cdb_core.schemas import (
 )
 
 from apps.ops_dashboard.lib.detail import (
+    build_decline_summary,
     build_step_transcripts,
     build_thinking_trace,
     find_decline_events,
@@ -584,6 +585,192 @@ class TestFindDeclineEvents:
         # the other informant's decline
         assert result[0].manual_classification is None
         assert result[0].manual_classifier_id is None
+
+
+# ── build_decline_summary tests (OPS-T6) ─────────────────────────────────────
+
+
+class TestBuildDeclineSummary:
+    """Unit tests for build_decline_summary (OPS-T6).
+
+    All tests use synthetic fixtures constructed in-memory via the shared
+    _make_record / _make_decline_interview / find_decline_events builders.
+    No real API calls.
+    """
+
+    def _make_detail_list(
+        self,
+        *,
+        decline_interview_id: str = "dec_sum_01",
+        originating_step: str = "freelist",
+        originating_outcome_class: str = "refusal_string_match",
+        manual_classification: str | None = None,
+        safety_attribution_subtype: str | None = None,
+    ):
+        """Helper: build a one-item DeclineDetail list via the real pipeline."""
+        di = _make_decline_interview(
+            decline_interview_id=decline_interview_id,
+            originating_informant_id="aaaa0000bbbb1111",
+            originating_step=originating_step,
+            originating_outcome_class=originating_outcome_class,
+        )
+        cls: list[dict] = []
+        if manual_classification is not None:
+            cls = [
+                {
+                    "decline_interview_id": decline_interview_id,
+                    "manual_classification": manual_classification,
+                    "manual_classifier_id": "mark",
+                }
+            ]
+        subs: list[dict] = []
+        if safety_attribution_subtype is not None:
+            subs = [
+                {
+                    "decline_interview_id": decline_interview_id,
+                    "safety_attribution_subtype": safety_attribution_subtype,
+                    "subtype_classifier_id": "mark",
+                }
+            ]
+        return find_decline_events(
+            informant_id="aaaa0000bbbb1111",
+            decline_interviews=[di],
+            classifications=cls,
+            subtypes=subs,
+        )
+
+    def test_empty_input_returns_empty_list(self) -> None:
+        """Empty input list → empty output list."""
+        result = build_decline_summary([])
+        assert result == []
+
+    def test_single_decline_no_classifications(self) -> None:
+        """One DeclineDetail with both classification fields None → one row,
+        both classification fields None."""
+        details = self._make_detail_list()
+        result = build_decline_summary(details)
+        assert len(result) == 1
+        row = result[0]
+        assert row.decline_interview_id == "dec_sum_01"
+        assert row.manual_classification is None
+        assert row.safety_attribution_subtype is None
+
+    def test_single_decline_with_manual_classification(self) -> None:
+        """Manual classification only → row carries manual_classification,
+        safety_attribution_subtype=None."""
+        details = self._make_detail_list(
+            manual_classification="substantive_compliance_with_empty_input",
+        )
+        result = build_decline_summary(details)
+        assert len(result) == 1
+        row = result[0]
+        assert row.manual_classification == "substantive_compliance_with_empty_input"
+        assert row.safety_attribution_subtype is None
+
+    def test_single_decline_with_both_classifications(self) -> None:
+        """Both manual_classification and safety_attribution_subtype populated →
+        row carries both."""
+        details = self._make_detail_list(
+            manual_classification="safety_event_attribution",
+            safety_attribution_subtype="k_frame",
+        )
+        result = build_decline_summary(details)
+        assert len(result) == 1
+        row = result[0]
+        assert row.manual_classification == "safety_event_attribution"
+        assert row.safety_attribution_subtype == "k_frame"
+
+    def test_multiple_declines_input_order_preserved(self) -> None:
+        """Three declines → three rows in input order."""
+        di1 = _make_decline_interview(
+            decline_interview_id="dec_ord_01",
+            originating_informant_id="aaaa0000bbbb1111",
+            originating_step="freelist",
+        )
+        di2 = _make_decline_interview(
+            decline_interview_id="dec_ord_02",
+            originating_informant_id="aaaa0000bbbb1111",
+            originating_step="pile_sort",
+        )
+        di3 = _make_decline_interview(
+            decline_interview_id="dec_ord_03",
+            originating_informant_id="aaaa0000bbbb1111",
+            originating_step="interview",
+        )
+        details = find_decline_events(
+            informant_id="aaaa0000bbbb1111",
+            decline_interviews=[di1, di2, di3],
+            classifications=[],
+            subtypes=[],
+        )
+        result = build_decline_summary(details)
+        assert len(result) == 3
+        assert [r.decline_interview_id for r in result] == [
+            "dec_ord_01",
+            "dec_ord_02",
+            "dec_ord_03",
+        ]
+
+    def test_originating_step_propagated(self) -> None:
+        """Each of the four valid originating_step literals round-trips."""
+        for step in ("freelist", "pile_sort", "interview", "pre_session"):
+            details = self._make_detail_list(
+                decline_interview_id=f"dec_step_{step}",
+                originating_step=step,
+            )
+            result = build_decline_summary(details)
+            assert len(result) == 1
+            assert result[0].originating_step == step
+
+    def test_outcome_class_propagated(self) -> None:
+        """At least one originating_outcome_class literal round-trips."""
+        details = self._make_detail_list(
+            originating_outcome_class="empty_output",
+        )
+        result = build_decline_summary(details)
+        assert len(result) == 1
+        assert result[0].originating_outcome_class == "empty_output"
+
+    def test_deterministic_output(self) -> None:
+        """Two calls on the same input produce equal output."""
+        details = self._make_detail_list(
+            manual_classification="safety_event_attribution",
+            safety_attribution_subtype="k_vocab",
+        )
+        first = build_decline_summary(details)
+        second = build_decline_summary(details)
+        assert len(first) == len(second)
+        for a, b in zip(first, second, strict=True):
+            assert a.decline_interview_id == b.decline_interview_id
+            assert a.originating_step == b.originating_step
+            assert a.originating_outcome_class == b.originating_outcome_class
+            assert a.manual_classification == b.manual_classification
+            assert a.safety_attribution_subtype == b.safety_attribution_subtype
+
+    def test_forbidden_vocabulary_in_summary_strings(self) -> None:
+        """String fields on returned rows must not contain forbidden vocabulary."""
+        details = self._make_detail_list(
+            originating_step="freelist",
+            originating_outcome_class="refusal_string_match",
+            manual_classification="safety_event_attribution",
+            safety_attribution_subtype="k_frame",
+        )
+        result = build_decline_summary(details)
+        string_fields: list[str] = []
+        for row in result:
+            string_fields.append(row.decline_interview_id)
+            string_fields.append(row.originating_step)
+            string_fields.append(row.originating_outcome_class)
+            if row.manual_classification is not None:
+                string_fields.append(row.manual_classification)
+            if row.safety_attribution_subtype is not None:
+                string_fields.append(row.safety_attribution_subtype)
+        for pattern in _FORBIDDEN_PATTERNS:
+            rx = re.compile(pattern, re.IGNORECASE)
+            for s in string_fields:
+                assert not rx.search(s), (
+                    f"Forbidden pattern '{pattern}' found in summary row field: {s!r}"
+                )
 
 
 # ── build_step_transcripts tests (OPS-T5) ────────────────────────────────────
