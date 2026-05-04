@@ -256,3 +256,36 @@ def test_thinking_text_not_included_in_text():
     assert "this is the reasoning trace" not in result.text
     assert "this is the reasoning trace" in result.thinking_text
     assert result.text == "output only"
+
+
+def test_cap_exhausted_reasoning_signature_through_adapter():
+    """Gemini cap-exhausted-reasoning signature fires through the full adapter path.
+
+    When candidates_token_count == 0 and thoughts_token_count > 0 the
+    sufficient diagnostic invariant (output_tokens == 0 AND
+    thoughts_token_count > 0) holds on the returned AdapterResult.
+    This exercises the production extraction code paths in google.py, not
+    just the AdapterResult dataclass directly (Task 16.A gap coverage).
+    """
+    adapter, mock_client = _make_adapter()
+    # Simulate cap-exhausted reasoning: model produced no visible output
+    # but consumed reasoning tokens against the max_tokens budget.
+    mock_response = _mock_genai_response(
+        text="",
+        output_tokens=0,
+        thoughts_token_count=16384,
+        finish_reason_name="MAX_TOKENS",
+    )
+    # Override candidates_token_count to 0 explicitly (mock helper sets
+    # usage.candidates_token_count = output_tokens, so this is already 0).
+    mock_client.models.generate_content.return_value = mock_response
+
+    async def _run() -> None:
+        return await adapter._do_call("test prompt")
+
+    result = asyncio.run(_run())
+    assert result.output_tokens == 0
+    assert result.thoughts_token_count == 16384
+    # Diagnostic invariant fires
+    assert result.output_tokens == 0 and result.thoughts_token_count > 0
+    assert result.stop_reason == "MAX_TOKENS"
