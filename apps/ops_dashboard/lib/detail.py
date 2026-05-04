@@ -137,6 +137,35 @@ def format_pile_sort(record: InformantRecord) -> list[PileDetail]:
     return result
 
 
+# ── Pile-sort count helper (OPS-T7) ──────────────────────────────────────────
+
+
+def pile_sort_item_count(record: InformantRecord) -> int:
+    """Return the total number of items placed across all piles (sort-time count).
+
+    Uses the flattened total of PileSortRecord.parsed_piles — i.e., the count
+    of items the model was actually asked to sort, observed at sort time.
+
+    If the model received N items and sorted N items, this is N. If the model
+    dropped some items during sorting, this reflects only the items that were
+    placed in at least one pile.
+
+    CDA SME option (a), binding (OPS-T7 verdict §Q5):
+        sum(len(pile) for pile in record.pile_sort.parsed_piles)
+
+    Not to be confused with len(record.freelist.parsed_items) — that is the
+    count produced by Step 1, which may differ when item_source != "own_freelist"
+    or when the model dropped items during pile-sort.
+
+    Args:
+        record: An InformantRecord.
+
+    Returns:
+        Total item count across all piles. 0 when parsed_piles is empty.
+    """
+    return sum(len(pile) for pile in record.pile_sort.parsed_piles)
+
+
 # ── Decline-event helpers ─────────────────────────────────────────────────────
 
 

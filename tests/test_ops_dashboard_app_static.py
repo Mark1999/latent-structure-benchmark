@@ -29,6 +29,7 @@ binding SME note text.
 
 from __future__ import annotations
 
+import re
 from pathlib import Path
 
 import pytest
@@ -40,6 +41,13 @@ _DETAIL_PY = (
     / "ops_dashboard"
     / "lib"
     / "detail.py"
+)
+_QA_INTERPRETER_PY = (
+    Path(__file__).resolve().parents[1]
+    / "apps"
+    / "ops_dashboard"
+    / "lib"
+    / "qa_interpreter.py"
 )
 
 
@@ -53,6 +61,12 @@ def app_source() -> str:
 def detail_source() -> str:
     """Return the full source text of lib/detail.py."""
     return _DETAIL_PY.read_text(encoding="utf-8")
+
+
+@pytest.fixture(scope="module")
+def qa_interpreter_source() -> str:
+    """Return the full source text of lib/qa_interpreter.py."""
+    return _QA_INTERPRETER_PY.read_text(encoding="utf-8")
 
 
 class TestSMEMandatedCopy:
@@ -433,3 +447,152 @@ class TestOPST6MandatedCopy:
                 f"(pos {positions[i]}) does not precede "
                 f"{keys_in_order[i+1]!r} (pos {positions[i+1]}) in app.py."
             )
+
+
+class TestOPST7MandatedCopy:
+    """Verify OPS-T7 CDA SME-required strings are present in app.py,
+    lib/detail.py, and lib/qa_interpreter.py.
+
+    AST-T1: decline banner verbatim template substring present in app.py.
+    AST-T2: app.py imports interpret_qa_notes from lib.qa_interpreter.
+    AST-T3: app.py imports pile_sort_item_count from lib.detail.
+    AST-T4: both pile-sort caption branch strings present in app.py.
+    AST-T5: forbidden-vocabulary regex scan over all three source files.
+
+    See docs/status/2026-05-06-OPS-T7-cda-sme-verdict.md.
+    """
+
+    def test_ast_t1_decline_banner_template_substring(self, app_source: str) -> None:
+        """AST-T1: The decline banner template must contain the CDA SME Q3
+        binding verbatim text (fragment check).
+
+        Binding verbatim (from verdict §Q3):
+        "This run has N classified decline event(s). See Decline summary and
+        Decline events sections below."
+
+        The N is substituted at render time; test the static fragments.
+        """
+        # Test the key fragments that must be present regardless of N formatting
+        fragment_2 = "classified decline event"
+        fragment_3 = "Decline summary"
+        fragment_4 = "Decline events"
+        fragment_5 = "sections below"
+        for frag in (fragment_2, fragment_3, fragment_4, fragment_5):
+            assert frag in app_source, (
+                f"OPS-T7 AST-T1: decline banner fragment {frag!r} not found "
+                f"in app.py. CDA SME Q3 binding verbatim."
+            )
+        # Also check the key distinguishing phrase from the SME edit
+        # ("has N classified" not "produced N")
+        assert "classified decline event" in app_source, (
+            "OPS-T7 AST-T1: 'classified decline event' not found in app.py. "
+            "SME Q3 changed 'produced' to 'has ... classified'."
+        )
+        # Guard against the rejected 'produced' formulation
+        assert "This run produced" not in app_source, (
+            "OPS-T7 AST-T1: rejected phrase 'This run produced' found in app.py. "
+            "SME Q3 binding requires 'This run has N classified decline event(s).'."
+        )
+
+    def test_ast_t2_import_interpret_qa_notes(self, app_source: str) -> None:
+        """AST-T2: app.py must import interpret_qa_notes from lib.qa_interpreter."""
+        assert "interpret_qa_notes" in app_source, (
+            "OPS-T7 AST-T2: 'interpret_qa_notes' not found in app.py. "
+            "app.py must import and call interpret_qa_notes from "
+            "apps.ops_dashboard.lib.qa_interpreter."
+        )
+        assert "qa_interpreter" in app_source, (
+            "OPS-T7 AST-T2: 'qa_interpreter' module reference not found in app.py."
+        )
+
+    def test_ast_t3_import_pile_sort_item_count(self, app_source: str) -> None:
+        """AST-T3: app.py must import pile_sort_item_count from lib.detail."""
+        assert "pile_sort_item_count" in app_source, (
+            "OPS-T7 AST-T3: 'pile_sort_item_count' not found in app.py. "
+            "app.py must import pile_sort_item_count from apps.ops_dashboard.lib.detail."
+        )
+
+    def test_ast_t4_pile_sort_caption_own_freelist_branch(
+        self, app_source: str
+    ) -> None:
+        """AST-T4 (own_freelist branch): the own_freelist caption fragment must
+        appear verbatim in app.py.
+
+        CDA SME Q4 binding (own_freelist):
+        "Items sorted: this informant's own Step 1 freelist (N items)."
+        """
+        # Use ASCII apostrophe in case editor normalised
+        fragment = "Items sorted: this informant"
+        fragment_2 = "own Step 1 freelist"
+        for frag in (fragment, fragment_2):
+            assert frag in app_source, (
+                f"OPS-T7 AST-T4: own_freelist caption fragment {frag!r} not found "
+                f"in app.py. CDA SME Q4 binding."
+            )
+
+    def test_ast_t4_pile_sort_caption_external_branch(
+        self, app_source: str
+    ) -> None:
+        """AST-T4 (external branch): the external source caption fragment must
+        appear verbatim in app.py.
+
+        CDA SME Q4 binding (external):
+        "Items sorted: items from `{item_source}` (N items). Not derived from
+        this informant's own freelist — see `PileSortRecord.item_source` for
+        source semantics."
+        """
+        fragment_1 = "Items sorted: items from"
+        fragment_2 = "Not derived from this informant"
+        fragment_3 = "PileSortRecord.item_source"
+        for frag in (fragment_1, fragment_2, fragment_3):
+            assert frag in app_source, (
+                f"OPS-T7 AST-T4: external caption fragment {frag!r} not found "
+                f"in app.py. CDA SME Q4 binding."
+            )
+
+    # Forbidden-vocabulary patterns (CLAUDE.md §7 / ARCHITECTURE.md §1.5.4)
+    _FORBIDDEN_PATTERNS: list[str] = [
+        r"\bbelieves\b",
+        r"\bModel X believes",
+        r"\bModel X thinks of",
+        r"\bHow models see the world\b",
+        r"\bModel X'?s worldview\b",
+        r"\bworldview\b",
+        r"\bCultural bias\b",
+        r"\bWhat the model understands\b",
+        r"\bwithin-model consensus\b",
+        r"\bwithin-model eigenratio\b",
+        r"\bwithin-model CCM\b",
+    ]
+
+    @pytest.mark.parametrize("pattern", _FORBIDDEN_PATTERNS)
+    def test_ast_t5_forbidden_vocabulary_app_py(
+        self, pattern: str, app_source: str
+    ) -> None:
+        """AST-T5: app.py must not contain any §7 forbidden-vocabulary pattern."""
+        rx = re.compile(pattern, re.IGNORECASE)
+        assert not rx.search(app_source), (
+            f"OPS-T7 AST-T5: forbidden pattern {pattern!r} found in app.py."
+        )
+
+    @pytest.mark.parametrize("pattern", _FORBIDDEN_PATTERNS)
+    def test_ast_t5_forbidden_vocabulary_qa_interpreter_py(
+        self, pattern: str, qa_interpreter_source: str
+    ) -> None:
+        """AST-T5: lib/qa_interpreter.py must not contain any §7 forbidden pattern."""
+        rx = re.compile(pattern, re.IGNORECASE)
+        assert not rx.search(qa_interpreter_source), (
+            f"OPS-T7 AST-T5: forbidden pattern {pattern!r} found in "
+            f"lib/qa_interpreter.py."
+        )
+
+    @pytest.mark.parametrize("pattern", _FORBIDDEN_PATTERNS)
+    def test_ast_t5_forbidden_vocabulary_detail_py(
+        self, pattern: str, detail_source: str
+    ) -> None:
+        """AST-T5: lib/detail.py must not contain any §7 forbidden pattern."""
+        rx = re.compile(pattern, re.IGNORECASE)
+        assert not rx.search(detail_source), (
+            f"OPS-T7 AST-T5: forbidden pattern {pattern!r} found in "
+            f"lib/detail.py."
+        )

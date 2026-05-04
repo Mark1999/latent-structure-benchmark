@@ -46,6 +46,7 @@ from apps.ops_dashboard.lib.detail import (
     find_decline_events,
     format_freelist,
     format_pile_sort,
+    pile_sort_item_count,
 )
 
 # ── Shared manifest keys ──────────────────────────────────────────────────────
@@ -989,6 +990,70 @@ class TestBuildStepTranscripts:
                 assert not rx.search(s), (
                     f"Forbidden pattern '{pattern}' found in step label: {s!r}"
                 )
+
+
+# ── pile_sort_item_count tests (OPS-T7) ─────────────────────────────────────
+
+
+class TestPileSortItemCount:
+    """Unit tests for pile_sort_item_count (OPS-T7).
+
+    PSC-T1: normal multi-pile record returns sum of pile lengths.
+    PSC-T2: empty parsed_piles returns 0.
+    PSC-T3: non-default item_source value does not affect the count.
+
+    CDA SME Q5 binding (option a): sum(len(pile) for pile in record.pile_sort.parsed_piles).
+    """
+
+    def test_psc_t1_normal_multi_pile_record(self) -> None:
+        """PSC-T1: multi-pile record returns the flattened total item count."""
+        # 2 piles: [mother, father] and [sister, brother, cousin]
+        # Expected: 2 + 3 = 5
+        record = _make_record(
+            piles=[["mother", "father"], ["sister", "brother", "cousin"]],
+        )
+        result = pile_sort_item_count(record)
+        assert result == 5
+
+    def test_psc_t1_single_pile(self) -> None:
+        """PSC-T1 variant: single pile with 3 items returns 3."""
+        record = _make_record(piles=[["a", "b", "c"]])
+        result = pile_sort_item_count(record)
+        assert result == 3
+
+    def test_psc_t2_empty_parsed_piles_returns_zero(self) -> None:
+        """PSC-T2: empty parsed_piles returns 0."""
+        record = _make_record(piles=[], pile_labels=[])
+        result = pile_sort_item_count(record)
+        assert result == 0
+
+    def test_psc_t3_non_default_item_source_does_not_affect_count(self) -> None:
+        """PSC-T3: item_source != 'own_freelist' does not change the count computation.
+
+        The count is sum(len(pile) for pile in parsed_piles) regardless of
+        the source. The item_source field affects only the caption rendering,
+        not the count function.
+        """
+        piles = [["external_item_1", "external_item_2"], ["external_item_3"]]
+        # Build record normally (item_source defaults to "own_freelist" in the schema),
+        # then use model_copy to set a custom item_source for testing.
+        record = _make_record(piles=piles)
+        # Mutate pile_sort.item_source via model_copy on the sub-record
+        modified_pile_sort = record.pile_sort.model_copy(
+            update={"item_source": "external_consensus_2026"}
+        )
+        modified_record = record.model_copy(update={"pile_sort": modified_pile_sort})
+        result = pile_sort_item_count(modified_record)
+        assert result == 3  # 2 + 1
+
+    def test_psc_t3_count_is_sum_not_distinct_count(self) -> None:
+        """PSC-T3 variant: total count includes duplicate items across piles
+        (SME option (a) = sum, not distinct count = SME option (c))."""
+        # Same item appears in two piles (edge case)
+        piles = [["item_a", "item_b"], ["item_a", "item_c"]]
+        record = _make_record(piles=piles)
+        result = pile_sort_item_count(record)
+        assert result == 4  # 2 + 2, not 3 (distinct)
 
 
 # ── Forbidden vocabulary scan ─────────────────────────────────────────────────

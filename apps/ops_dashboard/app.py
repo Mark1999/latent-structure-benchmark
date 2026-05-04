@@ -39,6 +39,7 @@ from apps.ops_dashboard.lib.detail import (  # noqa: E402
     find_decline_events,
     format_freelist,
     format_pile_sort,
+    pile_sort_item_count,
 )
 from apps.ops_dashboard.lib.loader import (  # noqa: E402
     load_decline_interviews,
@@ -51,6 +52,7 @@ from apps.ops_dashboard.lib.picker import (  # noqa: E402
     available_informant_ids,
     available_model_ids,
 )
+from apps.ops_dashboard.lib.qa_interpreter import interpret_qa_notes  # noqa: E402
 
 # ── Constants ──
 
@@ -224,8 +226,36 @@ if _detail_id not in _record_map:
 
 _rec: InformantRecord = _record_map[_detail_id]
 
+# ── Decline lookup (hoisted above QA badge — A2.1) ───────────────────────────
+# Loaded here so _declines is available for the banner BEFORE the QA badge
+# renders. The downstream sections reuse this value — no double-fetch.
+_decline_interviews = _load_decline_interviews()
+_classifications = _load_manual_classifications()
+_subtypes = _load_safety_subtypes()
+
+_declines: list[DeclineDetail] = find_decline_events(
+    informant_id=_detail_id,
+    decline_interviews=_decline_interviews,
+    classifications=_classifications,
+    subtypes=_subtypes,
+)
+
 st.divider()
 st.subheader(f"Detail — `{_detail_id}`")
+
+# ── Decline-events banner (OPS-T7 A2) ────────────────────────────────────────
+# Renders ABOVE the QA badge when ≥1 classified decline event exists.
+# CDA SME Q2 (binding): top-of-detail-section, above QA badge.
+# CDA SME Q3 (binding verbatim): "This run has N classified decline event(s).
+#   See Decline summary and Decline events sections below."
+if len(_declines) > 0:
+    _n_declines = len(_declines)
+    st.warning(
+        f"This run has {_n_declines} classified decline event(s). "
+        f"See Decline summary and Decline events sections below."
+    )
+
+# ── QA badge ─────────────────────────────────────────────────────────────────
 
 if _rec.qa_passed:
     st.markdown("**QA:** :green-background[**PASS**]")
@@ -240,6 +270,13 @@ if _rec.qa_notes:
     else:
         # Failing record — surface verbatim immediately under the badge
         st.error(f"**QA notes:** {_rec.qa_notes}")
+        # QA-notes interpreter (OPS-T7 A1): one st.warning per parsed failure
+        for _interp in interpret_qa_notes(_rec.qa_notes):
+            st.warning(
+                f"**Why:** {_interp.why}  \n"
+                f"**Impact on analysis:** {_interp.impact}  \n"
+                f"(raw segment: `{_interp.raw_segment}`)"
+            )
 
 st.caption(
     f"model_id: `{_rec.model_id}` | domain: `{_rec.domain_slug}` | "
@@ -275,12 +312,29 @@ if _trace:
 # ── Section 2 — Pile-sort ─────────────────────────────────────────────────────
 
 st.markdown("### Pile-sort")
+
+# ── Pile-sort source caption (OPS-T7 A3) ─────────────────────────────────────
+# Renders BEFORE the verbatim-provenance caption only when pile-sort data exists.
+# CDA SME Q4 (binding verbatim) and Q5 (binding: sum of pile lengths).
+_piles = format_pile_sort(_rec)
+
+if _piles:
+    _item_count = pile_sort_item_count(_rec)
+    if _rec.pile_sort.item_source == "own_freelist":
+        st.caption(
+            f"Items sorted: this informant's own Step 1 freelist ({_item_count} items)."
+        )
+    else:
+        st.caption(
+            f"Items sorted: items from `{_rec.pile_sort.item_source}` ({_item_count} items). "
+            f"Not derived from this informant's own freelist — see `PileSortRecord.item_source` "
+            f"for source semantics."
+        )
+
 st.caption(
     "*Pile labels and member ordering are the model's own output, verbatim. "
     "Not re-summarized or re-ordered.*"
 )
-
-_piles = format_pile_sort(_rec)
 
 if not _piles:
     st.info("*This informant returned no pile-sort data.*")
@@ -300,17 +354,7 @@ else:
                 st.markdown(f"- {member}")
 
 # ── Section 3 — Decline events ───────────────────────────────────────────────
-
-_decline_interviews = _load_decline_interviews()
-_classifications = _load_manual_classifications()
-_subtypes = _load_safety_subtypes()
-
-_declines: list[DeclineDetail] = find_decline_events(
-    informant_id=_detail_id,
-    decline_interviews=_decline_interviews,
-    classifications=_classifications,
-    subtypes=_subtypes,
-)
+# Note: _declines is computed above (hoisted for the decline banner — OPS-T7 A2.1).
 
 st.markdown("### Decline summary")
 _summary_rows = build_decline_summary(_declines)
