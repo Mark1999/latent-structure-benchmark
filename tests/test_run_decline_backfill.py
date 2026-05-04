@@ -2074,16 +2074,21 @@ class TestExecutePath:
         assert records[0]["version_drift_flag"] is True
 
     def test_execute_recursive_decline_counted(self, tmpdir: Path) -> None:
-        """MockAdapter returns refusal text matching SAFETY_FILTER_MARKERS
-        -> recursive-decline count incremented; stderr emits RECURSIVE_DECLINE."""
+        """MockAdapter returns a first-person refusal phrase matching
+        RECURSIVE_DECLINE_PHRASES -> recursive-decline count incremented;
+        stderr emits RECURSIVE_DECLINE.
+
+        Updated for T-R1 (Amendment 2): the corrected _is_recursive_decline()
+        uses RECURSIVE_DECLINE_PHRASES (first-person refusal locutions), not
+        SAFETY_FILTER_MARKERS. Third-person safety-vocabulary responses (like
+        'This content was blocked by the safety filter.') are no longer counted
+        as recursive declines — they are successful substantive interviews.
+        """
         informants = [self._glm_informant(0)]
-        # "I cannot describe what happened" contains "I cannot" which is in
-        # the DECLINE_ALLOWLIST but not SAFETY_FILTER_MARKERS.
-        # Use a response with "blocked" which IS in SAFETY_FILTER_MARKERS.
         exit_code, stdout, stderr, records = _run_execute_capture(
             informants, [], tmpdir,
             source="informants",
-            adapter_response="This content was blocked by the safety filter.",
+            adapter_response="I cannot describe what happened in that exchange.",
         )
         assert exit_code == 0
         assert "RECURSIVE_DECLINE:" in stderr
@@ -2569,3 +2574,163 @@ class TestSafetyMarkerCommentA2N3:
         assert _is_recursive_decline(
             "The model attempted to list family terms but the list was empty."
         ) is False
+
+
+# ── T-R1: TestIsRecursiveDeclineCorrected ─────────────────────────────────────
+
+class TestIsRecursiveDeclineCorrected:
+    """Binding test cases for the corrected _is_recursive_decline() per SME T3B-detector
+    verdict Q1.E and Architect Plan Amendment 2 §2 T-R1.
+
+    Ten binding test cases:
+      1-2.  Empty / whitespace-only → True  (existing cases preserved)
+      3-7.  Five T3B false-positive verbatim samples → False
+      8-10. Three synthetic genuine recursive-decline cases → True
+      11-12 (0-indexed 3-4 in group 5). Two third-person-attribution cases → False
+
+    All false-positive samples include sufficient surrounding prose to clear the
+    40-character MIN_SUBSTANTIVE_RESPONSE_LEN floor, ensuring the allowlist branch
+    (not the length-floor branch) is exercised for those assertions.
+
+    References:
+      SME verdict: docs/status/2026-04-23-phase4a1-t3b-detector-cda-sme-verdict.md Q1.E
+      Amendment 2: docs/status/2026-04-23-phase4a1-architect-plan-amendment-2.md §2 T-R1
+    """
+
+    # ── Case 1 & 2: empty/whitespace (preserved existing behavior) ────────────
+
+    def test_empty_string_is_recursive_decline(self) -> None:
+        """Empty string returns True (SME Q1.A, Q1.E case 1)."""
+        assert _is_recursive_decline("") is True
+
+    def test_whitespace_only_is_recursive_decline(self) -> None:
+        """Whitespace-only string returns True (SME Q1.A, Q1.E case 2)."""
+        assert _is_recursive_decline("   \n\t  ") is True
+
+    # ── Cases 3–7: T3B false-positive verbatim samples → False ───────────────
+    # Each input reproduces the verbatim fragment from T3B run log
+    # §"Representative verbatim samples" with sufficient surrounding prose to
+    # clear the 60-char safety margin (Risk R-A2.1), exercising the allowlist
+    # branch rather than the length-floor branch.
+
+    def test_gemini_safety_protocols_narrative_is_not_recursive_decline(self) -> None:
+        """Gemini 'internal safety protocols and programming guide me' sample.
+
+        T3B run log: flagged via 'safety' substring match (false positive).
+        This is a third-person/impersonal description of the originating safety
+        event, not a first-person refusal of the decline-interview task.
+        Must return False under the corrected detector.
+        """
+        sample = (
+            "My internal safety protocols and programming guide me to avoid generating "
+            "content that could facilitate harmful activities. The original request "
+            "triggered this protective mechanism in the exchange."
+        )
+        assert len(sample.strip()) >= 60, "test input must clear 60-char safety margin"
+        assert _is_recursive_decline(sample) is False
+
+    def test_gemini_blocked_negotiating_narrative_is_not_recursive_decline(self) -> None:
+        """Gemini 'I was blocked from negotiating the request' sample.
+
+        T3B run log: flagged via 'blocked' substring match (false positive).
+        The phrase 'I was blocked' describes what happened to the model in the
+        originating exchange — it is third-person-shaped attribution of a past
+        event, not a first-person refusal of the current decline-interview task.
+        Must return False under the corrected detector.
+        """
+        sample = (
+            "I was blocked from negotiating the request because the topic touched on "
+            "content that my content policy does not permit. The original exchange "
+            "produced an empty response as a result of this restriction."
+        )
+        assert len(sample.strip()) >= 60, "test input must clear 60-char safety margin"
+        assert _is_recursive_decline(sample) is False
+
+    def test_glm_safety_filter_false_trigger_narrative_is_not_recursive_decline(self) -> None:
+        """glm-5.1 'false trigger of a safety filter: Though highly improbable' sample.
+
+        T3B run log: flagged via 'safety' substring match (false positive).
+        This is a substantive meta-discussion of the original failure — the model
+        is hypothesizing about the cause of the originating empty-response.
+        Must return False under the corrected detector.
+        """
+        sample = (
+            "This appears to be a false trigger of a safety filter: Though highly "
+            "improbable given the benign nature of the request, the system may have "
+            "detected a pattern that matched its content-filtering heuristics."
+        )
+        assert len(sample.strip()) >= 60, "test input must clear 60-char safety margin"
+        assert _is_recursive_decline(sample) is False
+
+    def test_llama_output_empty_other_words_narrative_is_not_recursive_decline(self) -> None:
+        """llama-4-maverick 'the output was empty. In other words, this is the' sample.
+
+        T3B run log: flagged via 'OTHER' case-insensitive substring match
+        (false positive — matched 'other' inside 'other words').
+        Ordinary prose describing what happened; no first-person refusal signal.
+        Must return False under the corrected detector.
+        """
+        sample = (
+            "In the exchange that occurred, the output was empty. In other words, "
+            "this is the result of the model returning no content for the pile-sort "
+            "task on the family domain during that session."
+        )
+        assert len(sample.strip()) >= 60, "test input must clear 60-char safety margin"
+        assert _is_recursive_decline(sample) is False
+
+    def test_gpt_in_other_words_task_narrative_is_not_recursive_decline(self) -> None:
+        """gpt-5.4-mini 'In other words, the task was' sample.
+
+        T3B run log: flagged via 'OTHER' case-insensitive substring match
+        (false positive — matched 'other' inside 'other words').
+        Ordinary prose; same false-positive shape as the llama case above.
+        Must return False under the corrected detector.
+        """
+        sample = (
+            "The pile-sort response came back with no items listed. In other words, "
+            "the task was completed by the model but yielded an empty result set "
+            "rather than the expected categorization of terms."
+        )
+        assert len(sample.strip()) >= 60, "test input must clear 60-char safety margin"
+        assert _is_recursive_decline(sample) is False
+
+    # ── Cases 8–10: synthetic genuine recursive-decline cases → True ──────────
+
+    def test_cannot_describe_is_recursive_decline(self) -> None:
+        """'I cannot describe what happened in that exchange.' triggers Q1.C allowlist."""
+        assert _is_recursive_decline(
+            "I cannot describe what happened in that exchange."
+        ) is True
+
+    def test_sorry_short_response_is_recursive_decline(self) -> None:
+        """'Sorry.' triggers Q1.B length-floor (5 chars < 40)."""
+        assert _is_recursive_decline("Sorry.") is True
+
+    def test_wont_engage_is_recursive_decline(self) -> None:
+        """'I won't engage with this.' triggers Q1.C allowlist."""
+        assert _is_recursive_decline("I won't engage with this.") is True
+
+    # ── Cases 11–12: third-person-attribution cases with coincidental vocabulary → False
+
+    def test_third_person_could_not_process_is_not_recursive_decline(self) -> None:
+        """'The model's response indicated it could not process the request.'
+
+        Contains 'could not' but is third-person attribution; not in the
+        RECURSIVE_DECLINE_PHRASES allowlist. Must clear 40-char floor and
+        return False. (SME Q1.E case 5a)
+        """
+        sample = "The model's response indicated it could not process the request."
+        assert len(sample.strip()) >= 40, "test input must clear length floor"
+        assert _is_recursive_decline(sample) is False
+
+    def test_third_person_declined_to_provide_is_not_recursive_decline(self) -> None:
+        """'The original output declined to provide the list, citing safety concerns.'
+
+        Third-person attribution shape; not a first-person refusal of the current
+        task. Must clear 40-char floor and return False. (SME Q1.E case 5b)
+        """
+        sample = (
+            "The original output declined to provide the list, citing safety concerns."
+        )
+        assert len(sample.strip()) >= 40, "test input must clear length floor"
+        assert _is_recursive_decline(sample) is False
