@@ -2565,8 +2565,18 @@ class TestSafetyMarkerCommentA2N3:
         """Whitespace-only string -> recursive decline."""
         assert _is_recursive_decline("   \n\t  ") is True
 
-    def test_is_recursive_decline_safety_marker_match(self) -> None:
-        """Text containing SAFETY_FILTER_MARKERS substring -> recursive decline."""
+    def test_is_recursive_decline_length_floor_trigger(self) -> None:
+        """Short response (31 chars < MIN_SUBSTANTIVE_RESPONSE_LEN=40) -> recursive decline.
+
+        Pre-T-R1, this test was named test_is_recursive_decline_safety_marker_match
+        and its docstring claimed the True result came from the SAFETY_FILTER_MARKERS
+        branch. After T-R1 corrected _is_recursive_decline(), that branch was removed.
+        The input "This was blocked by the filter." (31 chars stripped) still returns
+        True, but now via the length-floor branch (Q1.B), not the removed marker branch.
+
+        Renamed and re-documented per Reviewer T-R1 Note 1 (stale-docstring cleanup).
+        See: docs/status/2026-04-23-phase4a1-t-r1-reviewer-verdict.md Note 1
+        """
         assert _is_recursive_decline("This was blocked by the filter.") is True
 
     def test_is_recursive_decline_normal_response(self) -> None:
