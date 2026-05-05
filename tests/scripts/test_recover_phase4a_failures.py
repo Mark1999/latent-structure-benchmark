@@ -849,3 +849,534 @@ class TestTargetCountAssertion:
         with pytest.raises(SystemExit) as exc_info:
             build_target_list(fixture)
         assert exc_info.value.code == 1
+
+
+# ─── 9. original_failure_timestamp in recovery_failed rows ───────────────────
+
+class TestOriginalFailureTimestamp:
+    """Gap coverage: the recovery_failed row must carry original_failure_timestamp.
+
+    Plan §2 R1 behavior 3 requires the new failures.jsonl row to include
+    the original failure's timestamp as a cross-reference field.  The
+    existing tests assert the other context keys but never assert this one.
+    """
+
+    def test_original_timestamp_present_in_failure_row(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """original_failure_timestamp must appear in context of a recovery_failed row."""
+        informants_out = tmp_path / "informants.jsonl"
+        failures_out = tmp_path / "failures.jsonl"
+
+        sentinel_ts = "2026-04-22T20:23:51.189181"
+        target = RecoveryTarget(
+            model_id="google/gemini-2.5-pro",
+            domain="family",
+            run_index=0,
+            original_failure_timestamp=sentinel_ts,
+        )
+
+        pse = _make_partial_session_error()
+
+        async def always_fail(*args, **kwargs):
+            raise pse
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures._run_one_informant",
+            always_fail,
+        )
+        monkeypatch.setattr("scripts.recover_phase4a_failures.time.sleep", lambda s: None)
+
+        recover_cell(target, 1, 1, informants_out, failures_out)
+
+        rows = [
+            json.loads(line)
+            for line in failures_out.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert len(rows) == 1
+        ctx = rows[0]["context"]
+        assert "original_failure_timestamp" in ctx, (
+            "original_failure_timestamp must be in context for cross-reference"
+        )
+        assert ctx["original_failure_timestamp"] == sentinel_ts
+
+    def test_original_timestamp_correct_value_for_each_model(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Each recovery target carries its own timestamp — verify per-cell isolation."""
+        # Three targets, each with a distinct timestamp from the fixture
+        targets_and_timestamps = [
+            ("z-ai/glm-5.1",               "family",   1, "2026-04-22T22:31:17.084756"),
+            ("z-ai/glm-5.1",               "holidays", 0, "2026-04-22T22:47:06.547653"),
+            ("meta-llama/llama-4-maverick", "family",   1, "2026-04-22T20:25:55.777277"),
+        ]
+
+        async def always_fail(*args, **kwargs):
+            raise _make_partial_session_error()
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures._run_one_informant",
+            always_fail,
+        )
+        monkeypatch.setattr("scripts.recover_phase4a_failures.time.sleep", lambda s: None)
+
+        for model_id, domain, run_index, expected_ts in targets_and_timestamps:
+            informants_out = tmp_path / f"informants_{run_index}.jsonl"
+            failures_out = tmp_path / f"failures_{model_id.replace('/', '_')}_{run_index}.jsonl"
+            target = RecoveryTarget(
+                model_id=model_id,
+                domain=domain,
+                run_index=run_index,
+                original_failure_timestamp=expected_ts,
+            )
+            recover_cell(target, 1, 1, informants_out, failures_out)
+
+            rows = [
+                json.loads(line)
+                for line in failures_out.read_text(encoding="utf-8").splitlines()
+                if line.strip()
+            ]
+            assert rows[0]["context"]["original_failure_timestamp"] == expected_ts, (
+                f"Wrong timestamp for {model_id}/{domain} run={run_index}"
+            )
+
+    def test_non_pse_failure_also_has_original_timestamp(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Non-PartialSessionError failures must also carry original_failure_timestamp."""
+        informants_out = tmp_path / "informants.jsonl"
+        failures_out = tmp_path / "failures.jsonl"
+
+        sentinel_ts = "2026-04-22T22:57:29.951184"
+        target = RecoveryTarget(
+            model_id="z-ai/glm-5.1",
+            domain="holidays",
+            run_index=4,
+            original_failure_timestamp=sentinel_ts,
+        )
+
+        async def always_fail(*args, **kwargs):
+            raise OSError("network timeout")
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures._run_one_informant",
+            always_fail,
+        )
+        monkeypatch.setattr("scripts.recover_phase4a_failures.time.sleep", lambda s: None)
+
+        recover_cell(target, 1, 1, informants_out, failures_out)
+
+        rows = [
+            json.loads(line)
+            for line in failures_out.read_text(encoding="utf-8").splitlines()
+            if line.strip()
+        ]
+        assert rows[0]["context"]["original_failure_timestamp"] == sentinel_ts
+
+
+# ─── 10. Exit code 2 (recovery rate < 80%) ───────────────────────────────────
+
+class TestExitCode2:
+    """Gap coverage: when recovery rate < 80%, main() must return 2.
+
+    Plan §2 R1 exit-code contract: exit 2 if recovery rate < 80%.
+    SME R6: this exit triggers CDA SME re-review before T4-redo proceeds.
+    No existing test exercises this path.
+    """
+
+    def _make_failures_fixture(self, tmp_path: Path, n_cells: int = 20) -> Path:
+        """Write a synthetic failures.jsonl with exactly n_cells in-scope rows."""
+        rows = []
+        domains = ["family", "holidays"]
+        models = [
+            "google/gemini-2.5-pro",
+            "z-ai/glm-5.1",
+            "meta-llama/llama-4-maverick",
+        ]
+        # Distribute cells across models/domains to hit exactly n_cells in-scope rows
+        i = 0
+        for model in models:
+            for domain in domains:
+                for run in range(5):
+                    if i >= n_cells:
+                        break
+                    rows.append({
+                        "timestamp": f"2026-04-22T20:{i:02d}:00.000000",
+                        "error_type": "ValueError",
+                        "error_message": "Pile sort parsing failed",
+                        "context": {
+                            "model_id": model,
+                            "domain": domain,
+                            "run_index": run,
+                        },
+                        "retry_attempts": [],
+                    })
+                    i += 1
+                if i >= n_cells:
+                    break
+            if i >= n_cells:
+                break
+        fixture = tmp_path / "failures_exit2.jsonl"
+        fixture.write_text(
+            "\n".join(json.dumps(r) for r in rows) + "\n",
+            encoding="utf-8",
+        )
+        return fixture
+
+    def test_exit_2_when_recovery_rate_below_threshold(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """main() returns 2 when fewer than 80% of cells succeed.
+
+        Simulates 4 RECOVERY_FAILED + 16 PASS on 20 cells → rate = 80%
+        exactly; spec says < 80%, so this should return 0.
+        Then simulates 5 RECOVERY_FAILED on 20 cells (75%) → returns 2.
+        """
+        failures_fixture = self._make_failures_fixture(tmp_path, n_cells=20)
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.FAILURES_JSONL",
+            failures_fixture,
+        )
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.INFORMANTS_JSONL",
+            tmp_path / "informants.jsonl",
+        )
+        mock_registry = {
+            m: MagicMock(collection_method="openrouter")
+            for m in IN_SCOPE_MODELS
+        }
+        monkeypatch.setattr("scripts.recover_phase4a_failures.MODEL_REGISTRY", mock_registry)
+
+        # 5 RECOVERY_FAILED out of 20 cells = 75% → exit 2
+        call_count = {"n": 0}
+
+        def mock_recover_cell_5_fail(target, cell_index, total, inf_path, fail_path):
+            call_count["n"] += 1
+            if call_count["n"] <= 5:
+                return "RECOVERY_FAILED"
+            return "PASS"
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.recover_cell",
+            mock_recover_cell_5_fail,
+        )
+        monkeypatch.setattr("sys.argv", ["recover.py"])
+
+        from scripts.recover_phase4a_failures import main
+        exit_code = main()
+
+        assert exit_code == 2, (
+            f"Expected exit code 2 (recovery rate 75% < 80%) but got {exit_code}"
+        )
+
+    def test_exit_0_at_80_percent_threshold(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """main() returns 0 when recovery rate == 80% (boundary: strictly < 80% triggers exit 2)."""
+        failures_fixture = self._make_failures_fixture(tmp_path, n_cells=20)
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.FAILURES_JSONL",
+            failures_fixture,
+        )
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.INFORMANTS_JSONL",
+            tmp_path / "informants.jsonl",
+        )
+        mock_registry = {
+            m: MagicMock(collection_method="openrouter")
+            for m in IN_SCOPE_MODELS
+        }
+        monkeypatch.setattr("scripts.recover_phase4a_failures.MODEL_REGISTRY", mock_registry)
+
+        # 4 RECOVERY_FAILED out of 20 cells = 80% success → exit 0 (threshold is < 80%)
+        call_count = {"n": 0}
+
+        def mock_recover_cell_4_fail(target, cell_index, total, inf_path, fail_path):
+            call_count["n"] += 1
+            if call_count["n"] <= 4:
+                return "RECOVERY_FAILED"
+            return "PASS"
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.recover_cell",
+            mock_recover_cell_4_fail,
+        )
+        monkeypatch.setattr("sys.argv", ["recover.py"])
+
+        from scripts.recover_phase4a_failures import main
+        exit_code = main()
+
+        assert exit_code == 0, (
+            f"Expected exit code 0 (recovery rate 80% == threshold) but got {exit_code}"
+        )
+
+    def test_exit_2_with_already_recovered_cells_counted_toward_success(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch,
+    ) -> None:
+        """Already-recovered cells count toward the recovery rate.
+
+        Scenario: 10 cells already recovered (skipped), 5 PASS, 5 RECOVERY_FAILED.
+        Rate = (10 + 5) / 20 = 75% → exit 2.
+        """
+        failures_fixture = self._make_failures_fixture(tmp_path, n_cells=20)
+        informants_path = tmp_path / "informants.jsonl"
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.FAILURES_JSONL",
+            failures_fixture,
+        )
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.INFORMANTS_JSONL",
+            informants_path,
+        )
+        mock_registry = {
+            m: MagicMock(collection_method="openrouter")
+            for m in IN_SCOPE_MODELS
+        }
+        monkeypatch.setattr("scripts.recover_phase4a_failures.MODEL_REGISTRY", mock_registry)
+
+        # Simulate 10 already-recovered cells by pre-populating load_already_recovered
+        # Build the expected target list to know which cells to mark as already-recovered
+        from scripts.recover_phase4a_failures import build_target_list
+        targets = build_target_list(failures_fixture)
+        already_recovered = {
+            (t.model_id, t.domain, t.run_index)
+            for t in targets[:10]
+        }
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.load_already_recovered",
+            lambda path: already_recovered,
+        )
+
+        # Remaining 10 cells: 5 PASS + 5 RECOVERY_FAILED → rate = 15/20 = 75%
+        call_count = {"n": 0}
+
+        def mock_recover_cell(target, cell_index, total, inf_path, fail_path):
+            call_count["n"] += 1
+            if call_count["n"] <= 5:
+                return "PASS"
+            return "RECOVERY_FAILED"
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.recover_cell",
+            mock_recover_cell,
+        )
+        monkeypatch.setattr("sys.argv", ["recover.py"])
+
+        from scripts.recover_phase4a_failures import main
+        exit_code = main()
+
+        assert exit_code == 2, (
+            f"Expected exit code 2 (rate 75% with already-recovered counted) but got {exit_code}"
+        )
+
+
+# ─── 11. Mixed scenario: main() per-cell counter accumulation ────────────────
+
+class TestMainLoopCounters:
+    """Gap coverage: verify that main() correctly accumulates per-cell counters.
+
+    The individual recover_cell() function is tested extensively in isolation,
+    but the main() loop's counter accumulation logic (n_recovered, n_recovery_failed,
+    n_already_recovered) has not been tested under a mixed outcome scenario.
+    This class drives main() with a controlled mix of outcomes and reads the
+    summary from stdout to verify the counters are correct.
+    """
+
+    def _make_failures_fixture(self, tmp_path: Path) -> Path:
+        """20-cell in-scope failures fixture for main() tests."""
+        rows = []
+        domains = ["family", "holidays"]
+        i = 0
+        for model in sorted(IN_SCOPE_MODELS):
+            for domain in domains:
+                for run in range(5):
+                    if i >= 20:
+                        break
+                    rows.append({
+                        "timestamp": f"2026-04-22T20:{i:02d}:00.000000",
+                        "error_type": "ValueError",
+                        "error_message": "Pile sort parsing failed",
+                        "context": {
+                            "model_id": model,
+                            "domain": domain,
+                            "run_index": run,
+                        },
+                        "retry_attempts": [],
+                    })
+                    i += 1
+                if i >= 20:
+                    break
+            if i >= 20:
+                break
+        fixture = tmp_path / "failures_counters.jsonl"
+        fixture.write_text(
+            "\n".join(json.dumps(r) for r in rows) + "\n",
+            encoding="utf-8",
+        )
+        return fixture
+
+    def test_mixed_outcome_counters(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """Mixed scenario: 12 PASS + 5 RECOVERY_FAILED + 3 already-recovered = 20.
+
+        Verifies that the summary printed by main() shows the correct counts
+        and that the exit code reflects the 85% success rate (12+3=15 successes).
+        """
+        failures_fixture = self._make_failures_fixture(tmp_path)
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.FAILURES_JSONL",
+            failures_fixture,
+        )
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.INFORMANTS_JSONL",
+            tmp_path / "informants.jsonl",
+        )
+        mock_registry = {
+            m: MagicMock(collection_method="openrouter")
+            for m in IN_SCOPE_MODELS
+        }
+        monkeypatch.setattr("scripts.recover_phase4a_failures.MODEL_REGISTRY", mock_registry)
+
+        # Pre-populate 3 already-recovered cells
+        from scripts.recover_phase4a_failures import build_target_list
+        targets = build_target_list(failures_fixture)
+        already_recovered = {
+            (t.model_id, t.domain, t.run_index)
+            for t in targets[:3]
+        }
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.load_already_recovered",
+            lambda path: already_recovered,
+        )
+
+        # Remaining 17 cells: 12 PASS + 5 RECOVERY_FAILED
+        call_count = {"n": 0}
+
+        def mock_recover_cell(target, cell_index, total, inf_path, fail_path):
+            call_count["n"] += 1
+            if call_count["n"] <= 5:
+                return "RECOVERY_FAILED"
+            return "PASS"
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.recover_cell",
+            mock_recover_cell,
+        )
+        monkeypatch.setattr("sys.argv", ["recover.py"])
+
+        from scripts.recover_phase4a_failures import main
+        exit_code = main()
+
+        # Rate = (12 + 3) / 20 = 75% → exit 2 (below 80% threshold)
+        assert exit_code == 2
+
+        out = capsys.readouterr().out
+        # Verify the summary section contains expected counts
+        assert "Recovery-failed:      5" in out or "Recovery-failed" in out
+        assert "Already-recovered:    3" in out or "Already-recovered" in out
+
+    def test_all_pass_exits_0(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """20/20 PASS → exit 0, summary shows Recovered: 20."""
+        failures_fixture = self._make_failures_fixture(tmp_path)
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.FAILURES_JSONL",
+            failures_fixture,
+        )
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.INFORMANTS_JSONL",
+            tmp_path / "informants.jsonl",
+        )
+        mock_registry = {
+            m: MagicMock(collection_method="openrouter")
+            for m in IN_SCOPE_MODELS
+        }
+        monkeypatch.setattr("scripts.recover_phase4a_failures.MODEL_REGISTRY", mock_registry)
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.load_already_recovered",
+            lambda path: set(),
+        )
+
+        def mock_recover_cell_all_pass(target, cell_index, total, inf_path, fail_path):
+            return "PASS"
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.recover_cell",
+            mock_recover_cell_all_pass,
+        )
+        monkeypatch.setattr("sys.argv", ["recover.py"])
+
+        from scripts.recover_phase4a_failures import main
+        exit_code = main()
+
+        assert exit_code == 0
+        out = capsys.readouterr().out
+        assert "Recovered:            20" in out or "Recovered:" in out
+
+    def test_all_already_recovered_exits_0(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        capsys: pytest.CaptureFixture[str],
+    ) -> None:
+        """20/20 already-recovered → exit 0, recover_cell never called."""
+        failures_fixture = self._make_failures_fixture(tmp_path)
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.FAILURES_JSONL",
+            failures_fixture,
+        )
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.INFORMANTS_JSONL",
+            tmp_path / "informants.jsonl",
+        )
+        mock_registry = {
+            m: MagicMock(collection_method="openrouter")
+            for m in IN_SCOPE_MODELS
+        }
+        monkeypatch.setattr("scripts.recover_phase4a_failures.MODEL_REGISTRY", mock_registry)
+
+        # All 20 cells pre-marked as already-recovered
+        from scripts.recover_phase4a_failures import build_target_list
+        targets = build_target_list(failures_fixture)
+        all_recovered = {(t.model_id, t.domain, t.run_index) for t in targets}
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.load_already_recovered",
+            lambda path: all_recovered,
+        )
+
+        recover_cell_calls: list = []
+
+        def mock_recover_cell(*args, **kwargs):
+            recover_cell_calls.append(args)
+            return "PASS"
+
+        monkeypatch.setattr(
+            "scripts.recover_phase4a_failures.recover_cell",
+            mock_recover_cell,
+        )
+        monkeypatch.setattr("sys.argv", ["recover.py"])
+
+        from scripts.recover_phase4a_failures import main
+        exit_code = main()
+
+        assert exit_code == 0
+        assert len(recover_cell_calls) == 0, (
+            "recover_cell must not be called when all cells are already-recovered"
+        )
+        out = capsys.readouterr().out
+        assert "Already-recovered:    20" in out or "Already-recovered" in out
