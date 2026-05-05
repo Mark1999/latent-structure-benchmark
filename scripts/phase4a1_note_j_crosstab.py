@@ -1,4 +1,14 @@
-"""Phase 4a.1 — Note J cross-tab + Note K re-evaluation script (T4).
+"""[MOOT 2026-05-05] Implements Note K disposition logic under the now-falsified
+"safety event" hypothesis. See docs/status/2026-05-05-t4-redo-architect-plan.md
+and the RD-3 reframing memo for the corrected methodology. Do not run for
+analytical purposes.
+
+[WARNING] Input contracts bind this script to the original pre-recovery 27-row
+cohort (including decline_interviews_safety_attribution_subtype.jsonl). Do not
+re-run on any modified input set — output would be misleading under the
+post-2026-05-05 framing. See scripts/phase4a1_note_j_crosstab.SUPERSEDED.md.
+
+Phase 4a.1 — Note J cross-tab + Note K re-evaluation script (T4).
 
 This script implements the T4 analysis from the Phase 4a.1 decline-interview
 backfill, per:
