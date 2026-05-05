@@ -927,3 +927,88 @@ def test_all_confabulation_labels_includes_all_values() -> None:
             f"{label!r} is missing from ALL_CONFABULATION_LABELS"
         )
     assert len(ALL_CONFABULATION_LABELS) == 6
+
+
+# ── Pydantic edge-case behavior documentation ─────────────────────────────────
+# These tests document the *current* Pydantic behavior for edge inputs.
+# They are behavioral documentation tests: if the schema is tightened later
+# (e.g., strip() added to the non-empty validators), these tests will signal
+# the change and require deliberate update.
+
+
+def test_whitespace_only_classifier_id_accepted_by_current_schema() -> None:
+    """Document: classifier_id='   ' (whitespace-only) passes the current non-empty
+    validator because '   ' is truthy.
+
+    The validator uses ``if not v``, which does not strip whitespace.  A
+    whitespace-only classifier_id is technically non-empty under this rule.
+    This test documents the current behavior; any future tightening (e.g.,
+    ``if not v.strip()``) should be deliberate and will update this test.
+    """
+    data = _make_classification(classifier_id="   ")
+    # Current behavior: accepted (whitespace string is truthy)
+    model = ConfabulationClassification.model_validate(data)
+    assert model.classifier_id == "   "
+
+
+def test_whitespace_only_decline_interview_id_accepted_by_current_schema() -> None:
+    """Document: decline_interview_id='   ' (whitespace-only) passes the current
+    non-empty validator because '   ' is truthy.
+
+    Same reasoning as whitespace_only_classifier_id above.  The validator uses
+    ``if not v``; leading/trailing whitespace is not stripped.  This test
+    documents the current behavior; any future tightening should be deliberate
+    and will update this test.
+    """
+    data = _make_classification(decline_interview_id="   ")
+    model = ConfabulationClassification.model_validate(data)
+    assert model.decline_interview_id == "   "
+
+
+# ── Seed builder additional error-path coverage ───────────────────────────────
+
+
+def test_seed_builder_empty_source_emits_zero_rows(tmp_path: Path) -> None:
+    """Seed builder writes a zero-row seed file (exit 0) when source is empty.
+
+    The source JSONL exists but contains no non-empty lines.  The builder
+    succeeds silently with an empty output, which is the correct behavior for
+    an empty source but is worth documenting — zero-row seeds are unusual and
+    callers should know this path exits 0.
+    """
+    source_path = tmp_path / "source.jsonl"
+    source_path.write_text("", encoding="utf-8")  # empty file
+    output_path = tmp_path / "seed.jsonl"
+
+    rc = build_seed(source_path=source_path, output_path=output_path)
+    assert rc == 0, f"Expected exit 0 for empty source, got {rc}"
+    assert output_path.exists(), "Output file must be created even for empty source"
+
+    seed_lines = [
+        ln
+        for ln in output_path.read_text(encoding="utf-8").splitlines()
+        if ln.strip()
+    ]
+    assert len(seed_lines) == 0, (
+        f"Expected 0 seed rows for empty source, got {len(seed_lines)}"
+    )
+
+
+def test_seed_builder_invalid_json_in_source_exits_2(tmp_path: Path) -> None:
+    """Seed builder exits 2 when the source JSONL contains a malformed line.
+
+    A line that is not valid JSON causes the builder to print an error and
+    return exit code 2.  The output file must not be created.
+    """
+    import json as _json
+
+    source_path = tmp_path / "source.jsonl"
+    valid_line = _json.dumps({"decline_interview_id": "id-001"})
+    source_path.write_text(f"{valid_line}\nNOT VALID JSON\n", encoding="utf-8")
+    output_path = tmp_path / "seed.jsonl"
+
+    rc = build_seed(source_path=source_path, output_path=output_path)
+    assert rc == 2, f"Expected exit code 2 for invalid JSON in source, got {rc}"
+    assert not output_path.exists(), (
+        "Output file must not be created when source contains invalid JSON"
+    )
