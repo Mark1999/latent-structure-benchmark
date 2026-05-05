@@ -172,7 +172,7 @@ class TestBuildTargetList:
 
     def test_deduplication(self) -> None:
         """Duplicate (model_id, domain, run_index) rows produce one target."""
-        # The fixture has glm-5.1 holidays run_index=4 duplicated (lines 15 and 16).
+        # The fixture has glm-5.1 holidays run_index=4 duplicated (lines 16 and 25).
         # After dedup there should still be exactly 20 unique cells.
         targets = build_target_list(_FAILURES_SAMPLE)
         cell_keys = [(t.model_id, t.domain, t.run_index) for t in targets]
