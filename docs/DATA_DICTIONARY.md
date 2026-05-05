@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.11 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
+**Version:** v0.1.12 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.12** (2026-05-05) — T4 redo RD-2 (commit 1 scaffold): Added §11 documenting the `ConfabulationClassification` schema in `packages/cdb_analyze/cdb_analyze/confabulation_classification.py`. This is a derived-data schema for the 9 originally-Gemini cap-exhaustion decline-interview rows (Phase 4a.1); it lives in `cdb_analyze`, not `cdb_core`, and is not part of the open-data-bundle schema commitment. Architect plan: `docs/status/2026-05-05-t4-redo-architect-plan.md` §2 RD-2. CDA SME verdict: `docs/status/2026-05-05-t4-redo-cda-sme-verdict.md` (T1 wording rules, T2 enum naming applied). No changes to `InformantRecord`, `GroundingRef`, or any `cdb_core` schema.
 - **v0.1.11** (2026-05-04) — Task #16.B: Added `thoughts_token_count: int = 0` to `FreelistRecord`, `PileSortRecord`, and `InterviewRecord` step schemas. Field captures provider-reported reasoning/thoughts token count per step, enabling the cap-exhausted-reasoning diagnostic (`output_tokens == 0 AND thoughts_token_count > 0`). Default `0` (not `None`) preserves arithmetic ergonomics and prevents false-positives on providers that do not surface reasoning tokens (Anthropic, HuggingFace at this version). Added `thoughts_token_count` as an optional top-level field in `failures.jsonl` entries (§9.2) and to both `freelist` and `pile_sort` sub-objects in `partial_session` (§9.3). Added three new columns (`freelist_thoughts_token_count`, `pilesort_thoughts_token_count`, `interview_thoughts_token_count`) to the `informants` table DDL in `scripts/build_db.py`. Backward-compatible: Pydantic v2 with `int = 0` default loads old JSONL lines lacking the field with the value materialised as `0`. Architect sign-off: `docs/status/2026-05-04-task-16-architect-plan.md` §2 Task 16.B. CDA SME verdict: `docs/status/2026-05-04-task-16-cda-sme-verdict.md` (notes S1–S4 applied to field semantics below). Predecessor: Task 16.A (commit `7f8f7f7`) added `thoughts_token_count` to `AdapterResult` and both adapters.
 - **v0.1.10** (2026-05-01) — Task #F2-T13: `cost_usd` field removed from `RawResponse` and `DeclineInterview`. The field was a token-count × table-rate estimate, not authoritative billing data; authoritative spend lives on provider dashboards per `ARCHITECTURE.md` §6.2. Pydantic v2 default `extra='ignore'` semantics handle existing on-disk records: the legacy field is silently dropped on read; no edits to existing JSONL lines. `cost_usd` column also removed from the `decline_interviews` table DDL in `scripts/build_db.py` and from `DATA_DICTIONARY.md` §10.2, §10.4, and §10.5. Reference: Task 1 commit `d491ad9` (§6.2 stub). Task 3 follows (delete `spend.py`, sweep adapter call-sites).
 - **v0.1.9** (2026-04-23) — Task #15 (Phase 4a T7): Added §1.6 documenting stored-vs-rerun `qa_passed` semantics. `qa_passed` is a point-in-time snapshot; re-running `scripts/qa_check.py` may produce different results when pool-aggregation Check 2 (free-list cross-run uniqueness) flips as the cohort grows. The divergence materialized in the shakedown corpus (Position C replay, 2026-04-22) but NOT in Phase 4a (T6 QA sweep: zero divergences, 101 records, 12-model diversity distributes the pool). Downstream consumers wanting the "final" QA status against the full corpus should re-run the check battery. No schema change. Cross-reference: `docs/status/2026-04-22-position-c-replay-verdict.md`, `docs/status/2026-04-23-phase4a-t6-qa-sweep.md`.
@@ -977,6 +978,67 @@ CREATE TABLE decline_interviews (
   "stop_reason": "end_turn",
   "qa_notes": "",
   "version_drift_flag": false
+}
+```
+
+---
+
+## 11. The ConfabulationClassification schema
+
+`ConfabulationClassification` is a derived-data schema used to classify the 9 originally-Gemini cap-exhaustion decline-interview records in Phase 4a.1. It lives in `packages/cdb_analyze/cdb_analyze/confabulation_classification.py` — NOT in `cdb_core/schemas.py` — and is not part of the open-data-bundle schema commitment. It is a human hand-coded annotation artifact, parallel in structure to `DeclineInterview` but scoped to a specific analytical question.
+
+**Context:** The 9 originally-Gemini rows were decline interviews whose originating failures were `max_output_tokens=4096` cap-exhaustion events (Stage 1.5/1.5b probes, 2026-05-04). The output narratives of these rows attribute the failure to various mechanisms — none of which was the actual mechanical cause. This schema captures the shape of each attribution pattern as a confabulation type.
+
+**Confabulation in this schema** describes a property of the model's output narrative under blind-spot conditions — conditions in which the originating mechanical cause was not surfaced in the inputs available to the model at decline-interview time. The term describes the output narrative's attribution pattern, not a property of the model's cognition or internal processes.
+
+**ARCHITECTURE.md §4.2 binding constraint:** `ConfabulationClassification` is in `cdb_analyze`, which must contain no LLM imports. This schema is pure Pydantic + data validation; no model inference is involved.
+
+**References:**
+- Architect plan: `docs/status/2026-05-05-t4-redo-architect-plan.md` §2 RD-2
+- CDA SME verdict: `docs/status/2026-05-05-t4-redo-cda-sme-verdict.md` (T1, T2)
+- RD-1 supersede annotation: `data/derived/decline_interviews_safety_attribution_subtype.SUPERSEDED.md`
+- Artifact file: `data/derived/decline_interviews_confabulation_classification.jsonl`
+
+### 11.1 ConfabulationClassification fields
+
+| Field | Type | Required | Validation | Semantics |
+|---|---|---|---|---|
+| `decline_interview_id` | `str` | Yes | Non-empty | Identity key into `data/raw/decline_interviews.jsonl`. Corresponds to a `DeclineInterview.decline_interview_id` for one of the 9 originally-Gemini cap-exhaustion rows. |
+| `confabulation_label` | `Literal[...]` | Yes | One of 5 concrete values or `UNCLASSIFIED` sentinel (seed only; rejected by loader) | The shape of attribution the model's output narrative produces under blind-spot conditions. See §11.2 for the enum definitions. T2 (SME binding): value is `safety_attribution_confabulation`, NOT `safety_filter_confabulation`. |
+| `confabulation_rationale` | `str` | Yes | Length ≤ 200 chars | Free-text rationale referencing verbatim text from the source `response_verbatim`. Empty string is allowed in the seed state; the analysis consumer enforces non-empty via `validate_no_unclassified`. |
+| `under_blind_spot` | `bool` | Yes | — | `True` if the originating failure was a `max_output_tokens=4096` cap-exhaustion event — verifiable from the originating informant record's `thoughts_token_count > 0 AND output_tokens == 0` diagnostic. All 9 Phase 4a.1 rows are `True`; the field exists for schema completeness and future-batch flexibility. |
+| `classifier_id` | `str` | Yes | Non-empty | Short string identifying who classified. Conventional value: `"mark"`. |
+
+### 11.2 confabulation_label enum values
+
+T2 (SME binding, `docs/status/2026-05-05-t4-redo-cda-sme-verdict.md`): the enum value is `safety_attribution_confabulation`, NOT `safety_filter_confabulation`. The rename removes the operational "filter" connotation that would re-import the falsified safety-event premise.
+
+| Value | Definition |
+|---|---|
+| `safety_attribution_confabulation` | The model's output narrative attributes the failure to safety mechanisms ("internal safety protocols", "policy filter", "content safety system"), when the actual cause was mechanical (cap exhaustion). The narrative attributes a safety mechanism explanation under blind-spot conditions. |
+| `task_paradox_confabulation` | The model's output narrative attributes the failure to a logical or paradoxical conflict in the prompt ("act as a participant" vs. "I am an AI", "list every X" vs. impossibility of "every"), when the actual cause was mechanical. A different attribution shape than safety. |
+| `topic_sensitivity_confabulation` | The model's output narrative attributes the failure to topic-sensitivity ("religious", "cultural", "biased", "uncurated"), when the actual cause was mechanical. Third attribution shape. |
+| `mixed_attribution` | The narrative blends two or more of the above attribution shapes without a single dominant explanation. Consistent with confabulation (the narrative is searching for a plausible explanation) and distinct from a single coherent theory. |
+| `not_confabulation` | The narrative correctly identifies the failure cause (e.g., "technical glitch", "mechanical error"), or genuinely does not claim to know. These rows are not confabulation under this framing — the model's output pattern correctly identifies the mechanical nature of the failure. |
+| `UNCLASSIFIED` | Seed sentinel only. Present in the JSONL after `scripts/build_confabulation_classification_seed.py` runs; replaced by Mark's hand-coding. `load_confabulation_classifications()` rejects this value; `validate_no_unclassified()` gates the RD-3 analysis consumer. |
+
+### 11.3 Artifact file
+
+**File:** `data/derived/decline_interviews_confabulation_classification.jsonl`
+
+One `ConfabulationClassification` per line, sorted by `decline_interview_id`. 9 rows total (Phase 4a.1 cap-exhaustion cohort). The file is in `data/derived/` (not `data/raw/`) because it is a derived annotation artifact; append-only posture is applied by convention (see `data/derived/decline_interviews_safety_attribution_subtype.SUPERSEDED.md` for the precedent).
+
+**Relationship to superseded May 1 artifact:** The May 1 artifact (`data/derived/decline_interviews_safety_attribution_subtype.jsonl`) classified the same 9 rows using a K-frame/K-vocab schema under the (now-falsified) safety-event premise. That artifact is superseded under the 2026-05-05 cap-exhaustion reframe; see `data/derived/decline_interviews_safety_attribution_subtype.SUPERSEDED.md`. The new classification schema (`confabulation_label`) operates on the same `response_verbatim` text but classifies a different property: the shape of the attribution the output narrative produces under blind-spot conditions, rather than whether a safety event occurred.
+
+### 11.4 Example entry
+
+```json
+{
+  "classifier_id": "mark",
+  "confabulation_label": "task_paradox_confabulation",
+  "confabulation_rationale": "narrative attributes empty output to AI-vs-human framing paradox; 'role-playing instruction created a logical paradox'",
+  "decline_interview_id": "76be28c364a37aa0",
+  "under_blind_spot": true
 }
 ```
 
