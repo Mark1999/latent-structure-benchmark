@@ -92,9 +92,10 @@ class HuggingFaceAdapter:
     ) -> AdapterResult:
         start = time.monotonic()
 
+        _max_tokens = 4096  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
         payload: dict = {
             "model": self.model.model_id,
-            "max_tokens": 4096,  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
+            "max_tokens": _max_tokens,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
@@ -139,6 +140,7 @@ class HuggingFaceAdapter:
             provider_request_id=data.get("id", ""),
             model_version_returned=data.get("model", self.model.model_id),
             stop_reason=choice.get("finish_reason") or "unknown",
+            max_tokens_used=_max_tokens,
         )
 
 

@@ -93,9 +93,10 @@ class AnthropicAdapter:
     ) -> AdapterResult:
         start = time.monotonic()
 
+        _max_tokens = 4096  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
         kwargs: dict = {
             "model": self.model.model_id,
-            "max_tokens": 4096,  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
+            "max_tokens": _max_tokens,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
@@ -128,6 +129,7 @@ class AnthropicAdapter:
             model_version_returned=response.model,
             stop_reason=response.stop_reason or "unknown",
             thinking_text=thinking_text,
+            max_tokens_used=_max_tokens,
         )
 
 

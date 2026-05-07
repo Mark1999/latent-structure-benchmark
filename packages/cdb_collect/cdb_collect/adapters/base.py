@@ -38,6 +38,14 @@ class AdapterResult:
     # (note S3: replaced "model spent everything on thinking" phrasing).
     thoughts_token_count: int = 0
     thinking_text: str = ""
+    # The exact max_tokens value actually sent to the API in the request body
+    # for this call. Set by each adapter to reflect the value it computed or
+    # configured. The runner reads this field when assembling InformantRecord
+    # so the stored max_tokens reflects what was actually requested, not a
+    # nominal constant. Default 4096 preserves backward-compatibility with
+    # test fixtures that do not set this field.
+    # See docs/DATA_DICTIONARY.md §1.1 max_tokens editorial note.
+    max_tokens_used: int = 4096
 
 
 class ModelAdapter(Protocol):

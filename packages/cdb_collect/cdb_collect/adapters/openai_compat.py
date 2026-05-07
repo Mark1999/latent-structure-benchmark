@@ -165,9 +165,10 @@ class OpenAICompatAdapter:
     ) -> AdapterResult:
         start = time.monotonic()
 
+        _max_tokens = 4096  # see phase4a-adapter-fix-verdict.md in docs/status/
         payload: dict = {
             "model": self._api_model,
-            self._max_tokens_param: 4096,  # see phase4a-adapter-fix-verdict.md in docs/status/
+            self._max_tokens_param: _max_tokens,
             "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
@@ -222,6 +223,7 @@ class OpenAICompatAdapter:
             model_version_returned=data.get("model", self.model.model_id),
             stop_reason=choice.get("finish_reason") or "unknown",
             thinking_text=thinking_text,
+            max_tokens_used=_max_tokens,
         )
 
 

@@ -235,7 +235,7 @@ def _assemble_record(
         api_version="",
         temperature=record_temperature,
         top_p=None,
-        max_tokens=4096,  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
+        max_tokens=freelist_result.max_tokens_used,
         system_prompt=system_prompt,
         freelist=freelist_record,
         pile_sort=pilesort_record,

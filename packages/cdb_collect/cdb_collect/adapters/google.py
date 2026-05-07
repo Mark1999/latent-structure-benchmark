@@ -122,9 +122,10 @@ class GeminiAdapter:
         # Task 16.A, Q1 and Q6 SME rulings). Supersedes the cap value from
         # docs/status/2026-04-22-phase4a-adapter-fix-verdict.md.
         # See docs/status/2026-05-04-task-16-architect-plan.md §2 Task 16.A.
+        _max_tokens = 16384
         config = types.GenerateContentConfig(
             temperature=temperature,
-            max_output_tokens=16384,
+            max_output_tokens=_max_tokens,
             thinking_config=types.ThinkingConfig(
                 thinking_budget=1024,
             ),
@@ -190,6 +191,7 @@ class GeminiAdapter:
             else "unknown",
             thoughts_token_count=thoughts_token_count,
             thinking_text=thinking_text,
+            max_tokens_used=_max_tokens,
         )
 
 

@@ -204,6 +204,7 @@ class OpenRouterAdapter:
             stop_reason=choice.get("finish_reason") or "unknown",
             thoughts_token_count=thoughts_token_count,
             thinking_text=thinking_text,
+            max_tokens_used=effective_max_tokens,
         )
 
 
