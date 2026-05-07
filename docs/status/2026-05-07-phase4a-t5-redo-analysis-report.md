@@ -477,12 +477,278 @@ in §8 (RD-T5-4 scope), citing the RD-3 reframing memo.
 
 ---
 
-## §8. Interpretation (RD-T5-4 scope)
+## §8. Interpretation
 
-**Placeholder — interpretation pending RD-T5-4 commit. Numerics in §1–§7 are authoritative;
-this section will frame them under the RD-3 framing
-(`docs/status/2026-05-05-phase4a1-t4-redo-reframing-memo.md`).**
+*Methodology-page-bound prose. Pitched at a skeptical non-specialist audience. Third-person voice.
+Bound by §1.5 framing throughout. Numerics referenced here are in §4–§7; no new numerics appear
+in §8. B6 public-copy guardrails apply (RD-3 framing; no CN-origin augmentation to Note E; no
+"incorrect" framing of the predecessor T5; no cross-provider/cross-failure-mode generalization;
+no internal-state claims; no "publishable" framing per T14).*
+
+### §8.1 What the family domain numerics support
+
+The post-recovery family domain corpus — 11 models, 48 QA-passed records — produces a Romney
+CCM eigenratio of 12.10 (compared to 10.79 on the 10-model pre-recovery corpus; §7.1). The
+eigenratio exceeds the LSB operational threshold of 5.0, and the pipeline classifies the result
+as `STRONG_CONSENSUS`. The small-n caveat applies: n=11 is below the n<15 threshold, and the
+`romney_small_n_warning=True` flag fires accordingly. Any claim about the family domain's
+categorical structure must carry this caveat.
+
+Within those constraints, the numerics support these descriptive observations:
+
+- **Cross-model salience is high and consistent.** Smith's S consensus score is 0.7107 (bootstrap
+  CI [0.5049, 0.9092]; §4.1 and §5.1). The wide CI is consistent with n=11 under B=500 bootstrap
+  (Level 2, Register 2; see `docs/BOOTSTRAP_DESIGN.md`). The point estimate and lower CI bound
+  both sit well above 0.5, indicating that across the 11 models, free-list outputs share a high
+  proportion of culturally salient items.
+
+- **Cultural centrality range is positive and moderately spread.** Centrality scores range from
+  0.2177 to 0.3294 (§4.1). All models produce positive centrality — no subcultural or contested
+  structure is detected (`negative_centrality_flag=False`). The spread ([0.22–0.33]) shows
+  non-trivial inter-model differentiation at the high-salience end of the category.
+
+- **MDS inter-model similarity structure is present with bootstrap uncertainty.** The 11-model
+  MDS map (§4.1 coordinates; §5.2 bootstrap ellipses) shows that most models cluster near the
+  origin with one clear outlier (`openai/gpt-5.4-mini`, dim1 = −0.54). Bootstrap semi-major axes
+  range from 0.10 to 0.41, indicating that ellipses for higher-OCI models are wider. No grounding
+  against a human baseline is available for Phase 4a; the MDS coordinates are model-to-model
+  distances only (`groundings=[]`; §4.1).
+
+- **Within-model internal consistency (OCI) varies widely.** OCI ranges from 7.86
+  (`microsoft/phi-4`) to 614.62 (`mistralai/mistral-large-2512`; §4.1). High OCI indicates that
+  run-to-run within-model output is highly consistent; low OCI indicates more variable output
+  across runs. These are within-model descriptive properties under the v1 prompt conditions; they
+  do not constitute claims about model capability or model-internal reasoning.
+
+The `g1_overall_pass` field is `None` on the family domain result — correct for Phase 4a, where
+the G1 sensitivity study requires Phase 4b as described in `ARCHITECTURE.md` §5.3. The family
+domain is ungrounded at this phase (`groundings=[]`); per `ARCHITECTURE.md` §1.5.5, ungrounded
+is a complete first-class state.
+
+### §8.2 What the holidays domain numerics support
+
+The post-recovery holidays domain corpus — 9 models, 39 QA-passed records — produces a Romney
+CCM eigenratio of 10.15 (compared to 9.22 on the 8-model pre-recovery corpus; §7.2). The
+eigenratio exceeds the LSB operational threshold of 5.0, and the pipeline classifies the result
+as `STRONG_CONSENSUS`. The small-n caveat applies: n=9 is below the n<15 threshold
+(`romney_small_n_warning=True`).
+
+Within those constraints, the numerics support these descriptive observations:
+
+- **Cross-model salience is high.** Smith's S consensus score is 0.7757 (bootstrap CI
+  [0.4717, 0.9647]; §4.2 and §5.1). The CI is wide — the lower bound at 0.47 is below 0.5 —
+  consistent with n=9 at B=500. The point estimate is robust; the wide CI reflects the
+  small-n population under Level 2 bootstrap conditions.
+
+- **Cultural centrality range is positive, with wider spread than family.** Centrality scores
+  range from 0.2104 to 0.3600 (§4.2). All models produce positive centrality
+  (`negative_centrality_flag=False`). The spread ([0.21–0.36]) is modestly wider than the family
+  domain's range, indicating somewhat more inter-model differentiation on the holidays domain
+  under these corpus conditions.
+
+- **MDS structure is compact for most models with two clear peripheral positions.** The 9-model
+  MDS map (§4.2 coordinates; §5.2 ellipses) shows `mistralai/mistral-small-2603` and
+  `openai/gpt-5.4-mini` as peripheral points (dim2 = 0.72 and dim1 = 0.39 respectively). Bootstrap
+  semi-major axes range from 0.09 to 0.32. These are model-to-model distances on the post-recovery
+  corpus under v1 prompt conditions; the coordinates carry no human-baseline grounding
+  (`groundings=[]`; §4.2).
+
+- **OCI for holidays is also variable.** OCI ranges from 0.00 (`mistralai/mistral-small-2603`,
+  n_runs=1 — only one QA-passed run, so OCI is trivially 0) to 117.84 (`claude-opus-4-6`; §4.2).
+  `mistral-small-2603` has n_runs=1 for holidays; the single-run OCI=0.00 is not a meaningful
+  within-model consistency estimate. This is a cell-coverage descriptor, not a claim about the
+  model.
+
+The `g1_overall_pass` field is `None` on the holidays domain result — correct for Phase 4a.
+The holidays domain is ungrounded at this phase (`groundings=[]`).
+
+### §8.3 What the cross-domain comparison supports
+
+Both domains under the post-recovery corpus produce `STRONG_CONSENSUS` with Romney eigenratios
+well above the LSB operational threshold, and both carry `romney_small_n_warning=True`. The
+two-domain structure of Phase 4a enables a limited cross-domain comparison:
+
+- **Holidays consensus score is higher (0.78 vs 0.71 family).** The holidays domain produces a
+  higher point-estimate consensus score than the family domain, with overlapping bootstrap CIs
+  ([0.47, 0.96] vs [0.50, 0.91]). The CI overlap means this difference is not distinguishable
+  from bootstrap noise under n=9 and n=11 respectively. The observation is a descriptive
+  property of the post-recovery corpus; it does not constitute a comparative claim about how
+  models organize holiday vocabulary versus family vocabulary.
+
+- **Romney eigenratio is higher for family (12.10 vs 10.15 holidays).** Both are well above 5.0.
+  The ordering is reversed from the consensus-score ordering — family has the higher eigenratio
+  but the lower consensus-score point estimate. This is a known property of the two-measure
+  structure (eigenratio and Smith's S are correlated but not interchangeable per
+  `docs/SME_REVIEW.md` §1.1) and is not analytically significant at this population size.
+
+- **Centrality ranges are similar in shape.** Both domains show all-positive centrality, no
+  subcultural detection, and a spread of approximately 10–15 percentage points from the minimum
+  to maximum model centrality value.
+
+- **n_models differs across domains (11 vs 9).** The holidays domain has fewer models with
+  QA-passed records, reflecting the cell-coverage denominator in §6. Cross-domain comparisons
+  at this corpus size carry the small-n caveat on both sides.
+
+No human-baseline grounding is available for either domain; neither domain's MDS map can be
+compared to a published ethnographic baseline at this phase. The Phase 4c grounding study is the
+anticipated mechanism for that comparison (`ARCHITECTURE.md` §4.2.5; Note D carries forward).
+
+### §8.4 Caveats — `thoughts_token_count=0` epistemic states
+
+The analytical pipeline at `packages/cdb_analyze/cdb_analyze/pipeline.py` does not reference
+`thoughts_token_count` as an analytical input (verified by code search at plan-write time: zero
+occurrences in `pipeline.py` and zero occurrences across the `packages/cdb_analyze/` package
+excluding `confabulation_classification.py`). The field is metadata captured for QA and
+decline-interview triage. Therefore the co-existence of legacy and recovered records with
+differing `thoughts_token_count` semantics does not bias any computed consensus, OCI, MDS,
+similarity, centrality, or Sutrop CSI value in the 0.2 DomainResults.
+
+For a reader who encounters `thoughts_token_count=0` in the Phase 4a corpus, the Task #16
+CDA SME verdict S2 (`docs/status/2026-05-04-task-16-cda-sme-verdict.md`, Q2/S2) establishes
+four distinct epistemic states for the value `0`:
+
+1. The model produced no reasoning tokens (a non-reasoning model, or a reasoning model that
+   bypassed reasoning for this call).
+2. The provider does not surface reasoning-token usage in its API response (Anthropic,
+   HuggingFace, and non-reasoning OpenRouter models at this commit).
+3. A non-reasoning model on a reasoning-capable provider.
+4. A legacy record from a pre-field era — Phase 4a pre-Task-#16 successful records, in which
+   the `thoughts_token_count` field did not exist at collection time and is materialised as `0`
+   on read by pydantic's default.
+
+State (4) applies to all original Phase 4a successful records (collected before Task #16 added
+the field). States (1), (2), or (3) apply to the recovered records, depending on the provider.
+Downstream analysis treating `thoughts_token_count=0` as evidence of non-reasoning must verify
+that the provider exposes the field for the model in question (see
+`docs/status/2026-05-04-task-16-cda-sme-verdict.md` S2 per-provider notes).
+
+Because the pipeline does not consume `thoughts_token_count`, state-(4) legacy records co-exist
+in the analytical input without bias. This eliminates the need for any filter on this field
+before running the Register 2 analysis stack.
+
+### §8.5 Scope discipline
+
+The following scope constraints apply to all claims in this interpretation section:
+
+- **Single-provider observation for the recovered cells.** The 20 recovery records come from
+  three models on OpenRouter (gemini-2.5-pro, llama-4-maverick, glm-5.1) under v1 prompt
+  conditions. The analytical results are observations about this specific recovered corpus.
+  Cross-provider, cross-failure-mode, or cross-prompt-type generalization requires new
+  evidence that this corpus does not supply. This carries forward the parent T4-redo SME T6
+  scope discipline.
+
+- **Small-n caveat on both domains.** Neither domain crosses the n<15 threshold; both carry
+  `romney_small_n_warning=True`. Any claim about the domains' categorical structure must
+  acknowledge the population-size constraint. The STRONG_CONSENSUS classification is defensible
+  given both eigenratios exceed 5.0, but the classification does not imply cross-domain or
+  cross-population stability.
+
+- **No ceiling or proximity-to-baseline claims (Note D).** Neither domain has a human-baseline
+  grounding. Statements like "models are close to human patterns" or "models reach a ceiling"
+  are not supportable at this phase. Phase 4c is the anticipated grounding path.
+
+- **Population shift, not methodological correction.** The delta between the 0.1 and 0.2
+  DomainResults (§7) reflects the 2026-05-05 recovery campaign's population shift. The original
+  T5 was correct against its input population; the redo is correct against the post-recovery
+  population. Both are in the audit record. The framing for the cap-exhaustion event that
+  necessitated the recovery campaign is in the RD-3 reframing memo
+  (`docs/status/2026-05-05-phase4a1-t4-redo-reframing-memo.md`); §8 does not re-state it.
+
+- **v1 prompt conditions throughout.** All 121 informants in the corpus were collected under
+  the v1 free-list prompt (`packages/cdb_collect/cdb_collect/prompts/v1/free_list.md`). A
+  v2 prompt comparison study is a Phase 5+ candidate per
+  `docs/status/2026-05-06-v2-freelist-prompt-suggestion.md`; it is out of scope for Phase 4a.
+
+- **Methodology-page framing only.** The observations in §8.1–§8.3 are reported on the
+  methodology page as characterizations of corpus-lens structure under the LSB CDA protocol.
+  They are not presented as findings in any academic publication venue; per CLAUDE.md §1, the
+  bar is credibility to a skeptical reader, not suitability for external publication.
 
 ---
 
-*End of §1–§7 (RD-T5-3 scope). §8–§10 are produced in the RD-T5-4 commit.*
+## §9. Carry-forward of original-T5 binding notes
+
+Per the T10 five-category vocabulary from the parent T4-redo SME verdict
+(`docs/status/2026-05-05-t4-redo-cda-sme-verdict.md`), and the carry-forward table from the
+T5 redo SME plan verdict (`docs/status/2026-05-06-t5-redo-cda-sme-plan-verdict.md` §C):
+
+| Note | Original T5 content | Status under T5 redo | Application in this report |
+|---|---|---|---|
+| **Note A** | `romney_small_n_warning=True`; CCM small-n caveat binds. | CARRIES FORWARD (active) | Both domains fire `romney_small_n_warning=True` (n=11 family; n=9 holidays). §8.1, §8.2, §8.5 carry the caveat on every descriptive consensus claim. |
+| **Note C** | Cell-coverage denominator: "18 analyzable + 5 decline-interviewable" framing. Qualified denominator binds the consensus claim. | CARRIES FORWARD (active) — numeric update under post-recovery corpus | §6.4 reports the post-recovery denominator: 20 analyzable cells (11 family + 9 holidays), 5 all-QA-failed cells, 1 zero-record cell. The 5 all-QA-failed cells are enumerated. The qualified denominator binds §8 observations. |
+| **Note D** | No ceiling or proximity-to-human-baseline claims before Phase 4c grounding. | CARRIES FORWARD (active) | §8.3 and §8.5 make no ceiling or baseline-proximity claims. Phase 4c is named as the anticipated grounding path. |
+| **Note E** | US-weighted composition caveat on the model corpus. | CARRIES FORWARD (active) — Note K augmentation removed per Q6(a) and RD-3 | The corpus is predominantly US-provider-weighted (Claude, GPT, Grok, Mistral, Phi-4 being US-origin; DeepSeek and Llama as open-weights; Gemini as US-origin). The original T5 SME augmented Note E with "PLUS disproportionate CN-origin decline pattern." That augmentation is REMOVED per the RD-3 reframing memo (`docs/status/2026-05-05-phase4a1-t4-redo-reframing-memo.md`, §3): the CN-origin decline pattern was an instrument artifact (cap-exhaustion), not a signal. Standalone Note E (US-weighted composition) applies to Phase 6+ methodology page copy. |
+| **Note G** | Exact wording for uninterviewed cells: "N cells produced no interpretable primary-step output; follow-up decline-interview data for these cells will be captured in Phase 4a.1." | CARRIES FORWARD (active) — T15 binding: verbatim phrase preserved; count updates; RD-3 trailing clause added | 5 cells produced no interpretable primary-step output; follow-up decline-interview data for these cells was captured in Phase 4a.1, and the interpretation of those follow-ups is in the RD-3 reframing memo (`docs/status/2026-05-05-phase4a1-t4-redo-reframing-memo.md`). See §6.4 for cell enumeration and §7.3 for the Note G carry-forward confirmation. |
+| **Note K** | CN-origin decline clustering (4 of 5 decline-interviewable cells CN-origin). Framed as a coverage/protocol robustness caveat pending Phase 4a.1 Note J cross-tab. | REPLACED (audit preserved) | Note K is REPLACED per the RD-3 reframing memo (§3). The originating Phase 4a Gemini failures were cap-exhaustion instrument events, not safety-policy events. The substantive replacement is the confabulation-pattern observation in RD-3 §4. The original Note K hypothesis is no longer testable from this corpus. Note K's audit record is in the prior verdict files; the canonical replacement framing is at `docs/status/2026-05-05-phase4a1-t4-redo-reframing-memo.md`. No new Note designation is introduced here. |
+
+**T-series carry-forward (parent T4-redo SME binding notes; T1–T10 SATISFIED at RD-3 content
+verdict; gate postures preserved):**
+
+| Note | Status | Gate posture preserved |
+|---|---|---|
+| B6 (public-copy guardrails) | CARRIES FORWARD (active) — five avoidances (a)–(e) per Q6 ruling | §8 prose applies all five avoidances. |
+| B12 (future-batch binding precedent) | CARRIES FORWARD (active) | Not directly exercised by T5 redo; gate posture preserved for future batches. |
+| B14 (numerics-vs-interpretation separation) | CARRIES FORWARD (active) — §1–§7 numerics in RD-T5-3; §8–§10 interpretation in this commit | The four-task split honors B14. RD-T5-3's Reviewer confirmed §1–§7 as numerics-only. §8 is interpretation-only. |
+| T1–T10 (T4 redo RD-3; all SATISFIED) | SATISFIED (specific deliverables at RD-3 content verdict; gate postures preserved) | Any future methodology-page-bound text on Note K routes through CDA SME per the S5 gate posture. |
+
+**Task #16 S-series carry-forward:**
+
+| Note | Status |
+|---|---|
+| S2 (four epistemic states for `thoughts_token_count=0`) | CARRIES FORWARD (active) — §8.4 enumerates all four states explicitly, per T12 binding. |
+| S5 (Note K re-classification routes through SME before methodology-page text) | SATISFIED (specific deliverable; gate posture preserved) — Satisfied at RD-3 content verdict. Gate posture preserved: future methodology-page-bound text on Note K disposition routes through CDA SME. |
+
+---
+
+## §10. Closure verdict
+
+Phase 4a is closed at the analytical layer under the corrected instrument framing, pending the
+CDA SME content verdict on this report (gate chain step 3 per the T5 redo plan §2).
+
+The T5 redo pipeline ran against the 121-record post-recovery corpus
+(`data/raw/informants.jsonl`), producing `data/results/family/0.2.json` (n=11 models, 48
+QA-passed records, eigenratio=12.10, `STRONG_CONSENSUS`) and `data/results/holidays/0.2.json`
+(n=9 models, 39 QA-passed records, eigenratio=10.15, `STRONG_CONSENSUS`). All stop-condition
+checks passed (§3). R11 uncertainty is satisfied on all bootstrap-derived fields (§5). The
+open-data bundle SQLite is in lockstep with the JSONL post-RD-T5-1 (§6.5).
+
+The following items are out of scope for this Phase 4a closure and are enumerated here as the
+canonical forward-carry index:
+
+- **v2 free-list prompt comparison study** — Phase 5+ candidate. Trigger conditions and design
+  requirements are in `docs/status/2026-05-06-v2-freelist-prompt-suggestion.md`. v1 prompt stays
+  canonical; v2 requires its own Architect plan with SME review.
+
+- **phi-4 ×6 adapter task** — separate Architect task per the recovery report §7 item 4. The
+  phi-4 failures (5 HTTPStatusError + 1 ValueError) are a separate adapter issue unaddressed by
+  the cap fix.
+
+- **gpt-5.4-mini ×2 + mistral-small ×1 unexplained-failure investigation** — separate Architect
+  task per the recovery report §7 item 3. Root cause unknown; not cap-exhaustion.
+
+- **Phase 4b G1 sensitivity study** — separate Architect plan. Pre-conditions include corpus
+  stability (now established by the T5 redo), unexplained-failure disposition, and CDA SME
+  concurrence on the G1 threshold reaffirmation per `ARCHITECTURE.md` §5.3.
+
+- **Phase 4c human grounding** — separate Architect plan. Phase 4a is ungrounded; both
+  DomainResults carry `groundings=[]`. Per `ARCHITECTURE.md` §1.5.5, ungrounded is a complete
+  first-class state.
+
+- **Methodology-page UI rendering** — Phase 5/6 UI/UX-gated, separate task with its own
+  UI/UX gate cycle per the T5 redo plan §1 disposition table.
+
+- **Phase 4b / next-domain expansion** — separate Architect plan. T5 redo PASS is one input
+  to Phase 4b's go/no-go decision.
+
+**Gate chain step 3 (SME content verdict):** the §8–§10 prose in this commit is the artifact
+the CDA SME reviews at gate chain step 3. Verdict file:
+`docs/status/2026-05-06-phase4a-t5-redo-cda-sme-content-verdict.md`. A PASS or PASS-WITH-NOTES
+verdict at gate chain step 3 closes Phase 4a at the analytical layer. No UI/UX gate applies at
+this layer (analytical, not frontend; per parent T4-redo SME Q4 precedent and T5 redo plan §2).
+
+---
+
+*End of report. §1–§7 produced in RD-T5-3 (commit `5128e94`). §8–§10 produced in this commit
+(RD-T5-4). Original Phase 4a completion report preserved as audit at
+`docs/status/2026-04-23-phase4a-completion.md`. Phase 4a completion-redo report (successor,
+not replacement) at `docs/status/2026-05-07-phase4a-completion-redo.md`.*
