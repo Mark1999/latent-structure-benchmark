@@ -616,6 +616,8 @@ four distinct epistemic states for the value `0`:
    the `thoughts_token_count` field did not exist at collection time and is materialised as `0`
    on read by pydantic's default.
 
+States (1)–(4) are operationally distinct disambiguation cases that share the same field value of `0`; they differ in what the value means under different provider configurations, not in the field's observable signature.
+
 State (4) applies to all original Phase 4a successful records (collected before Task #16 added
 the field). States (1), (2), or (3) apply to the recovered records, depending on the provider.
 Downstream analysis treating `thoughts_token_count=0` as evidence of non-reasoning must verify
