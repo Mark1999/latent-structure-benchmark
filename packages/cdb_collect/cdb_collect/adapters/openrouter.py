@@ -11,6 +11,7 @@ import httpx
 from cdb_core import ModelRef
 
 from cdb_collect.adapters.base import AdapterResult
+from cdb_collect.adaptive_cap import MAX_OUTPUT_TOKENS_CONFIG, compute_effective_max_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -38,8 +39,19 @@ class OpenRouterAdapter:
         *,
         max_concurrent: int = _DEFAULT_MAX_CONCURRENT,
         api_key: str | None = None,
+        context_length: int | None = None,
     ) -> None:
         self.model = model
+        # context_length: model's total context window (tokens) from
+        # data/models/registry.json. When None, defaults to a value large
+        # enough that adaptive_cap always returns MAX_OUTPUT_TOKENS_CONFIG.
+        # Callers building adapters for small-context models (e.g. phi-4 at
+        # 16K) must pass context_length explicitly so the adaptive cap fires.
+        # See packages/cdb_collect/cdb_collect/adaptive_cap.py and
+        # docs/status/2026-05-07-phase4b-architect-plan.md §7.1.
+        self._context_length: int = context_length if context_length is not None else (
+            MAX_OUTPUT_TOKENS_CONFIG * 100  # effectively unconstrained
+        )
         self._semaphore = asyncio.Semaphore(max_concurrent)
         self._api_key = api_key or os.environ.get("OPENROUTER_API_KEY", "")
         # 600s timeout: reasoning models (DeepSeek, Qwen, etc.) via
@@ -102,25 +114,33 @@ class OpenRouterAdapter:
         # same weights, just different serving infra, improves uptime.
         # model_version_returned captures whatever actually responded.
         #
-        # max_tokens=16384. The original cap of 4096 was introduced in
+        # max_tokens: computed per-call via compute_effective_max_tokens().
+        # For large-context models (≥163K) this equals MAX_OUTPUT_TOKENS_CONFIG
+        # (16384) — same behaviour as the Task #16 flat cap. For small-context
+        # models (e.g. microsoft/phi-4 at 16K total), the adaptive cap reduces
+        # max_tokens to fit within the available output window after accounting
+        # for input tokens and a 512-token safety margin.
+        #
+        # The original 4096 cap was introduced in
         # docs/status/2026-04-22-phase4a-adapter-fix-verdict.md to protect
-        # microsoft/phi-4 (16K total context window; 4096 max_tokens left
-        # headroom for the prompt). phi-4 is no longer in the active slate.
-        # Stage 1.5b (commit 11a36c0, script
-        # scripts/probe_openrouter_cap_bump_2026_05_04.py) confirmed that
-        # the 4096 cap was the root cause of glm-5.1 (×6) and
-        # llama-4-maverick (×4) Phase 4a failures — cap-exhausted reasoning
-        # consumed the entire budget before any visible output was emitted.
-        # 16384 unblocks all current slate models (all have ≥163K context).
+        # phi-4. Task #16 (commits 7f8f7f7, de3dd7e) raised it to 16384 for
+        # large-context models; Phase 4b T2 adds per-model adaptive sizing so
+        # phi-4 (which has a 16K total context) can also succeed at that higher
+        # output budget. See docs/status/2026-05-07-phase4b-architect-plan.md §7.1
+        # and packages/cdb_collect/cdb_collect/adaptive_cap.py.
+        #
         # include_reasoning=True surfaces reasoning tokens in the response
         # for thinking-capable models (required to populate
         # thoughts_token_count and thinking_text). Per OpenRouter docs,
         # this is a no-op for models that do not support reasoning.
         # See docs/status/2026-05-04-task-16-architect-plan.md §2 Task 16.A.
-        # Supersedes docs/status/2026-04-22-phase4a-adapter-fix-verdict.md.
+        effective_max_tokens = compute_effective_max_tokens(
+            prompt_text=prompt,
+            context_length=self._context_length,
+        )
         payload: dict = {
             "model": self.model.model_id,
-            "max_tokens": 16384,
+            "max_tokens": effective_max_tokens,
             "temperature": temperature,
             "include_reasoning": True,
             "messages": [{"role": "user", "content": prompt}],
