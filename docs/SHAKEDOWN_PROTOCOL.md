@@ -67,7 +67,7 @@ Practical consequence: the shakedown is internal-only. If anyone wants to show s
 | Parameter | Value | Reasoning |
 |---|---|---|
 | Models | **4 architecturally distinct** — recommended: `claude-sonnet-4.6`, `gpt-5.4-mini`, `gemini-2.5-flash`, `deepseek-chat-v3.1` | Spans 3 origins (US, US, US, CN), 2 openness states (closed, closed, closed, open), 4 collection methods (`anthropic_api`, `openai_api`, `google_ai`, `openrouter`). Exercises the most adapter surface per dollar. |
-| Domains | **2**: `family` and `holidays` | `family` has grounding candidates (see `PHASE_4C_CANDIDATE_SOURCES.md`); `holidays` is ungrounded in v1. Exercises State-0 vs State-1 rendering + the groundings-list-as-first-class logic. |
+| Domains | **2**: `family` and `holidays` | Both are model-to-model only per the 2026-05-07 amendment. `family` and `holidays` exercise the full pipeline comparison. |
 | N runs per (model, domain) cell | **8** | Minimum for meaningful OCI spectrum and Sutrop saturation; agrees with both agents. |
 | Primary cells | 4 × 2 × 8 = 64 full CDA protocol runs (3 steps each = ~192 API calls) | — |
 | Prompt-sensitivity cell | **1** additional cell with 8 prompt variants on `claude-sonnet-4.6` × `family` × N=5 | Exercises split G1 (salience + spatial) under real variance. |

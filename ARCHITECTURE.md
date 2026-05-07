@@ -4,9 +4,10 @@
 **Public-facing site:** Cognitive Structure Lab — `cogstructurelab.com`
 **Status:** Draft v0.7.1 — handoff document for the Claude Code development team
 **Audience:** Architect / CDA SME / UI/UX / Coder / Reviewer / Tester agents + human reviewer (Mark)
-**Companion docs:** `CDB_Briefing_Opus46.docx` (product vision), `CLAUDE.md` (team constitution), `DESIGN_SYSTEM.md` (binding for all frontend work), `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_4C_CANDIDATE_SOURCES.md`, `PHASE_0_TASKS.md`, `docs/DATA_DICTIONARY.md` (Phase 1 deliverable)
+**Companion docs:** `CDB_Briefing_Opus46.docx` (product vision), `CLAUDE.md` (team constitution), `DESIGN_SYSTEM.md` (binding for all frontend work), `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_0_TASKS.md`, `docs/DATA_DICTIONARY.md` (Phase 1 deliverable)
 
 **Changelog:**
+- **v0.7.2** (amendment, 2026-05-07) — No schema or code changes. Drops human grounding from v1 and deepens §1.5 framing. Adds §1.5.7 (exploratory framing — LSB does not test hypotheses), quoting philosophy doc `docs/status/2026-05-07-lsb-philosophy-and-framing.md` §2 and §9 verbatim. Rewrites §1.5.1 with the five-link corpus-lens chain from philosophy doc §4. Adds honest-tagline block at top of §1.5. Extends §1.5.4 forbidden-vocabulary table with two hypothesis-testing rows. Rewrites §1.5.5 to record the human-grounding removal decision with the "Trojan horse" rationale. Rewrites §4.2.5 to archival posture (~15 lines). Removes Phase 4c (human baseline acquisition); renumbers 4d → 4c (bootstrap validation). Removes R15 from §5.2. Edits Phase 6 and Phase 8 build-plan bullets. Updates §9 Glossary to mark Baseline kind, Researcher grounding, Grounding states (0/1/2/3), and GroundingRef entries as historical. Removes `docs/grounding_submission_template.md` and `.github/PULL_REQUEST_TEMPLATE/grounding_submission.md` from the repository layout tree. Adds `data/grounding/README.md` historical banner. Deletes `PHASE_4C_CANDIDATE_SOURCES.md`, `docs/grounding_submission_template.md`, and `.github/PULL_REQUEST_TEMPLATE/grounding_submission.md` from the repository. Gate chain: Architect plan + CDA SME PASS-WITH-NOTES (A1–A6 all applied). See `docs/status/2026-05-07-no-human-baseline-amendment-architect-plan.md`.
 - **v0.7.1** (patch, 2026-04-15) — Docs and operational alignment only, no schema or architecture changes. PR #2 (`6a21f69`) applied the F4–F8 docs/CI consistency pass: corrected VPS paths from `/home/lsb/lsb/` to `/opt/lsb-agent/`, renamed `GEMINI_API_KEY` to `GOOGLE_API_KEY` in discovery config and `.env.example`, regenerated the model registry. F1 VPS hardening completed outside git: dedicated `lsb` user created (uid 999), entire `/opt/lsb-agent/` tree chowned to `lsb:lsb`, `lsb-agent.service` updated to `User=lsb` with `ExecStart=/bin/false` (parked), root SSH login and password authentication disabled. Claude Code reinstalled under the `lsb` user at `/home/lsb/.local/bin/claude`. Companion docs (`HOSTING_AND_DEV_OPS.md`, `SECURITY_AND_HARDENING.md`) updated to reflect the new operational reality.
 - **v0.7** reframes human grounding as a **per-domain optional slot that supports multiple baselines**, not a single-baseline-or-nothing fallback. Updates §1.5.5 and §4.2.5 so that "ungrounded" is a normal first-class state for any domain rather than a degraded mode. Generalizes `GroundingRef` in §3.2: adds `baseline_id`, `baseline_kind` (`published` | `researcher`), submitter fields, IRB status, and population description; changes `DomainResult.grounding` from a singleton to `list[GroundingRef]` with a `selected_baseline_id` for the default display. Restructures `data/grounding/{domain}/` into `data/grounding/{domain}/{baseline_id}/` to support multiple baselines per domain. Adds a v1 **researcher grounding submission workflow** via GitHub PR with a submission template — researchers contribute pile sort or free list data from human subjects via PR, LSB validates format and merges, the new baseline appears on the dashboard with full attribution (the researcher retains all rights). Adds a v2 design hook for an in-app submission form. Brings the architecture doc into alignment with `DESIGN_SYSTEM.md` v0.1: renames `TemporalView.tsx` → `DriftTracker.tsx` with a date slider (the design system collapses cross-version drift and longitudinal scrubbing into one component); adds `DomainSlider.tsx` as a distinct component from `DomainPicker.tsx` (pill buttons for navigation; slider for animated explorer transitions); aligns the §4.5 frontend section with the four grounding-display states from `DESIGN_SYSTEM.md` §4.1. Adds the **UI/UX agent** (Sonnet) to §5.1 as a new pipeline member sitting between CDA SME and Coder for frontend tasks only, with verdicts posted to `#lsb-ui-ux`. Adds new **§5.4 Agent Slack channels** documenting the three operational channels: `#lsb-alerts` (QA_Runner direct alerts, bypasses agent team), `#lsb-cda-sme` (CDA SME verdicts), `#lsb-ui-ux` (UI/UX agent verdicts). Adds `DESIGN_SYSTEM.md` to the CLAUDE.md reading list as item 14 — required reading before any frontend task. Glossary additions: baseline kinds (published / researcher), researcher grounding, DESIGN_SYSTEM.md, UI/UX agent, `#lsb-alerts` / `#lsb-cda-sme` / `#lsb-ui-ux`. The `TemporalView` glossary entry is replaced by an updated `DriftTracker` entry. Phase 6 plan now explicitly includes opening the researcher grounding submission process and merging the first external baseline if one is offered.
 - **v0.6** introduces the **corpus lens** as the plain-language term for what LSB measures and adds it to §1.5.1 and the glossary. Adds five new binding commitments (#6–#10) to §1: no LLM in the analysis pipeline (LLMs are informants only, never analysts); cryptographic provenance on every collection run (provider request ID + SHA256 manifest); software-only QA with direct human alerting to `#lsb-alerts` that bypasses the agent team; open data for researchers (JSONL + SQLite + build script on Backblaze B2 under CC0); longitudinal model tracking with exact version strings, all runs retained, and a temporal dashboard view. Adds the **`InformantRecord`** Pydantic schema to §3.2 — the full subject record per collection run, including model identity, collection conditions, three CDA step records (`FreelistRecord`, `PileSortRecord`, `InterviewRecord`) with verbatim prompts and responses, SHA256 manifest, and QA verdict. Adds the **QA_Runner** (`scripts/qa_check.py`) as new §4.1.6 — a deterministic Python script that posts directly to `#lsb-alerts` on any failure, bypassing the agent team entirely. Adds a binding constraint at the top of §4.2: **no LLM calls permitted in `cdb_analyze`**, Reviewer must reject any PR introducing one. Updates §4.3 to describe three parallel result representations (JSONL canonical, SQLite researcher-friendly, Parquet analysis) with both JSONL and SQLite published as open data. Adds a **temporal view** to §4.5 — the longitudinal dashboard showing corpus lens shift across collection dates per model, using Procrustes drift score as the change metric. Adds an **Anthropic prompt caching** requirement to §6.2 for all static documents passed to agent API calls (~80% per-task cost reduction). Adds new **§6.7 Open Data Policy** describing what is and is not published, hosting on Backblaze B2, Zenodo DOI post-Phase-4 validation, and the researcher reproducibility guarantee. Adds the **CDA SME** agent (Opus) to §5.1 as the methodological gatekeeper between Architect and Coder, posting to `#lsb-cda-sme`. Glossary additions: corpus lens, InformantRecord, QA_Runner, temporal view, HuggingFace Inference Providers, open data, lsb-agent-01.
@@ -81,6 +82,14 @@ The guiding principle: **the benchmark is a data pipeline with a pretty face and
 
 **This section is binding on every other part of the system.** The Reviewer agent must reject any prompt, lede template, dashboard copy, social post, or README text that contradicts it.
 
+> **LSB measures what frontier LLMs produce when asked to categorize, in a way that's reproducible, comparable across models, and trackable across time.**
+>
+> It measures output behavior under structured elicitation. It does not measure cognition, understanding, belief, worldview, or cultural consensus, because the LLM has none of those things — and even if you thought it did, this protocol would not be the way to measure them.
+>
+> The originating question is exploratory: *"what happens if you give a large language model a CDA free-list / pile-sort / interview? What comes out?"* LSB answers that question precisely, reproducibly, and at scale across models and time, and releases the data for the community to interpret.
+
+The canonical short-form description of LSB. All public-facing short summaries (homepage hero, README first paragraph, social posts, conference-style abstracts) draw from this block. Source: `docs/status/2026-05-07-lsb-philosophy-and-framing.md` §8.
+
 ### 1.5.1 What CDB measures — the precise claim
 
 CDB does **not** measure cultural worldviews. Worldviews require lived experience, and LLMs do not have lived experience. They synthesize statistical patterns from text corpora.
@@ -108,14 +117,23 @@ Unpack the long form:
 - **Surfaced by applying CDA protocols** — the methodology is imported from cognitive anthropology. That does not import the ontological commitments of cognitive anthropology along with it. We are borrowing a microscope, not claiming the sample is alive.
 - **As if it were an informant** — the "as if" is load-bearing. Treating the model as an informant is a methodological move, not a metaphysical one.
 
-**Four-layer breakdown of the corpus lens (added post-F1 SME review).** The "corpus lens" phrase compresses four distinct transformations. Naming them explicitly makes the construct operationally legible and clarifies what LSB does and does not observe:
+**Five-link breakdown of the corpus lens (revised 2026-05-07).** The "corpus lens" phrase compresses a chain of five transformations. Naming them explicitly makes the construct operationally legible and supersedes the prior four-layer formulation:
 
-1. **Co-occurrence patterns in the training corpus.** The substrate. Not directly observed by LSB; mostly opaque for frontier models.
-2. **Compression and abstraction by pretraining** (next-token prediction). Reshapes raw co-occurrence into representations that serve sequence prediction. Not directly observed.
-3. **Behavioral shaping by RLHF and constitutional fine-tuning.** Inserts preferences, safety training, and alignment objectives over the pretraining representation. Not directly observed.
-4. **Surface expression through temperature-sampled token generation.** The only layer LSB actually observes. Every claim LSB makes about Layers 1–3 is inferential, not direct.
+The corpus lens is the entire chain compressed into a function:
 
-LSB elicitation operates on Layer 4. What it reveals about Layers 1–3 is a composed inference, not a measurement. This does not weaken the construct; it clarifies what it claims.
+> **corpus → training → alignment → decoding → output distribution**
+
+When LSB elicits a free-list or pile-sort from a model, it is observing the shadow this chain casts when the CDA stimuli are shone at it. Every link in the chain contributes to the shape of the shadow:
+
+- **Corpus** — what text was used in training (web scrapes, books, code, etc.), in what proportions, with what filtering.
+- **Training** — the next-token prediction objective at trillions-of-tokens scale, which has the side effect of compressing extremely complex statistical patterns into the weights.
+- **Alignment** — RLHF, DPO, or other fine-tuning processes that shape the model's output distribution toward human raters' preferences for helpfulness, harmlessness, honesty.
+- **Decoding** — temperature, sampling strategy, stop tokens, system prompt residuals.
+- **Output distribution** — the probability landscape over token sequences, from which a sample is drawn each time the model is queried.
+
+When the methodology page (or the Coder writing it) uses the phrase "corpus lens," it must be readable by a skeptical reader as *this five-link chain*, not as a euphemism for "what the model knows."
+
+LSB elicitation operates on the output-distribution link. What it reveals about the corpus, training, alignment, and decoding links is a composed inference, not a measurement. This does not weaken the construct; it clarifies what it claims.
 
 ### 1.5.2 Why the reframe is stronger, not weaker
 
@@ -152,38 +170,22 @@ The following substitutions are enforced in all generated text (ledes, social po
 | "Within-model cultural consensus" | "Output distribution analysis" |
 | "Within-model eigenratio" | "Output Concentration Index (OCI)" |
 | "Within-model CCM" | "Output distribution analysis" |
+| "LSB hypothesizes that..." / "LSB tested whether..." / "LSB confirms that..." / "LSB found that [hypothesis]" | "LSB measures..." / "LSB reports..." / "LSB observes..." |
+| "LSB predicted X and the data confirmed/refuted it" | "LSB ran the protocol; here is what came out" |
 
 The last four rows (added post-F1 SME review) guard the boundary between **Register 1 (output distribution analysis)** and **Register 2 (cultural consensus analysis)** — see §4.2 for the register framework. Running the eigenratio machinery on N runs of a single model at fixed prompt does not produce a cultural consensus statistic; the rows of that agreement matrix are iid samples from one stochastic process, not distinct cultural agents, and the RWB assumptions do not hold. The measure (concentration of the model's output distribution on a domain) is real and useful; the name is what matters. Calling it "within-model consensus" imports assumptions that do not apply and will be rejected by the Reviewer.
 
 The lede generator (§4.2.4) receives this table as part of its system prompt and must not produce text containing the left-column phrases. The Reviewer agent spot-checks a sample of generated ledes per release.
 
-### 1.5.5 Human grounding — reference point, not target of measurement
+### 1.5.5 Human grounding — removed from v1 (2026-05-07)
 
-**Framing reversal (post-F1 SME review).** An earlier version of this section framed human baselines as the *ceiling* for claim strength — treating "Model A sits closer to the 1996 Romney US human consensus than Model B" as a stronger claim than "Model A and Model B organize family terms differently from each other." That hierarchy imports an assumption from classical CDA that does not hold for LSB's research question. In classical CDA, human consensus is the ground truth because the object of measurement *is* human cultural knowledge. LSB is not measuring human cultural knowledge. It is measuring architectural differences between language models. Treating human consensus as the ceiling implicitly suggests that "closer to human = better," which is a claim LSB cannot and should not make.
+As of 2026-05-07, human grounding is removed from v1 of LSB.
 
-**LSB's primary scientific claim is comparative across model architectures and across time.** Human baselines are **contextual reference points**, not the target of measurement. They participate in the cross-model analysis as a reference informant with a distinct visual marker, and they support an additional kind of claim (locating model outputs relative to a specific human cultural consensus), but they do not constitute the benchmark's success criterion. A domain with no human baseline is not a degraded domain; it is a normal, first-class state.
+**Why:** the human baseline is a Trojan horse for the cognition framing the project explicitly disclaims. Putting a human cultural-consensus matrix next to a model's output on the same axis implicitly invites the reader to ask "how close to human ground truth is this model?" That question only makes sense if you grant the model is *knowing* something in a way commensurable with human knowing — which §1.5 forbids. The skeptical reader's strongest possible critique of LSB ("you're pretending to do anthropology on machines") gets its surface area from the human baseline. Remove the baseline, remove the surface area.
 
-**Floor and ceiling claims, re-stated.**
+Every domain on the dashboard is, permanently, model-to-model. The schema's `groundings: list[GroundingRef]` field is retained for forward compatibility but defaults to empty for all v1 domains.
 
-> **Floor claim (no human baseline needed).** Model A and Model B organize this domain differently from each other.
->
-> **Ceiling claim (human baseline present).** Model A sits closer to the 1996 Romney human consensus than Model B.
->
-> The ceiling claim is valid and interesting — humans like to compare machines to themselves, and that comparison will be one output of the project. It is just not the primary research question. The primary question is cross-architecture comparison.
-
-This phrasing appears verbatim on the public methodology page and is binding on any generated text that attempts to rank claim strength by grounding presence.
-
-**What follows from this framing:**
-
-1. **Grounding is a per-domain slot, not a project-wide property.** Some domains have published human CDA data (family terms — Romney et al. 1996); some domains have no published data anyone can find (holidays, food, justice, in v1); some domains will accumulate researcher-submitted data over time. Each of these is fine. The dashboard must handle all states gracefully — without empty states, broken layouts, or copy that treats ungrounded as broken. The four display states are specified in `DESIGN_SYSTEM.md` §4.1.
-
-2. **A domain can have more than one baseline.** Family terms might have Romney 1996 (US college students, early 1990s) and a hypothetical Tanaka 2026 (Japanese university students, contemporary) at the same time. These are not in tension — they are two different human populations whose categorical structure is itself an interesting comparison. Both should be visible on the same MDS plot (with different markers) and the user should be able to toggle between them. The schema (§3.2) and storage layout (§4.2.5) are designed for this from the start, even though v1 will likely ship with only the Romney baseline.
-
-3. **Researcher-contributed grounding is a v1 feature, not a v2 feature.** LSB exists in part to *connect to* the broader CDA research community — anthropologists and linguists running pile sort or free list studies on human subjects today should be able to drop their data into LSB and see it on the dashboard alongside the model results. The v1 contribution path is a GitHub PR with a submission template (§4.2.5); the in-app submission form is the v2 hook. Researchers retain all rights to their data; LSB validates format and provides attribution.
-
-4. **Human baselines are Register-2 reference informants** (see §4.2 Three analytical registers). They enter the cross-model MDS with a distinct marker; they are not targets against which models are scored. Where a researcher submission includes per-subject raw data (`pile_sort_raw.csv`), the baseline can additionally be analyzed at Register 1 to produce a human Output Concentration Index (OCI) for cross-architecture comparison of human subject pools against models — a genuinely new cross-species claim of the form "this model's output concentration on kinship terms is within the range we observe across human subject pools." The `GroundingRef` schema carries a `human_oci` field for this purpose; it is populated when raw subject-level data is available and left null otherwise.
-
-See §4.2.5 for the implementation and `DESIGN_SYSTEM.md` §4 for the visual treatment.
+Romney / D'Andrade / Weller / Borgatti / Batchelder ancestry credit is named on the methodology page per `DESIGN_SYSTEM.md` §6.1 item 2.
 
 ### 1.5.6 The website is the artifact
 
@@ -192,7 +194,7 @@ See §4.2.5 for the implementation and `DESIGN_SYSTEM.md` §4 for the visual tre
 This shapes every other design decision:
 
 - **The dashboard must be self-contained.** Visitors will not have read a paper before they arrive. The methodology page, the lede on each visualization, and the "explain this view" affordances together have to convey what CDB measures, how, and why it should be trusted — to a journalist, an AI engineer, or a curious researcher with five minutes.
-- **Methodological rigor still matters, but the bar is "credible to a skeptical reader" not "publishable in *Nature*."** The §1.5 framing, the §5.3 validation gates, the §4.2.5 human grounding, and the §4.2.6 bootstrap uncertainty all exist so that a careful reader cannot easily knock the project over. They do not exist to clear peer review.
+- **Methodological rigor still matters, but the bar is "credible to a skeptical reader" not "publishable in *Nature*."** The §1.5 framing, the §5.3 validation gates, and the §4.2.6 bootstrap uncertainty all exist so that a careful reader cannot easily knock the project over. They do not exist to clear peer review.
 - **Academic forebears must be acknowledged on the website.** The methodology page names the CDA tradition explicitly, cites Romney, D'Andrade, Weller, Borgatti, and Batchelder by name, and links to the original papers (free where possible). This is not posturing — it is the project being honest about where its methods come from and giving readers a path back to the literature. CDB stands on the shoulders of cognitive anthropology; the website should say so plainly.
 - **No paper, no preprint, no journal submission.** CDB does not ship to ArXiv, *Cognition*, *American Anthropologist*, or anywhere else. The Reviewer agent must reject any text — generated lede, social post, dashboard copy, README — that promises or implies a forthcoming paper.
 
@@ -203,6 +205,39 @@ This shapes every other design decision:
 - The social pipeline (§4.6) is the dashboard's primary discovery mechanism. Without a paper to drive citation traffic, social posts are how people find the site. This is why the journalist affordances in §4.5 and the social pipeline in §4.6 are first-class features and not optional polish.
 
 **"The mismatch is the finding" is the lead paragraph of the public methods page (binding, added post-F1 SME review).** §1.5.2 point 3 is the most intellectually honest framing of the project: *what happens when you apply a methodology designed for cultural informants to a system that encodes culture without experiencing it? The mismatch is the finding, not a flaw to hide.* Researchers who understand CDA will grasp what LSB is doing immediately; researchers who don't will be oriented by this framing. It is load-bearing for the project's defensibility and must not be buried in a late paragraph, a footnote, or a methods page's "limitations" section. Placement: the first paragraph of the public methods page, before any description of specific measures. The Reviewer agent rejects any methods-page draft that does not open with this framing.
+
+### 1.5.7 Exploratory framing — LSB does not test hypotheses
+
+LSB's posture is exploratory, not hypothesis-testing; the following two passages (quoted verbatim from the canonical philosophy document, `docs/status/2026-05-07-lsb-philosophy-and-framing.md`) are binding on all public-facing text the project produces.
+
+LSB is **not hypothesis-testing.** It does not predict in advance what models will produce, then test whether they produce it. It does not have a falsifiable claim about model cognition, model bias, or model alignment that the data is designed to confirm or refute.
+
+The originating question is exploratory: **"what happens if you give a large language model a CDA free-list / pile-sort / interview? What comes out?"**
+
+This framing is methodologically the cleanest, and it is binding on every public-facing piece of text the project produces. The methodology page, the README, the social posts, the dashboard copy, the open-data-bundle README — all of these say *"we ran the protocol; here is what came out; draw your own conclusions."* They do **not** say *"we hypothesized X and confirmed it"* or *"this proves Y about LLMs."*
+
+The intent is to **release the information to the community for their own analysis.** LSB ships:
+- Verbatim prompts (CC0)
+- Verbatim model responses (CC-BY-4.0 in the open-data bundle)
+- Reproducible numerics (Smith's S, Romney CCM, MDS, Procrustes, OCI, bootstrap CIs, with bootstrap configuration documented)
+- Code under permissive license (Apache 2.0)
+- A methodology page that names what was measured and what was *not* measured, in plain language
+
+Researchers, journalists, auditors, and skeptics can take that material and form their own interpretations. LSB does not gatekeep interpretation. The benchmark exists to make the *comparison itself* reproducible at the level of measurement, not to push a thesis.
+
+Mark's intent: **we are not the final interpreters of LSB's data.** We run the protocol, we publish the measurements, we publish the verbatim prompts and responses, we publish the analytical code. Researchers, journalists, auditors, and skeptics can take that material and form their own interpretations.
+
+The reasons this is valuable:
+
+- **Models are increasingly used as components in systems that affect humans.** Knowing what categorical structure they produce when asked is useful for system designers (understanding what their components default to), auditors (detecting drift, divergence), researchers (studying training-data effects), journalists (reporting on model differences in a measurable way).
+
+- **The LLM-comparison space is mostly unmet by reproducible measurement.** Most "LLM benchmark" output is either task-performance-based (which is informative about capability but not about categorical-output behavior) or is qualitative comparison ("model A is more verbose than model B"). LSB occupies a niche: structured, reproducible, non-task-performance measurement of output-distribution shape, with full provenance.
+
+- **Drift over time is invisible without measurement infrastructure.** A model's output distribution can shift across versions, across snapshot rolls, across alignment-tuning rounds. Without reproducible measurement, that shift is invisible. LSB's longitudinal posture (DriftTracker, the date-slider scrubbing view) makes shifts visible.
+
+- **The data is more valuable than our interpretation of it.** This is the deepest reason. LSB does not need to be the place where conclusions are drawn — it needs to be the place where the *raw material for conclusions* is reliably produced, documented, and made open. Other researchers will find uses we did not anticipate. The benchmark's value compounds the more it is reused.
+
+The release-for-community-analysis intent is what makes LSB a website-as-research-instrument rather than a paper. A paper presents conclusions. A website presents reproducible measurements and lets the community draw conclusions. That distinction is binding on the project's design.
 
 ## 1.6 Project naming
 
@@ -244,13 +279,11 @@ cdb/
 ├── DESIGN_SYSTEM.md               # binding spec for all frontend work; UI/UX agent owns this
 ├── README.md                      # public-facing
 ├── docs/
-│   ├── DATA_DICTIONARY.md         # field-by-field schema doc for the open data bundle (§6.7)
-│   └── grounding_submission_template.md  # researcher submission template, §4.2.5 (Phase 6)
+│   └── DATA_DICTIONARY.md         # field-by-field schema doc for the open data bundle (§6.7)
 ├── .claude/
 │   └── agents/                    # Architect/CDA SME/UI-UX/Coder/Reviewer/Tester
 ├── .github/
 │   └── PULL_REQUEST_TEMPLATE/
-│       └── grounding_submission.md  # PR template for researcher grounding submissions, §4.2.5
 ├── pyproject.toml                 # uv-managed Python project
 ├── packages/
 │   ├── cdb_core/                  # shared types, IDs, schemas
@@ -474,6 +507,14 @@ class BootstrapEllipse(BaseModel):
 
 class GroundingRef(BaseModel):
     """
+    Historical — human grounding removed from v1 per 2026-05-07 amendment.
+
+    This class is retained in the schema for forward compatibility. In v1 all
+    domains have `groundings: list[GroundingRef] = []` (empty list). No
+    GroundingRef instances are created or consumed by any v1 analysis pipeline.
+    See §1.5.5 and §4.2.5 for the architectural rationale.
+
+    Original docstring (pre-amendment):
     A human CDA baseline treated as a virtual informant in the MDS plot.
 
     A domain can have zero, one, or many GroundingRef instances. Each instance
@@ -809,7 +850,7 @@ LSB operates three distinct analytical registers, each with different statistica
 **Register 2 — Categorical structure analysis (between-model):**
 
 - **Informants:** each model contributes equal voice via the consensus free list produced from its Level 1 (Option A input — see §4.2.7 two-level pipeline). All models contribute equally regardless of their OCI.
-- **Human grounding:** injected as a **reference informant** with a distinct visual marker (per `DESIGN_SYSTEM.md` §3.3), consistent with §4.2.5. Humans participate in the cross-model analysis; they are not the target of measurement (§1.5.5).
+- **Human grounding (historical):** per the 2026-05-07 amendment, no human grounding reference informants are injected in v1. All analysis is model-to-model. See §1.5.5 and §4.2.5.
 - **Statistical framework:** RWB cultural consensus analysis with the LSB caveats from `docs/SME_REVIEW.md` (small-n regime, non-human informants, dual threshold λ₁/λ₂ > 5.0 operational / 3.0 reported).
 - **Dashboard display representation:** Option B (centroid run) for tooltips and model profile pages — a concrete, human-readable free list drawn from the single run closest to the model's central tendency. Option A (pooled consensus) is the analytical input; Option B is the display.
 
@@ -889,94 +930,18 @@ python scripts/analyze.py --all --analysis-version 0.1
 
 Idempotent. Running twice with the same version produces byte-identical output (modulo timestamps).
 
-#### 4.2.5 Human grounding module (`grounding.py`)
+#### 4.2.5 Human grounding module — removed from v1 (2026-05-07)
 
-**Why this exists:** human CDA baselines are **reference points** in the Register 2 (between-model) analysis — not the target of measurement. The primary scientific claim of LSB is comparative across model architectures and across time (§1.5.5); human comparison is secondary. Where human CDA data is available, a baseline enters the cross-model MDS as a reference informant with a distinct visual marker, which enables an additional kind of claim (locating model outputs relative to a specific human cultural consensus) without redefining the benchmark's success criterion. Where no baseline is available, the benchmark makes model-to-model comparative claims only — a normal first-class state, not a degraded one.
+**Historical note.** This module and its associated workflow (published baseline acquisition, researcher submission pipeline, GroundingRef injection into MDS) were part of the architecture through v0.7. As of 2026-05-07, human grounding is removed from v1. See §1.5.5 for the rationale.
 
-**What it does:** loads zero or more published or researcher-submitted human CDA datasets from `data/grounding/{domain}/{baseline_id}/` and injects each as a reference informant labeled by `baseline_id`. Each baseline appears in the MDS plot as a distinct marker — published baselines as black stars (★), researcher baselines as gray diamonds (◆), per `DESIGN_SYSTEM.md` §3.3 — and in the similarity heatmap as reference rows/columns. **A domain may have zero, one, or many baselines, and zero is a normal state.**
+**What remains:**
 
-**Human OCI (post-F1 SME review).** Where a researcher submission includes per-subject raw pile-sort data (`pile_sort_raw.csv`), the baseline can additionally be analyzed at Register 1 (§4.2.0) to produce a **human Output Concentration Index** — a measure of how concentrated that specific human subject pool's output distribution is on the domain. The `GroundingRef.human_oci` field carries this value (nullable; populated only when raw subject-level data is present). The comparison "this model's OCI on kinship terms is within the range we observe across human subject pools" is a genuinely new cross-species claim enabled by this field; it is a claim about *output concentration*, not about proximity to any single human consensus.
+- The `data/grounding/` directory is preserved as a historical reference under `data/grounding/README.md`. Its contents are not consumed by any v1 analysis pipeline.
+- The `GroundingRef` schema class (§3.2) is retained for forward compatibility. All v1 domains have `groundings: list[GroundingRef] = []` (empty list).
+- The `grounding.py` module in `cdb_analyze/` is retained as a stub. It returns an empty list for all domains and emits no warnings — empty groundings is the expected first-class state for v1.
+- Romney / D'Andrade / Weller / Borgatti / Batchelder ancestry credit appears on the methodology page per `DESIGN_SYSTEM.md` §6.1 item 2.
 
-**Data layout — multi-baseline (v0.7):**
-
-```
-data/grounding/
-├── family/
-│   ├── romney_1996/                    # baseline_id (kind: published)
-│   │   ├── source.md                   # citation, methodology, IRB status, year
-│   │   ├── items.txt                   # canonical item set
-│   │   ├── cooccurrence.csv            # symmetric matrix, header row = items
-│   │   └── grounding_ref.json          # the GroundingRef as JSON; human-editable
-│   └── tanaka_2026_kyoto_kinship/      # hypothetical second baseline (kind: researcher)
-│       ├── source.md
-│       ├── items.txt
-│       ├── pile_sort_raw.csv           # subject × pile assignments (researcher submission)
-│       ├── cooccurrence.csv            # derived from pile_sort_raw.csv at submission time
-│       └── grounding_ref.json
-├── holidays/                            # ungrounded in v1 — directory may not exist at all
-└── color/                               # added Phase 6 with the Berlin & Kay baseline
-    └── berlin_kay_1969/
-        ├── source.md
-        ├── items.txt
-        ├── cooccurrence.csv
-        └── grounding_ref.json
-```
-
-**Per-baseline contents:**
-
-- `source.md` — full bibliographic citation (for published baselines) or full researcher attribution (for researcher submissions). Includes population description, collection year, IRB status, and method. Mandatory.
-- `items.txt` — the canonical item set for this baseline, one item per line. Used to compute item intersection with the LSB v1 item set for the domain.
-- `cooccurrence.csv` — symmetric similarity matrix, header row = items. Mandatory for both kinds.
-- `pile_sort_raw.csv` — *only* for researcher submissions that include per-subject pile assignments. When present, the analysis pipeline can compute a bootstrap ellipse for the baseline (resampling subjects with replacement) and the marker is rendered with an uncertainty ellipse on the MDS plot. When absent (typical of published baselines that ship aggregate matrices only), the marker is rendered without an ellipse and labeled "published aggregate, uncertainty unavailable" per the DESIGN_SYSTEM.md grounding detail panel spec.
-- `grounding_ref.json` — the `GroundingRef` (§3.2) as JSON, human-editable. The grounding loader reads this directly rather than reconstructing from `source.md` text. Required fields per the schema.
-
-**Item alignment:** each baseline's item set will not exactly match the LSB v1 item set for the domain. The grounding loader takes the **intersection** of human items and the LSB salient item set per model and computes similarity on that subset. The intersection size is stored in `GroundingRef.item_intersection_size` and displayed in the dashboard's grounding detail panel (`DESIGN_SYSTEM.md` §4.2). A small intersection means a weaker comparison and the UI flags it.
-
-**Sourcing policy.** LSB accepts two kinds of grounding:
-
-1. **Published baselines** (`baseline_kind="published"`). Licensed, peer-reviewed published human CDA data extracted by Mark from the literature. v1 primary target: Romney et al. (1996) for family terms. See `PHASE_4C_CANDIDATE_SOURCES.md` for the candidate source list and licensing notes. No original human data collection by LSB itself in v1.
-2. **Researcher submissions** (`baseline_kind="researcher"`). Human CDA data collected by external researchers and contributed to LSB via the submission workflow below. Researchers retain all rights to their data; LSB validates format and provides attribution. The contribution path is open from v1 (Phase 6 deliverable to actually open it publicly), but the schema, directory layout, and dashboard rendering are designed for it from Phase 1.
-
-**v1 acquisition targets** (in priority order, all `baseline_kind="published"`):
-
-- **Family / kinship terms.** The primary target. Candidate sources include the Romney, Boyd, Moore, Batchelder & Brazill (1996) PNAS paper, the D'Andrade American kinship studies (1970s–80s), and Weller & Romney's *Systematic Data Collection* worked examples. Several of these publish full similarity matrices in the articles themselves, which is the cleanest acquisition path — figures and tables in peer-reviewed articles are generally citable and reusable under fair use for non-commercial research purposes. The Architect agent should confirm specific licensing per source before use.
-- **Color terms.** Berlin & Kay's *Basic Color Terms* data is widely used in the literature, well-documented, and has been reanalyzed many times. Second priority grounding domain; add in Phase 6 when the color domain is added.
-- **Emotion terms.** Published cross-cultural data exists (Shaver, Schwartz, Kirson & O'Connor 1987 is a common reference) but is messier and the item sets vary. Defer to v2.
-- **Other domains (holidays, food, justice, etc.).** No obvious published CDA baseline exists. These domains remain **ungrounded in v1** and are displayed without a human baseline marker — a normal first-class state per §1.5.5. They become eligible for researcher-submitted grounding the moment the submission process opens.
-
-**Acquisition workflow for published baselines** (Phase 4c):
-
-1. Architect agent identifies 2–3 candidate sources for the target domain with full citations.
-2. Mark reviews and confirms the preferred source (and confirms the institutional access path — JSTOR, university library, direct author contact).
-3. Mark acquires the PDF/data, extracts the published similarity or co-occurrence matrix, and hands it to the Coder agent as a CSV plus a `source.md` file plus a draft `grounding_ref.json` with `baseline_kind="published"`.
-4. Coder agent normalizes into the `data/grounding/{domain}/{baseline_id}/` schema, writes unit tests that verify the loaded matrix round-trips correctly, and validates the item set against the v1 domain prompt.
-5. Architect agent reviews item-set intersection coverage before downstream phases run.
-
-**Researcher submission workflow** (added v0.7, v1 implementation via GitHub PR):
-
-LSB exists in part to connect to the broader CDA research community. Anthropologists, linguists, and cognitive scientists running pile sort or free list studies on human subjects today can drop their data into LSB and see it on the dashboard alongside the model results. The v1 contribution path is a GitHub Pull Request following a submission template; the v2 hook is an in-app submission form (deferred — see "Out of scope" note below). The dashboard's "Submit your data" entry point (`DESIGN_SYSTEM.md` §4.3) opens the GitHub submission template directly.
-
-**v1 submission process:**
-
-1. **Researcher reads the submission template** at `docs/grounding_submission_template.md` (Phase 6 deliverable). The template specifies the required files: `source.md`, `items.txt`, `cooccurrence.csv`, optionally `pile_sort_raw.csv`, and a draft `grounding_ref.json` with `baseline_kind="researcher"` and submitter fields filled in.
-2. **Researcher opens a Pull Request** against the LSB repo, adding the new directory under `data/grounding/{domain}/{baseline_id}/`. The PR template (`.github/PULL_REQUEST_TEMPLATE/grounding_submission.md`, Phase 6 deliverable) prompts for confirmation that the researcher holds the rights to share the data, that any required IRB approval is in place, and that the submission is intended for CC-BY-4.0 redistribution with full attribution.
-3. **Automated validation** runs in CI: schema check on `grounding_ref.json`, format check on `cooccurrence.csv` (symmetric, header row matches `items.txt`), item-intersection coverage report, and a `gitleaks` scan to confirm no PII has leaked into any submitted file.
-4. **CDA SME agent reviews** the PR for protocol validity (was the data actually collected with a recognizable CDA protocol?), claims validity (does the population description support the claims the baseline implicitly makes?), and audience translation (is the source.md legible to a non-anthropologist visiting the dashboard?). Verdict per §5.1: PASS / PASS-WITH-NOTES / FAIL.
-5. **Mark approves and merges** if the CDA SME verdict is PASS or PASS-WITH-NOTES with corrections applied. The merge triggers an analysis re-run, which writes the updated `DomainResult` with the new baseline included in `groundings`. The dashboard picks up the new baseline on the next publish.
-6. **Citation and attribution.** The merged baseline appears with full attribution in the dashboard's grounding detail panel (`DESIGN_SYSTEM.md` §4.2), in the methodology page's grounding section, and in the open data bundle's data dictionary. The researcher's name, institution, year, and contact (if provided) are listed alongside the data wherever the data is shown. The researcher retains all rights to their data; LSB redistributes under CC-BY-4.0 with attribution.
-
-**What is *not* in v1 (deferred to v2):**
-
-- **In-app submission form.** v1 routes contributors to GitHub. v2 may add a web form on the dashboard that walks through the same submission template and opens the PR programmatically.
-- **Anonymous submissions.** Every v1 submission must be tied to a named researcher and an institution. We are willing to revisit this policy if the research community asks for it, but the default is named attribution.
-- **Submission via email or non-GitHub channels.** Same reason — auditability. The PR is the audit trail.
-- **Automatic IRB verification.** LSB takes the researcher's word on `irb_status` for v1. False statements would be a research ethics issue for the submitter, not an LSB system failure. The CDA SME flags any submission where the population description and the IRB status appear inconsistent (e.g., contemporary US adult subjects with `irb_status="not_applicable"`).
-
-**Acquisition is the one part of grounding Mark does by hand for published baselines.** The Coder agent cannot retrieve licensed academic content, and automated scraping of publishers would be both a licensing violation and bad practice. Budget ~2 hours of Mark's time per published baseline for the literature pull and matrix extraction. Researcher submissions, by contrast, arrive ready-to-merge — Mark's role on those is review and approval, not extraction.
-
-**Graceful degradation:** if no preferred published source is available for a domain and no researcher submission has arrived, the domain ships ungrounded. The Validation Phase gates (§5.3) do not require grounding to pass — grounding strengthens the findings but is not the signal test itself. The dashboard handles ungrounded domains as a first-class state per `DESIGN_SYSTEM.md` §4.1 State 0.
-
-**Citation discipline.** Every grounding source — published or researcher — is cited in full in three places: `data/grounding/{domain}/{baseline_id}/source.md`, the public methodology page on the dashboard, and the open data bundle's `DATA_DICTIONARY.md`. The dashboard tooltip on each baseline marker shows the short citation inline. Under no circumstances is grounding data displayed without attribution. The Reviewer agent must reject any PR that adds a baseline without all three citation surfaces populated.
+**If human grounding is reintroduced in a future version**, the full workflow that appeared here through v0.7 is recoverable from git history (`git log --follow packages/cdb_analyze/grounding.py`). The schema is forward-compatible.
 
 #### 4.2.6 Bootstrap uncertainty module (`bootstrap.py`)
 
@@ -993,7 +958,7 @@ LSB exists in part to connect to the broader CDA research community. Anthropolog
 
 **Display rule — enforced by the Reviewer agent:** no visualization in `apps/dashboard` may display a point estimate without its associated uncertainty. No exceptions. If the Coder adds a new viz that can't express uncertainty, it doesn't ship.
 
-**Interaction with grounding:** every baseline in a domain's `groundings` list is bootstrapped independently when raw subject-level data is available (resampling human informants with replacement). Researcher submissions that include `pile_sort_raw.csv` get a bootstrap ellipse on the MDS plot; published baselines that ship aggregate matrices only are shown without an ellipse and labeled "published aggregate, uncertainty unavailable" per `DESIGN_SYSTEM.md` §3.3 conditional rendering rules. When a domain has multiple baselines, each gets its own ellipse computed independently — the bootstrap does not pool across baselines, since they represent different human populations and pooling would smear them.
+**Interaction with grounding (historical).** The v0.7 design called for per-baseline bootstrap ellipses on the MDS plot; per the 2026-05-07 amendment removing human grounding from v1, this interaction is moot. The bootstrap module's per-model ellipses on cross-model MDS remain unchanged.
 
 #### 4.2.7 Two-level pipeline and saturation analysis (added post-F1 SME review)
 
@@ -1141,20 +1106,20 @@ React + Vite + TypeScript. Tailwind for styling. No Next.js — the app is a pur
 
 **Uncertainty display is mandatory, not optional.** Every view renders the bootstrap outputs from §4.2.6:
 
-- **MDSPlot** renders 95% confidence ellipses around each model point, not bare points. Ellipse opacity scales with `n_bootstrap`. Human grounding baselines appear as distinct markers with their own ellipses where raw subject data is available — visual treatment per `DESIGN_SYSTEM.md` §3.3.
+- **MDSPlot** renders 95% confidence ellipses around each model point, not bare points. Ellipse opacity scales with `n_bootstrap`. In v1, the plot is model-to-model only; no human baseline markers are rendered (per §1.5.5 and §4.2.5).
 - **Heatmap** cells carry tooltips showing `similarity ± 95% CI`. Cells whose CI crosses the null value are shown with reduced saturation to signal "not statistically distinguishable."
 - **FreeListCompare** shows per-item inclusion frequency across bootstrap samples as a small bar next to each term.
 - **DriftTracker** shows error bars on every drift score, and a shaded "within-noise" band derived from the prompt-sensitivity study (§5.3).
 
 A view that cannot express uncertainty does not ship. This is a Reviewer-enforced rule.
 
-**Grounding display states.** The dashboard handles four grounding states for any given `(domain)`, defined in `DESIGN_SYSTEM.md` §4.1: **State 0 — none** (no human baselines available; key finding is comparative only), **State 1 — published only** (e.g., Romney 1996 family terms), **State 2 — researcher only** (a researcher submission with no published baseline), **State 3 — multiple baselines** (published + one or more researcher submissions, or multiple researcher submissions). State 0 is a normal first-class state per §1.5.5, not a degraded mode. The four states are driven directly by the contents of `DomainResult.groundings` (§3.2): empty list = State 0; one entry = State 1 or 2 depending on `baseline_kind`; two or more entries = State 3. The architecture contract is that every `DomainResult` carries enough information to render any of the four states without an extra fetch — `groundings` is fully populated in the static JSON written by `cdb_publish`.
+**Grounding display.** All v1 domains are permanently model-to-model (`groundings: []`). The dashboard renders a single state per §1.5.5: no human baseline markers, no grounding selector, no "submit your data" entry points. Every `DomainResult` carries `groundings: []` and the dashboard contract is that an empty list is rendered as a complete first-class visualization, not a degraded one. The schema's `groundings` list field remains for forward compatibility; the four display states defined in `DESIGN_SYSTEM.md` §4.1 prior to the 2026-05-07 amendment are not exercised in v1.
 
 **DriftTracker — cross-version drift and longitudinal date-slider scrubbing (consolidated from v0.6 TemporalView in v0.7).** `DriftTracker.tsx` is the dashboard's expression of design commitment #10 (longitudinal model tracking) in §1. v0.6 introduced this functionality as a separate `TemporalView.tsx` component; v0.7 consolidates it into `DriftTracker.tsx` to align with `DESIGN_SYSTEM.md` §3.2 and §3.6, which spec a single drift component with a date slider rather than two parallel components. The functionality and the data layer are unchanged; only the component name and file structure change.
 
 - **Unit of analysis:** `model_version_returned` × `collection_date`. Not `model_id` — providers silently roll snapshots, and the version string returned in the API response is the only reliable temporal anchor. See §3.2 `InformantRecord`.
 - **Change metric:** **Procrustes distance** between MDS coordinates of consecutive collection dates for the same model family on the same domain. Same drift score used in `cdb_analyze/drift.py`; the date-slider view applies it across time within a single declared model identity.
-- **Visualization:** for each `(model_family, domain)` pair, a longitudinal D3 chart with collection date on the x-axis and Procrustes drift score (vs. the first observation) on the y-axis. Bootstrap confidence bands on every point. A divergence event flags any consecutive-date drift score above a tunable threshold (start at 0.15 to mirror the social-pipeline drift trigger in §4.6). The date slider (`DESIGN_SYSTEM.md` §3.6) lets users scrub through collection dates and watch the MDS plot's model points animate to their position at each date — human baseline markers stay anchored as fixed reference points while model points move around them.
+- **Visualization:** for each `(model_family, domain)` pair, a longitudinal D3 chart with collection date on the x-axis and Procrustes drift score (vs. the first observation) on the y-axis. Bootstrap confidence bands on every point. A divergence event flags any consecutive-date drift score above a tunable threshold (start at 0.15 to mirror the social-pipeline drift trigger in §4.6). The date slider (`DESIGN_SYSTEM.md` §3.6) lets users scrub through collection dates and watch the MDS plot's model points animate to their position at each date — model points move relative to one another as the date changes.
 - **Data source:** `apps/dashboard/public/data/drift/{model_family}.json`, written by `cdb_publish/build.py`. Each file contains, per `(domain, model_version_returned, collection_date)`, the MDS coordinates, the Procrustes drift score versus the first observation for that family, and the bootstrap CI.
 - **Phase ordering:** the date-slider view is a Phase 6 deliverable, but **the data structure must support it from Phase 1**. This is why `InformantRecord.model_version_returned` and `InformantRecord.collection_date` are mandatory fields, why `data/raw/informants.jsonl` is partitioned by collection date, and why old runs are never overwritten. Building the visualization in Phase 6 should be a frontend-only task — no backfill of the data layer required.
 - **Why this matters now (Phase 1 implication):** if the schema does not capture exact version strings and exact collection dates from day one, the longitudinal view is impossible without re-collection. Re-collection is not possible — the prior versions of the models will no longer exist. The longitudinal view is therefore retroactively unbuildable if Phase 1 misses the schema, which is why §3.2 makes these fields mandatory.
@@ -1177,9 +1142,6 @@ src/
 │   ├── ModelFilter.tsx          # three-axis filter — origin × openness × collection_method
 │   ├── VizSwitcher.tsx          # tab bar for switching visualizations
 │   ├── KeyFinding.tsx           # the lede sentence strip above the explorer
-│   ├── GroundingSelector.tsx    # human baseline checkboxes + "Submit your data" link
-│   ├── GroundingDetailPanel.tsx # slide-in panel for baseline detail (DESIGN_SYSTEM.md §4.2)
-│   ├── SubmitGroundingModal.tsx # modal pointing to GitHub PR template (DESIGN_SYSTEM.md §4.3)
 │   ├── ExplainButton.tsx        # opens a modal with the lede + methodology
 │   ├── ExportImageButton.tsx    # one-click watermarked PNG export
 │   ├── GenerateSummaryButton.tsx
@@ -1249,7 +1211,7 @@ This is where the architecture meets your existing agent pipeline.
 | Agent | Role on LSB |
 |---|---|
 | **Architect** (Opus) | Owns this document. Decomposes features into Coder-sized tasks. Reviews Open Decisions with Mark before any code is written for an unresolved one. Never writes code. Hands every plan to the CDA SME for methodological gating before it reaches the Coder; for frontend tasks, the post-SME plan additionally passes through the UI/UX agent before the Coder sees it. |
-| **CDA SME** (Opus) | **Methodological gatekeeper between the Architect and the Coder. Added v0.6.** Reviews every plan from the Architect on four axes before the Coder is allowed to start work: (1) **protocol validity** — does the plan correctly implement free list / pile sort / pile interview as defined in the CDA literature; are prompts, item handling, and aggregation faithful to the methodology; (2) **analytical validity** — are the chosen statistics (co-occurrence, MDS, consensus analysis, Procrustes drift, bootstrap) appropriate for the data and the claims being made; do error bars and uncertainty propagate correctly; (3) **claims validity** — does the resulting visualization or generated text overclaim relative to §1.5; is the language guardrails table (§1.5.4) respected; is the corpus-lens framing used correctly; (4) **audience translation** — is the methodology defensible to a skeptical anthropologist *and* legible to a journalist; does the plan reach both audiences simultaneously without compromising either. The CDA SME issues one of three verdicts: **PASS** (plan moves on), **PASS-WITH-NOTES** (plan moves on with annotated changes the next agent must apply), or **FAIL** (plan returned to Architect for rework). Verdicts are posted to the `#lsb-cda-sme` Slack channel with the verdict, a one-paragraph rationale, and the four-axis scorecard. The CDA SME is the methodological conscience of the project; pure engineering teams (Architect/Coder/Reviewer/Tester) lack domain knowledge validation, and shipping CDA work without an SME in the loop is the single most likely failure mode for a project that exists to apply a 50-year-old anthropological methodology to a brand-new substrate. **The CDA SME also reviews researcher grounding submission PRs** (§4.2.5) before Mark merges them. |
+| **CDA SME** (Opus) | **Methodological gatekeeper between the Architect and the Coder. Added v0.6.** Reviews every plan from the Architect on four axes before the Coder is allowed to start work: (1) **protocol validity** — does the plan correctly implement free list / pile sort / pile interview as defined in the CDA literature; are prompts, item handling, and aggregation faithful to the methodology; (2) **analytical validity** — are the chosen statistics (co-occurrence, MDS, consensus analysis, Procrustes drift, bootstrap) appropriate for the data and the claims being made; do error bars and uncertainty propagate correctly; (3) **claims validity** — does the resulting visualization or generated text overclaim relative to §1.5; is the language guardrails table (§1.5.4) respected; is the corpus-lens framing used correctly; (4) **audience translation** — is the methodology defensible to a skeptical anthropologist *and* legible to a journalist; does the plan reach both audiences simultaneously without compromising either. The CDA SME issues one of three verdicts: **PASS** (plan moves on), **PASS-WITH-NOTES** (plan moves on with annotated changes the next agent must apply), or **FAIL** (plan returned to Architect for rework). Verdicts are posted to the `#lsb-cda-sme` Slack channel with the verdict, a one-paragraph rationale, and the four-axis scorecard. The CDA SME is the methodological conscience of the project; pure engineering teams (Architect/Coder/Reviewer/Tester) lack domain knowledge validation, and shipping CDA work without an SME in the loop is the single most likely failure mode for a project that exists to apply a 50-year-old anthropological methodology to a brand-new substrate. |
 | **UI/UX agent** (Sonnet) | **Design conscience of the frontend. Added v0.7.** Sits between the CDA SME and the Coder for frontend tasks only — for collection, analysis, schema, or backend tasks, the UI/UX agent is skipped and plans flow directly from the CDA SME to the Coder. Reviews every frontend plan and every frontend component PR against four questions, all of them rooted in `DESIGN_SYSTEM.md`: (1) **OWID design fidelity** — does the component match the design language, the design tokens, the typographic scale, and the article-with-embedded-explorer page model in `DESIGN_SYSTEM.md` §1 and §2; (2) **journalist 30-second test** — can a journalist arriving cold understand the finding within 30 seconds without reading the methodology page; (3) **researcher reproduce-and-cite test** — does the researcher have everything they need to reproduce the finding (download CSV, get the citation, find the raw data, contribute their own grounding); (4) **WCAG AA accessibility** — color + shape together, "Read as table" toggle, keyboard navigation, ARIA labels, focus indicators, screen reader summary. Verdict format matches the CDA SME: **PASS** / **PASS-WITH-NOTES** / **FAIL**. Verdicts are posted to `#lsb-ui-ux` with a one-paragraph rationale and the four-question scorecard. The UI/UX agent is the owner of `DESIGN_SYSTEM.md` — if a frontend plan needs a visual decision the design system does not cover, the UI/UX agent updates the design system *first*, posts the update for Mark's awareness, and only then passes the plan through to the Coder. The Coder is never permitted to invent visual decisions on the fly. |
 | **Coder** (Sonnet) | Implements one package or one feature at a time. Must read the relevant `cdb_core/schemas.py` before touching any other file. **Receives only plans that have a CDA SME PASS or PASS-WITH-NOTES verdict, plus — for frontend tasks — a UI/UX agent PASS or PASS-WITH-NOTES verdict.** Never starts work directly from an Architect plan. Never invents visual decisions; if the UI/UX agent's approved plan does not cover a visual question that comes up mid-implementation, the Coder pauses and routes the question back to the UI/UX agent rather than guessing. |
 | **Reviewer** (Sonnet) | Enforces six rules: (1) schemas are only defined in `cdb_core`; (2) layer boundaries are respected, including the **`cdb_analyze` no-LLM-imports rule** (§4.2 binding constraint, §2 boundary rule four); (3) every new prompt template bumps `prompt_version`; (4) the §1.5.4 language guardrails — no generated text, dashboard copy, or README content may contain forbidden phrases like "worldview," "believes," or "thinks"; (5) any change to `InformantRecord` (§3.2) is accompanied by a matching update to `docs/DATA_DICTIONARY.md` in the same PR; (6) **frontend PRs carry a UI/UX agent PASS or PASS-WITH-NOTES verdict** (§5.1 UI/UX row) — no frontend component lands without the design conscience having reviewed it, and any visual decision visible in the diff that is not covered by `DESIGN_SYSTEM.md` is grounds for rejection regardless of how the rest of the PR looks. Flag any code change that reuses a detector helper or substring/marker list across input↔output classification boundaries (e.g., a list designed to classify failure-record fields being reused on response-text fields, or vice versa). Such cross-boundary reuse triggers SME review at code-review time per CLAUDE.md §9 pitfall #13. |
@@ -1271,9 +1233,8 @@ Your existing `CLAUDE.md` is the team constitution. For LSB, append a project se
 1. Read `ARCHITECTURE.md` before starting any task. **§1.5 is binding on all generated text.**
 2. Read `SECURITY_AND_HARDENING.md` before touching `apps/dashboard/`, `packages/cdb_collect/`, or any CI/CD configuration. The Reviewer rules table in §9 of that document is enforced on every PR.
 3. Read `HOSTING_AND_DEV_OPS.md` before any deployment-related task or any task that touches `.github/workflows/`, Cloudflare Pages config, or environment variables.
-4. Read `PHASE_4C_CANDIDATE_SOURCES.md` before any task touching `data/grounding/`, `packages/cdb_analyze/grounding.py`, or the family-domain grounding workflow.
-5. Read `PHASE_0_TASKS.md` for the full Phase 0 task list, acceptance criteria, and dependency graph. It is the canonical decomposition for the Coder agent's first session.
-6. Read `docs/DATA_DICTIONARY.md` before touching `cdb_core/schemas.py` (specifically `InformantRecord`) or `scripts/build_db.py`.
+4. Read `PHASE_0_TASKS.md` for the full Phase 0 task list, acceptance criteria, and dependency graph. It is the canonical decomposition for the Coder agent's first session.
+5. Read `docs/DATA_DICTIONARY.md` before touching `cdb_core/schemas.py` (specifically `InformantRecord`) or `scripts/build_db.py`.
 7. Never edit `cdb_core/schemas.py` without Architect sign-off. Schema changes ripple everywhere. Changes to `InformantRecord` require a matching `DATA_DICTIONARY.md` update in the same PR.
 8. Prompt templates are versioned. Never edit a published prompt template in place — copy it to a new version directory.
 9. No API keys in the repo. Use `.env` + `python-dotenv`; `.env.example` is tracked, `.env` is ignored.
@@ -1282,7 +1243,6 @@ Your existing `CLAUDE.md` is the team constitution. For LSB, append a project se
 12. **No LLM calls in `cdb_analyze`.** See §4.2 binding constraint and §1 commitment 6. The Reviewer's static import check enforces this.
 13. **Architect plans must be CDA-SME-approved before reaching the Coder.** See §5.1. For frontend tasks, plans must additionally carry a UI/UX agent PASS or PASS-WITH-NOTES verdict before reaching the Coder.
 14. **Read `DESIGN_SYSTEM.md` before any frontend task.** Required for any work touching `apps/dashboard/`, any new component, any visual change to an existing component, any new color or font or spacing decision, and any update to the dashboard's article-with-explorer page model. The UI/UX agent owns this document; the Coder may not invent visual decisions outside of it. If a frontend task needs a visual decision the design system does not cover, the Coder pauses, surfaces the question to the UI/UX agent, and only resumes once the design system has been updated.
-15. **Researcher grounding submission PRs** (added v0.7) follow the workflow in §4.2.5. Validation runs in CI (schema check, format check, item-intersection report, gitleaks PII scan); CDA SME reviews; Mark merges. The PR template is at `.github/PULL_REQUEST_TEMPLATE/grounding_submission.md`.
 
 ### 5.3 Suggested phased build plan
 
@@ -1357,9 +1317,7 @@ The aggregate ratio (`g1_aggregate_stability`) is retained as the mean of the tw
 
 *4b also includes the two-level saturation analysis* (§4.2.7): on the same two reference models plus one open-weight reference (Llama 3.1 70B), run the within-model Register 1 analysis at N = 5, 10, 15, 20, 25, 30 across family and holidays. Identify the empirical knee in each saturation curve (Spearman salience stability, OCI convergence, elbow-position stability, MDS Procrustes RMSE at N vs N+5). Set operational N at the knee plus a 20% safety margin. The saturation analysis piggybacks on the Phase 4b budget envelope and produces content surfaced on the public methodology page as a named methods contribution — **not** framed as publishable (per §1.5.6).
 
-*4c. Human baseline acquisition.* Mark acquires a licensed, peer-reviewed human CDA dataset for family terms from the published anthropological literature (see §4.2.5 and `PHASE_4C_CANDIDATE_SOURCES.md` for sourcing policy and candidate sources). Extract the published similarity or co-occurrence matrix into `data/grounding/family/cooccurrence.csv` with full citation in `source.md`. ~3 hours of Mark's hands-on time for the literature pull. If no suitable published source is available, v1 ships without grounding and the benchmark makes relative claims only.
-
-*4d. Bootstrap validation.* Run the full pipeline with B=500 bootstraps. Produce the first real MDS plot with confidence ellipses and the human baseline marker.
+*4c. Bootstrap validation.* Run the full pipeline with B=500 bootstraps. Produce the first real MDS plot with confidence ellipses. (Human baseline acquisition was Phase 4c prior to the 2026-05-07 amendment; it has been removed. The 4d label is superseded by this renumbered 4c.)
 
 **Gate criteria — all three must pass:**
 
@@ -1371,7 +1329,7 @@ The aggregate ratio (`g1_aggregate_stability`) is retained as the mean of the tw
 
 **If any gate fails:** pause. Do not proceed to Phase 5. The Architect agent writes a diagnostic report, and Mark decides whether to redesign prompts, add runs, drop models, or shelve the project. This is the real decision point for whether the core idea works.
 
-**If all gates pass:** the benchmark has demonstrated that it measures *something* stable and non-random. The MDS plot from 4d is the first dashboard-ready artifact and the first social-pipeline-worthy finding. **Open data DOI minting via Zenodo (§6.7) is also unlocked at this point** — pre-validation, the bundle is hosted on Backblaze B2 without a DOI; post-validation, Zenodo issues a citable DOI for the v1 release.
+**If all gates pass:** the benchmark has demonstrated that it measures *something* stable and non-random. The MDS plot from 4c is the first dashboard-ready artifact and the first social-pipeline-worthy finding. **Open data DOI minting via Zenodo (§6.7) is also unlocked at this point** — pre-validation, the bundle is hosted on Backblaze B2 without a DOI; post-validation, Zenodo issues a citable DOI for the v1 release.
 
 **Phase 5 — Publish layer + minimal dashboard (two sessions)**
 - `cdb_publish/build.py` implemented (§4.4): reads `data/results/`, writes static JSON to `apps/dashboard/public/data/`
@@ -1383,10 +1341,9 @@ The aggregate ratio (`g1_aggregate_stability`) is retained as the mean of the tw
 - Add domains one at a time
 - Add heatmap, free-list compare
 - **Add `DriftTracker` (§4.5) — cross-version drift plus the longitudinal date-slider scrubbing view of corpus-lens shift across collection dates** (consolidates the v0.6 TemporalView; same data layer, single component)
-- **Open the researcher grounding submission process** (§4.2.5): publish `docs/grounding_submission_template.md`, the `.github/PULL_REQUEST_TEMPLATE/grounding_submission.md` PR template, the dashboard's "Submit your data" entry points (per `DESIGN_SYSTEM.md` §4.3), and the CI validation pipeline (schema check, format check, intersection report, gitleaks PII scan). If a researcher submission arrives during Phase 6, the CDA SME reviews and Mark merges, producing the first multi-baseline domain on the dashboard.
 - Add journalist affordances (lede, export, summary, citation modal, embed modal)
 - First public release of the open data bundle to Backblaze B2 + Zenodo DOI (§6.7)
-- Methodology page first draft (Mark writes or reviews personally — not Coder-generated). The methodology page's "Human grounding" section (per `DESIGN_SYSTEM.md` §6.1 outline item 5) explicitly invites researcher contributions and links to the submission template.
+- Methodology page first draft (Mark writes or reviews personally — not Coder-generated). The methodology page's "What this measures and what it does not" section (per `DESIGN_SYSTEM.md` §6.1 item 5) draws on §1.5 and is load-bearing for the project's defensibility; see §1.5.6.
 
 **Phase 7 — Social pipeline (one session)**
 - Triggers, drafters, review CLI
@@ -1398,7 +1355,7 @@ The aggregate ratio (`g1_aggregate_stability`) is retained as the mean of the tw
 - HuggingFace dataset release (raw responses + processed results under CC-BY-4.0)
 - GitHub repo set to public
 - Dashboard launched at `cogstructurelab.com` via Cloudflare Pages production deployment
-- Methodology page finalized: names the CDA tradition, cites Romney, D'Andrade, Weller, Borgatti, and Batchelder, links to free-access originals where available, and acknowledges the grounding source (Romney et al. 1996) in full
+- Methodology page finalized: names the CDA tradition, cites Romney, D'Andrade, Weller, Borgatti, and Batchelder as ancestry credit per `DESIGN_SYSTEM.md` §6.1 item 2, and links to free-access originals where available
 - First batch of social posts queued and published via the Phase 7 pipeline
 
 Phases 0–4 are the minimum viable benchmark and the scientific validation. If any Phase 4 gate fails, the dashboard is not built. This is the project's single most important design commitment: **we do not ship a pretty visualization layer over data we haven't validated.**
@@ -1410,7 +1367,7 @@ Three operational Slack channels carry agent and watchdog output. Each one has a
 | Channel | Posted by | Read by | Latency expectation | Routing rule |
 |---|---|---|---|---|
 | `#lsb-alerts` | `scripts/qa_check.py` (the QA_Runner, §4.1.6) | Mark, in real time | Minutes — this is the operational firefighting channel | **Bypasses the agent team entirely.** When QA fails on a freshly collected `InformantRecord`, the runner posts a structured failure message directly here. No agent task is enqueued, no GitHub issue is filed, the collection run continues. Mark looks at it, decides whether to pause collection / switch models / open a provider ticket, and acts. This is commitment #8 in §1 — software-only QA with direct human alerting. The agents do not subscribe to this channel and are not expected to. |
-| `#lsb-cda-sme` | The CDA SME agent (§5.1) | Mark; the next agent in the pipeline (Coder for non-frontend, UI/UX agent for frontend) | Hours to a day — this is the development pipeline gating channel | Every CDA SME verdict goes here as a structured message: PASS / PASS-WITH-NOTES / FAIL, one-paragraph rationale, and the four-axis scorecard (protocol validity / analytical validity / claims validity / audience translation). PASS and PASS-WITH-NOTES allow the plan to flow forward; FAIL bounces it back to the Architect. Researcher grounding submission PR reviews (§4.2.5) also post here. |
+| `#lsb-cda-sme` | The CDA SME agent (§5.1) | Mark; the next agent in the pipeline (Coder for non-frontend, UI/UX agent for frontend) | Hours to a day — this is the development pipeline gating channel | Every CDA SME verdict goes here as a structured message: PASS / PASS-WITH-NOTES / FAIL, one-paragraph rationale, and the four-axis scorecard (protocol validity / analytical validity / claims validity / audience translation). PASS and PASS-WITH-NOTES allow the plan to flow forward; FAIL bounces it back to the Architect. |
 | `#lsb-ui-ux` | The UI/UX agent (§5.1) | Mark; the Coder agent | Hours to a day — frontend development pipeline gating | Every UI/UX agent verdict goes here as a structured message: PASS / PASS-WITH-NOTES / FAIL, one-paragraph rationale, and the four-question scorecard (OWID design fidelity / 30-second journalist test / researcher reproduce-and-cite test / WCAG AA accessibility). Frontend plans only. The UI/UX agent also posts `DESIGN_SYSTEM.md` updates here when it has to extend the design system to cover a new visual question — Mark sees those updates as they happen rather than discovering them later in a diff. |
 
 **Why three channels rather than one.** Mixing operational alerts with development verdicts means either the alerts get lost in the development noise or Mark trains himself to ignore the channel he's supposed to be watching most closely. Splitting them keeps the QA_Runner's "drop everything" signal distinct from the agents' "ready for review" signal. The two flavors of agent verdict (CDA SME and UI/UX) are split because frontend and methodology are different review surfaces with different reviewers — collapsing them would force the Coder to filter every message to figure out which ones apply to the current task.
@@ -1431,7 +1388,7 @@ Three operational Slack channels carry agent and watchdog output. Each one has a
 
 **Cost tracking.** Authoritative spend lives on the provider dashboards (Anthropic, OpenAI, Google AI Studio, OpenRouter, Hugging Face). LSB does not track cost in-repo. Per-provider hard caps are configured directly on each account and are the only enforced spend constraint.
 
-**Anthropic prompt caching for orchestrator calls (added v0.6).** All static documents passed into agent API calls — `ARCHITECTURE.md`, `CLAUDE.md`, `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_4C_CANDIDATE_SOURCES.md`, `PHASE_0_TASKS.md`, `docs/DATA_DICTIONARY.md`, the §1.5.4 language guardrails table, and any other long-lived context the orchestrator passes into Claude — **must use Anthropic prompt caching**. These documents are large, change rarely, and are passed into nearly every agent task. Without caching, every task pays the full input-token cost on every invocation. With caching, the per-task orchestrator cost drops by approximately 80%. Implementation: pass `cache_control={"type": "ephemeral"}` on the relevant content blocks per the Anthropic API docs. The Reviewer agent must reject any orchestrator call that passes one of the listed static documents without prompt caching enabled — this is a binding cost-control rule, not a stylistic preference. Per-document caching keys should be derived from the file's git SHA so that an updated document invalidates its own cache without forcing a full rebuild.
+**Anthropic prompt caching for orchestrator calls (added v0.6).** All static documents passed into agent API calls — `ARCHITECTURE.md`, `CLAUDE.md`, `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_0_TASKS.md`, `docs/DATA_DICTIONARY.md`, the §1.5.4 language guardrails table, and any other long-lived context the orchestrator passes into Claude — **must use Anthropic prompt caching**. These documents are large, change rarely, and are passed into nearly every agent task. Without caching, every task pays the full input-token cost on every invocation. With caching, the per-task orchestrator cost drops by approximately 80%. Implementation: pass `cache_control={"type": "ephemeral"}` on the relevant content blocks per the Anthropic API docs. The Reviewer agent must reject any orchestrator call that passes one of the listed static documents without prompt caching enabled — this is a binding cost-control rule, not a stylistic preference. Per-document caching keys should be derived from the file's git SHA so that an updated document invalidates its own cache without forcing a full rebuild.
 
 ### 6.3 Secrets
 
@@ -1532,12 +1489,12 @@ All open decisions from §7 of v0.3.1 are resolved as of v0.4. The table below r
 | 1 | **Hosting.** Cloudflare Pages vs. Vercel vs. self-host. | **Cloudflare Pages.** Free tier, global CDN, auto-deploy from main branch, `_headers` file for CSP enforcement. No Cloudflare Workers needed — the static publish architecture eliminates any server-side compute requirement. | §4.4, §4.4.3, §4.4.4 |
 | 2 | **Budget cap for collection runs.** What's the monthly ceiling? | **SUPERSEDED 2026-05-01.** Original resolution: $300/month with three-tier defense. Superseded by task #F2-T12: spend tracking removed from the codebase; authoritative spend now lives on provider dashboards only. Per-provider hard caps are configured directly on each account. See §6.2. | §6.2 |
 | 3 | **Model inclusion list for v1.** How many models, which ones? | **12-model slate** filtered on three axes: origin (US, EU, China), openness (closed-weight, open-weight), and collection method (`anthropic_api`, `openrouter`, `huggingface`). Models are reached only via the three remote APIs in §5.3 Phase 1 — no local mirror. Exact model IDs per §3.2 and the locked list in this table's era. | §3.2 ModelRef schema, §4.1.3, §5.3 Phase 1 |
-| 4 | **Domain order.** Which domains ship in v1, in what order? | **family → holidays → food.** Family is the most interpretable and is grounded (Romney 1996). Holidays has the most visually obvious finding for a journalist. Food produces strong cross-model divergence. These three constitute a credible v1. | §5.3 Phase 4a, Phase 6 |
+| 4 | **Domain order.** Which domains ship in v1, in what order? | **family → holidays → food.** Family is the most interpretable. Holidays has the most visually obvious finding for a journalist. Food produces strong cross-model divergence. These three constitute a credible v1. All domains are model-to-model per the 2026-05-07 amendment. | §5.3 Phase 4a, Phase 6 |
 | 5 | **Benchmark name.** "Cultural Domain Benchmark" is unmemorable. | **Latent Structure Benchmark (LSB)** for the benchmark; **Cognitive Structure Lab** for the website at `cogstructurelab.com` (with `cogstructurelab.ai` owned and redirecting — v0.5). Two-name split intentional — each name optimizes for its job. | §1.6 |
 | 6 | **Licensing.** Code: MIT or Apache 2.0? Data: CC-BY? Prompts: CC0? | **Apache 2.0** (code), **CC-BY-4.0** (data + docs), **CC0** (prompts), **CC0** (open data bundle, added v0.6). Four license files at repo root. Romney 1996 grounding data carries an additional attribution requirement in `data/grounding/family/source.md`. | §6.6, §6.7 |
 | 7 | **Local model inclusion.** Include Ollama models? How labeled? | **Superseded (v0.5).** No Ollama; no on-prem inference. Open-weight models use **OpenRouter** and/or **Hugging Face Inference Providers** only. `ModelRef.collection_method` is `openrouter` or `huggingface` (or `anthropic_api` for Claude). | §3.2 ModelRef schema, §4.1.3, §5.3 Phase 1 |
 | 8 | **ArXiv timing.** When does the paper go up? | **REMOVED (v0.3).** No paper. The dashboard's methodology page is the canonical reference. | §1.5.6 |
-| 9 | **Grounding data source for family terms.** | **RESOLVED (v0.2.1).** Licensed, peer-reviewed published data only. Primary source: Romney et al. (1996), PNAS, PMC free full text. See `PHASE_4C_CANDIDATE_SOURCES.md`. | §4.2.5, §6.6 |
+| 9 | **Grounding data source for family terms.** | **SUPERSEDED (2026-05-07 amendment).** Human grounding removed from v1. Romney et al. (1996) is retained as ancestry credit on the methodology page per `DESIGN_SYSTEM.md` §6.1 item 2; their data is not used as a comparison axis. `data/grounding/family/romney_1996/` files preserved for audit trail. | §1.5.5, §4.2.5 |
 | 10 | **Prompt-sensitivity variant count.** 4 variants enough? | **8 variants** at the API gate (Phase 4b). 16–32 variants optionally on open-weight models via OpenRouter/Hugging Face within budget (v0.5 — no local stretch). | §4.1.3, §5.3 Phase 4b |
 | 11 | **FastAPI vs. static JSON.** Retain FastAPI for the drift endpoint? | **Static JSON only.** The drift join is done at publish time by `cdb_publish/build.py`. No server. `cdb_api` renamed to `cdb_publish`. | §4.4, §4.4.5 |
 | 12 | **Cloudflare Pages build config.** Build command, output directory, branch triggers? | Build: `npm run build`. Output: `apps/dashboard/dist/`. Auto-deploy on push to `main`. | §4.4.3 |
@@ -1584,14 +1541,14 @@ Listing these to keep the Coder agent from scope-creep:
 - **Corpus lens** — the plain-language term for what LSB measures: the shape a model imposes on a domain, inherited from its training data. The methodologically precise version is "the latent categorical structure of a training corpus, refracted through a model's training and alignment pipeline." See §1.5.1. "Corpus lens" is for headlines, social posts, dashboard copy, and any audience that does not need the long form; the long form is for methodology pages and citations. The two are equivalent in meaning, not in audience.
 - **InformantRecord** — the canonical full per-run subject record, defined in §3.2. One per `(model, domain, run_index)`. Captures model identity (including the exact version string returned by the API), collection conditions (endpoint, API version, temperature, top_p, max_tokens, system prompt verbatim), all three CDA step records (`FreelistRecord`, `PileSortRecord`, `InterviewRecord` — each with verbatim prompts, verbatim responses, full provider response objects, parsed outputs, token counts, latency, stop reason), a SHA256 manifest covering every verbatim field, and the QA verdict from `qa_check.py`. The append-only stream of `InformantRecord` objects in `data/raw/informants.jsonl` is the canonical raw data of LSB and the primary content of the open data bundle (§6.7).
 - **QA_Runner** — `scripts/qa_check.py`. Deterministic Python script that validates every freshly collected `InformantRecord` against six hardcoded checks (free-list count ≥10, run-to-run uniqueness ≥60%, binary-and-symmetric pile-sort matrix, latency <30s, output-token consistency, provider request ID present). Failures set `qa_passed=False` and post directly to `#lsb-alerts`. **Bypasses the agent team entirely** — the alert path is operational, not developmental. See §4.1.6 and §1 commitment 8.
-- **DriftTracker** — the dashboard component (§4.5 `DriftTracker.tsx`) that visualizes both cross-version drift across model releases and longitudinal corpus-lens shift across collection dates per model family. Date-slider scrubbing (`DESIGN_SYSTEM.md` §3.6) lets users watch model points animate to their position at each historical collection date while human baseline markers stay anchored as fixed reference points. Unit of analysis is `model_version_returned` × `collection_date`, not `model_id` (because providers silently roll snapshots). Change metric is Procrustes drift score versus the first observation. Phase 6 deliverable; the data structure (verbatim version strings, append-only by collection date, all historical runs retained) must be in place from Phase 1 because the longitudinal view is retroactively unbuildable if early runs are missing or overwritten. v0.7 consolidates the v0.6 `TemporalView.tsx` into this single component to align with `DESIGN_SYSTEM.md`.
-- **Baseline kind** — the `baseline_kind` field on `GroundingRef` (§3.2). Two values: `published` (extracted by Mark from peer-reviewed academic literature, e.g., Romney et al. 1996) and `researcher` (submitted by an external researcher via the GitHub PR workflow in §4.2.5). Renders differently on the MDS plot — published baselines as black stars (★), researcher baselines as gray diamonds (◆) — per `DESIGN_SYSTEM.md` §3.3.
-- **Researcher grounding** — human CDA data contributed to LSB by an external researcher (anthropologist, linguist, cognitive scientist) via the GitHub PR workflow in §4.2.5. The researcher retains all rights to their data; LSB validates format, runs schema and PII checks in CI, the CDA SME reviews the methodology, Mark merges, and the new baseline appears on the dashboard with full attribution. v1 uses GitHub PR submission; v2 may add an in-app submission form. A domain may have zero, one, or many researcher baselines, alongside zero, one, or many published baselines.
-- **Grounding states (0 / 1 / 2 / 3)** — the four display states defined in `DESIGN_SYSTEM.md` §4.1: State 0 (no human baselines available — a normal first-class state per §1.5.5), State 1 (published baseline only), State 2 (researcher baseline only), State 3 (multiple baselines, published + researcher or multiple researcher). Driven directly by the contents of `DomainResult.groundings` (§3.2): empty list = State 0, one entry = State 1 or 2 by `baseline_kind`, two or more entries = State 3.
-- **DESIGN_SYSTEM.md** — the binding visual specification document for all frontend work on LSB. Owned by the UI/UX agent. Specifies design tokens, page architecture, the OWID-style article-with-explorer layout, the data explorer pattern, the four grounding-display states, the researcher submission UI, the methodology page structure, accessibility requirements, mobile behavior, and the component inventory. Required reading before any frontend task per CLAUDE.md item 14 (§5.2).
+- **DriftTracker** — the dashboard component (§4.5 `DriftTracker.tsx`) that visualizes both cross-version drift across model releases and longitudinal corpus-lens shift across collection dates per model family. Date-slider scrubbing (`DESIGN_SYSTEM.md` §3.6) lets users watch model points animate to their position at each historical collection date; the view is model-to-model only (v1). Unit of analysis is `model_version_returned` × `collection_date`, not `model_id` (because providers silently roll snapshots). Change metric is Procrustes drift score versus the first observation. Phase 6 deliverable; the data structure (verbatim version strings, append-only by collection date, all historical runs retained) must be in place from Phase 1 because the longitudinal view is retroactively unbuildable if early runs are missing or overwritten. v0.7 consolidates the v0.6 `TemporalView.tsx` into this single component to align with `DESIGN_SYSTEM.md`.
+- **Baseline kind** (historical, post-2026-05-07 amendment) — the `baseline_kind` field on `GroundingRef` (§3.2). Two values: `published` (extracted by Mark from peer-reviewed academic literature, e.g., Romney et al. 1996) and `researcher` (submitted by an external researcher via the GitHub PR workflow). Human grounding was removed from v1 per the 2026-05-07 amendment; see §1.5.5 and §4.2.5. The schema field is retained for forward compatibility.
+- **Researcher grounding** (historical, post-2026-05-07 amendment) — human CDA data contributed to LSB by an external researcher via the GitHub PR workflow. Removed from v1 per the 2026-05-07 amendment; see §1.5.5. The schema infrastructure is retained but not exercised in v1.
+- **Grounding states (0 / 1 / 2 / 3)** (historical, post-2026-05-07 amendment) — the four display states originally defined in `DESIGN_SYSTEM.md` §4.1. As of the 2026-05-07 amendment, all v1 domains are permanently State 0 (model-to-model only; `groundings: []`). The State 1/2/3 states are retained in the schema for forward compatibility but are not rendered in v1.
+- **DESIGN_SYSTEM.md** — the binding visual specification document for all frontend work on LSB. Owned by the UI/UX agent. Specifies design tokens, page architecture, the OWID-style article-with-explorer layout, the data explorer pattern, model-to-model visualization states (all domains are model-to-model in v1 per §1.5.5), the methodology page structure, accessibility requirements, mobile behavior, and the component inventory. Required reading before any frontend task per CLAUDE.md item 13 (§5.2).
 - **UI/UX agent** — Sonnet-class agent added in v0.7. Sits between the CDA SME and the Coder for frontend tasks only. The design conscience of the project. Reviews every frontend plan against four questions rooted in `DESIGN_SYSTEM.md`: OWID design fidelity, the 30-second journalist test, the researcher reproduce-and-cite test, and WCAG AA accessibility. Verdicts (PASS / PASS-WITH-NOTES / FAIL) post to `#lsb-ui-ux`. Owns `DESIGN_SYSTEM.md` and updates it before passing any plan through that requires a visual decision the design system does not yet cover. See §5.1.
 - **`#lsb-alerts`** — the operational firefighting Slack channel where `scripts/qa_check.py` posts QA failures directly. Bypasses the agent team entirely (commitment #8 in §1). Mark monitors in real time. See §4.1.6, §5.4.
-- **`#lsb-cda-sme`** — the development pipeline gating Slack channel where the CDA SME agent posts methodological verdicts (PASS / PASS-WITH-NOTES / FAIL with four-axis scorecard). Read by Mark and by the next agent in the pipeline. Also receives researcher grounding submission PR review verdicts. See §5.1, §5.4.
+- **`#lsb-cda-sme`** — the development pipeline gating Slack channel where the CDA SME agent posts methodological verdicts (PASS / PASS-WITH-NOTES / FAIL with four-axis scorecard). Read by Mark and by the next agent in the pipeline. See §5.1, §5.4.
 - **`#lsb-ui-ux`** — the frontend pipeline gating Slack channel where the UI/UX agent posts design verdicts (PASS / PASS-WITH-NOTES / FAIL with four-question scorecard) and `DESIGN_SYSTEM.md` updates. Read by Mark and the Coder. See §5.1, §5.4.
 - **LSB / Latent Structure Benchmark** — the methodologically precise name for this project. Used in citation contexts, methodology pages, schema fields, and the repository name. The full phrase is canonical; "LSB" is the casual abbreviation. See §1.6.
 - **Cognitive Structure Lab** — the public-facing website name and brand, hosted at **`cogstructurelab.com`**. Used in social posts, headlines, and the URL. Not a synonym for "LSB" — the two names have different jobs. See §1.6.
@@ -1602,7 +1559,7 @@ Listing these to keep the Coder agent from scope-creep:
 - **lsb-agent-01** — the original Hetzner project VPS (CPX32, Helsinki) that ran `cdb_collect/runner.py`, `scripts/qa_check.py`, the cron jobs, and the social pipeline. Decommissioned 2026-04-19 after a test-data loss incident (see `docs/INCIDENTS/2026-04-19-test-data-loss.md`). **Superseded by `lsb-agent-02`** — Linode Shared 4GB in Chicago, now the sole development and production host as of 2026-04-23. See `HOSTING_AND_DEV_OPS.md` top-of-doc banner and §3.1 dev-posture note. This glossary entry is retained because other sections of this document still reference the `lsb-agent-01` name.
 - **Validation gate (G1 / G2 / G3)** — the three quantitative pass/fail criteria at the end of Phase 4. G1 = stability (within-model variance < between-model variance); G2 = signal (similarity matrix distinguishable from random, p < 0.01); G3 = replication (cluster structure reproduces across independent runs, Rand index ≥ 0.7). All three must pass before Phase 5 begins. See §5.3.
 - **Bootstrap ellipse** — the 95% confidence ellipse drawn around each model's MDS point, derived by resampling runs with replacement B=500 times. Every MDS plot in the dashboard renders these ellipses; bare point estimates are forbidden. See §4.2.6.
-- **GroundingRef** — the pydantic schema type that tracks the human CDA baseline injected as a virtual informant into the analysis pipeline. Fields include source citation, year, n_informants, MDS coordinates, and distance to nearest model. See §3.2.
+- **GroundingRef** (historical, post-2026-05-07 amendment) — the pydantic schema type that tracked human CDA baselines injected as virtual informants into the analysis pipeline. Human grounding was removed from v1 per the 2026-05-07 amendment; the class is retained for forward compatibility but produces no instances in v1. See §3.2 and §1.5.5.
 - **Phase 1 (collection)** — unified phase: remote APIs only (Anthropic API, OpenRouter, Hugging Face Inference Providers) on project VPS; milestones A then B within §5.3. No Phase 1a/1b hardware split.
 - **Three-axis filtering** — the model-selection and display filter applied to the 12-model slate: origin (US / EU / China) × openness (closed-weight / open-weight) × collection method (`anthropic_api` / `openrouter` / `huggingface`). The dashboard's `ModelFilter` component exposes all three axes. See §3.2, §4.5.
 - **`cdb_publish`** — the Python package responsible for reading `data/results/` and writing pre-shaped static JSON files to `apps/dashboard/public/data/` at build time. Replaces the former `cdb_api` FastAPI service. See §4.4.

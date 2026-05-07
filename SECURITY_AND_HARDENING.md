@@ -478,7 +478,7 @@ The two paths together give two independent ways to verify a record's authentici
 
 ### 7.4 Researcher submission PII handling
 
-When a researcher submits human grounding data via the GitHub PR workflow (`ARCHITECTURE.md` §4.2.5, `docs/grounding_submission_template.md`), the CI pipeline runs three checks:
+**Historical note (2026-05-07):** the researcher grounding submission workflow was removed from v1 per the 2026-05-07 amendment (see `ARCHITECTURE.md` §1.5.5). The PII handling specifications below are retained for reference in case the workflow is reintroduced in a future version. If human grounding data is submitted via any future workflow, the CI pipeline should run these checks:
 
 1. **`gitleaks` scan** — catches accidentally-committed API keys, OAuth tokens, or other credential-shaped strings
 2. **PII scan** — a custom check that looks for patterns suggesting subject-identifying content: email addresses (other than the submitter's contact), phone numbers, full names in unexpected fields, free-text demographic identifiers in the per-subject CSV. Implemented as `scripts/check_grounding_pii.py` (Phase 6 deliverable, listed in `PHASE_0_TASKS.md` only as a placeholder until then)

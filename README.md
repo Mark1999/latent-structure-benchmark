@@ -2,7 +2,7 @@
 
 **Cognitive Structure Lab — [cogstructurelab.com](https://cogstructurelab.com)**
 
-LSB is a benchmark for the **corpus lens** of large language models — the shape a model imposes on a domain, inherited from its training data. We apply Cultural Domain Analysis (CDA), a methodology developed by cognitive anthropologists in the 1970s and 80s to study how human informants organize cultural vocabulary, and we apply it to LLMs as if the models were informants. The result is a comparative map of how different models — Claude, GPT, DeepSeek, Llama, Mistral, Qwen, and others — organize the same set of everyday domain words (family terms, holidays, food, color, emotion). Where published or contributed human CDA data is available, we put a human reference point on the same map.
+LSB measures what frontier LLMs produce when asked to categorize, in a way that's reproducible, comparable across models, and trackable across time. It applies Cultural Domain Analysis (CDA) — a methodology developed by cognitive anthropologists in the 1970s and 80s to study how human informants organize cultural vocabulary — to LLMs as if the models were informants. The result is a comparative map of how different models (Claude, GPT, DeepSeek, Llama, Mistral, Qwen, and others) organize the same set of everyday domain words (family terms, holidays, food, color, emotion). Every domain on the dashboard is, permanently, model-to-model.
 
 The **dashboard** is the primary deliverable: an interactive comparative explorer at [cogstructurelab.com](https://cogstructurelab.com), with downloadable images, citations, and the underlying numbers behind every figure. The benchmark, the open data, and the social pipeline all exist to make the dashboard credible, useful, and discoverable.
 
@@ -22,8 +22,7 @@ For the full scientific framing, see [`ARCHITECTURE.md`](ARCHITECTURE.md) §1.5.
 ├── DESIGN_SYSTEM.md         # Frontend design system, binding for all UI work
 ├── CLAUDE.md                # Team constitution for the Claude Code agent pipeline
 ├── docs/
-│   ├── DATA_DICTIONARY.md            # Field-by-field schema doc for the open data bundle
-│   └── grounding_submission_template.md  # Researcher submission walkthrough
+│   └── DATA_DICTIONARY.md            # Field-by-field schema doc for the open data bundle
 ├── packages/                # Python packages (cdb_core, cdb_collect, cdb_analyze, cdb_publish, cdb_social)
 ├── apps/dashboard/          # React + Vite + TypeScript frontend
 ├── data/                    # Raw, processed, results, grounding, open bundle
@@ -38,7 +37,6 @@ For the full scientific framing, see [`ARCHITECTURE.md`](ARCHITECTURE.md) §1.5.
 - **Architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **Design system:** [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)
 - **Team constitution:** [`CLAUDE.md`](CLAUDE.md)
-- **Researcher contributions:** [`docs/grounding_submission_template.md`](docs/grounding_submission_template.md)
 
 ## Licenses
 
@@ -54,23 +52,9 @@ LSB uses a split licensing model. The license depends on the type of content, no
 
 License files at the repo root: `LICENSE` (Apache 2.0), `LICENSE-DATA` (CC-BY-4.0), `LICENSE-PROMPTS` (CC0), `LICENSE-OPENBUNDLE` (CC0).
 
-The Romney et al. (1996) family-terms grounding data carries an additional scholarly attribution requirement documented in `data/grounding/family/romney_1996/source.md`. CC-BY-4.0 already requires attribution; we're being explicit about the citation form.
+The `data/grounding/family/romney_1996/` directory contains historical reference data extracted before the 2026-05-07 amendment that removed human baselines from v1 (see `docs/status/2026-05-07-lsb-philosophy-and-framing.md`). Per the existing `data/grounding/family/romney_1996/source.md`, the Romney et al. (1996) attribution requirement applies to anyone reusing that file.
 
 For the full licensing rationale see [`ARCHITECTURE.md`](ARCHITECTURE.md) §6.6 and §6.7.
-
-## Contributing human CDA data
-
-**LSB exists in part to connect to the broader CDA research community.** If you have collected pile sort or free list data from human subjects for any domain LSB measures — *or any domain LSB doesn't measure yet* — you can contribute it for display on the dashboard alongside the model results.
-
-The contribution path is a GitHub Pull Request:
-
-1. Read [`docs/grounding_submission_template.md`](docs/grounding_submission_template.md) for the file format and data requirements.
-2. Fork this repo, add your files at `data/grounding/{domain}/{your_baseline_id}/`, and open a PR. The PR template walks through everything LSB needs to merge your submission.
-3. CI validates the format. The CDA SME agent reviews the methodology. Mark merges. Your data appears on the dashboard with full attribution; you retain all rights.
-
-You don't need to be a developer to contribute. If GitHub is unfamiliar, find a collaborator who can drive the PR, or open a Discussion on this repo and we'll help.
-
-The whole point of the project is to put AI corpus-lens findings next to actual human CDA findings. Your data is the human half of that comparison.
 
 ## Citation
 
@@ -80,8 +64,6 @@ A formal citation will be available with a Zenodo DOI after the LSB Phase 4 vali
 Cognitive Structure Lab. The Latent Structure Benchmark (LSB), analysis vX.Y.
 https://cogstructurelab.com (accessed YYYY-MM-DD).
 ```
-
-If you cite a specific finding that depends on a particular human grounding baseline, please *also* cite the original source of that baseline. The dashboard's grounding detail panel shows the citation inline, and the methodology page lists every baseline with its full reference.
 
 ## Status
 

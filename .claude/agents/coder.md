@@ -38,7 +38,6 @@ Additional reads required by task scope (per CLAUDE.md §2 reading table):
   or any CI/CD configuration
 - `HOSTING_AND_DEV_OPS.md` before any deployment-related task
 - `docs/SME_REVIEW.md` before any analysis or methodology task
-- `PHASE_4C_CANDIDATE_SOURCES.md` before any grounding work
 
 ## Hard rules — Reviewer will catch every one of these
 

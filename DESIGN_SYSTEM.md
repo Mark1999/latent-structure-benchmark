@@ -21,7 +21,7 @@ The LSB dashboard is a **scientific publication, not a product.** It is modeled 
 
 - **Journalists** — need to understand the finding in 30 seconds and export a shareable image
 - **AI engineers** — want to filter models, compare results, and understand methodology
-- **Researchers** — need to reproduce findings, access raw data, and contribute their own human CDA data alongside the model results. LSB exists in part *to* connect to the human CDA research community; the researcher submission path (§4.3) is a first-class affordance, not an afterthought, and the design language must read as an open scientific instrument rather than a closed publication.
+- **Researchers** — need to reproduce findings and access raw data. LSB releases verbatim prompts (CC0), verbatim model responses (CC-BY-4.0), reproducible numerics with bootstrap configuration documented, and code under permissive license (Apache 2.0). The design language must read as an open scientific instrument: a place where researchers form their own interpretations from reliably produced measurements.
 
 The design succeeds when all three audiences leave satisfied without the interface having been dumbed down for any of them.
 
@@ -77,8 +77,8 @@ All visual decisions derive from these tokens. They are defined once in `apps/da
 --color-origin-cn: #c0392b;  /* China-origin models */
 
 /* Human baseline markers */
---color-baseline-published:   #2c3e50;   /* black-ish — published data (Romney et al.) */
---color-baseline-researcher:  #7f8c8d;   /* gray — researcher-submitted data */
+--color-baseline-published:   #2c3e50;   /* Retained for archival reference; not consumed by v1 components per the 2026-05-07 amendment. */
+--color-baseline-researcher:  #7f8c8d;   /* Retained for archival reference; not consumed by v1 components per the 2026-05-07 amendment. */
 
 /* Uncertainty */
 --color-ellipse-fill:    rgba(51, 96, 169, 0.08);   /* per-model, use model color at 8% opacity */
@@ -207,17 +207,13 @@ The Data Explorer is the primary interactive element. It replicates OWID's Data 
 │  (D3 or Plotly renders here)     │  ☑ Claude Opus  [US] ●  │
 │                                  │  ☑ GPT-4o       [US] ●  │
 │  — confidence ellipses           │  ☑ DeepSeek     [CN] ●  │
-│  — human baseline markers        │  ☐ Qwen         [CN] ●  │
+│                                  │  ☐ Qwen         [CN] ●  │
 │  — interactive hover tooltips    │  ☐ Mistral      [EU] ●  │
 │  — zoom and pan                  │  ☐ Llama 3      [US] ●  │
 │                                  │  [Show all 12 models]    │
 │                                  │                          │
 │                                  │  ─────────────────────   │
 │                                  │  Human baselines         │
-│                                  │  ☑ Romney 1996 (★)      │
-│                                  │  ☐ Tanaka 2026 (◆)      │
-│                                  │  [+ Submit your data]    │
-│                                  │                          │
 │                                  │  ─────────────────────   │
 │                                  │  Filter by               │
 │                                  │  Origin: [US][EU][CN]    │
@@ -256,11 +252,9 @@ The MDS Plot is the signature visualization. It is the first thing a visitor see
 1. **Grid lines** — light gray (#dde1e7), no axis labels on the grid itself
 2. **Axis labels** — "MDS Dimension 1" and "MDS Dimension 2" in small muted text, with a footnote explaining these are relative dimensions, not named scales
 3. **Confidence ellipses** — one per model, filled at 8% opacity of model color, stroked at 25% opacity. Rendered before points so points sit on top.
-4. **Human baseline ellipses** — only when raw subject data is available. Dashed stroke, no fill. Published baseline uses `--color-baseline-published`, researcher baseline uses `--color-baseline-researcher`.
-5. **Human baseline markers** — published baseline: black star (★), larger than model points. Researcher baseline: gray diamond (◆). Both have a white halo stroke to separate from background.
-6. **Model points** — filled circles, 10px radius, model color. White 2px stroke border.
-7. **Model labels** — short name (e.g., "Claude", "GPT-4o") in 12px Lato, positioned to minimize overlap using a label offset algorithm. Never overlap a point.
-8. **Hover tooltip** — appears on point hover. Shows: full model name, provider, origin, collection date, top 5 free list terms for this model in this domain, distance to human baseline if available.
+4. **Model points** — filled circles, 10px radius, model color. White 2px stroke border.
+5. **Model labels** — short name (e.g., "Claude", "GPT-4o") in 12px Lato, positioned to minimize overlap using a label offset algorithm. Never overlap a point.
+6. **Hover tooltip** — appears on point hover. Shows: full model name, provider, origin, collection date, top 5 free list terms for this model in this domain.
 
 **Interactions:**
 - Hover on point → tooltip appears, ellipse brightens
@@ -268,18 +262,14 @@ The MDS Plot is the signature visualization. It is the first thing a visitor see
 - Hover on ellipse → tooltip shows bootstrap parameters (n_bootstrap, CI level)
 - Zoom with scroll wheel, pan with drag
 - Double-click → reset zoom
-- Hover on human baseline marker → tooltip shows citation, n_informants, population, year
 
-**Conditional rendering by grounding state:**
+**Conditional rendering — model-to-model only (2026-05-07 amendment):**
 
-The MDS plot supports four grounding states, defined identically to `ARCHITECTURE.md` §4.5 and §4 below. State 0 (no human baselines) is a normal, first-class state for any domain — not a degraded fallback. A domain may have zero, one, or many baselines simultaneously (`DomainResult.groundings` is a list per `ARCHITECTURE.md` §3.2), and the MDS plot must render each state without ever implying the domain is incomplete or broken.
+The MDS plot renders model-to-model. Per the 2026-05-07 amendment, no human baseline markers are rendered in v1. The State 0 visual specification below is the only state. The schema retains `DomainResult.groundings: list[GroundingRef]` for forward compatibility but the v1 published data ships with the field empty for all domains.
 
 | State | Baseline marker(s) | Baseline ellipse(s) | Legend entry |
 |---|---|---|---|
-| **State 0** — No baselines | None rendered | None rendered | "This domain is studied model-to-model. Have human CDA data for [domain]? **Submit yours →**" — never reads as a missing-content placeholder |
-| **State 1** — Published only | Black star (★) | Dashed, only when raw subject data is available | "Human baseline — Romney et al. 1996, n=122, US college students" |
-| **State 2** — Researcher only | Gray diamond (◆) | Dashed, only when raw subject data is available | "Researcher baseline — [Name], [Institution], [Year], n=[N]" |
-| **State 3** — Multiple baselines | All applicable markers visible together | All available ellipses rendered | One legend entry per baseline, visually grouped, with a short note: "Multiple human baselines — each reflects a different population." |
+| **State 0 — model-to-model (the only v1 state)** | None rendered | None rendered | No baseline-related legend entry |
 
 ### 3.3.5 Register 1 (OCI) annotations on Register 2 points — added post-F1 SME review
 
@@ -379,12 +369,6 @@ The model selector is a persistent left-side panel (or collapsible on mobile). I
 - "Select all" / "Clear all" links
 - Maximum 6 models selected simultaneously for readability (enforced with an inline warning if exceeded)
 
-**Human baselines section:**
-- Separated from models by a labeled divider: "Human baselines"
-- Each available baseline shown as a checkbox with its marker shape (★ or ◆), source label, and year
-- Multiple baselines per domain are fully supported and listed together — published and researcher submissions appear in the same list, distinguished by their marker shape
-- **"+ Submit your data"** appears as a persistent action affordance at the bottom of the section in *every* state (with baselines or without). It reads as an invitation to contribute, not as a fallback link. Visual treatment: same weight as a checkbox row, dashed border on the icon to distinguish it from data rows.
-- When the current domain has no baselines (State 0 per §3.3 and §4.1), the section shows a short, neutral line above the submit affordance: "This domain is studied model-to-model. Researcher contributions welcome." — *not* "no data available" or "missing baselines" or "no baselines yet" or anything that frames the absence as a defect or as an interim state pending arrival.
 
 ### 3.8 Key Finding Strip
 
@@ -403,170 +387,19 @@ Max-width: 780px, centered
 
 When the domain changes, the finding updates with a 200ms fade transition.
 
-**Conditional behavior** (driven by `DomainResult.groundings` and `selected_baseline_id` per `ARCHITECTURE.md` §3.2):
-
-- **State 0 — no baselines:** finding is comparative ("Claude and GPT-4o organize family terms most similarly; DeepSeek diverges sharpest..."). This is a complete, equivalent-status finding — not a placeholder for a richer one. The lede generator (`ARCHITECTURE.md` §4.2.3) is given the same instructions for State 0 as for any other state and produces declarative, confident copy.
-- **State 1 — published baseline:** finding may reference the human baseline ("Claude sits closest to the 1996 Romney US human consensus on family terms...").
-- **State 2 — researcher baseline:** finding may reference the researcher baseline with attribution ("...closest to the [Researcher] [Year] [Population] consensus...").
-- **State 3 — multiple baselines:** finding references whichever baseline produces the most narratively significant result for the current model selection. The user can toggle the "selected baseline" via the Grounding Selector (§3.7) and the finding regenerates from the precomputed alternatives in the static JSON.
-
-Under no circumstances does the comparative-only finding (State 0) read as a degraded form of the grounded finding. They are different findings, both first-class.
+**Conditional behavior:** The key finding is comparative across the selected models. The lede generator (`ARCHITECTURE.md` §4.2.3) produces declarative, confident copy describing how the selected models organize the domain relative to each other.
 
 ---
 
-## 4. Grounding Display Specification
+## 4. Grounding display — removed (2026-05-07)
 
-**Binding framing (added v0.2, mirrors `ARCHITECTURE.md` v0.7 §1.5.5):** Human grounding is **per-domain optional and multi-baseline by default**. A domain may carry zero, one, or many human baselines simultaneously. Each of these is a normal, first-class state:
+An earlier version of this design system (v0.2–v0.3) specified a four-state grounding display framework (State 0: no baselines, State 1: published baseline, State 2: researcher baseline, State 3: multiple baselines), each with marker shapes (★ published, ◆ researcher), ellipse rendering rules, a Grounding Detail Panel, and a Data Submission UI.
 
-- **Zero baselines (State 0)** is a normal state. Many LSB domains will never have a published human CDA dataset and may never receive a researcher submission. The dashboard renders these domains as fully complete model-to-model comparisons. The interface must never imply that an ungrounded domain is broken, missing data, awaiting completion, or in any way less valid than a grounded one. The work LSB does on an ungrounded domain — comparing how different models organize the same vocabulary — is the floor of the project's contribution and stands on its own.
-- **One baseline (States 1 or 2)** is a normal state. Family terms in v1 has Romney 1996 (published, State 1). Other domains may launch with a single researcher submission instead.
-- **Many baselines (State 3)** is a normal state. Family terms could have Romney 1996 *and* a hypothetical Tanaka 2026 Kyoto kinship submission at the same time. These are not in tension — they are two different human populations whose categorical structure is itself an interesting comparison.
+The 2026-05-07 amendment removed human grounding from the project (see `ARCHITECTURE.md` §1.5.5 for the framing rationale). The four-state framework collapses to "model-to-model only." Every v1 domain ships with `groundings: []` and the MDS plot renders no baseline markers, no baseline ellipses, and no "Submit your data" affordance.
 
-The data layer is designed for all of this from Phase 1: `DomainResult.groundings` is a `list[GroundingRef]` (`ARCHITECTURE.md` §3.2), not a singleton; `data/grounding/{domain}/{baseline_id}/` is a multi-baseline directory layout (`ARCHITECTURE.md` §4.2.5); the four display states below are driven directly by the contents of that list with no special-casing for the empty case.
+`data/grounding/family/romney_1996/` retains historical reference data per the amendment plan but is not consumed by any v1 component. See `ARCHITECTURE.md` §4.2.5.
 
-**No empty states. No broken layouts. No placeholder content that looks like missing content.** State 0 is an active state with its own copy and its own affordances, not a stub waiting for data to arrive.
-
-### 4.1 The Four Grounding States
-
-**State 0 — No human baselines for this domain (a normal state)**
-
-Many LSB domains live here permanently and that is fine. The MDS plot shows model points and ellipses with no human reference markers. The Human baselines section of the model selector (§3.7) shows:
-
-```
-This domain is studied
-model-to-model.
-
-Researcher contributions
-welcome.
-
-+ Submit your data
-```
-
-The key finding (§3.8) is comparative and complete in its own right — it does not gesture at an absent baseline or read as the comparative half of a missing whole. Under no circumstances does any visible copy in State 0 say "no human baseline available," "missing baseline data," "awaiting human grounding," "ungrounded," or any phrasing that frames the absence as a defect rather than a property of the domain.
-
-**State 1 — One published baseline (a normal state)**
-
-Family terms ships in v1 in this state with Romney 1996. Black star (★) marker appears in the MDS plot. Legend entry reads:
-"★ Human baseline — Romney, Boyd, Moore et al. (1996), n=122, US college students, 1990s"
-
-Clicking the star opens the Grounding Detail Panel (see §4.2). The Human baselines section of the model selector still shows the persistent "+ Submit your data" affordance — additional baselines are always welcome alongside an existing one.
-
-**State 2 — One researcher-submitted baseline (a normal state)**
-
-A domain may launch with a researcher submission and no published baseline, or accumulate a researcher submission later. Gray diamond (◆) marker appears. Legend entry reads:
-"◆ [Researcher Name], [Institution] ([Year]), n=[N], [Population]"
-
-Clicking opens the Grounding Detail Panel with full researcher attribution. The "+ Submit your data" affordance is again persistent.
-
-**State 3 — Multiple baselines (a normal state)**
-
-Two or more baselines visible at once: published + researcher, multiple published (rare but possible — same domain studied by independent groups), or multiple researcher submissions from different populations. All applicable markers visible together. The legend has one entry per baseline, visually grouped, with a short note: "Multiple human baselines available — each reflects a different population." The Grounding Selector (§3.7) lets the user toggle which baseline is the *selected* one for the current view; the key finding (§3.8) regenerates from precomputed alternatives. Non-selected baselines remain visible on the MDS plot at reduced visual weight (lower opacity on the marker, no ellipse) so the user can see all baselines at a glance while one is foregrounded.
-
-### 4.2 Grounding Detail Panel
-
-Slides in from the right when a baseline marker is clicked. Same panel pattern used for model detail.
-
-**Published grounding panel:**
-```
-★ Human Baseline
-
-Romney, Boyd, Moore, Batchelder & Brazill (1996)
-Culture as Shared Cognitive Representations
-PNAS 93(10), 4699–4705
-DOI: 10.1073/pnas.93.10.4699
-[Full text at PubMed Central ↗]
-
-Population: n=122, US college students, early 1990s
-Method: Pairwise similarity judgments
-Item set: [list of items in the intersection]
-Intersection with LSB item set: 18 of 25 items (72%)
-
-Distance to nearest model: 0.23 (Claude Opus)
-Distance to farthest model: 0.71 (DeepSeek-V3)
-
-Note: Uncertainty ellipse not available — published
-aggregate only, individual subject data not provided.
-
-[Download grounding data] [Cite this source]
-```
-
-**Researcher grounding panel:**
-```
-◆ Researcher Baseline
-
-[Researcher Name], [Institution]
-[Project title if available]
-[Year] · [Link to project/publication ↗]
-
-Population: n=[N], [Population description]
-Method: Pile sort (Romney protocol)
-Collection date: [Date]
-IRB: [Yes/No/Not applicable]
-Item set: [items]
-Intersection with LSB item set: [N] of [total] ([%])
-
-[uncertainty ellipse line — if raw data submitted]
-Bootstrap ellipse available (n=[N] subjects resampled
-B=500 times).
-
-Note: This dataset was submitted by an independent
-researcher. LSB has verified format but not
-independently replicated the collection.
-
-[Download submitted data] [Cite researcher's work]
-[Submit your own data →]
-```
-
-### 4.3 Data Submission UI
-
-The "Submit your data" entry point appears in three places — and is persistent in all four grounding states, never hidden behind an "if no baseline" condition:
-
-1. The model selector panel's Human baselines section (§3.7), persistent in all four states
-2. The Grounding Detail Panel footer (§4.2), shown alongside any existing baseline
-3. The methodology page, in the human grounding section (§6.1)
-
-Clicking it opens a modal:
-
-```
-Submit Human CDA Data
-
-LSB exists in part to connect AI corpus-lens findings
-to the broader CDA research community. If you have
-collected pile sort or free list data from human
-subjects for any domain LSB measures — or any domain
-LSB doesn't measure yet — you can submit it for
-display alongside the model results.
-
-Your data will appear on the dashboard with full
-attribution. You retain all rights to your data.
-LSB redistributes under CC-BY-4.0 with attribution.
-
-Requirements:
-• Raw pile sort decisions per subject (CSV format),
-  or an aggregate co-occurrence matrix at minimum
-• Subject count and population description  
-• Collection method and protocol
-• Your name, affiliation, and contact
-• Ethics approval documentation if applicable
-
-[Download submission template →]
-[Open submission form on GitHub →]
-
-Questions? [Contact us]
-```
-
-The modal copy is deliberately phrased to invite contributions for domains LSB does not yet measure, not only the ones it does. A submission for a new domain triggers an Architect-agent decision about whether to add the domain to the v1 slate or queue it for v2; either way, the researcher's data is acknowledged, not refused.
-
-### 4.4 Cross-references to ARCHITECTURE.md
-
-The data layer that backs everything in §4 lives in `ARCHITECTURE.md` v0.7. The design system assumes that document and does not duplicate it. Specifically:
-
-- **`ARCHITECTURE.md` §1.5.5** — the binding scientific framing for grounding: per-domain optional, multi-baseline by default, ungrounded as a normal first-class state, researcher submissions as a v1 feature.
-- **`ARCHITECTURE.md` §3.2** — the `GroundingRef` schema (with `baseline_id`, `baseline_kind`, submitter fields, IRB status, population description, item-set alignment fields) and the `DomainResult.groundings: list[GroundingRef]` plus `selected_baseline_id` fields that drive every state in §4.1 above.
-- **`ARCHITECTURE.md` §4.2.5** — the `data/grounding/{domain}/{baseline_id}/` directory layout, the published vs researcher kinds, the full v1 GitHub-PR researcher submission workflow (validation in CI, CDA SME review, Mark merges), and the citation discipline rules.
-- **`ARCHITECTURE.md` §4.5** — the architectural contract that every `DomainResult` carries enough information to render any of the four states without an extra fetch, and the rule that `DESIGN_SYSTEM.md` is authoritative for visual decisions while `ARCHITECTURE.md` is authoritative for data and component structure decisions.
-
-If anything in §4 above appears to disagree with `ARCHITECTURE.md`, that is a bug to be flagged on the next architecture pass — not a license for the Coder to invent an interpretation. The UI/UX agent is responsible for keeping the two documents in sync.
+For the binding source-of-truth on the framing rationale, see `docs/status/2026-05-07-lsb-philosophy-and-framing.md` and `ARCHITECTURE.md` §1.5.5.
 
 ---
 
@@ -630,15 +463,17 @@ The methodology page is a first-class deliverable, not an afterthought. It is wr
    — Bootstrap uncertainty: why every point has an ellipse
    — Cultural consensus analysis
 
-5. Human grounding
-   — Why grounding matters when it's available (relative vs absolute claims)
-   — Why ungrounded is also a complete first-class result, not a missing piece
-   — A domain may carry zero, one, or many baselines — all equivalent in status
-   — Published baselines: Romney et al. 1996 (cited in full), how they were extracted
-   — Researcher submissions: how they appear, how they are attributed, how to contribute
-   — How to submit: link to the GitHub submission template, the requirements,
-     the review process (CDA SME + Mark), the CC-BY-4.0 redistribution terms
-   — What "no grounding" means for interpretation — and what it doesn't mean
+5. What this measures and what it does not
+   — The shape of the model's output distribution under structured CDA elicitation
+   — What the numbers (Smith's S, Romney CCM, MDS, Procrustes, OCI) describe:
+     output-distribution shape — not cognition, belief, understanding, or cultural consensus
+   — Why this is still worth doing: comparative model characterization, drift detection,
+     stability under prompt rephrasing, confabulation under blind-spot conditions,
+     reproducible public benchmark (per `ARCHITECTURE.md` §1.5.7 / philosophy doc §7)
+   — The honest tagline: "LSB measures what frontier LLMs produce when asked to
+     categorize, in a way that's reproducible, comparable across models, and
+     trackable across time." (Quotable; source: `ARCHITECTURE.md` §1.5)
+   — "The mismatch is the finding" framing (`ARCHITECTURE.md` §1.5.2 / §1.5.6)
 
 6. Known limitations
    — English-only v1
@@ -732,12 +567,10 @@ All components to be built, in implementation order:
 - `VizSwitcher.tsx` — tab bar for switching visualizations
 - `MDSPlot.tsx` — primary D3 scatter plot with ellipses
 - `ModelSelector.tsx` — checkbox panel with origin badges
-- `GroundingSelector.tsx` — human baseline checkboxes + submit link
 - `DomainPicker.tsx` — horizontal pill buttons
 - `KeyFinding.tsx` — the lede sentence strip
 - `SourceAttribution.tsx` — source line below chart
 - `DownloadBar.tsx` — PNG, CSV, permalink, embed buttons
-- `GroundingDetailPanel.tsx` — slide-in panel for baseline detail
 - `CiteModal.tsx` — citation formats modal
 - `EmbedModal.tsx` — embed code modal
 
@@ -747,7 +580,6 @@ All components to be built, in implementation order:
 - `DriftTracker.tsx` — longitudinal D3 chart with date slider
 - `DateSlider.tsx` — scrubbing control for drift view
 - `ModelDetailPanel.tsx` — slide-in panel for model detail
-- `SubmitGroundingModal.tsx` — researcher submission modal
 - `AccessibilityTableToggle.tsx` — chart → table switch
 - `ScreenReaderSummary.tsx` — hidden prose for screen readers
 

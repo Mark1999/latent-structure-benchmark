@@ -82,7 +82,7 @@ The constraint is that nothing in Phase 0 should commit the project to a decisio
 - [ ] `LICENSE-OPENBUNDLE` (CC0 1.0) — covers `data/open_bundle/` and the Backblaze B2 / Zenodo distribution per `ARCHITECTURE.md` §6.7 (added v0.3 of this task list, per `ARCHITECTURE.md` v0.6)
 - [ ] Each license file uses the canonical text from the license author (Apache Foundation / Creative Commons), not a paraphrase
 - [ ] Each license file has a one-paragraph LSB header at the top (above the canonical license text) explaining what content the license covers in LSB, with a pointer to `ARCHITECTURE.md` §6.6 / §6.7
-- [ ] The `LICENSE-DATA` header notes the additional Romney et al. (1996) attribution requirement for `data/grounding/family/romney_1996/` per `ARCHITECTURE.md` §6.6
+- [ ] The `LICENSE-DATA` header notes the Romney et al. (1996) attribution requirement for `data/grounding/family/romney_1996/` per `ARCHITECTURE.md` §6.6. Note: as of the 2026-05-07 amendment, `data/grounding/` retains historical reference data only and is not consumed by any v1 analysis pipeline; see `ARCHITECTURE.md` §1.5.5 and `data/grounding/README.md`.
 - [ ] Commit message: `chore: P0-T2 add four LICENSE files`
 
 **Files touched.**

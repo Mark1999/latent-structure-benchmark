@@ -36,7 +36,6 @@ Additional reads triggered by task scope:
 - `DESIGN_SYSTEM.md` before any frontend planning
 - `docs/DATA_DICTIONARY.md` before any schema planning
 - `SECURITY_AND_HARDENING.md` before collection layer or CI/CD planning
-- `PHASE_4C_CANDIDATE_SOURCES.md` before any grounding work
 
 ## Your responsibilities
 

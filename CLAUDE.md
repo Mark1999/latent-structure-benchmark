@@ -4,7 +4,7 @@
 **Version:** v1.0 (first canonical version, aligned with `ARCHITECTURE.md` v0.7 and `DESIGN_SYSTEM.md` v0.2)
 **Status:** Binding for all Claude Code agents working on LSB
 **Audience:** Architect, CDA SME, UI/UX, Coder, Reviewer, Tester agents — and Mark
-**Companion docs:** `ARCHITECTURE.md` (binding for data, schema, agent pipeline, phase plan), `DESIGN_SYSTEM.md` (binding for all frontend work), `PHASE_0_TASKS.md`, `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_4C_CANDIDATE_SOURCES.md`, `docs/DATA_DICTIONARY.md`, `docs/grounding_submission_template.md`
+**Companion docs:** `ARCHITECTURE.md` (binding for data, schema, agent pipeline, phase plan), `DESIGN_SYSTEM.md` (binding for all frontend work), `PHASE_0_TASKS.md`, `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `docs/DATA_DICTIONARY.md`
 
 > **Read this file at the start of every task.** It is short on purpose. The detailed specs live in the companion docs above; this file is the routing layer.
 
@@ -40,8 +40,6 @@ The source-of-truth hierarchy. Read these in this order, only as needed for the 
 | 4 | [`SECURITY_AND_HARDENING.md`](SECURITY_AND_HARDENING.md) | Before touching `apps/dashboard/`, `packages/cdb_collect/`, or any CI/CD configuration. The Reviewer rules table in §9 is enforced on every PR. |
 | 5 | [`HOSTING_AND_DEV_OPS.md`](HOSTING_AND_DEV_OPS.md) | Before any deployment-related task or any task touching `.github/workflows/`, Cloudflare Pages config, or environment variables. |
 | 6 | [`PHASE_0_TASKS.md`](PHASE_0_TASKS.md) | The canonical decomposition for the Coder's first session. Read before any P0 task. |
-| 7 | [`PHASE_4C_CANDIDATE_SOURCES.md`](PHASE_4C_CANDIDATE_SOURCES.md) | Before any task touching `data/grounding/`, `packages/cdb_analyze/grounding.py`, or the Phase 4c family-domain grounding workflow. |
-| 8 | [`docs/grounding_submission_template.md`](docs/grounding_submission_template.md) | Before any work on the researcher submission workflow or before reviewing a researcher submission PR. |
 
 **Reading is mandatory, not advisory.** A Coder who skips `DATA_DICTIONARY.md` and proceeds to "improve" the `GroundingRef` schema is going to break the open data contract. A Coder who skips `DESIGN_SYSTEM.md` and invents a chart color is going to get rejected by the UI/UX agent. The Reviewer agent rejects PRs that show evidence of skipped reading (e.g., schema changes without matching dictionary updates, new components with off-palette colors, generated text with forbidden vocabulary).
 
@@ -84,7 +82,7 @@ Three operational channels. Each has a different audience, latency expectation, 
 | Channel | Posted by | Latency | Routing rule |
 |---|---|---|---|
 | `#lsb-alerts` | `scripts/qa_check.py` (QA_Runner); `weekly-cost-alert.yml` (GitHub Actions) | Minutes — operational firefighting | **Bypasses the agent team entirely.** Mark monitors in real time. |
-| `#lsb-cda-sme` | CDA SME agent | Hours to a day — development gating | Verdicts (PASS / PASS-WITH-NOTES / FAIL) with four-axis scorecard. Researcher grounding PR reviews also post here. |
+| `#lsb-cda-sme` | CDA SME agent | Hours to a day — development gating | Verdicts (PASS / PASS-WITH-NOTES / FAIL) with four-axis scorecard. |
 | `#lsb-ui-ux` | UI/UX agent | Hours to a day — frontend gating | Verdicts with four-question scorecard. `DESIGN_SYSTEM.md` updates also post here. Frontend plans only. |
 
 **Webhook env vars:** `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`. Stored in `.env` (never committed) and in 1Password. See `HOSTING_AND_DEV_OPS.md` §6 and `SECURITY_AND_HARDENING.md` §8 for the secret-handling specifics.
@@ -98,18 +96,16 @@ These rules apply to every task. Numbering matches `ARCHITECTURE.md` §5.2. The 
 1. **Read `ARCHITECTURE.md` before starting any task.** §1.5 is binding on all generated text.
 2. **Read `SECURITY_AND_HARDENING.md`** before touching the dashboard, the collection layer, or CI/CD.
 3. **Read `HOSTING_AND_DEV_OPS.md`** before any deployment work.
-4. **Read `PHASE_4C_CANDIDATE_SOURCES.md`** before any grounding work.
-5. **Read `PHASE_0_TASKS.md`** for the Phase 0 decomposition.
-6. **Read `docs/DATA_DICTIONARY.md`** before touching `cdb_core/schemas.py` (especially `InformantRecord` or `GroundingRef`) or `scripts/build_db.py`.
-7. **Never edit `cdb_core/schemas.py` without Architect sign-off.** Schema changes ripple everywhere. Changes to `InformantRecord` or `GroundingRef` require a matching `DATA_DICTIONARY.md` update in the same PR — the Reviewer agent enforces this.
-8. **Prompt templates are versioned.** Never edit a published prompt template in place; copy it to a new version directory under `packages/cdb_collect/prompts/v{N}/`.
-9. **No API keys in the repo.** Use `.env` + `python-dotenv`; `.env.example` is tracked, `.env` is ignored. The `gitleaks` pre-commit hook is the first line of defense; GitHub secret scanning is the second.
-10. **No real model calls in tests.** Use fixtures from `tests/fixtures/`.
-11. **No point estimates without uncertainty in any visualization.** See `ARCHITECTURE.md` §4.2.6 and §4.5. The Reviewer agent rejects any new viz that cannot express uncertainty.
-12. **No LLM calls in `cdb_analyze`.** LLMs are informants in `cdb_collect`, not analysts in `cdb_analyze`. The Reviewer's static import check on `cdb_analyze` enforces this — any PR that imports `anthropic`, `openai`, `google.generativeai`, `huggingface_hub.InferenceClient`, or any other LLM client library inside `packages/cdb_analyze/` is rejected automatically. The single exception is the lede generator, which lives in `cdb_publish` (not `cdb_analyze`) precisely to keep this boundary visible. See `ARCHITECTURE.md` §4.2 binding constraint and §1 commitment 6.
-13. **Architect plans must be CDA-SME-approved before reaching the Coder.** For frontend tasks, plans must additionally carry a UI/UX agent PASS or PASS-WITH-NOTES verdict before reaching the Coder.
-14. **Read `DESIGN_SYSTEM.md` before any frontend task.** The UI/UX agent owns this document; the Coder may not invent visual decisions outside of it. If a frontend task needs a visual decision the design system does not yet cover, the Coder pauses, surfaces the question to the UI/UX agent, and only resumes once the design system has been updated.
-15. **Researcher grounding submission PRs** follow the workflow in `ARCHITECTURE.md` §4.2.5. CI validates the format (schema check, format check, item-intersection report, gitleaks PII scan). The CDA SME agent reviews the methodology. Mark merges. The PR template lives at `.github/PULL_REQUEST_TEMPLATE/grounding_submission.md`.
+4. **Read `PHASE_0_TASKS.md`** for the Phase 0 decomposition.
+5. **Read `docs/DATA_DICTIONARY.md`** before touching `cdb_core/schemas.py` (especially `InformantRecord` or `GroundingRef`) or `scripts/build_db.py`.
+6. **Never edit `cdb_core/schemas.py` without Architect sign-off.** Schema changes ripple everywhere. Changes to `InformantRecord` or `GroundingRef` require a matching `DATA_DICTIONARY.md` update in the same PR — the Reviewer agent enforces this.
+7. **Prompt templates are versioned.** Never edit a published prompt template in place; copy it to a new version directory under `packages/cdb_collect/prompts/v{N}/`.
+8. **No API keys in the repo.** Use `.env` + `python-dotenv`; `.env.example` is tracked, `.env` is ignored. The `gitleaks` pre-commit hook is the first line of defense; GitHub secret scanning is the second.
+9. **No real model calls in tests.** Use fixtures from `tests/fixtures/`.
+10. **No point estimates without uncertainty in any visualization.** See `ARCHITECTURE.md` §4.2.6 and §4.5. The Reviewer agent rejects any new viz that cannot express uncertainty.
+11. **No LLM calls in `cdb_analyze`.** LLMs are informants in `cdb_collect`, not analysts in `cdb_analyze`. The Reviewer's static import check on `cdb_analyze` enforces this — any PR that imports `anthropic`, `openai`, `google.generativeai`, `huggingface_hub.InferenceClient`, or any other LLM client library inside `packages/cdb_analyze/` is rejected automatically. The single exception is the lede generator, which lives in `cdb_publish` (not `cdb_analyze`) precisely to keep this boundary visible. See `ARCHITECTURE.md` §4.2 binding constraint and §1 commitment 6.
+12. **Architect plans must be CDA-SME-approved before reaching the Coder.** For frontend tasks, plans must additionally carry a UI/UX agent PASS or PASS-WITH-NOTES verdict before reaching the Coder.
+13. **Read `DESIGN_SYSTEM.md` before any frontend task.** The UI/UX agent owns this document; the Coder may not invent visual decisions outside of it. If a frontend task needs a visual decision the design system does not yet cover, the Coder pauses, surfaces the question to the UI/UX agent, and only resumes once the design system has been updated.
 
 ---
 
@@ -180,9 +176,9 @@ These are mistakes that have happened on similar projects, or that the LSB desig
 
 2. **Putting an LLM call in `cdb_analyze`.** It is *very* tempting to "just have Claude summarize this matrix for the lede." Don't. The lede generator lives in `cdb_publish`, not `cdb_analyze`, and it receives only already-computed numeric findings. The §1 commitment 6 / §4.2 binding constraint exists because an analysis pipeline that depends on an opaque model to interpret another opaque model is not falsifiable. The Reviewer's static import check rejects this automatically — even helper functions and utility wrappers are caught.
 
-3. **Treating `groundings` as a singleton.** The v0.7 schema is `DomainResult.groundings: list[GroundingRef]`, not `DomainResult.grounding: GroundingRef | None`. A domain can have zero, one, or many baselines. Code that does `result.grounding.mds_coordinate` will fail; code that does `result.groundings[0].mds_coordinate` will fail when `groundings` is empty. Always handle the list semantics explicitly, and treat the empty case as a normal first-class state per `ARCHITECTURE.md` §1.5.5.
+3. **(Historical — see `ARCHITECTURE.md` §1.5.5 for the 2026-05-07 amendment removing human grounding from v1; the schema's list semantic is retained for forward compatibility.) Treating `groundings` as a singleton.** The v0.7 schema is `DomainResult.groundings: list[GroundingRef]`, not `DomainResult.grounding: GroundingRef | None`. A domain can have zero, one, or many baselines. Code that does `result.grounding.mds_coordinate` will fail; code that does `result.groundings[0].mds_coordinate` will fail when `groundings` is empty. Always handle the list semantics explicitly, and treat the empty case as a normal first-class state per `ARCHITECTURE.md` §1.5.5.
 
-4. **Writing dashboard copy that says "no human baseline available yet."** Ungrounded is not a placeholder waiting for data. It is a complete first-class state. The State 0 copy in `DESIGN_SYSTEM.md` §4.1 says "This domain is studied model-to-model. Researcher contributions welcome." The Reviewer rejects copy that frames absence as a defect.
+4. **(Historical — the 2026-05-07 amendment removed human baselines from v1; this pitfall is preserved as guidance against re-introducing 'no baseline available yet' framing in any future text.) Writing dashboard copy that says "no human baseline available yet."** Absence of a human baseline is not a defect or placeholder state. Every v1 domain is model-to-model by design. The Reviewer rejects copy that frames the absence as a defect or as an interim state pending arrival.
 
 5. **Forgetting to update `DATA_DICTIONARY.md` when changing a schema.** Reviewer rule R7 (in `SECURITY_AND_HARDENING.md` §9) requires that any change to `InformantRecord` or `GroundingRef` carry a matching update to the data dictionary in the same PR. There is no "I'll update the docs in a follow-up PR" — the open data contract depends on the dictionary being in lockstep with the schemas.
 
@@ -198,7 +194,7 @@ These are mistakes that have happened on similar projects, or that the LSB desig
 
 11. **Committing a webhook URL.** Slack webhook URLs are credentials. Anyone with the URL can post to the channel. They live in `.env` and in 1Password, never in the repo. `gitleaks` has a custom rule for them.
 
-12. **Assuming `data/grounding/{domain}/` is a single directory with one baseline.** The v0.7 schema makes it `data/grounding/{domain}/{baseline_id}/`. A single-baseline domain has one subdirectory; a multi-baseline domain has many. Code that hard-codes a path like `data/grounding/family/cooccurrence.csv` is broken — it should be `data/grounding/family/{baseline_id}/cooccurrence.csv` and iterate over all baselines in the parent directory.
+12. **(Historical — see `ARCHITECTURE.md` §1.5.5; `data/grounding/` retains historical reference data per the 2026-05-07 amendment, not active production data.) Assuming `data/grounding/{domain}/` is a single directory with one baseline.** The v0.7 schema makes it `data/grounding/{domain}/{baseline_id}/`. A single-baseline domain has one subdirectory; a multi-baseline domain has many. Code that hard-codes a path like `data/grounding/family/cooccurrence.csv` is broken — it should be `data/grounding/family/{baseline_id}/cooccurrence.csv` and iterate over all baselines in the parent directory.
 
 13. **Reusing a detector / marker list across input↔output classification boundaries without SME review at code-review time.** Detector helpers and substring lists carry an implicit role assumption — "this list classifies failure-record `error_message` fields" (input) is a different role from "this list classifies decline-interview `response_verbatim` text" (output). The same vocabulary that signals a safety event in an input string can appear naturally in a substantive narrative describing that event. Reusing the list across the boundary is a category error. The Phase 4a.1 T3B detector miscalibration was an instance of this — `SAFETY_FILTER_MARKERS`, designed for `should_include_failure()` (input classification), was reused inside `_is_recursive_decline()` (output classification) and produced an 18/24 false-positive rate. The Reviewer must flag any change that introduces or modifies such cross-boundary reuse and route it to the CDA SME for review at code-review time, before the helper is exercised on production data. See `docs/status/2026-04-23-phase4a1-t3b-detector-cda-sme-verdict.md` (R6) for the originating ruling.
 
