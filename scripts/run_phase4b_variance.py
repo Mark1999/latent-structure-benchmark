@@ -14,10 +14,6 @@ Provider preflight: at startup one cheap probe is issued per provider.  If a
 provider returns 429 / quota-exhausted, those models are excluded from the run
 plan and the campaign continues with remaining models.
 
-Spend cap: CDB_MAX_SPEND_USD env var (default $50).  Cost is estimated from
-registry pricing fields × tokens accumulated per cell.  When the cap is
-crossed the script aborts cleanly and prints a resume command.
-
 Retry budget: 2 attempts per cell (one initial + one retry).  After 2
 attempts the failure is appended to failures.jsonl (failures-as-findings
 posture; see docs/status/2026-05-07-lsb-philosophy-and-framing.md §9).
@@ -38,11 +34,10 @@ Usage::
     uv run python scripts/run_phase4b_variance.py --dry-run
 
     # Live run
-    export CDB_MAX_SPEND_USD=50
     uv run python scripts/run_phase4b_variance.py
 
     # Live run with explicit campaign-id
-    CDB_MAX_SPEND_USD=50 uv run python scripts/run_phase4b_variance.py \\
+    uv run python scripts/run_phase4b_variance.py \\
         --campaign-id phase4b-real-2026-05-08
 
     # Compute success rates only (reads existing jsonl, appends to log)
@@ -53,7 +48,6 @@ Exit codes:
     0 — clean run (complete or dry-run)
     1 — configuration error
     2 — run completed with at least one cell still failed (finding documented)
-    3 — spend cap crossed (partial run; resume with the printed command)
 
 References:
     Architect plan §8 T4:
@@ -72,7 +66,6 @@ import argparse
 import asyncio
 import json
 import logging
-import os
 import queue
 import signal
 import sys
@@ -81,7 +74,7 @@ import time
 from dataclasses import dataclass, field
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import IO, Any
+from typing import IO
 
 from cdb_collect.domains import load_domain
 from cdb_collect.exceptions import PartialSessionError
@@ -149,9 +142,6 @@ MAX_ATTEMPTS_PER_CELL: int = 2
 #: Delay between attempt 1 failure and attempt 2 start (seconds)
 INTER_ATTEMPT_DELAY_S: int = 5
 
-#: Default spend cap (can be overridden via CDB_MAX_SPEND_USD env var)
-DEFAULT_MAX_SPEND_USD: float = 50.0
-
 #: Provider → RPM limits (requests per minute)
 PROVIDER_RPM: dict[str, int] = {
     "anthropic_api": 50,
@@ -170,7 +160,6 @@ PROVIDER_SLEEP_S: dict[str, float] = {
 
 INFORMANTS_JSONL = Path("data/raw/informants.jsonl")
 FAILURES_JSONL = Path("data/raw/failures.jsonl")
-REGISTRY_PATH = Path("data/models/registry.json")
 PROMPT_EVOLUTION_LOG = Path("docs/PROMPT_EVOLUTION_LOG.md")
 LOGS_DIR = Path("logs")
 
@@ -215,49 +204,15 @@ class CampaignStats:
     n_pass: int = 0
     n_failed: int = 0
     n_skipped: int = 0
-    total_spend_usd: float = 0.0
     cells_attempted: list[VarianceCell] = field(default_factory=list)
     cells_remaining: list[VarianceCell] = field(default_factory=list)
     # Lock for cross-thread updates
     _lock: threading.Lock = field(default_factory=threading.Lock)
 
-    def add_spend(self, amount: float) -> None:
-        with self._lock:
-            self.total_spend_usd += amount
-
 
 # ---------------------------------------------------------------------------
 # Registry helpers
 # ---------------------------------------------------------------------------
-
-def load_registry_map() -> dict[str, dict[str, Any]]:
-    """Return a dict of model_id → registry entry dict."""
-    if not REGISTRY_PATH.exists():
-        return {}
-    data = json.loads(REGISTRY_PATH.read_text(encoding="utf-8"))
-    return {entry["model_id"]: entry for entry in data.get("models", [])}
-
-
-def estimate_cell_cost_usd(
-    model_id: str,
-    registry_map: dict[str, dict[str, Any]],
-    input_tokens: int,
-    output_tokens: int,
-) -> float:
-    """Estimate USD cost for one cell based on registry pricing.
-
-    Falls back to 0.0 if the model is not in the registry or has no pricing.
-    Cost is estimated as:
-        (input_tokens / 1e6) * pricing_input_per_m
-        + (output_tokens / 1e6) * pricing_output_per_m
-    """
-    entry = registry_map.get(model_id)
-    if not entry:
-        return 0.0
-    price_in = entry.get("pricing_input_per_m", 0.0) or 0.0
-    price_out = entry.get("pricing_output_per_m", 0.0) or 0.0
-    return (input_tokens / 1_000_000.0) * price_in + (output_tokens / 1_000_000.0) * price_out
-
 
 # ---------------------------------------------------------------------------
 # Provider grouping
@@ -492,16 +447,14 @@ def run_cell(
     campaign_id: str,
     informants_path: Path,
     failures_path: Path,
-    registry_map: dict[str, dict[str, Any]],
     stats: CampaignStats,
     log_fh: IO[str],
 ) -> str:
     """Attempt collection of one VarianceCell with 2-attempt retry budget.
 
-    Returns: "PASS" | "FAILED" | "SPEND_CAP"
+    Returns: "PASS" | "FAILED"
 
     Appends the record (or failure) to the appropriate file.
-    Updates stats.total_spend_usd.
     """
     prefix = (
         f"[{cell_index}/{total}] "
@@ -527,27 +480,19 @@ def run_cell(
                     campaign_id,
                 )
             )
-            # Accumulate spend estimate
-            in_tok = getattr(record, "input_tokens", 0) or 0
-            out_tok = getattr(record, "output_tokens", 0) or 0
-            cell_cost = estimate_cell_cost_usd(cell.model_id, registry_map, in_tok, out_tok)
-            stats.add_spend(cell_cost)
-
             append_record(record, informants_path)  # type: ignore[arg-type]
 
-            outcome_msg = f"PASS (spend=${stats.total_spend_usd:.2f})"
-            print(outcome_msg)
+            print("PASS")
 
             ts = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
             log_line = (
                 f"{ts} model={cell.model_id} variant={cell.prompt_version} "
-                f"domain={cell.domain} run={cell.run_index} outcome=PASS "
-                f"cell_cost_usd={cell_cost:.4f} total_spend_usd={stats.total_spend_usd:.4f}\n"
+                f"domain={cell.domain} run={cell.run_index} outcome=PASS\n"
             )
             log_fh.write(log_line)
             log_fh.flush()
 
-            logger.info("%s %s -> PASS cell_cost=%.4f", prefix, label, cell_cost)
+            logger.info("%s %s -> PASS", prefix, label)
             stats.n_pass += 1
             return "PASS"
 
@@ -633,11 +578,9 @@ def provider_worker(
     campaign_id: str,
     informants_path: Path,
     failures_path: Path,
-    registry_map: dict[str, dict[str, Any]],
     stats: CampaignStats,
     log_fh: IO[str],
     total_cells: int,
-    max_spend_usd: float,
     cell_counter: list[int],
     counter_lock: threading.Lock,
 ) -> None:
@@ -660,20 +603,6 @@ def provider_worker(
             # Sentinel — no more cells for this provider
             break
 
-        # Check spend cap before each cell
-        with stats._lock:
-            current_spend = stats.total_spend_usd
-
-        if current_spend >= max_spend_usd:
-            # Put the cell back and exit; main thread will detect cap crossed
-            cell_queue.put(item)
-            logger.warning(
-                "Provider %s worker: spend cap $%.2f reached; suspending",
-                provider_method,
-                max_spend_usd,
-            )
-            break
-
         with counter_lock:
             cell_counter[0] += 1
             cell_idx = cell_counter[0]
@@ -685,7 +614,6 @@ def provider_worker(
             campaign_id,
             informants_path,
             failures_path,
-            registry_map,
             stats,
             log_fh,
         )
@@ -977,9 +905,6 @@ def main() -> int:
 
     campaign_marker = f"campaign_id={campaign_id}"
 
-    # ── Spend cap ────────────────────────────────────────────────────────────
-    max_spend_usd = float(os.environ.get("CDB_MAX_SPEND_USD", DEFAULT_MAX_SPEND_USD))
-
     # ── Registry validation ──────────────────────────────────────────────────
     if not MODEL_REGISTRY:
         print(
@@ -988,8 +913,6 @@ def main() -> int:
             file=sys.stderr,
         )
         return 1
-
-    registry_map = load_registry_map()
 
     missing_models = [m for m in VARIANCE_MODEL_IDS if m not in MODEL_REGISTRY]
     if missing_models:
@@ -1035,7 +958,6 @@ def main() -> int:
 
     # ── Idempotence check ────────────────────────────────────────────────────
     print(f"Campaign: {campaign_id}")
-    print(f"Spend cap: ${max_spend_usd:.2f} (CDB_MAX_SPEND_USD)")
     completed_counts = count_completed_cells(
         campaign_marker,
         INFORMANTS_JSONL,
@@ -1067,7 +989,6 @@ def main() -> int:
         print(f"  Cells remaining in plan: {len(plan)}")
         print(f"  Triples already complete (>={N_RUNS_PER_CELL}/5): {n_already_complete}")
         print(f"  Log path: {log_path}")
-        print(f"  Spend cap: ${max_spend_usd:.2f}")
         print()
         print("  Model registry check:")
         for mid in VARIANCE_MODEL_IDS:
@@ -1146,7 +1067,7 @@ def main() -> int:
         ts = datetime.now(tz=UTC).strftime("%Y-%m-%dT%H:%M:%SZ")
         log_fh.write(
             f"{ts} Phase 4b variance campaign START: {campaign_id} "
-            f"cells={total_cells} spend_cap={max_spend_usd}\n"
+            f"cells={total_cells}\n"
         )
         log_fh.flush()
 
@@ -1164,11 +1085,9 @@ def main() -> int:
                     campaign_id,
                     INFORMANTS_JSONL,
                     FAILURES_JSONL,
-                    registry_map,
                     stats,
                     log_fh,
                     total_cells,
-                    max_spend_usd,
                     cell_counter,
                     counter_lock,
                 ),
@@ -1185,7 +1104,7 @@ def main() -> int:
         log_fh.write(
             f"{ts} Phase 4b variance campaign END: {campaign_id} "
             f"pass={stats.n_pass} failed={stats.n_failed} "
-            f"skipped={stats.n_skipped} total_spend_usd={stats.total_spend_usd:.4f}\n"
+            f"skipped={stats.n_skipped}\n"
         )
 
     # ── Final summary ─────────────────────────────────────────────────────────
@@ -1197,21 +1116,7 @@ def main() -> int:
     print(f"  Cells PASS:    {stats.n_pass}")
     print(f"  Cells FAILED:  {stats.n_failed}")
     print(f"  Cells SKIPPED: {stats.n_skipped}")
-    print(f"  Total spend:   ${stats.total_spend_usd:.4f}")
     print(f"  Log:           {log_path}")
-
-    # Spend cap check
-    if stats.total_spend_usd >= max_spend_usd:
-        print(
-            f"\nNOTE: Spend cap ${max_spend_usd:.2f} reached. "
-            "Some cells may not have been attempted."
-        )
-        print(
-            f"\nResume with:\n"
-            f"  python scripts/run_phase4b_variance.py "
-            f"--campaign-id {campaign_id}"
-        )
-        return 3
 
     # Compute and append success rates after collection
     print("\nComputing success rates...")

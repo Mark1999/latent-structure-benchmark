@@ -5,9 +5,9 @@ Tests cover:
 2. Resume logic: a triple with 5/5 existing records is skipped.
 3. Preflight-skip logic: models on a quota-exhausted provider are dropped from the plan.
 4. Success-rate computation against a small fixture corpus.
-5. run_cell retry budget: first-fail-second-pass appends 1 informant row.
-6. run_cell retry budget: both-fail appends 1 failure row.
-7. CDB_MAX_SPEND_USD spend cap: provider_worker exits when cap crossed.
+5. Module-level constants sanity checks.
+6. run_cell retry budget: first-fail-second-pass appends 1 informant row.
+7. run_cell retry budget: both-fail appends 1 failure row.
 8. append_success_rates_to_log: pre-existing rows preserved; new rows inserted after
    the pending placeholder.
 
@@ -690,35 +690,7 @@ def test_success_rate_empty_corpus(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# Test 5: cost estimation helper
-# ---------------------------------------------------------------------------
-
-def test_estimate_cell_cost_usd_known_model():
-    """Cost estimate uses registry pricing correctly."""
-    from run_phase4b_variance import estimate_cell_cost_usd
-
-    registry_map = {
-        "anthropic/claude-opus-4.6": {
-            "pricing_input_per_m": 5.0,
-            "pricing_output_per_m": 25.0,
-        }
-    }
-    # 1000 input tokens, 500 output tokens
-    # cost = (1000/1e6)*5.0 + (500/1e6)*25.0 = 0.005 + 0.0125 = 0.0175
-    cost = estimate_cell_cost_usd("anthropic/claude-opus-4.6", registry_map, 1000, 500)
-    assert abs(cost - 0.0175) < 1e-9
-
-
-def test_estimate_cell_cost_usd_missing_model():
-    """Missing model returns 0.0 without raising."""
-    from run_phase4b_variance import estimate_cell_cost_usd
-
-    cost = estimate_cell_cost_usd("unknown/model", {}, 1000, 500)
-    assert cost == 0.0
-
-
-# ---------------------------------------------------------------------------
-# Test 6: module-level constants sanity checks
+# Test 5: module-level constants sanity checks
 # ---------------------------------------------------------------------------
 
 def test_20_model_ids():
@@ -758,7 +730,7 @@ def test_n_runs_per_cell_is_5():
 
 
 # ---------------------------------------------------------------------------
-# Test 7: run_cell retry budget (MAX_ATTEMPTS_PER_CELL = 2)
+# Test 6: run_cell retry budget (MAX_ATTEMPTS_PER_CELL = 2)
 # ---------------------------------------------------------------------------
 #
 # run_cell() calls asyncio.run(_run_one_informant(...)) internally.
@@ -828,7 +800,6 @@ def test_run_cell_retry_first_fail_second_pass(tmp_path: Path):
             campaign_id="phase4b-real-2026-05-08",
             informants_path=informants_path,
             failures_path=failures_path,
-            registry_map={},
             stats=stats,
             log_fh=log_fh,
         )
@@ -870,7 +841,6 @@ def test_run_cell_retry_both_fail(tmp_path: Path):
             campaign_id="phase4b-real-2026-05-08",
             informants_path=informants_path,
             failures_path=failures_path,
-            registry_map={},
             stats=stats,
             log_fh=log_fh,
         )
@@ -889,64 +859,7 @@ def test_run_cell_retry_both_fail(tmp_path: Path):
 
 
 # ---------------------------------------------------------------------------
-# Test 8: CDB_MAX_SPEND_USD spend cap — provider_worker exits when cap crossed
-# ---------------------------------------------------------------------------
-#
-# The provider_worker checks stats.total_spend_usd >= max_spend_usd before
-# each cell.  We pre-seed stats with a spend that already meets the cap and
-# confirm the worker exits without calling run_cell.
-
-def test_provider_worker_exits_when_spend_cap_reached(tmp_path: Path):
-    """provider_worker exits immediately when spend cap is already met."""
-    import io
-    import queue
-    import threading
-    from unittest.mock import patch
-
-    from run_phase4b_variance import CampaignStats, VarianceCell, provider_worker
-
-    cell = VarianceCell("anthropic/claude-opus-4.6", "v1_s1", "family", 0)
-
-    q: queue.Queue = queue.Queue()
-    q.put(cell)
-    q.put(None)  # sentinel
-
-    # Pre-seed stats at or above the cap
-    max_spend = 10.0
-    stats = CampaignStats()
-    stats.total_spend_usd = max_spend  # already at cap
-
-    log_fh = io.StringIO()
-    cell_counter = [0]
-    counter_lock = threading.Lock()
-
-    with patch("run_phase4b_variance.run_cell") as mock_run_cell:
-        provider_worker(
-            provider_method="anthropic_api",
-            cell_queue=q,
-            campaign_id="phase4b-real-2026-05-08",
-            informants_path=tmp_path / "informants.jsonl",
-            failures_path=tmp_path / "failures.jsonl",
-            registry_map={},
-            stats=stats,
-            log_fh=log_fh,
-            total_cells=1,
-            max_spend_usd=max_spend,
-            cell_counter=cell_counter,
-            counter_lock=counter_lock,
-        )
-
-    mock_run_cell.assert_not_called()
-    # The cell should have been put back onto the queue when cap was detected
-    # (per provider_worker logic lines 668–669); queue is not empty.
-    assert not q.empty() or cell_counter[0] == 0, (
-        "provider_worker should not have incremented cell_counter when cap reached"
-    )
-    assert cell_counter[0] == 0
-
-
-# ---------------------------------------------------------------------------
-# Test 9: append_success_rates_to_log — append-only invariant
+# Test 7: append_success_rates_to_log — append-only invariant
 # ---------------------------------------------------------------------------
 #
 # append_success_rates_to_log() reads the existing log and inserts new rows
