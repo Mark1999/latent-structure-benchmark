@@ -239,13 +239,15 @@ class TestDryRunScenarios:
         tmpdir: Path,
         verbose: bool = False,
         cost_per_call: float = 0.05,  # ignored; kept for call-site compat
-        spend_cap: float = 2.00,      # used to derive max_batch_calls for tests
+        legacy_dollar_threshold: float = 2.00,  # unit-conversion artifact (old-contract tests)
     ) -> tuple[int, str]:
         """Write fixtures to temp files, run dry-run, capture stdout, return (exit_code, output).
 
-        cost_per_call is ignored (cost tracking removed). spend_cap is converted to
-        a call-count cap: max_batch_calls = int(spend_cap / cost_per_call) so that
-        existing test thresholds remain meaningful (e.g. $2/$0.05 = 40 calls).
+        cost_per_call is ignored (cost tracking removed). legacy_dollar_threshold is a
+        unit-conversion artifact from tests written under the old dollar-threshold contract;
+        it is converted to a call-count cap: max_batch_calls = int(legacy_dollar_threshold /
+        cost_per_call) so that existing test thresholds remain meaningful (e.g. $2/$0.05 =
+        40 calls).
         """
         informants_path = tmpdir / "informants.jsonl"
         failures_path = tmpdir / "failures.jsonl"
@@ -256,8 +258,8 @@ class TestDryRunScenarios:
         # Create output file so we can snapshot its mtime
         output_path.touch()
 
-        # Derive max_batch_calls from legacy spend_cap / cost_per_call ratio
-        max_batch_calls = max(1, int(spend_cap / cost_per_call))
+        # Derive max_batch_calls from legacy_dollar_threshold / cost_per_call ratio
+        max_batch_calls = max(1, int(legacy_dollar_threshold / cost_per_call))
 
         captured = StringIO()
         with patch("sys.stdout", captured):
@@ -616,7 +618,7 @@ class TestDryRunScenarios:
             for i in range(40)
         ]
         exit_code, output = self._run_dry_run_capture(
-            informants, [], tmpdir, cost_per_call=0.05, spend_cap=2.00
+            informants, [], tmpdir, cost_per_call=0.05, legacy_dollar_threshold=2.00
         )
         assert exit_code == 2
         assert "STOP" in output
@@ -638,7 +640,7 @@ class TestDryRunScenarios:
             for i in range(3)
         ]
         exit_code, output = self._run_dry_run_capture(
-            informants, [], tmpdir, cost_per_call=0.05, spend_cap=2.00
+            informants, [], tmpdir, cost_per_call=0.05, legacy_dollar_threshold=2.00
         )
         assert exit_code == 0
         assert "STOP" not in output
@@ -1188,7 +1190,6 @@ class TestSection3bExcludedAudit:
         failures: list[dict],
         tmpdir: Path,
         source: str = "all",
-        spend_cap: float = 10.00,
     ) -> tuple[int, str]:
         inf_path = tmpdir / "informants.jsonl"
         fail_path = tmpdir / "failures.jsonl"
@@ -1203,7 +1204,6 @@ class TestSection3bExcludedAudit:
                 failures_path=fail_path,
                 output_path=out_path,
                 source=source,
-                spend_cap=spend_cap,
             )
         return code, captured.getvalue()
 
@@ -1304,7 +1304,6 @@ class TestSection3cUnclassified:
         failures: list[dict],
         tmpdir: Path,
         source: str = "all",
-        spend_cap: float = 10.00,
     ) -> tuple[int, str]:
         inf_path = tmpdir / "informants.jsonl"
         fail_path = tmpdir / "failures.jsonl"
@@ -1319,7 +1318,6 @@ class TestSection3cUnclassified:
                 failures_path=fail_path,
                 output_path=out_path,
                 source=source,
-                spend_cap=spend_cap,
             )
         return code, captured.getvalue()
 
@@ -1543,7 +1541,6 @@ class TestSourceFlag:
         failures: list[dict],
         tmpdir: Path,
         source: str,
-        spend_cap: float = 10.00,
     ) -> tuple[int, str]:
         inf_path = tmpdir / "informants.jsonl"
         fail_path = tmpdir / "failures.jsonl"
@@ -1558,7 +1555,6 @@ class TestSourceFlag:
                 failures_path=fail_path,
                 output_path=out_path,
                 source=source,
-                spend_cap=spend_cap,
             )
         return code, captured.getvalue()
 

@@ -8,8 +8,7 @@ Targets (per recovery report §7.3 + Architect plan §7.2):
 These three cells were excluded from the Phase 4a recovery campaign because
 Stage 1.5b confirmed they are not cap-related (root cause was unknown at that
 point).  This script re-attempts each cell under the post-T16 instrument (same
-adapter layer, idempotence check against the campaign tag, 2-attempt budget,
-hard-stop CDB_MAX_SPEND_USD guard).
+adapter layer, idempotence check against the campaign tag, 2-attempt budget).
 
 Recovery data lands in canonical ``data/raw/informants.jsonl`` with each
 record's ``qa_notes`` containing the campaign tag
@@ -29,8 +28,8 @@ Usage::
     # Mandatory first: validate target list without API calls
     uv run python scripts/rerun_t3_unexplained_phase4b.py --dry-run
 
-    # Live rerun (CDB_MAX_SPEND_USD=5 must be exported before calling)
-    CDB_MAX_SPEND_USD=5 uv run python scripts/rerun_t3_unexplained_phase4b.py
+    # Live rerun
+    uv run python scripts/rerun_t3_unexplained_phase4b.py
 
 Exit codes:
     0 — clean run (all 3 cells recovered or already-recovered)

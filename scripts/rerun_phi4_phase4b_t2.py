@@ -18,10 +18,6 @@ row is written (recovery_failed=true) and the campaign continues. Per the
 failures-as-findings posture, a cell that still fails after the cap fix is a
 finding — it is documented verbatim and does NOT abort the campaign.
 
-Hard-stop guard: set CDB_MAX_SPEND_USD=5 before running:
-    export CDB_MAX_SPEND_USD=5
-    uv run python scripts/rerun_phi4_phase4b_t2.py
-
 Exit codes:
     0 — clean run; all 6 cells either recovered or already-recovered
     1 — configuration error (model not in registry, cell count unexpected)
