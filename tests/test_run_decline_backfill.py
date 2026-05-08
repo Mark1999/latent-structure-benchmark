@@ -1732,7 +1732,7 @@ def _run_execute_capture(
     adapter_model_version: str | None = None,
     adapter_model_id: str = "z-ai/glm-5.1",
     # Legacy params accepted but ignored (cost tracking removed)
-    spend_cap: float = 10.00,
+    legacy_dollar_threshold: float = 10.00,
     cost_per_call: float = 0.05,
     adapter_cost: float = 0.05,
 ) -> tuple[int, str, str, list[dict]]:
@@ -1741,8 +1741,8 @@ def _run_execute_capture(
     Returns (exit_code, stdout, stderr, written_records) where written_records
     is the list of DeclineInterview dicts read from the output JSONL.
 
-    spend_cap, cost_per_call, and adapter_cost are ignored (cost tracking removed
-    in task #F2-T14). max_batch_calls is the call-count gate.
+    legacy_dollar_threshold, cost_per_call, and adapter_cost are ignored (cost
+    tracking removed in task #F2-T14). max_batch_calls is the call-count gate.
     """
     informants_path = tmpdir / "informants.jsonl"
     failures_path = tmpdir / "failures.jsonl"

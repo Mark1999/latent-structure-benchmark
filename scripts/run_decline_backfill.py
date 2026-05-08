@@ -463,9 +463,8 @@ def run_dry_run(
     max_batch_calls: int = DEFAULT_MAX_BATCH_CALLS,
     escalation_ratio: float = ESCALATION_THRESHOLD_RATIO,
     source: str = "all",
-    # Legacy keyword kept for backward compatibility with test helpers that
-    # still pass spend_cap= by keyword; maps to max_batch_calls via int cast.
-    spend_cap: float | None = None,
+    # Backward-compat shim: test helpers may pass spend_cap= kwarg.  # noqa: spend-gate-check
+    spend_cap: float | None = None,  # noqa: spend-gate-check
 ) -> int:
     """Execute the dry-run: enumerate detected sessions and print the report.
 
@@ -482,14 +481,13 @@ def run_dry_run(
                          projected calls >= 80% of this value.
         escalation_ratio: Fraction of cap at which call-guard escalation fires.
         source:          Which origin to process: 'informants', 'failures', or 'all'.
-        spend_cap:       Ignored. Accepted for backward compatibility only.
+        spend_cap:       Ignored. Backward-compat only.  # noqa: spend-gate-check
 
     Returns:
         Exit code: 0 on success (GO), 2 on call-guard escalation (STOP) or
         unclassified-saturation (SURFACE-TO-SME).
     """
-    # spend_cap is accepted but ignored — call-count gate only
-    _ = spend_cap
+    _ = spend_cap  # noqa: spend-gate-check
     # ── Load raw data ──────────────────────────────────────────────────────────
     informant_dicts = _load_jsonl_dicts(informants_path)
     failure_dicts = _load_jsonl_dicts(failures_path)
@@ -1324,10 +1322,9 @@ def run_execute(
     escalation_ratio: float = ESCALATION_THRESHOLD_RATIO,
     source: str = "all",
     adapter_factory: object | None = None,
-    # Legacy keyword kept for backward compatibility with test helpers that
-    # still pass cost_per_call= or spend_cap= by keyword; both are ignored.
+    # Backward-compat shims: test helpers may pass these kwargs.  # noqa: spend-gate-check
     cost_per_call: float | None = None,
-    spend_cap: float | None = None,
+    spend_cap: float | None = None,  # noqa: spend-gate-check
 ) -> int:
     """Execute the decline-interview backfill: issue API calls and write records.
 
@@ -1356,8 +1353,8 @@ def run_execute(
         adapter_factory: Optional callable(model_id: str) -> ModelAdapter.
                          When None, uses _build_adapter_for_model (real adapters).
                          Inject a MockAdapter factory in tests — never real API calls.
-        cost_per_call:   Ignored. Accepted for backward compatibility only.
-        spend_cap:       Ignored. Accepted for backward compatibility only.
+        cost_per_call:   Ignored. Backward-compat only.
+        spend_cap:       Ignored. Backward-compat only.  # noqa: spend-gate-check
 
     Returns:
         Exit code:
@@ -1365,9 +1362,9 @@ def run_execute(
           1 — IO or parse error
           2 — pre-flight projected calls >= 80% of cap (STOP before any API call)
     """
-    # Legacy params accepted but ignored — call-count gate only
+    # Backward-compat params — ignored at runtime.  # noqa: spend-gate-check
     _ = cost_per_call
-    _ = spend_cap
+    _ = spend_cap  # noqa: spend-gate-check
     # ── Load raw data ──────────────────────────────────────────────────────────
     informant_dicts = _load_jsonl_dicts(informants_path)
     failure_dicts = _load_jsonl_dicts(failures_path)

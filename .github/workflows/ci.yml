@@ -12,6 +12,30 @@ jobs:
 
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: no-spend-gate-check
+        run: |
+          set -e
+          FORBIDDEN='CDB_MAX_SPEND_USD|MAX_SPEND_USD|DEFAULT_MAX_SPEND|spend_cap|cost_cap|cost-cap-usd|--max-spend'
+          HITS=$(git grep -nE "$FORBIDDEN" -- \
+            ':(exclude)docs/status/' \
+            ':(exclude)docs/INCIDENTS/' \
+            ':(exclude)docs/3rdpartyreviews/' \
+            ':(exclude)docs/proposals/' \
+            ':(exclude)docs/PROMPT_EVOLUTION_LOG.md' \
+            ':(exclude).github/workflows/ci.yml' \
+            | grep -v 'noqa: spend-gate-check' \
+            || true)
+          if [ -n "$HITS" ]; then
+            echo "::error::Forbidden spend-gate token(s) detected:"
+            echo "$HITS"
+            echo ""
+            echo "See ARCHITECTURE.md §6.2, CLAUDE.md rule 14, SECURITY_AND_HARDENING.md R13."
+            exit 1
+          fi
+          echo "no-spend-gate-check: PASS"
 
       - name: Install uv
         uses: astral-sh/setup-uv@v5
