@@ -5,6 +5,11 @@ Tests cover:
 2. Resume logic: a triple with 5/5 existing records is skipped.
 3. Preflight-skip logic: models on a quota-exhausted provider are dropped from the plan.
 4. Success-rate computation against a small fixture corpus.
+5. run_cell retry budget: first-fail-second-pass appends 1 informant row.
+6. run_cell retry budget: both-fail appends 1 failure row.
+7. CDB_MAX_SPEND_USD spend cap: provider_worker exits when cap crossed.
+8. append_success_rates_to_log: pre-existing rows preserved; new rows inserted after
+   the pending placeholder.
 
 No real API calls. No LLM imports. Fixtures are synthetic inline dicts.
 
@@ -750,3 +755,290 @@ def test_n_runs_per_cell_is_5():
     from run_phase4b_variance import N_RUNS_PER_CELL
 
     assert N_RUNS_PER_CELL == 5
+
+
+# ---------------------------------------------------------------------------
+# Test 7: run_cell retry budget (MAX_ATTEMPTS_PER_CELL = 2)
+# ---------------------------------------------------------------------------
+#
+# run_cell() calls asyncio.run(_run_one_informant(...)) internally.
+# We mock _run_one_informant at the module level so no provider adapter is
+# instantiated.  append_record / append_failure are also mocked to capture
+# what would have been written to disk.
+#
+# Scenario A: attempt 1 raises ValueError, attempt 2 succeeds.
+#   Expected: append_record called once, append_failure not called, return "PASS".
+#
+# Scenario B: both attempts raise ValueError.
+#   Expected: append_record not called, append_failure called once, return "FAILED".
+
+def _make_mock_record(model_id: str = "anthropic/claude-opus-4.6") -> object:
+    """Return a minimal object that satisfies run_cell's attribute access."""
+
+    class _Rec:
+        input_tokens = 100
+        output_tokens = 50
+
+    return _Rec()
+
+
+def _make_cell(
+    model_id: str = "anthropic/claude-opus-4.6",
+    prompt_version: str = "v1_s1",
+    domain: str = "family",
+    run_index: int = 0,
+) -> object:
+    from run_phase4b_variance import VarianceCell
+    return VarianceCell(model_id, prompt_version, domain, run_index)
+
+
+def test_run_cell_retry_first_fail_second_pass(tmp_path: Path):
+    """run_cell attempt-1 fails, attempt-2 passes → PASS returned, 1 informant appended."""
+    import io
+    from unittest.mock import patch
+
+    from run_phase4b_variance import CampaignStats, run_cell
+
+    cell = _make_cell()
+    stats = CampaignStats()
+    log_fh = io.StringIO()
+    informants_path = tmp_path / "informants.jsonl"
+    failures_path = tmp_path / "failures.jsonl"
+
+    mock_record = _make_mock_record()
+
+    call_count = {"n": 0}
+
+    async def _fail_then_pass(*args, **kwargs):
+        call_count["n"] += 1
+        if call_count["n"] == 1:
+            raise ValueError("Simulated transient failure on attempt 1")
+        return mock_record
+
+    with (
+        patch("run_phase4b_variance._run_one_informant", side_effect=_fail_then_pass),
+        patch("run_phase4b_variance.append_record") as mock_append_record,
+        patch("run_phase4b_variance.append_failure") as mock_append_failure,
+        patch("run_phase4b_variance.time.sleep"),  # skip retry delay
+    ):
+        result = run_cell(
+            cell=cell,
+            cell_index=1,
+            total=10,
+            campaign_id="phase4b-real-2026-05-08",
+            informants_path=informants_path,
+            failures_path=failures_path,
+            registry_map={},
+            stats=stats,
+            log_fh=log_fh,
+        )
+
+    assert result == "PASS", f"Expected PASS, got {result!r}"
+    assert call_count["n"] == 2, "Expected exactly 2 _run_one_informant calls"
+    mock_append_record.assert_called_once_with(mock_record, informants_path)
+    mock_append_failure.assert_not_called()
+    assert stats.n_pass == 1
+    assert stats.n_failed == 0
+
+
+def test_run_cell_retry_both_fail(tmp_path: Path):
+    """run_cell both attempts fail → FAILED returned, 1 failure row appended."""
+    import io
+    from unittest.mock import patch
+
+    from run_phase4b_variance import CampaignStats, run_cell
+
+    cell = _make_cell()
+    stats = CampaignStats()
+    log_fh = io.StringIO()
+    informants_path = tmp_path / "informants.jsonl"
+    failures_path = tmp_path / "failures.jsonl"
+
+    async def _always_fail(*args, **kwargs):
+        raise ValueError("Simulated persistent failure")
+
+    with (
+        patch("run_phase4b_variance._run_one_informant", side_effect=_always_fail),
+        patch("run_phase4b_variance.append_record") as mock_append_record,
+        patch("run_phase4b_variance.append_failure") as mock_append_failure,
+        patch("run_phase4b_variance.time.sleep"),  # skip retry delay
+    ):
+        result = run_cell(
+            cell=cell,
+            cell_index=1,
+            total=10,
+            campaign_id="phase4b-real-2026-05-08",
+            informants_path=informants_path,
+            failures_path=failures_path,
+            registry_map={},
+            stats=stats,
+            log_fh=log_fh,
+        )
+
+    assert result == "FAILED", f"Expected FAILED, got {result!r}"
+    mock_append_record.assert_not_called()
+    mock_append_failure.assert_called_once()
+    # Confirm the failure context carries model_id and campaign_id
+    call_kwargs = mock_append_failure.call_args
+    # append_failure(last_exc, failure_context, failures_path, ...)
+    failure_context = call_kwargs.args[1]
+    assert failure_context["model_id"] == cell.model_id
+    assert failure_context["campaign_id"] == "phase4b-real-2026-05-08"
+    assert stats.n_failed == 1
+    assert stats.n_pass == 0
+
+
+# ---------------------------------------------------------------------------
+# Test 8: CDB_MAX_SPEND_USD spend cap — provider_worker exits when cap crossed
+# ---------------------------------------------------------------------------
+#
+# The provider_worker checks stats.total_spend_usd >= max_spend_usd before
+# each cell.  We pre-seed stats with a spend that already meets the cap and
+# confirm the worker exits without calling run_cell.
+
+def test_provider_worker_exits_when_spend_cap_reached(tmp_path: Path):
+    """provider_worker exits immediately when spend cap is already met."""
+    import io
+    import queue
+    import threading
+    from unittest.mock import patch
+
+    from run_phase4b_variance import CampaignStats, VarianceCell, provider_worker
+
+    cell = VarianceCell("anthropic/claude-opus-4.6", "v1_s1", "family", 0)
+
+    q: queue.Queue = queue.Queue()
+    q.put(cell)
+    q.put(None)  # sentinel
+
+    # Pre-seed stats at or above the cap
+    max_spend = 10.0
+    stats = CampaignStats()
+    stats.total_spend_usd = max_spend  # already at cap
+
+    log_fh = io.StringIO()
+    cell_counter = [0]
+    counter_lock = threading.Lock()
+
+    with patch("run_phase4b_variance.run_cell") as mock_run_cell:
+        provider_worker(
+            provider_method="anthropic_api",
+            cell_queue=q,
+            campaign_id="phase4b-real-2026-05-08",
+            informants_path=tmp_path / "informants.jsonl",
+            failures_path=tmp_path / "failures.jsonl",
+            registry_map={},
+            stats=stats,
+            log_fh=log_fh,
+            total_cells=1,
+            max_spend_usd=max_spend,
+            cell_counter=cell_counter,
+            counter_lock=counter_lock,
+        )
+
+    mock_run_cell.assert_not_called()
+    # The cell should have been put back onto the queue when cap was detected
+    # (per provider_worker logic lines 668–669); queue is not empty.
+    assert not q.empty() or cell_counter[0] == 0, (
+        "provider_worker should not have incremented cell_counter when cap reached"
+    )
+    assert cell_counter[0] == 0
+
+
+# ---------------------------------------------------------------------------
+# Test 9: append_success_rates_to_log — append-only invariant
+# ---------------------------------------------------------------------------
+#
+# append_success_rates_to_log() reads the existing log and inserts new rows
+# only at the "*(Phase 4b T4 — pending)*" placeholder line. Pre-existing rows
+# must survive unchanged.
+
+def test_append_success_rates_preserves_preexisting_rows(tmp_path: Path):
+    """Pre-existing rows in PROMPT_EVOLUTION_LOG.md are unchanged after append."""
+    from run_phase4b_variance import append_success_rates_to_log
+
+    log_path = tmp_path / "PROMPT_EVOLUTION_LOG.md"
+
+    # Minimal log with one pre-existing campaign row and the pending placeholder
+    initial_content = """\
+# LSB Prompt Evolution Log
+
+### v1_s1 — paraphrase 1
+
+#### Campaigns that consumed v1_s1
+
+| campaign_id | model_id | domain | N | passed | failed | success_rate |
+|---|---|---|---:|---:|---:|---:|
+| phase4b-prior-2026-04-01 | anthropic/claude-opus-4.6 | family | 5 | 5 | 0 | 1.00 |
+| *(Phase 4b T4 — pending)* | — | — | — | — | — | — |
+
+---
+"""
+    log_path.write_text(initial_content, encoding="utf-8")
+
+    # One new row for v1_s1
+    rates = {
+        ("anthropic/claude-opus-4.6", "v1_s1", "family"): {
+            "passed": 4,
+            "failed": 1,
+            "n_attempts_targeted": 5,
+            "success_rate": 0.8,
+        }
+    }
+    append_success_rates_to_log("phase4b-real-2026-05-08", rates, log_path)
+
+    result = log_path.read_text(encoding="utf-8")
+
+    # Pre-existing row must still be present verbatim
+    prior_row = (
+        "| phase4b-prior-2026-04-01 | anthropic/claude-opus-4.6"
+        " | family | 5 | 5 | 0 | 1.00 |"
+    )
+    assert prior_row in result
+    # Placeholder line must still be present (append inserts after it, does not delete it)
+    assert "*(Phase 4b T4 — pending)*" in result
+    # New row must be present
+    assert "phase4b-real-2026-05-08" in result
+    assert "anthropic/claude-opus-4.6" in result
+
+
+def test_append_success_rates_new_row_after_placeholder(tmp_path: Path):
+    """New success-rate rows are inserted after the pending placeholder, not before."""
+    from run_phase4b_variance import append_success_rates_to_log
+
+    log_path = tmp_path / "PROMPT_EVOLUTION_LOG.md"
+
+    initial_content = """\
+### v1_s2
+
+| campaign_id | model_id | domain | N | passed | failed | success_rate |
+|---|---|---|---:|---:|---:|---:|
+| *(Phase 4b T4 — pending)* | — | — | — | — | — | — |
+
+---
+"""
+    log_path.write_text(initial_content, encoding="utf-8")
+
+    rates = {
+        ("openai/gpt-5.4", "v1_s2", "holidays"): {
+            "passed": 5,
+            "failed": 0,
+            "n_attempts_targeted": 5,
+            "success_rate": 1.0,
+        }
+    }
+    append_success_rates_to_log("phase4b-real-2026-05-08", rates, log_path)
+
+    result = log_path.read_text(encoding="utf-8")
+    lines = result.splitlines()
+
+    # Find index of placeholder line and new row line
+    placeholder_idx = next(
+        i for i, line in enumerate(lines) if "*(Phase 4b T4 — pending)*" in line
+    )
+    new_row_idx = next(
+        i for i, line in enumerate(lines) if "phase4b-real-2026-05-08" in line
+    )
+    assert new_row_idx > placeholder_idx, (
+        "New row should appear after the placeholder line, not before it"
+    )
