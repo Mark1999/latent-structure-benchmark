@@ -234,6 +234,55 @@ def group_models_by_provider(model_ids: list[str]) -> dict[str, list[str]]:
 # Preflight ping per provider
 # ---------------------------------------------------------------------------
 
+# Substrings that identify a 429 / quota-exhausted result anywhere in an
+# exception chain.  The adapter (openai_compat.py) raises _RetryableError
+# with "HTTP 429: ..." on each attempt, then after retry exhaustion raises
+# RuntimeError("openai API call failed after N retries") *from* the last
+# _RetryableError.  runner.py wraps that in PartialSessionError whose
+# __init__ does super().__init__(str(cause)) — so str(PartialSessionError)
+# is the RuntimeError message ("openai api call failed after 5 retries"),
+# which contains none of the 429 markers.  Walking the full __cause__ /
+# __context__ chain exposes the original _RetryableError message that
+# contains "HTTP 429: ..." and the raw JSON body with "insufficient_quota".
+_QUOTA_MARKERS: tuple[str, ...] = (
+    "429",
+    "quota",
+    "rate limit",
+    "too many requests",
+    "resource_exhausted",
+    "insufficient_quota",
+    "rate_limit_exceeded",
+    "overloaded",        # Anthropic 529 maps to "overloaded_error"
+)
+
+
+def _exc_chain_str(exc: BaseException) -> str:
+    """Return a single lowercase string concatenating all messages in the
+    exception chain (__cause__ and __context__).
+
+    This is necessary because the adapter raises a chained exception on
+    retry exhaustion: the outer exception carries the generic "failed after
+    N retries" message while the *inner* __cause__ carries the original
+    HTTP 429 / quota-exhausted detail.  Checking only str(exc) misses the
+    quota signal buried in the cause.
+    """
+    parts: list[str] = []
+    seen: set[int] = set()
+    node: BaseException | None = exc
+    while node is not None and id(node) not in seen:
+        seen.add(id(node))
+        parts.append(str(node).lower())
+        # Prefer explicit chaining (__cause__) over implicit (__context__)
+        node = node.__cause__ or node.__context__
+    return " ".join(parts)
+
+
+def _is_quota_exhausted(exc: BaseException) -> bool:
+    """Return True when the exception chain contains a 429 / quota signal."""
+    chain = _exc_chain_str(exc)
+    return any(marker in chain for marker in _QUOTA_MARKERS)
+
+
 def _check_provider_available(collection_method: str, model_id: str) -> bool:
     """Issue a minimal probe to confirm the provider is reachable and not quota-exhausted.
 
@@ -243,12 +292,19 @@ def _check_provider_available(collection_method: str, model_id: str) -> bool:
     The probe is a single cheap free-list call on the first available domain.
     Errors other than 429/quota are treated as transient; the provider is
     considered available (the main run will surface the issue per cell).
+
+    Implementation note: the adapter exhausts its retry budget on persistent
+    429s and raises RuntimeError("... failed after N retries") *from* a
+    _RetryableError("HTTP 429: ...").  runner.py wraps that in
+    PartialSessionError whose str() is just the RuntimeError message —
+    which contains no 429 marker.  _is_quota_exhausted() walks the full
+    exception chain so that the buried HTTP 429 detail is detected
+    regardless of wrapping depth.
     """
-    import asyncio  # noqa: PLC0415
-
-    from cdb_collect.domains import load_domain  # noqa: PLC0415
-    from cdb_collect.runner import run_informant  # noqa: PLC0415
-
+    # Use module-level imports (asyncio, load_domain, run_informant are all
+    # imported at the top of this module).  Do NOT shadow them with local
+    # imports here — the module-level names are the ones unit tests patch,
+    # so local rebindings would silently bypass the test patches.
     probe_campaign = "__preflight_probe__"
     probe_domain = "family"
 
@@ -264,17 +320,12 @@ def _check_provider_available(collection_method: str, model_id: str) -> bool:
         # If it completed without exception, the provider is healthy.
         return True
     except Exception as exc:
-        exc_str = str(exc).lower()
-        # 429 / quota signals: treat as quota-exhausted; return False.
-        # Any other exception (timeout, parse error, etc.) — treat as transient;
-        # the cell-level retry budget handles it, so return True.
-        return not (
-            "429" in exc_str
-            or "quota" in exc_str
-            or "rate limit" in exc_str
-            or "too many requests" in exc_str
-            or "resource_exhausted" in exc_str
-        )
+        # Walk the full exception chain — not just str(exc) — because the
+        # quota signal is buried in the __cause__ of a PartialSessionError
+        # wrapping a RuntimeError wrapping a _RetryableError("HTTP 429...").
+        # Any other exception (timeout, parse error, etc.) is treated as
+        # transient; the cell-level retry budget handles it (return True).
+        return not _is_quota_exhausted(exc)
 
 
 def run_preflight(

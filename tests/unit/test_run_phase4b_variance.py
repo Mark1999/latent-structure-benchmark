@@ -476,6 +476,177 @@ def test_preflight_openai_quota_exhausted():
 
 
 # ---------------------------------------------------------------------------
+# Tests for _exc_chain_str and _is_quota_exhausted helpers (unit-level)
+# ---------------------------------------------------------------------------
+
+def test_exc_chain_str_single_exception():
+    """_exc_chain_str on a plain exception returns its str, lowercased."""
+    from run_phase4b_variance import _exc_chain_str
+
+    exc = ValueError("Something went wrong")
+    result = _exc_chain_str(exc)
+    assert "something went wrong" in result
+
+
+def test_exc_chain_str_chained_exception():
+    """_exc_chain_str includes messages from __cause__ in the chain."""
+    from run_phase4b_variance import _exc_chain_str
+
+    try:
+        inner = RuntimeError("HTTP 429: insufficient_quota")
+        raise RuntimeError("openai api call failed after 5 retries") from inner
+    except Exception as exc:
+        result = _exc_chain_str(exc)
+
+    # The outer message
+    assert "failed after 5 retries" in result
+    # The inner (cause) message — this is the key: str(exc) alone would miss this
+    assert "429" in result
+    assert "insufficient_quota" in result
+
+
+def test_is_quota_exhausted_detects_direct_429():
+    """_is_quota_exhausted returns True for a plain '429' exception."""
+    from run_phase4b_variance import _is_quota_exhausted
+
+    exc = Exception("HTTP 429: rate_limit_exceeded")
+    assert _is_quota_exhausted(exc) is True
+
+
+def test_is_quota_exhausted_detects_chained_429():
+    """_is_quota_exhausted returns True when 429 is only in the __cause__."""
+    from run_phase4b_variance import _is_quota_exhausted
+
+    # Simulate the real adapter chain:
+    # PartialSessionError(str(RuntimeError(...))) wraps RuntimeError from _RetryableError
+    inner = Exception('HTTP 429: {"error":{"type":"insufficient_quota"}}')
+    middle = RuntimeError("openai api call failed after 5 retries")
+    middle.__cause__ = inner
+    outer = Exception(str(middle))
+    outer.__cause__ = middle
+
+    # str(outer) = "openai api call failed after 5 retries" — no 429 marker
+    assert "429" not in str(outer).lower()
+    # But _is_quota_exhausted must still detect it via the chain
+    assert _is_quota_exhausted(outer) is True
+
+
+def test_is_quota_exhausted_returns_false_for_unrelated_error():
+    """_is_quota_exhausted returns False for a parse error with no quota signal."""
+    from run_phase4b_variance import _is_quota_exhausted
+
+    exc = ValueError("JSON parse error: unexpected token at position 42")
+    assert _is_quota_exhausted(exc) is False
+
+
+def test_is_quota_exhausted_returns_false_for_network_timeout():
+    """_is_quota_exhausted returns False for a timeout error."""
+    from run_phase4b_variance import _is_quota_exhausted
+
+    exc = TimeoutError("Connection timed out after 600s")
+    assert _is_quota_exhausted(exc) is False
+
+
+# ---------------------------------------------------------------------------
+# Test: _check_provider_available detects real adapter return shape on 429
+# ---------------------------------------------------------------------------
+
+def test_check_provider_available_detects_chained_429_error():
+    """The adapter exhausts its retry budget on persistent 429 and raises a
+    chained exception: PartialSessionError -> RuntimeError -> _RetryableError
+    ("HTTP 429: ...").  _check_provider_available must detect the quota signal
+    in the chain and return False (not True).
+
+    This is the bug that was discovered 2026-05-08: the preflight wrapper
+    only checked str(exc), which returned the outer RuntimeError message
+    "openai api call failed after 5 retries" — containing no 429 marker —
+    so the provider was logged as healthy despite exhausting its retry
+    budget on every probe attempt.
+    """
+    from run_phase4b_variance import _check_provider_available
+
+    # Reproduce the real exception chain from openai_compat._complete_with_retry
+    # → runner.run_informant when HTTP 429 is returned on every attempt.
+    #
+    # openai_compat._RetryableError("HTTP 429: {\"error\":{\"type\":\"insufficient_quota\"}}")
+    retryable = RuntimeError(
+        'HTTP 429: {"error":{"message":"You exceeded your current quota",'
+        '"type":"insufficient_quota","code":"insufficient_quota"}}'
+    )
+    # RuntimeError raised after _MAX_RETRIES exhausted, chained from _RetryableError
+    retry_exhausted = RuntimeError("openai API call failed after 5 retries")
+    retry_exhausted.__cause__ = retryable
+
+    # runner.run_informant wraps in PartialSessionError whose str() = str(cause)
+    # = "openai API call failed after 5 retries" (no 429 marker in top-level str)
+    partial_session_exc = Exception("openai API call failed after 5 retries")
+    partial_session_exc.__cause__ = retry_exhausted
+
+    # asyncio.run(run_informant(...)) raises this PartialSessionError-shaped exception.
+    # Patch at the asyncio.run level so no real async infrastructure is needed.
+    def _fake_asyncio_run(coro):
+        coro.close()  # prevent ResourceWarning
+        raise partial_session_exc
+
+    # Minimal ModelRef-like fixture
+    class _FakeRef:
+        model_id = "openai/gpt-5.4"
+        collection_method = "openai_api"
+        family = "gpt"
+        provider = "openai"
+        open_weights = False
+        origin = "us"
+
+    with (
+        patch("run_phase4b_variance.MODEL_REGISTRY", {"openai/gpt-5.4": _FakeRef()}),
+        patch("run_phase4b_variance._create_adapter", return_value=object()),
+        patch("run_phase4b_variance.asyncio.run", side_effect=_fake_asyncio_run),
+        patch("run_phase4b_variance.load_domain", return_value=object()),
+    ):
+        result = _check_provider_available("openai_api", "openai/gpt-5.4")
+
+    # Must return False (quota-exhausted detected), not True (healthy)
+    assert result is False, (
+        "_check_provider_available returned True for a chained 429/insufficient_quota "
+        "exception — the preflight bug has not been fixed"
+    )
+
+
+def test_check_provider_available_returns_true_for_transient_parse_error():
+    """A parse error (not a quota signal) should NOT cause preflight to skip
+    the provider.  Transient errors are surfaced per-cell during the campaign."""
+    from run_phase4b_variance import _check_provider_available
+
+    parse_error = ValueError("JSON parse error: unexpected token at position 42")
+
+    def _fake_asyncio_run(coro):
+        coro.close()
+        raise parse_error
+
+    class _FakeRef:
+        model_id = "openai/gpt-5.4"
+        collection_method = "openai_api"
+        family = "gpt"
+        provider = "openai"
+        open_weights = False
+        origin = "us"
+
+    with (
+        patch("run_phase4b_variance.MODEL_REGISTRY", {"openai/gpt-5.4": _FakeRef()}),
+        patch("run_phase4b_variance._create_adapter", return_value=object()),
+        patch("run_phase4b_variance.asyncio.run", side_effect=_fake_asyncio_run),
+        patch("run_phase4b_variance.load_domain", return_value=object()),
+    ):
+        result = _check_provider_available("openai_api", "openai/gpt-5.4")
+
+    # Parse error is transient — provider is considered available
+    assert result is True, (
+        "_check_provider_available returned False for a transient parse error; "
+        "only quota/429 signals should mark a provider as unavailable"
+    )
+
+
+# ---------------------------------------------------------------------------
 # Test 4: success-rate computation
 # ---------------------------------------------------------------------------
 
