@@ -9,6 +9,7 @@
 **Section reference contract.** This document's section numbering is **stable** because `ARCHITECTURE.md` cross-references specific sub-sections by number (§3.1 CSP, §3.3 LLM sanitization, §3.4 gitleaks, §5 account hardening, §6.5 SECURITY.md, §9 Reviewer rules, §10 future hardening). Changing these section numbers breaks the architecture doc's references and is not allowed without a coordinated update to `ARCHITECTURE.md`.
 
 **Changelog:**
+- **v0.1.2** (2026-05-08) — §1.1 threat-model rows reworded for no-software-side-spend-gates posture; §9 R13 added. See `docs/status/2026-05-08-spend-cap-removal-architect-plan.md`.
 - **v0.1.1** (2026-04-19) — Added infra-pivot status banner. `lsb-agent-01` is decommissioned; references to `/opt/lsb-agent/.env`, the `lsb` user, and Hetzner-specific hardening describe the prior state and will be rewritten when a new VPS is chosen. No substantive change to the Reviewer rules table (§9) or to the CSP/sanitization guarantees.
 - **v0.1** — first draft. Documents the threat model, the dashboard's CSP and security headers, the LLM-output sanitization rules, the secret-scanning configuration, the dependency security posture, account hardening (YubiKey, ProtonMail, password manager), the vulnerability disclosure process, the data protection posture, the Reviewer rules table, and the deferred-to-later hardening items (paid pentest, bug bounty, Cloudflare paid tier). Aligned with `ARCHITECTURE.md` v0.7 — includes the three Slack webhook env vars and the cryptographic provenance requirements from §1 commitment 7.
 
@@ -24,13 +25,13 @@ LSB is a small research project with a public dashboard, an open data bundle, an
 
 | Threat | Why it matters | Mitigation |
 |---|---|---|
-| **API key compromise** | Stolen LLM provider keys can be used to run up bills against LSB's accounts before Mark notices | Single-location storage on `lsb-agent-01` (`/opt/lsb-agent/.env`, mode 600, owned `lsb:lsb`), per-provider account caps as the Tier 2 spend defense, gitleaks pre-commit + GitHub secret scanning |
+| **API key compromise** | Stolen LLM provider keys can be used to run up bills against LSB's accounts before Mark notices | Single-location storage on `lsb-agent-01` (`/opt/lsb-agent/.env`, mode 600, owned `lsb:lsb`), per-provider account caps configured directly on each provider's billing dashboard, gitleaks pre-commit + GitHub secret scanning |
 | **Data tampering** | If someone alters `informants.jsonl` after the fact, LSB's findings become un-falsifiable and the project's credibility evaporates | Append-only JSONL, SHA256 manifest on every record, provider request ID as a second independent audit path, four-layer backup chain |
 | **Supply-chain attack via dependencies** | A compromised package in the dependency tree could exfiltrate keys, corrupt data, or inject content into the dashboard | Dependabot, `gitleaks`, minimal dependency footprint, lockfiles, no `unsafe-eval` in CSP |
 | **Researcher submission with PII** | A researcher contributing human grounding data could accidentally include subject names, emails, or other identifiers | CI runs `gitleaks` + a PII scan on every grounding submission PR; the CDA SME agent reviews; Mark merges only after both pass |
 | **XSS in LLM-generated content** | The lede generator emits text into the dashboard; a malicious or accidental injection could compromise visitors | Strict sanitization wrapper for all model-generated text rendered in the dashboard, no `dangerouslySetInnerHTML` without it, strict CSP `script-src` |
 | **Account takeover via phishing or credential reuse** | Compromise of the Cloudflare, GitHub, or B2 account would let an attacker push a malicious dashboard build, delete backups, or rotate the open data bundle | Two YubiKey 5C NFC keys on every critical account; dedicated ProtonMail address; password manager with unique credentials; recovery codes printed and stored in the fireproof safe |
-| **DDoS / abusive traffic on the dashboard** | A motivated attacker could make the dashboard expensive or unreachable | Cloudflare's free-tier DDoS protection is enabled by default; the static-files architecture has no backend to overwhelm; the spend-cap defense covers any operational consequence |
+| **DDoS / abusive traffic on the dashboard** | A motivated attacker could make the dashboard expensive or unreachable | Cloudflare's free-tier DDoS protection is enabled by default; the static-files architecture has no backend to overwhelm; operational cost is bounded by per-provider account caps configured at the provider, not in code |
 | **Reputational attack via fake findings** | A bad actor could fabricate LSB-branded findings (fake screenshots, fake citations) | Out of LSB's technical control; mitigated by the SHA256 provenance on every published record, the open data bundle being trivially reproducible from raw, and clear public attribution at every display surface |
 
 ### 1.2 What LSB does not defend against
@@ -555,8 +556,9 @@ The Reviewer agent enforces the following rules on every PR. This table is **the
 | **R10** | **Webhook URL secrets are never committed.** Specific case of R1, listed separately because Slack webhook URLs are easy to mistake for non-secret configuration. | §8.1 |
 | **R11** | **`SECURITY.md` at the repo root cannot be materially weakened.** Changes to the contact email, the SLA, or the disclosure process require Architect sign-off. | §6.5 |
 | **R12** | **The §1.5.4 language guardrails apply to every piece of generated text.** This is enforced by both the CDA SME agent (during plan review) and the Reviewer agent (during PR review). The Reviewer specifically checks generated ledes, social posts, dashboard copy, README content, commit messages, and PR descriptions. | `ARCHITECTURE.md` §1.5.4 |
+| **R13** | **No software-side spend gates.** No `CDB_MAX_SPEND_USD` env var, no `MAX_SPEND_USD` constants, no `spend_cap` parameters in active code, no cost-estimate paragraphs in architect plans / completion reports / status docs going forward. CI grep check is the mechanical enforcement; the Reviewer agent backs it up by rejecting any PR that introduces cost-cap framing in active code or in new (post-2026-05-08) plans and reports. The single exception is the Anthropic prompt-caching binding rule on orchestrator agent calls, which is a per-call construction rule, not a spend gate. | `ARCHITECTURE.md` §6.2, `CLAUDE.md` §6 rule 14 |
 
-A FAIL on any of R1–R12 blocks merge. PASS-WITH-NOTES is acceptable as long as the notes are addressed in a follow-up commit before merge. PASS is the only verdict that allows merge unmodified.
+A FAIL on any of R1–R13 blocks merge. PASS-WITH-NOTES is acceptable as long as the notes are addressed in a follow-up commit before merge. PASS is the only verdict that allows merge unmodified.
 
 ---
 

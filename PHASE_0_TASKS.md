@@ -52,8 +52,8 @@ The constraint is that nothing in Phase 0 should commit the project to a decisio
 - [ ] Top-level directory layout matches `ARCHITECTURE.md` §2 exactly: `packages/`, `apps/`, `data/`, `scripts/`, `tests/`, `docs/`, `.claude/`, `.github/`
 - [ ] `pyproject.toml` at the repo root, configured for `uv`, with workspace members for each `packages/cdb_*` package
 - [ ] Python 3.11+ specified as the minimum in `pyproject.toml`
-- [ ] `.gitignore` includes `.env`, `data/raw/`, `data/processed/`, `__pycache__/`, `.venv/`, `node_modules/`, `apps/dashboard/dist/`, `apps/dashboard/.vite/`, `data/cost_reports/*.txt` is **NOT** ignored (cost reports are git-tracked per `ARCHITECTURE.md` §6.2 resolved decision #24)
-- [ ] `.env.example` exists at the repo root with placeholder values for: `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `HUGGINGFACE_API_KEY`, `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`, `CDB_MAX_SPEND_USD=300`
+- [ ] `.gitignore` includes `.env`, `data/raw/`, `data/processed/`, `__pycache__/`, `.venv/`, `node_modules/`, `apps/dashboard/dist/`, `apps/dashboard/.vite/`
+- [ ] `.env.example` exists at the repo root with placeholder values for: `ANTHROPIC_API_KEY`, `OPENROUTER_API_KEY`, `HUGGINGFACE_API_KEY`, `LSB_ALERTS_WEBHOOK_URL`, `LSB_CDA_SME_WEBHOOK_URL`, `LSB_UI_UX_WEBHOOK_URL`
 - [ ] `uv sync` runs cleanly with no errors
 - [ ] `uv run python -c "import cdb_core"` succeeds (even though `cdb_core` is empty)
 - [ ] Initial commit on `main` branch with message `chore: P0-T1 repository scaffold`

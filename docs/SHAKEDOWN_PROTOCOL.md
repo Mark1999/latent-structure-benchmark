@@ -4,7 +4,7 @@
 **Status:** Binding for any pre-Phase-4a collection run that is not a formal validation-gate run
 **Prepared:** 2026-04-20 (post PR B merge; post unified @architect + @cda_sme recommendation)
 **Audience:** Mark (operator), Coder agent, CDA SME agent, Reviewer agent
-**Companion docs:** `ARCHITECTURE.md` §4.1 (collection), §4.1.6 (QA_Runner), §5.3 Phase 4, §6.2 (spend cap); `docs/INCIDENTS/2026-04-19-test-data-loss.md` (backup precondition); `docs/BOOTSTRAP_DESIGN.md` §2 (Register 1 underestimation caveat); `docs/SME_REVIEW.md`
+**Companion docs:** `ARCHITECTURE.md` §4.1 (collection), §4.1.6 (QA_Runner), §5.3 Phase 4, §6.2 (cost posture); `docs/INCIDENTS/2026-04-19-test-data-loss.md` (backup precondition); `docs/BOOTSTRAP_DESIGN.md` §2 (Register 1 underestimation caveat); `docs/SME_REVIEW.md`
 
 ---
 
@@ -84,7 +84,7 @@ Practical consequence: the shakedown is internal-only. If anyone wants to show s
 1. **Off-host copy: private GitHub repo push of `data/shakedown/<campaign-id>.tar.gz` after each session.** Committed to a private repo named `lsb-shakedown-archive` under Mark's account. JSONL is small (low single-digit MB) and the private-repo path uses existing GitHub auth, so there is zero infrastructure to stand up — simpler than a Backblaze B2 bucket for a short-lived shakedown cycle. Verify `git push --dry-run` succeeds against `lsb-shakedown-archive` before the shakedown begins. The "just leave it on the Surface" option is not acceptable — the 2026-04-19 incident's lesson applies even to non-canonical data. If Mark does not yet have `lsb-shakedown-archive` configured, create it first; no shakedown runs until it's verified.
 2. **`.gitignore` lists `data/shakedown/`.** Added in this PR.
 3. **`scripts/build_db.py` excludes `data/shakedown/`.** Added in this PR.
-4. **Spend cap env override active.** Export `CDB_MAX_SPEND_USD=25` for the shakedown session (well below the $300 monthly cap, well above the ~$15 expected cost). The three-tier defense halts cleanly on overspend.
+4. Per the 2026-05-08 spend-gate-removal plan (`docs/status/2026-05-08-spend-cap-removal-architect-plan.md`), no env-var cost gate applies. Real-time billing-dashboard awareness is the only operational cost safety.
 5. **One model run inspected before fanning out.** Collect one model's output on one domain at N=2, eyeball the free-list and pile-sort parsing, confirm `qa_passed=True`, then proceed with the full scope. Protects against a parser bug eating the whole run.
 6. **CDA SME sign-off on this document.** This file (`SHAKEDOWN_PROTOCOL.md`) is routed through CDA SME before any shakedown command is run.
 
@@ -92,7 +92,7 @@ Practical consequence: the shakedown is internal-only. If anyone wants to show s
 
 ## 6. Budget
 
-Shakedown runs are bounded by the `CDB_MAX_SPEND_USD` runtime cap (see `ARCHITECTURE.md` §6.2). The standing $300/month cap is the single authoritative guardrail; session-level overrides (e.g., `CDB_MAX_SPEND_USD=25`) are optional and not required. Actual shakedown-class sessions run well under $5 per cycle based on observed spend. **Pre-run cost projections are not produced** — they have been removed from this protocol because prior projections were inaccurate by an order of magnitude and caused unnecessary process friction. If a run ever trips the $300 cap, that is itself a finding about the instrument, not an accounting failure.
+Per `ARCHITECTURE.md` §6.2 (cost posture), LSB does not enforce software-side spend gates. Authoritative spend lives on provider billing dashboards Mark monitors directly. Actual shakedown-class sessions run well under $5 per cycle based on observed spend. **Pre-run cost projections are not produced** — they have been removed from this protocol because prior projections were inaccurate by an order of magnitude and caused unnecessary process friction.
 
 ---
 
@@ -135,7 +135,6 @@ EOF
 # Campaign tag is folded into --output path; env-var shortcuts
 # LSB_CAMPAIGN_ID / LSB_RAW_JSONL_PATH do NOT exist per §7a and are
 # NOT used. All subsequent collect.py invocations use explicit --output.
-export CDB_MAX_SPEND_USD=25
 SHAKEDOWN_JSONL="data/shakedown/$CAMPAIGN_ID/informants.jsonl"
 uv run python scripts/collect.py \
     --model claude-sonnet-4.6 --domain family --runs 1 \
@@ -232,7 +231,7 @@ If any check fails, the shakedown result is a finding about the pipeline and the
 
 ## 9. What "done" means for the shakedown
 
-- All cells collected without exceeding the `CDB_MAX_SPEND_USD=25` cap.
+- All cells collected within the operator's awareness of provider billing-dashboard state.
 - `data/shakedown/<campaign-id>/` contains the JSONL, the per-domain `results/*.json`, and the off-host copy has been verified.
 - The six §8 sanity checks have been run and any failures logged.
 - The CDA SME has reviewed the two real `DomainResult` JSONs and filed their methodology findings — partial resolution of open questions 1, 4, and 5 is the expected output; open questions 2 and 3 remain untouched.

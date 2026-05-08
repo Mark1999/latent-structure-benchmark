@@ -90,7 +90,7 @@ When `drift.py` is exercised in Phase 6+ across more than two endpoints, the not
 
 ## 6. Deferred to Phase 2
 
-- **Nested bootstrap (Option 1).** Recompute compute budget once operational N is set by the Phase 4b saturation analysis. If per-run compute drops enough that 120,000 pipeline runs per domain becomes plausible within the monthly spend cap, adopt Option 1 as the primary uncertainty story and retire Option 2's annotation dance. Until then, Option 2 is the contract.
+- **Nested bootstrap (Option 1).** Recompute compute budget once operational N is set by the Phase 4b saturation analysis. If per-run compute drops enough that 120,000 pipeline runs per domain becomes plausible within the available compute budget, adopt Option 1 as the primary uncertainty story and retire Option 2's annotation dance. Until then, Option 2 is the contract.
 - **Variance-inflation correction on Register 1 CIs.** Instead of flagging underestimation, compute an effective-sample-size correction (e.g., a design-effect analog) and inflate the bootstrap CI analytically. Requires empirical calibration against the saturation analysis data. Phase 2.
 - **Register-1-aware Register 2 weighting.** Option C from the SME review (OCI-weighted between-model analysis) was rejected as primary. A future Phase 2 decision could revisit using OCI as a *diagnostic weight* in a sensitivity analysis only — never as the primary map. Document the reasoning here at that time.
 
