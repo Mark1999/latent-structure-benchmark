@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.3  
+**Version:** v0.4  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4** (Phase 5 plan UI/UX gate, 2026-05-09) adds §12 (Phase 5 Visual Decisions) covering five visual decisions required by the Phase 5 architect plan that v0.3 did not specify: page-load reveal animation timing (§12.1), data fetch loading state (§12.2), VizSwitcher disabled-tab visual treatment with WCAG 2.1 SC 2.1.1 correction overriding the T8 plan spec (§12.3), model color assignment for >6 models with five new palette tokens (§12.4), and embed mode chrome suppression with frame-ancestors security gate (§12.5). Adds §12.6 (Phase 5 "Read as table" deferral and minimum viable screen-reader posture). Updates §3.2 MDSPlot library entry from "D3" to "D3 or React+SVG" (hand-rolled SVG approved for Phase 5; D3 zoom/pan deferred to Phase 6). Extends §1.2 color palette with `--color-model-7` through `--color-model-11`. Corrects vestigial footer label from v0.1 to v0.4.
 - **v0.3** (post-PR-A UI/UX review, 2026-04-20) extends §3.3.5 with binding implementation requirements for the Register 1 annotations on Register 2 points: R1-c stroke width raised to 3px (WCAG AA fix for the orange/green palette slots at 10px marker size); R1-b dashed stroke specified at 100% model color opacity (only the fill is at 60%); tooltip copy for R1-c de-jargonized (schema identifiers moved to data dictionary + methodology page); legend marker-sample requirement added (text tags alone fail WCAG); all-deterministic edge-case copy specified as a named lede case; OCI low-concentration threshold config constant location specified at `apps/dashboard/src/config/analysis.ts`; §7 shape-encoding ambiguity clarified (model points remain filled circles; baseline markers use ★/◆; R1-c introduces state-encoded shape, not origin-encoded). Extends §5 CSV export spec to include `oci`, `deterministic_output`, `r1_state` columns. Mark-level decision resolved on 2026-04-20: hollow triangle (△) is the R1-c marker shape. No changes to design tokens, color palette, or page architecture.
 - **v0.2** folds the multi-baseline-and-ungrounded-as-normal framing from `ARCHITECTURE.md` v0.7 §1.5.5 / §3.2 / §4.2.5 into the design system. The grounding section (§4) now leads with the explicit statement that **ungrounded is a normal first-class state for any domain, not a degraded fallback**, and that **a domain can carry zero, one, or many human baselines simultaneously** (published, researcher-submitted, or both). Updates §3.3 to reframe the four "Mode" rows as the four grounding-display *states* (matching `ARCHITECTURE.md` §4.5 terminology) and removes language that implied grounding was the default and ungrounded the exception. Updates §3.7 model selector panel copy to put the "Submit your data" affordance on equal footing with the baseline checkboxes rather than as a footer link. Updates §3.8 key finding conditional behavior to be explicit that the comparative-only finding is fully equivalent in status, not a degraded form. Updates §4.1 State 0 copy and label so it reads as "this domain is studied model-to-model" rather than as a "no baseline available yet" placeholder. Tightens §4.3 submission UI copy to emphasize that LSB exists *to* connect to the human CDA research community, not as a one-way data publisher. Updates §6.1 methodology page section 5 outline to lead with the multi-baseline framing and the contribution invitation. Adds a §4.4 cross-reference note pointing at `ARCHITECTURE.md` §4.2.5 (data layer) and §3.2 `GroundingRef` (schema). No design tokens, no component additions, no changes to the page architecture or accessibility requirements.
 - v0.1 initial draft.
@@ -69,7 +70,14 @@ All visual decisions derive from these tokens. They are defined once in `apps/da
 --color-model-4:  #27ae60;   /* fourth model */
 --color-model-5:  #8e44ad;   /* fifth model */
 --color-model-6:  #16a085;   /* sixth model */
-/* Additional models use a generated palette — never reuse colors within a chart */
+
+/* Extended palette (v0.4 — Phase 5 supports up to 11 models per chart) */
+--color-model-7:  #d35400;   /* extended palette — dark orange */
+--color-model-8:  #1a5276;   /* extended palette — dark blue */
+--color-model-9:  #7d3c98;   /* extended palette — dark purple */
+--color-model-10: #148f77;   /* extended palette — dark teal */
+--color-model-11: #b7950b;   /* extended palette — dark gold */
+/* Beyond slot 11: future-phase design system update extends further; never reuse colors within a chart */
 
 /* Origin encoding (secondary, used alongside model colors) */
 --color-origin-us: #3360a9;  /* US-origin models */
@@ -238,7 +246,7 @@ Four tabs. Selecting a tab animates the chart area transition (150ms fade). The 
 
 | Tab | Component | Library | Description |
 |---|---|---|---|
-| MDS Plot | `MDSPlot.tsx` | D3 | Primary viz — models as points in cognitive space |
+| MDS Plot | `MDSPlot.tsx` | D3 or React+SVG | Primary viz — models as points in cognitive space (Phase 5 ships hand-rolled React+SVG; Phase 6 may migrate to D3 for zoom/pan) |
 | Free Lists | `FreeListCompare.tsx` | Custom | Side-by-side ranked term lists per model |
 | Similarity | `SimilarityHeatmap.tsx` | Plotly | Model×model similarity matrix |
 | Drift | `DriftTracker.tsx` | D3 | Longitudinal corpus lens shift over time |
@@ -590,6 +598,84 @@ All components to be built, in implementation order:
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.1. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 12. Phase 5 Visual Decisions (v0.4 — 2026-05-09)
+
+These decisions are required by the Phase 5 architect plan and were not covered by v0.3. All are binding on T4–T13 Coder tasks. Originated at the UI/UX agent plan-level review on 2026-05-09.
+
+### 12.1 Page-load reveal animation
+
+A single staggered CSS opacity + translateY cascade on page load is acceptable as page orchestration, not prohibited by the "no decorative animation" rule in §0. OWID itself uses staggered entry on chart load. The rule prohibits hover sparkles, parallax, scroll-triggered reveals, and looping animations — not a one-shot load reveal.
+
+**Binding specification (all constraints required):**
+- Total cascade duration: 600ms maximum from first paint to last element fully visible.
+- Stagger offset between sequential elements: 80ms maximum.
+- Easing: `ease-out` only. No `ease-in-out`, no spring physics.
+- Animated properties: `opacity` (0 to 1) and `transform: translateY(8px to 0px)` only. No color, scale, blur, or rotation transitions on load.
+- All interactive elements (domain picker, model checkboxes) must be pointer-responsive from first paint even while the cascade is running. The animation does not block interaction.
+- The cascade fires once on page load. Domain switches trigger a 200ms fade on the KeyFinding strip only (§3.8); no full-page re-cascade.
+
+### 12.2 Data fetch loading state
+
+While the manifest.json or domain.json fetch is in flight, the page renders Header + Footer with a loading placeholder in the content area.
+
+**Binding specification:**
+- Loading text: `"Loading..."` in `--color-text-muted` at `--font-size-base`, in the same horizontal/vertical position as the KeyFinding strip.
+- No spinner component. No skeleton shimmer (shimmer is a looping animation, prohibited per §0).
+- Fetch error text: `"Could not load data. Refresh the page or check your connection."` in `--color-text-secondary`, same position.
+- Neither state is flagged as a defect in the UI. Both are transient informational states, not error indicators.
+- The loading and error states occupy the full content area (replacing KeyFinding + DataExplorer + MethodologySummary). Header and Footer remain visible.
+
+### 12.3 VizSwitcher disabled-tab visual treatment
+
+Phase 5 ships VizSwitcher with one active tab (MDS Plot) and three disabled tabs (Free Lists, Similarity, Drift).
+
+**Binding specification (overrides T8 plan spec on focusability):**
+- Disabled tab label text: `--color-text-muted`.
+- Disabled tabs: `cursor: not-allowed`. The click action is suppressed.
+- Disabled tabs are **focusable** (not `tabindex="-1"`). The T8 plan spec saying "not focusable" is superseded by this section. Rationale: WCAG 2.1 SC 2.1.1 requires keyboard users to be able to discover all visible interactive affordances. A disabled-but-visible tab that cannot receive focus is invisible to keyboard-only users.
+- Each disabled tab carries `aria-disabled="true"`.
+- A tooltip appears on both hover and focus: `"Coming in a future update"`. Do not use "Phase 6" or any version-specific language in user-visible copy; phase numbering is internal vocabulary.
+- The active tab (MDS Plot) must be distinguishable from disabled tabs without relying on color alone: the active tab must have a visible non-color indicator (underline, background fill, or border) that the disabled tabs do not.
+
+### 12.4 Model color assignment for >6 models
+
+Phase 5 ships 11 models (family) and 9 models (holidays) simultaneously. The §1.2 palette (v0.4) covers 11 slots; this section specifies the assignment algorithm.
+
+**Assignment algorithm (binding):**
+- Sort all model_ids in the current domain result ascending by lexicographic string order.
+- Assign palette slot 1 to the first model_id, slot 2 to the second, and so on.
+- The assignment is stable: the same model_id always receives the same slot regardless of which other models are visible. Slots 1–6 use `--color-model-1` through `--color-model-6`; slots 7–11 use `--color-model-7` through `--color-model-11`.
+- Colors are never reused within a single chart. If future phases add a 12th model, extend the palette further at that time with a Phase 6 design system update.
+- `DataExplorer.tsx` owns palette assignment. It produces a `Map<model_id, cssColorValue>` at mount (before any child renders) and passes it as a prop to MDSPlot, ModelSelector, and Legend. No child component computes its own model color directly from model_id.
+
+All five extended palette slots (`--color-model-7` through `--color-model-11`) pass WCAG AA 3:1 graphical contrast on white (#ffffff). Reviewer verifies with WebAIM Contrast Checker or equivalent before passing T4.
+
+### 12.5 Embed mode (chrome suppression via ?embed=true)
+
+The `?embed=true` URL parameter suppresses page chrome for iframe embedding.
+
+**Binding specification:**
+- Detection: `App.tsx` reads `new URLSearchParams(window.location.search).get('embed') === 'true'` on mount. The parameter key is `embed`.
+- In embed mode: render only the `DataExplorer` component. Suppress Header, Footer, ArticleHeader, KeyFinding, MethodologySummary, and DownloadBar.
+- The DataExplorer has no outer margin or padding in embed mode (full bleed within the iframe viewport).
+- In embed mode: PNG and CSV download buttons are shown (useful for embed consumers). Permalink and Embed buttons are hidden.
+- The embed page must include a `<title>` tag describing the view (e.g., `"Cognitive Structure Lab — Family domain — MDS Plot"`).
+- The SVG container retains its `role="img"` and `aria-label` in embed mode.
+- **Security prerequisite (T12 gate):** `apps/dashboard/public/_headers` currently specifies `frame-ancestors 'none'`. The embed mode `<iframe>` cannot function without a `frame-ancestors` relaxation for the embeddable path. This is a security decision. Before T12 can pass, the Coder must flag this to the Reviewer; the Reviewer must approve the `_headers` change per `SECURITY_AND_HARDENING.md` before it is committed. The Coder does not modify `_headers` unilaterally.
+
+### 12.6 Phase 5 deferral of "Read as table" toggle
+
+DESIGN_SYSTEM.md §7 requires a "Read as table" toggle on every visualization. `AccessibilityTableToggle.tsx` is listed as a Phase 6 component in §11 and is explicitly deferred by the Phase 5 plan.
+
+**Ruling:** The deferral is accepted. The §7 requirement applies at Phase 6 completion, not as a Phase 5 gate.
+
+**Minimum viable Phase 5 screen-reader posture (binding, enforced at T6 and T13):**
+- The MDSPlot SVG container must carry a descriptive `aria-label`. Required format: `"MDS cognitive map of {n} frontier language models on the {domain} domain. {first sentence of generated_lede}."` This gives screen reader users the key finding without requiring the full table toggle.
+- The Reviewer does not reject T13 for absence of `AccessibilityTableToggle.tsx`.
+- The Reviewer does reject T6 for absence of a descriptive `aria-label` on the MDSPlot SVG container. This is the minimum viable posture.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.4. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
