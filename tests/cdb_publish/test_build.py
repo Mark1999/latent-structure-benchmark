@@ -14,16 +14,14 @@ Version-selection behaviour (per plan §4 T1, Test 3):
 from __future__ import annotations
 
 import json
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 from unittest.mock import patch
 
 import pytest
-from pydantic import ValidationError
-
 from cdb_publish.build import DomainValidationError, build
 from cdb_publish.schemas.manifest import Manifest
-
+from pydantic import ValidationError
 
 # ---------------------------------------------------------------------------
 # Fixture helpers
@@ -243,6 +241,10 @@ def test_build_invalid_json_raises(tmp_path: Path) -> None:
 # Test 5 — deterministic output (modulo built_at)
 # ---------------------------------------------------------------------------
 
+# NOTE: Tests 6–8 are gap-fills added by the Tester (Phase 5 T1 verdict).
+# They cover behaviours confirmed manually by the Reviewer but not exercised
+# in the Coder's original 5-test suite.
+
 def test_build_deterministic(tmp_path: Path) -> None:
     """build() produces byte-identical manifest.json when called twice.
 
@@ -256,7 +258,7 @@ def test_build_deterministic(tmp_path: Path) -> None:
 
     _write_domain(results_dir, slug="widgets", version="0.2")
 
-    fixed_time = datetime(2026, 5, 9, 12, 0, 0, tzinfo=timezone.utc)
+    fixed_time = datetime(2026, 5, 9, 12, 0, 0, tzinfo=UTC)
 
     with patch("cdb_publish.build.datetime") as mock_dt:
         mock_dt.now.return_value = fixed_time
@@ -273,3 +275,111 @@ def test_build_deterministic(tmp_path: Path) -> None:
         "manifest.json is not deterministic: content differs between two identical calls"
     )
     assert manifest_a.model_dump() == manifest_b.model_dump()
+
+
+# ---------------------------------------------------------------------------
+# Test 6 — domains are sorted by slug (gap-fill T1)
+# ---------------------------------------------------------------------------
+
+def test_build_domains_sorted_by_slug(tmp_path: Path) -> None:
+    """build() sorts manifest.domains by slug regardless of write order.
+
+    Writing 'zeta' before 'alpha' on disk must not affect manifest ordering.
+    The spec (plan §4 T1, Reviewer item B) requires domains sorted by slug.
+    """
+    results_dir = tmp_path / "results"
+    output_dir = tmp_path / "output"
+
+    # Write in reverse-alphabetical order deliberately
+    _write_domain(results_dir, slug="zeta", version="0.2")
+    _write_domain(results_dir, slug="alpha", version="0.2")
+
+    manifest = build(results_dir, output_dir)
+
+    slugs = [d.slug for d in manifest.domains]
+    assert slugs == sorted(slugs), (
+        f"manifest.domains is not sorted by slug: got {slugs}"
+    )
+    assert slugs == ["alpha", "zeta"]
+
+    on_disk = json.loads((output_dir / "manifest.json").read_text())
+    disk_slugs = [d["slug"] for d in on_disk["domains"]]
+    assert disk_slugs == ["alpha", "zeta"]
+
+
+# ---------------------------------------------------------------------------
+# Test 7 — model_ids are sorted within each domain (gap-fill T1)
+# ---------------------------------------------------------------------------
+
+def test_build_model_ids_sorted(tmp_path: Path) -> None:
+    """build() sorts model_ids within a domain regardless of key order.
+
+    mds_coordinates is a dict; dict iteration order in Python 3.7+ is
+    insertion order, not alphabetical. The spec (Reviewer item B) requires
+    model_ids to be sorted. This test provides them in reverse order to
+    confirm sorting is applied.
+    """
+    results_dir = tmp_path / "results"
+    output_dir = tmp_path / "output"
+
+    # Provide model_ids in reverse-alphabetical order
+    _write_domain(
+        results_dir,
+        slug="widgets",
+        version="0.2",
+        domain_dict=_minimal_domain_result(
+            slug="widgets",
+            analysis_version="0.2",
+            model_ids=["z-model", "m-model", "a-model"],
+        ),
+    )
+
+    manifest = build(results_dir, output_dir)
+
+    assert manifest.domains[0].model_ids == ["a-model", "m-model", "z-model"]
+
+
+# ---------------------------------------------------------------------------
+# Test 8 — CLI exits 1 on validation failure (gap-fill T1)
+# ---------------------------------------------------------------------------
+
+def test_cli_exits_1_on_validation_failure(tmp_path: Path) -> None:
+    """scripts/publish.py exits with code 1 when a domain JSON is invalid.
+
+    Reviewer item G confirms exit-code behaviour; this test makes it
+    machine-verifiable in the pytest suite.
+    """
+    import subprocess
+
+    results_dir = tmp_path / "results"
+    output_dir = tmp_path / "output"
+
+    bad_dir = results_dir / "broken"
+    bad_dir.mkdir(parents=True)
+    (bad_dir / "0.2.json").write_text(
+        json.dumps({"domain_slug": "broken"}), encoding="utf-8"
+    )
+
+    result = subprocess.run(
+        [
+            "uv",
+            "run",
+            "python",
+            "scripts/publish.py",
+            "--results-dir",
+            str(results_dir),
+            "--output-dir",
+            str(output_dir),
+        ],
+        cwd=Path(__file__).parent.parent.parent,
+        capture_output=True,
+        text=True,
+    )
+
+    assert result.returncode == 1, (
+        f"Expected exit code 1, got {result.returncode}. "
+        f"stdout={result.stdout!r}, stderr={result.stderr!r}"
+    )
+    assert "Validation error" in result.stderr, (
+        "Expected 'Validation error' in stderr, got: {result.stderr!r}"
+    )
