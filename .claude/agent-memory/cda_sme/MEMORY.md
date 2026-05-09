@@ -11,3 +11,4 @@
 - [Phase 4a recovery PASS-WITH-NOTES](project_phase4a_recovery_verdict.md) — 2026-05-05 20-cell corpus recovery; R1–R6 binding (framing, append_failure kwargs, substring idempotence, 80% threshold); S5 confirmed not triggered
 - [No-human-baseline amendment CLOSED (content review PASS)](project_no_human_baseline_amendment.md) — 2026-05-07 amendment dropping human baselines + deepening §1.5; commit 38f5740 stable; A1–A6 SATISFIED at prose level; B6/T8/T9 carry forward; Note D SATISFIED-by-amendment
 - [Phase 4b plan PASS-WITH-NOTES](project_phase4b_plan_verdict.md) — 2026-05-07 plan verdict; Q8 failures-as-findings reframe accepted; P1–P8 binding; v1_s* reuse + v2_soft1 single-arm OK; cost non-blocking
+- [Phase 5 plan PASS-WITH-NOTES](project_phase5_plan_verdict.md) — 2026-05-09 plan verdict; Q1–Q11 binding (lede schema-literals, R1-b holidays, methodology-summary prose); tagline US-English "categorize"; T2+T13 gated on separate SME content verdicts
