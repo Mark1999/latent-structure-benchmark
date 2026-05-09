@@ -636,3 +636,92 @@ def test_no_llm_imports_in_lede_py() -> None:
         "LLM client library imports found in lede.py:\n"
         + "\n".join(violations)
     )
+
+
+# ---------------------------------------------------------------------------
+# Gap-fill Test 13 — WEAK_CONSENSUS with R1-b models (no sub-branch)
+# ---------------------------------------------------------------------------
+
+def test_weak_consensus_with_r1b_models_no_subbranch() -> None:
+    """WEAK_CONSENSUS + R1-b models → still routes to weak_consensus pattern.
+
+    Gap: _select_pattern does not sub-branch WEAK_CONSENSUS on n_low_oci.
+    This regression guard confirms R1-b presence does not change the
+    pattern selection or cause a crash for WEAK_CONSENSUS inputs.
+    """
+    model_ids = ["m0", "m1", "m2", "m3", "m4"]
+    # Two R1-b models (oci < 3.0)
+    oci_map = {"m0": 0.5, "m1": 2.0, "m2": 10.0, "m3": 10.0, "m4": 10.0}
+
+    result = _build_domain_result(
+        domain_slug="gadgets",
+        consensus_type="WEAK_CONSENSUS",
+        consensus_score=4.2,
+        consensus_ci=(2.5, 5.9),
+        model_ids=model_ids,
+        within_model_oci=oci_map,
+    )
+
+    lede = generate_lede(result)
+
+    # Pattern selection must be weak_consensus regardless of R1-b presence
+    assert "partial categorical agreement" in lede, (
+        f"Expected weak_consensus pattern with 'partial categorical agreement';"
+        f" got: {lede!r}"
+    )
+    assert "Smith's S = 4.20" in lede, (
+        f"Expected 'Smith's S = 4.20'; got: {lede!r}"
+    )
+    assert "[2.50, 5.90]" in lede, (
+        f"Expected '[2.50, 5.90]'; got: {lede!r}"
+    )
+    # Must NOT surface the R1-b count phrase (no sub-branch for WEAK_CONSENSUS)
+    assert "low output concentration" not in lede, (
+        f"Unexpected 'low output concentration' in WEAK_CONSENSUS lede: {lede!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gap-fill Test 14 — n_low_oci=1 (singular) formatting in with_low_oci pattern
+# ---------------------------------------------------------------------------
+
+def test_strong_consensus_with_low_oci_singular_count() -> None:
+    """STRONG_CONSENSUS, n_low_oci=1 → correct singular count in lede.
+
+    Gap: tests 2 and 10 only exercise n_low_oci=2 (holidays fixture) and
+    a 1-R1b scenario used only for vocabulary checks.  No test explicitly
+    asserts that '1 of these N models produced low output concentration'
+    appears verbatim when exactly one model is R1-b.
+    """
+    model_ids = ["m0", "m1", "m2", "m3", "m4"]
+    # Exactly one R1-b model (oci < 3.0)
+    oci_map = {"m0": 1.5, "m1": 10.0, "m2": 10.0, "m3": 10.0, "m4": 10.0}
+
+    result = _build_domain_result(
+        domain_slug="cuisine",
+        consensus_type="STRONG_CONSENSUS",
+        consensus_score=6.1,
+        consensus_ci=(4.2, 8.0),
+        model_ids=model_ids,
+        within_model_oci=oci_map,
+    )
+
+    lede = generate_lede(result)
+
+    # n_low_oci=1, n=5 → "1 of these 5 models produced low output concentration"
+    assert "1 of these 5 models produced low output concentration" in lede, (
+        f"Expected singular '1 of these 5 models produced low output"
+        f" concentration'; got: {lede!r}"
+    )
+    assert "5 frontier models" in lede, (
+        f"Expected '5 frontier models'; got: {lede!r}"
+    )
+    assert "Smith's S = 6.10" in lede, (
+        f"Expected 'Smith's S = 6.10'; got: {lede!r}"
+    )
+    assert "[4.20, 8.00]" in lede, (
+        f"Expected '[4.20, 8.00]'; got: {lede!r}"
+    )
+    assert "confidence ellipse" in lede, (
+        f"Expected 'confidence ellipse' in with_low_oci lede; got: {lede!r}"
+    )
