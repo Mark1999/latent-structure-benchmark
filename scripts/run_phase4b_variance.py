@@ -151,10 +151,35 @@ PROVIDER_RPM: dict[str, int] = {
     "openrouter": 200,
 }
 
-#: Provider → sleep (seconds) between sequential requests
-#: = 60 / RPM; small buffer applied
+#: Provider → number of parallel worker threads.
+#:
+#: OpenRouter serves ~12 models in the slate while Anthropic/OpenAI/Google/xAI
+#: each serve 2-3.  With a single OpenRouter thread and 30-90 s per-cell LLM
+#: latency, the remaining OpenRouter cells bottleneck the campaign for ~24 h.
+#: Four parallel workers 4× the throughput without approaching the 200 RPM
+#: ceiling (each cell is 3 LLM calls ≈ 1-7 min wall-clock).
+#:
+#: Anthropic/OpenAI/Google/xAI stay at 1 worker each: their model counts are
+#: small (2-3 each) and their rate limits are tighter relative to call volume.
+PROVIDER_WORKERS: dict[str, int] = {
+    "anthropic_api": 1,
+    "openai_api": 1,
+    "google_ai": 1,
+    "xai_api": 1,
+    "openrouter": 4,
+}
+
+#: Provider → per-thread sleep (seconds) between sequential requests.
+#:
+#: Formula: (60 / RPM) × N_workers + small buffer.
+#: Each thread sleeps this long between its own requests.  With N_workers
+#: threads all sleeping this interval, the aggregate request rate across all
+#: threads is ≈ N_workers × (1 / sleep_s) = RPM — matching the ceiling.
+#:
+#: Example: OpenRouter 200 RPM × 4 workers → sleep = 0.3 × 4 + 0.1 = 1.3 s
+#: per thread → aggregate ≈ 4 × (1/1.3) ≈ 184 RPM ≤ 200 RPM ceiling.
 PROVIDER_SLEEP_S: dict[str, float] = {
-    method: 60.0 / rpm + 0.1
+    method: (60.0 / rpm) * PROVIDER_WORKERS.get(method, 1) + 0.1
     for method, rpm in PROVIDER_RPM.items()
 }
 
@@ -637,7 +662,15 @@ def provider_worker(
 ) -> None:
     """Thread worker: drain the provider's cell queue respecting rate limits.
 
+    Multiple workers may share the same ``cell_queue`` for a single provider
+    (see ``PROVIDER_WORKERS``).  The queue is thread-safe; each worker pulls
+    one cell at a time.  Each worker sleeps ``PROVIDER_SLEEP_S[provider_method]``
+    between its own requests; with N workers each sleeping N × (60/RPM) seconds
+    the aggregate request rate across all workers stays at the RPM ceiling.
+
     Exits when it receives a None sentinel or when shutdown is requested.
+    Each worker must receive its own sentinel (the spawning loop puts N
+    sentinels into the queue for N workers).
     """
     sleep_s = PROVIDER_SLEEP_S.get(provider_method, 0.5)
 
@@ -1125,27 +1158,30 @@ def main() -> int:
         # ── Launch provider threads ───────────────────────────────────────────
         threads: list[threading.Thread] = []
         for method, q in provider_queues.items():
-            # Sentinel to stop the worker
-            q.put(None)
-            t = threading.Thread(
-                target=provider_worker,
-                name=f"provider-{method}",
-                args=(
-                    method,
-                    q,
-                    campaign_id,
-                    INFORMANTS_JSONL,
-                    FAILURES_JSONL,
-                    stats,
-                    log_fh,
-                    total_cells,
-                    cell_counter,
-                    counter_lock,
-                ),
-                daemon=True,
-            )
-            threads.append(t)
-            t.start()
+            n_workers = PROVIDER_WORKERS.get(method, 1)
+            # Each worker needs its own None sentinel to exit cleanly.
+            for _ in range(n_workers):
+                q.put(None)
+            for worker_idx in range(n_workers):
+                t = threading.Thread(
+                    target=provider_worker,
+                    name=f"provider-{method}-{worker_idx}",
+                    args=(
+                        method,
+                        q,
+                        campaign_id,
+                        INFORMANTS_JSONL,
+                        FAILURES_JSONL,
+                        stats,
+                        log_fh,
+                        total_cells,
+                        cell_counter,
+                        counter_lock,
+                    ),
+                    daemon=True,
+                )
+                threads.append(t)
+                t.start()
 
         # ── Wait for all threads ──────────────────────────────────────────────
         for t in threads:
