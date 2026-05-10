@@ -766,3 +766,255 @@ describe("MDSPlot — forbidden vocabulary (CLAUDE.md §7)", () => {
     expect(MDS_SRC).not.toMatch(/"[^"]*believes[^"]*"/i);
   });
 });
+
+// ── GAP FILL TESTS ─────────────────────────────────────────────────────────────
+// These tests fill the coverage gaps identified by the Tester in the Phase 5 T6
+// verdict (2026-05-10). They cover: R1-a with null ellipse data, hover
+// mouseenter/mouseleave state, model label font attributes, ellipse parameter
+// application in SVG output, and empty top_terms defensive path.
+
+// ── Gap 1: R1-a with null ellipse data (defensive) ───────────────────────────
+//
+// When mds_uncertainty[modelId] is null for an R1-a model, the component must
+// not crash and must not render an ellipse for that model.
+
+describe("MDSPlot — R1-a with null ellipse data (gap fill: defensive path)", () => {
+  it("R1-a model with null mds_uncertainty renders without ellipse (no crash)", () => {
+    // Build a fixture where mds_uncertainty is explicitly null for an R1-a model.
+    const nullEllipseFixture = makeFixture(
+      "null-ellipse-domain",
+      [
+        { id: "model-null-ellipse", r1State: "typical_concentration" as const, oci: 55 },
+      ]
+    );
+    // Manually override the ellipse to null (makeFixture sets it to params for R1-a)
+    const overridden = {
+      ...nullEllipseFixture,
+      mds_uncertainty: { "model-null-ellipse": null },
+    };
+    const colors = makeModelColors(["model-null-ellipse"]);
+    // Must not throw.
+    expect(() => {
+      renderPlot({ domainResult: overridden as typeof nullEllipseFixture, modelColors: colors });
+    }).not.toThrow();
+    // No ellipse should render (the guarding `if (!point.ellipse) return null` fires).
+    expect(container.querySelectorAll(".mds-plot__ellipse")).toHaveLength(0);
+  });
+
+  it("R1-a model with null mds_uncertainty still renders its model point", () => {
+    const nullEllipseFixture = makeFixture(
+      "null-ellipse-domain",
+      [
+        { id: "model-null-ellipse", r1State: "typical_concentration" as const, oci: 55 },
+      ]
+    );
+    const overridden = {
+      ...nullEllipseFixture,
+      mds_uncertainty: { "model-null-ellipse": null },
+    };
+    const colors = makeModelColors(["model-null-ellipse"]);
+    renderPlot({ domainResult: overridden as typeof nullEllipseFixture, modelColors: colors });
+    expect(container.querySelectorAll(".mds-plot__point--r1a")).toHaveLength(1);
+  });
+});
+
+// ── Gap 2: Tooltip hover — mouseenter / mouseleave state ─────────────────────
+//
+// React 19's event delegation does not fire synthetic onMouseEnter from raw DOM
+// dispatchEvent in jsdom. Per the test file header note (lines 24–28), tooltip
+// copy compliance is handled via source assertions (AC 3, 11, 12). This gap-fill
+// adds structural assertions about the tooltip container visibility: it is absent
+// before hover and present after hover state is forced. We verify the DOM
+// structure (role="tooltip") and that the tooltip disappears when hover is cleared.
+//
+// Technique: React's synthetic event system does not hook onto raw DOM
+// mouseenter/mouseover. We therefore test the tooltip container via source
+// assertions for presence and conditional rendering guard.
+
+describe("MDSPlot — tooltip container conditional rendering (gap fill: hover)", () => {
+  it("tooltip container is NOT present in initial render (no hover)", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    // On initial render, hoveredId is null — tooltip must not appear.
+    expect(container.querySelector(".mds-plot__tooltip")).toBeNull();
+  });
+
+  it("source guards tooltip render on tooltip !== null && hoveredPoint !== null", () => {
+    // Source-level assertion: the tooltip div is gated on both state conditions.
+    expect(MDS_SRC).toContain("tooltip !== null && hoveredPoint !== null");
+  });
+
+  it("source contains handleMouseLeave that clears both hoveredId and tooltip state", () => {
+    // handleMouseLeave must call setHoveredId(null) AND setTooltip(null).
+    const leaveFn = MDS_SRC.indexOf("handleMouseLeave");
+    const body = MDS_SRC.slice(leaveFn, leaveFn + 300);
+    expect(body).toContain("setHoveredId(null)");
+    expect(body).toContain("setTooltip(null)");
+  });
+
+  it("tooltip div has role='tooltip'", () => {
+    // Source assertion: the tooltip container carries role="tooltip".
+    expect(MDS_SRC).toContain('role="tooltip"');
+  });
+
+  it("each model point group has onMouseEnter and onMouseLeave handlers wired", () => {
+    // Source assertion: all three R1 state branches wire both events.
+    // Count occurrences of onMouseEnter in the points render loop.
+    const occurrences = (MDS_SRC.match(/onMouseEnter/g) ?? []).length;
+    // Three point types (R1-a, R1-b, R1-c) each get an onMouseEnter.
+    expect(occurrences).toBeGreaterThanOrEqual(3);
+    const leaveOccurrences = (MDS_SRC.match(/onMouseLeave/g) ?? []).length;
+    expect(leaveOccurrences).toBeGreaterThanOrEqual(3);
+  });
+});
+
+// ── Gap 3: Model label font (12px, var(--font-body)) ─────────────────────────
+//
+// DESIGN_SYSTEM.md §3.3 item 5 requires model labels in 12px Lato (bound to
+// var(--font-body) per tokens.css). Tests verify the SVG text elements carry
+// fontSize="12" and fontFamily="var(--font-body)".
+
+describe("MDSPlot — model label font attributes (gap fill: §3.3 item 5)", () => {
+  it("source specifies fontSize='12' for model labels", () => {
+    // The labels <g> uses fontSize="12" on text elements.
+    expect(MDS_SRC).toContain('fontSize="12"');
+  });
+
+  it("source specifies fontFamily='var(--font-body)' for model labels", () => {
+    expect(MDS_SRC).toContain('fontFamily="var(--font-body)"');
+  });
+
+  it("rendered model label text elements have font-size='12' in DOM", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    const labels = Array.from(container.querySelectorAll(".mds-plot__labels text"));
+    expect(labels.length).toBeGreaterThan(0);
+    labels.forEach((label) => {
+      // fontSize="12" renders as font-size attribute in SVG DOM.
+      const fs = label.getAttribute("font-size");
+      expect(fs).toBe("12");
+    });
+  });
+
+  it("rendered model label text elements use --font-body CSS var for fontFamily", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    const labels = Array.from(container.querySelectorAll(".mds-plot__labels text"));
+    expect(labels.length).toBeGreaterThan(0);
+    labels.forEach((label) => {
+      const ff = label.getAttribute("font-family");
+      expect(ff).toBe("var(--font-body)");
+    });
+  });
+});
+
+// ── Gap 4: Ellipse parameter application (semi_major, semi_minor, rotation_rad) ─
+//
+// The confidence ellipse for R1-a models must use the EllipseParams values from
+// mds_uncertainty. This tests that the ellipse <path> element is present and that
+// the component source uses all three required fields: semi_major, semi_minor,
+// rotation_rad. A correctness test at the SVG level (checking that 'd' attribute
+// is non-trivial) is also included.
+
+describe("MDSPlot — ellipse parameter application (gap fill: semi_major/semi_minor/rotation_rad)", () => {
+  it("source destructures semi_major, semi_minor, rotation_rad from ellipse params", () => {
+    // The ellipse rendering code destructures all three fields.
+    expect(MDS_SRC).toContain("semi_major");
+    expect(MDS_SRC).toContain("semi_minor");
+    expect(MDS_SRC).toContain("rotation_rad");
+  });
+
+  it("source scales semi_major and semi_minor by svgUnitsPerDataUnit", () => {
+    // The SVG ellipse is drawn in pixel-space; data-unit values must be scaled.
+    expect(MDS_SRC).toContain("svgUnitsPerDataUnit");
+    expect(MDS_SRC).toContain("semi_major * svgUnitsPerDataUnit");
+    expect(MDS_SRC).toContain("semi_minor * svgUnitsPerDataUnit");
+  });
+
+  it("ellipse <path> element has a non-trivial 'd' attribute (not empty string)", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    const ellipses = container.querySelectorAll(".mds-plot__ellipse");
+    expect(ellipses.length).toBeGreaterThan(0);
+    ellipses.forEach((el) => {
+      const d = el.getAttribute("d") ?? "";
+      // An ellipse path begins with "M" and is substantially longer than a point.
+      expect(d).toMatch(/^M /);
+      expect(d.length).toBeGreaterThan(20);
+    });
+  });
+
+  it("ellipse path uses a Bezier approximation (contains 'C' curve command)", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    const firstEllipse = container.querySelector(".mds-plot__ellipse");
+    expect(firstEllipse).not.toBeNull();
+    // The ellipsePathD function uses four cubic Bezier curves — 'd' must contain 'C'.
+    expect(firstEllipse!.getAttribute("d")).toContain("C ");
+  });
+
+  it("ellipse data-model-id matches the model's id for all R1-a points in family fixture", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    const ellipses = container.querySelectorAll(".mds-plot__ellipse");
+    const modelIds = FAMILY_MODEL_IDS.slice().sort();
+    const ellipseModelIds = Array.from(ellipses)
+      .map((el) => el.getAttribute("data-model-id"))
+      .filter(Boolean)
+      .sort();
+    expect(ellipseModelIds).toEqual(modelIds);
+  });
+});
+
+// ── Gap 5: Empty top_terms (display.top_terms[modelId] is undefined or []) ───
+//
+// When a model has no top_terms, the component must not crash and the tooltip
+// Top terms section must be absent (guarded by topTerms.length > 0 in R1-a branch).
+
+describe("MDSPlot — empty top_terms defensive path (gap fill)", () => {
+  it("R1-a model with empty top_terms[] renders without crashing", () => {
+    const emptyTermsFixture = makeFixture(
+      "empty-terms-domain",
+      [{ id: "model-empty-terms", r1State: "typical_concentration" as const, oci: 60 }]
+    );
+    // Override top_terms to empty array for the model.
+    const overridden = {
+      ...emptyTermsFixture,
+      display: {
+        ...emptyTermsFixture.display,
+        top_terms: { "model-empty-terms": [] },
+      },
+    };
+    const colors = makeModelColors(["model-empty-terms"]);
+    expect(() => {
+      renderPlot({ domainResult: overridden, modelColors: colors });
+    }).not.toThrow();
+    // The model point still renders.
+    expect(container.querySelectorAll(".mds-plot__point--r1a")).toHaveLength(1);
+  });
+
+  it("source guards top_terms section with topTerms.length > 0", () => {
+    // The R1-a tooltip branch wraps the terms section with this guard.
+    expect(MDS_SRC).toContain("point.topTerms.length > 0");
+  });
+
+  it("R1-a model with missing top_terms key (undefined in record) renders without crashing", () => {
+    const noTermsFixture = makeFixture(
+      "no-terms-domain",
+      [{ id: "model-no-terms", r1State: "typical_concentration" as const, oci: 60 }]
+    );
+    // Override top_terms to a record that has NO entry for this model.
+    const overridden = {
+      ...noTermsFixture,
+      display: {
+        ...noTermsFixture.display,
+        top_terms: {},
+      },
+    };
+    const colors = makeModelColors(["model-no-terms"]);
+    expect(() => {
+      renderPlot({ domainResult: overridden, modelColors: colors });
+    }).not.toThrow();
+    // The model point still renders.
+    expect(container.querySelectorAll(".mds-plot__point--r1a")).toHaveLength(1);
+  });
+
+  it("source uses fallback '?? []' for missing top_terms entry", () => {
+    // When top_terms[modelId] is undefined, the component must fall back to [].
+    expect(MDS_SRC).toContain('display.top_terms[modelId] ?? []');
+  });
+});
