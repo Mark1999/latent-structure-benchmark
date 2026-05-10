@@ -239,6 +239,38 @@ describe("DomainPicker — keyboard navigation", () => {
 
     expect(onSelect).not.toHaveBeenCalled();
   });
+
+  it("ArrowLeft from first pill wraps to last", () => {
+    renderPicker({ domains: DOMAINS, activeSlug: "family", onSelect: vi.fn() });
+    const pills = getPills();
+    const firstPill = pills[0];
+    const lastPill = pills[pills.length - 1];
+
+    act(() => {
+      firstPill.focus();
+      firstPill.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })
+      );
+    });
+
+    expect(document.activeElement).toBe(lastPill);
+  });
+
+  it("Space key on disabled pill does NOT call onSelect", () => {
+    const onSelect = vi.fn();
+    renderPicker({ domains: DOMAINS, activeSlug: "family", onSelect });
+    const pills = getPills();
+    const foodPill = Array.from(pills).find((p) => p.textContent === "Food")!;
+
+    act(() => {
+      foodPill.focus();
+      foodPill.dispatchEvent(
+        new KeyboardEvent("keydown", { key: " ", bubbles: true })
+      );
+    });
+
+    expect(onSelect).not.toHaveBeenCalled();
+  });
 });
 
 describe("DomainPicker — tooltip text", () => {
