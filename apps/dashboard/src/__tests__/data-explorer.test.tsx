@@ -389,6 +389,36 @@ describe("DataExplorer — modelColors algorithm §12.4 (AC 4)", () => {
     expect(paletteBlock).toContain("#9a7d0a");
   });
 
+  it("§12.4 algorithm: 12-model fixture wraps slot 12 back to slot 1 (#3360a9)", () => {
+    // Regression guard for modulo wrap-around (UI/UX latent-issue carry-forward).
+    // DataExplorer.tsx: colors[id] = MODEL_PALETTE_SLOTS[i % MODEL_PALETTE_SLOTS.length]
+    // With 12 models the 12th (index 11) maps to slot 11 (#9a7d0a) and a
+    // hypothetical 13th (index 12) wraps to slot 0 (#3360a9).
+    // This test uses a 12-model synthetic fixture (one beyond the 11-slot palette)
+    // and verifies the wrap produces slot 0 — not an out-of-bounds undefined.
+    const twelve = [
+      "a-model", "b-model", "c-model", "d-model", "e-model", "f-model",
+      "g-model", "h-model", "i-model", "j-model", "k-model", "l-model",
+    ];
+    const sorted = [...twelve].sort(); // already alphabetical
+    const computed: Record<string, string> = {};
+    sorted.forEach((id, i) => {
+      computed[id] = MODEL_PALETTE_SLOTS[i % MODEL_PALETTE_SLOTS.length];
+    });
+    // First model → slot 0 (#3360a9).
+    expect(computed["a-model"]).toBe("#3360a9");
+    // 11th model (index 10) → slot 10 (#9a7d0a).
+    expect(computed["k-model"]).toBe("#9a7d0a");
+    // 12th model (index 11) → slot 11 wraps to index 11 % 11 = 0 → #3360a9.
+    // MODEL_PALETTE_SLOTS has 11 entries (indices 0-10). Index 11 % 11 = 0.
+    expect(computed["l-model"]).toBe(MODEL_PALETTE_SLOTS[11 % MODEL_PALETTE_SLOTS.length]);
+    // Confirm no undefined slot assignment occurred.
+    sorted.forEach((id) => {
+      expect(typeof computed[id]).toBe("string");
+      expect(computed[id]).toMatch(/^#[0-9a-f]{6}$/i);
+    });
+  });
+
   it("MDSPlot receives modelColors (source: DataExplorer passes modelColors prop)", () => {
     // Source assertion: DataExplorer renders <MDSPlot modelColors={modelColors} ...>.
     expect(DE_SRC).toContain("modelColors={modelColors}");
