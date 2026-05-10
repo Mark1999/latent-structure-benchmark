@@ -62,7 +62,8 @@ a:focus-visible {
 .reveal-cascade-item {
   opacity: 0;
   transform: translateY(8px);
-  animation: revealFade 300ms ease-out forwards;
+  animation: revealFade 280ms ease-out forwards;
+  /* 280ms duration + 320ms max delay = 600ms total cascade (DESIGN_SYSTEM.md §12.1 binding cap; v0.4.1 fix from 300ms which produced 620ms) */
 }
 
 /* Stagger delays for cascade (max 80ms between elements, total < 600ms) */

@@ -89,7 +89,7 @@
   --color-model-8:  #1a5276;   /* extended palette — dark blue */
   --color-model-9:  #7d3c98;   /* extended palette — dark purple */
   --color-model-10: #148f77;   /* extended palette — dark teal */
-  --color-model-11: #b7950b;   /* extended palette — dark gold */
+  --color-model-11: #9a7d0a;   /* extended palette — dark gold (v0.4.1; #b7950b failed WCAG AA 3:1 at ~2.89:1) */
   /* Beyond slot 11: future-phase design system update extends further; never reuse colors within a chart */
 
   /* Origin encoding (secondary, used alongside model colors) */
