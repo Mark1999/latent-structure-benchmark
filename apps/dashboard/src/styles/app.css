@@ -1,0 +1,320 @@
+/*
+ * LSB App Styles — page chrome and reveal animation
+ * Source of truth: DESIGN_SYSTEM.md §2 (page architecture), §12.1 (reveal animation)
+ *
+ * Design philosophy (§0): scientific instrument, not a product. OWID-style.
+ * No gradients, no dark-mode hero, no decorative animation.
+ * Data is the decoration.
+ */
+
+/* ===== Reset / base ===== */
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html {
+  font-size: var(--font-size-base);
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  font-family: var(--font-body);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  background-color: var(--color-background);
+  min-height: 100vh;
+}
+
+a {
+  color: var(--color-info);
+  text-decoration: none;
+}
+
+a:hover {
+  text-decoration: underline;
+}
+
+a:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* ===== Page-load reveal animation — DESIGN_SYSTEM.md §12.1 ===== */
+/*
+ * Binding specification:
+ *   - Total cascade duration: 600ms maximum from first paint to last element fully visible.
+ *   - Stagger offset between sequential elements: 80ms maximum.
+ *   - Easing: ease-out only.
+ *   - Animated properties: opacity (0→1) and transform: translateY(8px→0) only.
+ *   - All interactive elements must be pointer-responsive from first paint.
+ *   - The cascade fires once on page load. No repeat.
+ *   - prefers-reduced-motion: reduce → instant reveal, no animation.
+ */
+
+.reveal-cascade-item {
+  opacity: 0;
+  transform: translateY(8px);
+  animation: revealFade 300ms ease-out forwards;
+}
+
+/* Stagger delays for cascade (max 80ms between elements, total < 600ms) */
+.reveal-cascade-item:nth-child(1) { animation-delay: 0ms; }
+.reveal-cascade-item:nth-child(2) { animation-delay: 80ms; }
+.reveal-cascade-item:nth-child(3) { animation-delay: 160ms; }
+.reveal-cascade-item:nth-child(4) { animation-delay: 240ms; }
+.reveal-cascade-item:nth-child(5) { animation-delay: 320ms; }
+
+@keyframes revealFade {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* prefers-reduced-motion override: instant reveal, no motion */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-cascade-item {
+    animation: none;
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ===== Page layout ===== */
+
+.page-wrapper {
+  display: flex;
+  flex-direction: column;
+  min-height: 100vh;
+}
+
+.page-main {
+  flex: 1;
+}
+
+/* ===== Site header — DESIGN_SYSTEM.md §2.2 ===== */
+
+.site-header {
+  border-bottom: var(--border-width) solid var(--color-border);
+  background-color: var(--color-background);
+  position: sticky;
+  top: 0;
+  z-index: 100;
+}
+
+.site-header__inner {
+  max-width: var(--max-explorer-width);
+  margin: 0 auto;
+  padding: var(--space-4) var(--space-6);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-6);
+}
+
+.site-header__logo {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  text-decoration: none;
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-base);
+  flex-shrink: 0;
+}
+
+.site-header__logo:hover {
+  text-decoration: none;
+  color: var(--color-text-primary);
+}
+
+.site-header__logo-glyph {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+}
+
+.site-header__nav {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+}
+
+.site-header__nav-link {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+  white-space: nowrap;
+  transition: color 150ms ease-out;
+}
+
+.site-header__nav-link:hover {
+  color: var(--color-text-primary);
+  text-decoration: none;
+}
+
+.site-header__nav-link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* ===== Article header — DESIGN_SYSTEM.md §2.1 ===== */
+
+.article-header {
+  max-width: var(--max-article-width);
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-6) var(--space-8);
+}
+
+.article-header__eyebrow {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-3);
+}
+
+.article-header__title {
+  font-size: var(--font-size-3xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.article-header__subtitle {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  color: var(--color-text-secondary);
+  max-width: var(--max-prose-width);
+  margin-bottom: var(--space-6);
+}
+
+.article-header__byline-strip {
+  border-top: var(--border-width) solid var(--color-border);
+  padding-top: var(--space-3);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.article-header__byline-separator {
+  color: var(--color-text-muted);
+}
+
+/* ===== Loading and error states — DESIGN_SYSTEM.md §12.2 ===== */
+/*
+ * No spinner, no shimmer (shimmer is looping animation, prohibited per §0).
+ * Loading text in --color-text-muted at --font-size-base.
+ * Error text in --color-text-secondary.
+ * Both states occupy the full content area; Header and Footer remain visible.
+ */
+
+.content-placeholder {
+  max-width: var(--max-article-width);
+  margin: 0 auto;
+  padding: var(--space-12) var(--space-6);
+}
+
+.content-placeholder--loading {
+  color: var(--color-text-muted);
+  font-size: var(--font-size-base);
+}
+
+.content-placeholder--error {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-base);
+}
+
+/* ===== Site footer ===== */
+
+.site-footer {
+  border-top: var(--border-width) solid var(--color-border);
+  background-color: var(--color-surface);
+  padding: var(--space-8) var(--space-6);
+  margin-top: var(--space-20);
+}
+
+.site-footer__inner {
+  max-width: var(--max-explorer-width);
+  margin: 0 auto;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  flex-wrap: wrap;
+}
+
+.site-footer__links {
+  display: flex;
+  align-items: center;
+  gap: var(--space-6);
+  flex-wrap: wrap;
+}
+
+.site-footer__link {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  text-decoration: none;
+}
+
+.site-footer__link:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+
+.site-footer__link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.site-footer__license {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  font-family: var(--font-mono);
+}
+
+/* ===== Embed mode (DESIGN_SYSTEM.md §12.5) ===== */
+/*
+ * In ?embed=true mode, the page renders only the DataExplorer.
+ * No outer margin or padding — full bleed within the iframe viewport.
+ */
+
+.embed-root {
+  margin: 0;
+  padding: 0;
+}
+
+/* ===== Utility: visually hidden (screen-reader only) ===== */
+
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}

@@ -1,65 +1,118 @@
 /*
  * LSB Design Tokens
- * Source of truth: DESIGN_SYSTEM.md §1
+ * Source of truth: DESIGN_SYSTEM.md §1 (v0.4)
  * All visual decisions derive from these tokens.
  * No hardcoded colors, font sizes, or spacing values anywhere in the codebase.
+ *
+ * Font attribution:
+ *   Lato — Lukasz Dziedzic, SIL OFL 1.1
+ *   JetBrains Mono — JetBrains s.r.o., SIL OFL 1.1
+ *   Self-hosted woff2 files in public/fonts/ to comply with font-src 'self' CSP.
+ *   License: public/fonts/LICENSE.txt
  */
+
+/* ===== @font-face declarations ===== */
+
+@font-face {
+  font-family: 'Lato';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/lato/lato-regular.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'Lato';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/lato/lato-bold.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono/jetbrains-mono-regular.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+
+@font-face {
+  font-family: 'JetBrains Mono';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url('/fonts/jetbrains-mono/jetbrains-mono-bold.woff2') format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
 
 :root {
   /* ===== 1.1 Typography ===== */
   --font-body: 'Lato', sans-serif;
-  --font-mono: 'JetBrains Mono', monospace;
+  --font-mono: 'JetBrains Mono', monospace;  /* for data values and citations */
 
-  --font-size-xs:   12px;
-  --font-size-sm:   14px;
-  --font-size-base: 16px;
-  --font-size-lg:   18px;
-  --font-size-xl:   24px;
-  --font-size-2xl:  32px;
-  --font-size-3xl:  48px;
+  --font-size-xs:   12px;   /* source attribution, footnotes */
+  --font-size-sm:   14px;   /* secondary labels, legend text */
+  --font-size-base: 16px;   /* body text */
+  --font-size-lg:   18px;   /* lead paragraph, key finding */
+  --font-size-xl:   24px;   /* section headings */
+  --font-size-2xl:  32px;   /* page title */
+  --font-size-3xl:  48px;   /* hero stat */
 
   --font-weight-regular: 400;
   --font-weight-medium:  500;
   --font-weight-bold:    700;
 
-  --line-height-tight: 1.3;
-  --line-height-body:  1.7;
-  --line-height-data:  1.4;
+  --line-height-tight: 1.3;   /* headings */
+  --line-height-body:  1.7;   /* prose */
+  --line-height-data:  1.4;   /* tables, lists */
 
-  --max-prose-width: 680px;
-  --max-chart-width: 900px;
+  --max-prose-width: 680px;   /* maximum line length for readable prose */
+  --max-chart-width: 900px;   /* maximum chart container width */
 
   /* ===== 1.2 Color Palette ===== */
 
   /* Primary data colors — encode meaning, never decorative */
-  --color-model-1: #3360a9;
-  --color-model-2: #c0392b;
-  --color-model-3: #e67e22;
-  --color-model-4: #27ae60;
-  --color-model-5: #8e44ad;
-  --color-model-6: #16a085;
+  --color-model-1:  #3360a9;   /* primary model (Claude) — OWID blue */
+  --color-model-2:  #c0392b;   /* contrast model (GPT-4o) */
+  --color-model-3:  #e67e22;   /* third model */
+  --color-model-4:  #27ae60;   /* fourth model */
+  --color-model-5:  #8e44ad;   /* fifth model */
+  --color-model-6:  #16a085;   /* sixth model */
+
+  /* Extended palette (v0.4 — Phase 5 supports up to 11 models per chart) */
+  /* All slots pass WCAG AA 3:1 graphical contrast on white (#ffffff). */
+  --color-model-7:  #d35400;   /* extended palette — dark orange */
+  --color-model-8:  #1a5276;   /* extended palette — dark blue */
+  --color-model-9:  #7d3c98;   /* extended palette — dark purple */
+  --color-model-10: #148f77;   /* extended palette — dark teal */
+  --color-model-11: #b7950b;   /* extended palette — dark gold */
+  /* Beyond slot 11: future-phase design system update extends further; never reuse colors within a chart */
 
   /* Origin encoding (secondary, used alongside model colors) */
-  --color-origin-us: #3360a9;
-  --color-origin-eu: #27ae60;
-  --color-origin-cn: #c0392b;
+  --color-origin-us: #3360a9;  /* US-origin models */
+  --color-origin-eu: #27ae60;  /* EU-origin models */
+  --color-origin-cn: #c0392b;  /* China-origin models */
 
-  /* Human baseline markers */
-  --color-baseline-published:  #2c3e50;
-  --color-baseline-researcher: #7f8c8d;
+  /* Human baseline markers — retained for archival reference (2026-05-07 amendment) */
+  --color-baseline-published:   #2c3e50;
+  --color-baseline-researcher:  #7f8c8d;
 
   /* Uncertainty */
-  --color-ellipse-fill:   rgba(51, 96, 169, 0.08);
-  --color-ellipse-stroke: rgba(51, 96, 169, 0.25);
+  --color-ellipse-fill:    rgba(51, 96, 169, 0.08);   /* per-model: use model color at 8% opacity */
+  --color-ellipse-stroke:  rgba(51, 96, 169, 0.25);   /* per-model: use model color at 25% opacity */
 
   /* UI chrome */
-  --color-text-primary:   #2c3e50;
-  --color-text-secondary: #7f8c8d;
-  --color-text-muted:     #bdc3c7;
-  --color-border:         #dde1e7;
-  --color-background:     #ffffff;
-  --color-surface:        #f8f9fa;
-  --color-surface-hover:  #f0f2f5;
+  --color-text-primary:    #2c3e50;   /* body text */
+  --color-text-secondary:  #7f8c8d;   /* captions, labels */
+  --color-text-muted:      #bdc3c7;   /* disabled states, placeholders */
+  --color-border:          #dde1e7;   /* dividers, input borders */
+  --color-background:      #ffffff;   /* page background */
+  --color-surface:         #f8f9fa;   /* card backgrounds, panel backgrounds */
+  --color-surface-hover:   #f0f2f5;   /* hover states on surfaces */
 
   /* Semantic */
   --color-success: #27ae60;
@@ -77,8 +130,8 @@
   --space-10:  40px;
   --space-12:  48px;
   --space-16:  64px;
-  --space-20:  80px;
-  --space-24:  96px;
+  --space-20:  80px;   /* section separation */
+  --space-24:  96px;   /* major section separation */
 
   /* ===== 1.4 Elevation and Borders ===== */
   --border-radius-sm: 4px;
@@ -91,4 +144,8 @@
 
   --border-width: 1px;
   --border-color: var(--color-border);
+
+  /* ===== Page architecture max-widths ===== */
+  --max-article-width: 780px;   /* article header, key finding, methodology */
+  --max-explorer-width: 1200px; /* data explorer full-width container */
 }

@@ -1,0 +1,27 @@
+Font files in this directory are distributed under the SIL Open Font License (OFL), Version 1.1.
+
+Lato
+  Designer: Lukasz Dziedzic
+  License: SIL Open Font License 1.1
+  Source: Google Fonts (https://fonts.google.com/specimen/Lato)
+  Files: lato/lato-regular.woff2, lato/lato-bold.woff2
+
+JetBrains Mono
+  Designer: JetBrains s.r.o.
+  License: SIL Open Font License 1.1
+  Source: Google Fonts / JetBrains (https://fonts.google.com/specimen/JetBrains+Mono)
+  Files: jetbrains-mono/jetbrains-mono-regular.woff2, jetbrains-mono/jetbrains-mono-bold.woff2
+
+SIL OPEN FONT LICENSE Version 1.1
+------------------------------------------------------------------
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the following conditions:
+
+The Font Software may not be sold by itself.
+The above copyright and this permission notice shall be included in
+all copies or substantial portions of the Font Software.
+The Font Software is provided "as is", without warranty of any kind.
+
+Full license text: https://openfontlicense.org
