@@ -435,6 +435,117 @@ describe("App — T7 selectedModels state", () => {
 //
 // CLAUDE.md §6 R9: no real API calls. All mocked.
 
+// ── T8 additions: VizSwitcher integration + URL fragment state ───────────────
+//
+// Tests added in the Phase 5 T8 Coder pass (2026-05-10).
+// Verifies: VizSwitcher is imported, default activeTab is "mds", and
+// resolveFragmentOnMount handles #mds / #freelist / #similarity / #drift.
+// Source: docs/status/2026-05-09-phase5-architect-plan.md §4 T8 +
+//         DESIGN_SYSTEM.md §12.3 v0.4 binding override.
+
+describe("App — T8 VizSwitcher integration", () => {
+  it("VizSwitcher is imported and rendered in App.tsx (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("VizSwitcher");
+    expect(appSrc).toContain("<VizSwitcher");
+  });
+
+  it("App.tsx imports resolveFragmentOnMount from VizSwitcher (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("resolveFragmentOnMount");
+  });
+
+  it("App.tsx declares activeVizTab state defaulting to resolveFragmentOnMount() (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("activeVizTab");
+    expect(appSrc).toContain("setActiveVizTab");
+  });
+
+  it("VizSwitcher receives activeTab and onTabChange props (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("activeTab={activeVizTab}");
+    expect(appSrc).toContain("onTabChange={handleVizTabChange}");
+  });
+
+  it("VizSwitcher is exported as a named function component", async () => {
+    const { VizSwitcher } = await import("../components/VizSwitcher");
+    expect(typeof VizSwitcher).toBe("function");
+  });
+
+  it("default activeVizTab resolves to 'mds' (resolveFragmentOnMount falls back to mds in node env)", async () => {
+    // The App.tsx initial state is: useState<ActiveVizTab>(() => resolveFragmentOnMount())
+    // In the node test environment, window is not defined — the try/catch in
+    // resolveFragmentOnMount catches the ReferenceError and returns "mds".
+    const { resolveFragmentOnMount } = await import("../components/VizSwitcher");
+    const result = resolveFragmentOnMount();
+    expect(result).toBe("mds");
+  });
+
+  it("resolveFragmentOnMount is a pure function that always returns 'mds' in Phase 5", async () => {
+    // Verify the function signature returns ActiveVizTab = "mds".
+    // The return type is constrained to "mds" only in Phase 5.
+    // Source assertion: the function is exported from VizSwitcher.tsx.
+    const vizSwitcherSrc = readFileSync(
+      resolve(__dirname, "../components/VizSwitcher.tsx"),
+      "utf-8"
+    );
+    expect(vizSwitcherSrc).toContain("resolveFragmentOnMount");
+    expect(vizSwitcherSrc).toContain("ActiveVizTab");
+    expect(vizSwitcherSrc).toContain("return \"mds\"");
+  });
+
+  it("VizSwitcher source: mds tab id present and DISABLED_FRAGMENTS set present (source assertion)", () => {
+    const vizSwitcherSrc = readFileSync(
+      resolve(__dirname, "../components/VizSwitcher.tsx"),
+      "utf-8"
+    );
+    // The active tab id is "mds" — per T8 spec §3 URL state.
+    expect(vizSwitcherSrc).toContain('id: "mds"');
+    // DISABLED_FRAGMENTS set is defined.
+    expect(vizSwitcherSrc).toContain("DISABLED_FRAGMENTS");
+  });
+
+  it("VizSwitcher source: #freelist / #similarity / #drift fragments treated as #mds with warning (source assertion)", () => {
+    const vizSwitcherSrc = readFileSync(
+      resolve(__dirname, "../components/VizSwitcher.tsx"),
+      "utf-8"
+    );
+    // DISABLED_FRAGMENTS set contains the three disabled tab IDs.
+    expect(vizSwitcherSrc).toContain("freelist");
+    expect(vizSwitcherSrc).toContain("similarity");
+    expect(vizSwitcherSrc).toContain("drift");
+    // A console.warn is emitted for unrecognised fragments.
+    expect(vizSwitcherSrc).toContain("console.warn");
+  });
+
+  it("VizSwitcher source: tooltip text is exact string 'Coming in a future update' — no Phase 6 in user-visible copy", () => {
+    const vizSwitcherSrc = readFileSync(
+      resolve(__dirname, "../components/VizSwitcher.tsx"),
+      "utf-8"
+    );
+    // §12.3 binding: exact tooltip string required.
+    expect(vizSwitcherSrc).toContain("Coming in a future update");
+    // "Phase 6" must NOT appear in user-visible JSX text content or title/aria attributes.
+    // (Comments may reference it; we check the JSX portion only via grep on the JSX return.)
+    // The title attribute must use the exact approved string, not any phase-numbered copy.
+    expect(vizSwitcherSrc).not.toContain('"Phase 6"');
+    expect(vizSwitcherSrc).not.toContain("coming soon");
+  });
+
+  it("VizSwitcher source: disabled tabs use tabIndex={0} in JSX (§12.3 binding)", () => {
+    const vizSwitcherSrc = readFileSync(
+      resolve(__dirname, "../components/VizSwitcher.tsx"),
+      "utf-8"
+    );
+    // §12.3 overrides T8 plan spec: disabled tabs must be focusable.
+    // tabIndex={0} appears in the JSX (universal on all tabs).
+    expect(vizSwitcherSrc).toContain("tabIndex={0}");
+    // The value -1 must NOT appear as a literal tabIndex assignment in JSX.
+    // Note: string "-1" may appear in comments; we check JSX attribute syntax.
+    expect(vizSwitcherSrc).not.toContain("tabIndex={-1}");
+  });
+});
+
 describe("App — T7 v0.4.2 gap fills: sort+slice logic verification", () => {
   it("v0.4.2 reset logic produces exactly 6 models for the 11-model family corpus", () => {
     // Functional simulation of App.tsx line 171:

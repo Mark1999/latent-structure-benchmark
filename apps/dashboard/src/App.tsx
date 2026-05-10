@@ -23,6 +23,8 @@ import type { Domain } from "./components/DomainPicker";
 import { KeyFinding } from "./components/KeyFinding";
 import { MDSPlot } from "./components/MDSPlot";
 import { ModelSelector } from "./components/ModelSelector";
+import { VizSwitcher, resolveFragmentOnMount } from "./components/VizSwitcher";
+import type { ActiveVizTab } from "./components/VizSwitcher";
 
 type AppState = "loading" | "loaded" | "error";
 
@@ -102,7 +104,33 @@ export default function App() {
   const [domainResult, setDomainResult] = useState<DomainResultPublished | null>(null);
   /** T7: selected model_ids. Default to all available; reset on domain switch. */
   const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  /**
+   * T8: active viz tab. Phase 5 only supports "mds".
+   * On mount, read URL fragment per resolveFragmentOnMount():
+   *   - #mds or empty → "mds" (no-op)
+   *   - #freelist / #similarity / #drift → "mds" with console warning
+   * URL fragment is set to #mds when onTabChange fires.
+   */
+  const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>(
+    () => resolveFragmentOnMount()
+  );
   const embedMode = isEmbedMode();
+
+  /**
+   * Handle VizSwitcher tab activation. Phase 5: only "mds" is activatable.
+   * Updates URL fragment to #mds and keeps local state in sync.
+   * Per T8 spec: #freelist / #similarity / #drift fragments on mount are treated
+   * as #mds (Phase 5 fallback handled in resolveFragmentOnMount).
+   */
+  function handleVizTabChange(tab: ActiveVizTab): void {
+    setActiveVizTab(tab);
+    try {
+      // Update URL fragment without triggering a page reload.
+      window.history.replaceState(null, "", `#${tab}`);
+    } catch {
+      // history API unavailable in some test environments — ignore.
+    }
+  }
 
   // Derived loading flag: result is absent or for a different domain than activeSlug.
   // True while a domain fetch is in-flight or before first fetch completes.
@@ -263,6 +291,16 @@ export default function App() {
                 <div className="reveal-cascade-item">
                   <KeyFinding generatedLede={domainResult.generated_lede} />
                 </div>
+              )}
+
+              {/* VizSwitcher: tab bar above the explorer area (T8).
+                  Sits inside the content-area div, not a top-level cascade item.
+                  §12.3: disabled tabs focusable, tooltip "Coming in a future update". */}
+              {domainResult !== null && !domainLoading && (
+                <VizSwitcher
+                  activeTab={activeVizTab}
+                  onTabChange={handleVizTabChange}
+                />
               )}
 
               {/* MDSPlot + ModelSelector: shown when domain result is loaded (T6/T7).

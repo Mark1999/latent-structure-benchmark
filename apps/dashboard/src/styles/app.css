@@ -796,6 +796,90 @@ a:focus-visible {
   color: var(--color-text-muted);
 }
 
+/* ===== VizSwitcher — DESIGN_SYSTEM.md §3.2 + §12.3 ===== */
+/*
+ * Tab bar for the Data Explorer. Phase 5: one active tab (MDS Plot),
+ * three disabled tabs (Free Lists, Similarity, Drift).
+ *
+ * §12.3 binding constraints implemented here:
+ *   - Active tab: bottom border (3px solid --color-model-1) + bold weight.
+ *     Non-color indicator required — sighted users must not rely on color alone.
+ *   - Disabled tabs: --color-text-muted text, cursor: not-allowed.
+ *   - Focus ring on all tabs (disabled tabs remain focusable per §12.3).
+ *   - No hardcoded colors — design tokens only.
+ */
+
+.viz-switcher {
+  max-width: var(--max-explorer-width, 1200px);
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+  margin-bottom: var(--space-4);
+}
+
+.viz-switcher__tablist {
+  display: flex;
+  flex-direction: row;
+  gap: 0;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.viz-switcher__tab {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-3) var(--space-4);
+  border: none;
+  border-bottom: 3px solid transparent;
+  background-color: transparent;
+  color: var(--color-text-secondary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-tight);
+  cursor: pointer;
+  transition: color 150ms ease-out, border-bottom-color 150ms ease-out;
+  /* Always pointer-responsive per §12.1 */
+  pointer-events: auto;
+  /* Bottom border sits flush with the tablist border-bottom */
+  margin-bottom: -1px;
+}
+
+.viz-switcher__tab:hover:not(.viz-switcher__tab--disabled) {
+  color: var(--color-text-primary);
+  border-bottom-color: var(--color-border);
+}
+
+/* Active tab: bottom border (3px solid --color-model-1) + bold weight.
+   Non-color indicator per §12.3: sighted users see the border AND the weight. */
+.viz-switcher__tab--active {
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-bold);
+  border-bottom-color: var(--color-model-1);
+}
+
+.viz-switcher__tab--active:hover {
+  border-bottom-color: var(--color-model-1);
+}
+
+/* Disabled tab: muted color, not-allowed cursor (§12.3 binding).
+   Click is suppressed in component code. Tab remains focusable. */
+.viz-switcher__tab--disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+}
+
+.viz-switcher__tab--disabled:hover {
+  color: var(--color-text-muted);
+  border-bottom-color: transparent;
+}
+
+/* Focus ring on all tabs — WCAG AA visible focus indicator.
+   Applies to both active and disabled tabs (disabled tabs are focusable per §12.3). */
+.viz-switcher__tab:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
+}
+
 /* ===== Utility: visually hidden (screen-reader only) ===== */
 
 .sr-only {
