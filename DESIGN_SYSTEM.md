@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.1  
+**Version:** v0.4.2  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4.2** (T7 per-commit UI/UX review, 2026-05-10) adds the §3.7 initial-state and max-6 warning gating binding spec. The v0.4.1 §3.7 stated that max-6 was "enforced with an inline warning if exceeded" but did not specify the initial state — the T7 implementation defaulted to all-available models, causing the warning to appear on every page load before any user interaction. v0.4.2 adds three binding rules: (1) initial state is the first-6 model_ids by §12.4 lexicographic sort; (2) the warning fires only on interactive add to an already-at-6 selection; (3) "Select all" bypasses per-toggle and may legitimately trigger the warning. EU origin badge contrast (~4.44:1 on `--color-surface-hover`) is flagged as borderline pre-launch (badge is `aria-hidden="true"`, so functional accessibility via checkbox `aria-label` is intact).
 - **v0.4.1** (T4 per-commit UI/UX review, 2026-05-10) corrects `--color-model-11` in §1.2 and §12.4 from `#b7950b` to `#9a7d0a`. The v0.4 assertion that `#b7950b` passes WCAG AA 3:1 graphical contrast on white was incorrect — computed contrast ratio was approximately 2.89:1, below the 3:1 minimum. The corrected value `#9a7d0a` passes at approximately 3.96:1. The hue family (dark gold) is preserved.
 - **v0.4** (Phase 5 plan UI/UX gate, 2026-05-09) adds §12 (Phase 5 Visual Decisions) covering five visual decisions required by the Phase 5 architect plan that v0.3 did not specify: page-load reveal animation timing (§12.1), data fetch loading state (§12.2), VizSwitcher disabled-tab visual treatment with WCAG 2.1 SC 2.1.1 correction overriding the T8 plan spec (§12.3), model color assignment for >6 models with five new palette tokens (§12.4), and embed mode chrome suppression with frame-ancestors security gate (§12.5). Adds §12.6 (Phase 5 "Read as table" deferral and minimum viable screen-reader posture). Updates §3.2 MDSPlot library entry from "D3" to "D3 or React+SVG" (hand-rolled SVG approved for Phase 5; D3 zoom/pan deferred to Phase 6). Extends §1.2 color palette with `--color-model-7` through `--color-model-11`. Corrects vestigial footer label from v0.1 to v0.4.
 - **v0.3** (post-PR-A UI/UX review, 2026-04-20) extends §3.3.5 with binding implementation requirements for the Register 1 annotations on Register 2 points: R1-c stroke width raised to 3px (WCAG AA fix for the orange/green palette slots at 10px marker size); R1-b dashed stroke specified at 100% model color opacity (only the fill is at 60%); tooltip copy for R1-c de-jargonized (schema identifiers moved to data dictionary + methodology page); legend marker-sample requirement added (text tags alone fail WCAG); all-deterministic edge-case copy specified as a named lede case; OCI low-concentration threshold config constant location specified at `apps/dashboard/src/config/analysis.ts`; §7 shape-encoding ambiguity clarified (model points remain filled circles; baseline markers use ★/◆; R1-c introduces state-encoded shape, not origin-encoded). Extends §5 CSV export spec to include `oci`, `deterministic_output`, `r1_state` columns. Mark-level decision resolved on 2026-04-20: hollow triangle (△) is the R1-c marker shape. No changes to design tokens, color palette, or page architecture.
@@ -378,6 +379,16 @@ The model selector is a persistent left-side panel (or collapsible on mobile). I
 - "Select all" / "Clear all" links
 - Maximum 6 models selected simultaneously for readability (enforced with an inline warning if exceeded)
 
+**Max-6 enforcement — initial state and warning gating (binding, added v0.4.2):**
+
+The max-6 constraint is an interactive guardrail, not a permanent page-load state. The three rules below are binding on `App.tsx`, its successor `DataExplorer.tsx` (T9), and `ModelSelector.tsx`:
+
+1. **Initial state (binding).** The initial `selectedModels` value on page load and on every domain switch must be the **first 6 model_ids by §12.4 lexicographic sort order** — not all-available. For a domain with 11 models, 6 are selected on load; for a domain with 9 models, 6 are selected on load. Implementation: `Object.keys(rawCoords).sort().slice(0, 6)`.
+
+2. **Warning gating (binding).** The inline `role="alert"` warning fires only when the selection count is already at 6 AND the user attempts to add a further model via the per-row checkbox toggle. The warning must NOT appear on page load (where exactly 6 are selected by rule 1) and must NOT appear before any user interaction.
+
+3. **"Select all" semantics (binding).** "Select all" sets the selection to all available `model_ids`, bypassing per-toggle enforcement. If the result exceeds 6, the warning will appear — this is expected behavior for an explicit user action, not an error. The warning remains visible until the user deselects enough models to bring the count below 6.
+
 
 ### 3.8 Key Finding Strip
 
@@ -677,6 +688,6 @@ DESIGN_SYSTEM.md §7 requires a "Read as table" toggle on every visualization. `
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.4.2. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

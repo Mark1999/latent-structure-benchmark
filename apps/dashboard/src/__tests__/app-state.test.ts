@@ -361,10 +361,11 @@ describe("App — T7 selectedModels state", () => {
     expect(appSrc).toContain("setSelectedModels");
   });
 
-  it("selectedModels state is reset to all available on domain switch (source assertion)", () => {
-    // App.tsx must call setSelectedModels(Object.keys(rawCoords)) when domain result arrives.
+  it("selectedModels state is reset to first-6 (sorted) on domain switch — DESIGN_SYSTEM.md §3.7 v0.4.2 binding", () => {
+    // App.tsx must call setSelectedModels(Object.keys(rawCoords).sort().slice(0, 6))
+    // per the §3.7 v0.4.2 max-6 initial-state binding (UI/UX F-T7-1).
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("setSelectedModels(Object.keys(rawCoords))");
+    expect(appSrc).toContain("setSelectedModels(Object.keys(rawCoords).sort().slice(0, 6))");
   });
 
   it("ModelSelector is imported and rendered (source assertion)", () => {

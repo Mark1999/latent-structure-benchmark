@@ -162,10 +162,13 @@ export default function App() {
       .then((result) => {
         if (!cancelled) {
           setDomainResult(result);
-          // T7: reset selectedModels to all available models for the new domain.
-          // "All available" = all model_ids in mds_coordinates.
+          // T7 v0.4.2 (UI/UX F-T7-1 fix): initial selection is the first 6 model_ids by
+          // §12.4 lexicographic sort order. Defaulting to all-available caused the max-6
+          // warning to appear on every page load before any user interaction, which
+          // contradicts §3.7's "interactive guard" intent. See DESIGN_SYSTEM.md §3.7
+          // initial-state binding spec (v0.4.2) for the three rules.
           const rawCoords = result.mds_coordinates as unknown as Record<string, [number, number]>;
-          setSelectedModels(Object.keys(rawCoords));
+          setSelectedModels(Object.keys(rawCoords).sort().slice(0, 6));
         }
       })
       .catch(() => {
