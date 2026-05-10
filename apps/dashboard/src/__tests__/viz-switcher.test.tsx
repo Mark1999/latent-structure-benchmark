@@ -410,3 +410,118 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).not.toHaveBeenCalled();
   });
 });
+
+// ── Gap-fill tests (Phase 5 T8 Tester pass, 2026-05-10) ─────────────────────
+//
+// Gaps identified during T8 Tester inspection:
+//
+//   Gap G1: Space on active MDS tab — spec comment at line 20 says "Enter / Space
+//            on active tab calls onTabChange" but only Enter was tested for the
+//            active case. Space on disabled was tested; Space on active was not.
+//
+//   Gap G2: resolveFragmentOnMount with real hash values — the app-state.test.ts
+//            calls the function in a node environment where window is absent, so
+//            the DISABLED_FRAGMENTS branch (console.warn + return "mds") was never
+//            exercised. jsdom is available here; test all three paths.
+//
+//   Gap G3: ArrowLeft wrap-around — ArrowRight from last→first is tested; the
+//            symmetric ArrowLeft from first (MDS Plot) → last (Drift) is not.
+//
+// CLAUDE.md §6 R9: no real API calls.
+
+import { resolveFragmentOnMount } from "../components/VizSwitcher";
+
+describe("VizSwitcher — Gap G1: Space on active tab (§12.3 binding)", () => {
+  it("Space on MDS Plot tab calls onTabChange('mds')", () => {
+    const onTabChange = vi.fn();
+    renderSwitcher({ activeTab: "mds", onTabChange });
+    const tabs = getTabs();
+    const mdsTab = tabs[0];
+
+    act(() => {
+      mdsTab.focus();
+      mdsTab.dispatchEvent(
+        new KeyboardEvent("keydown", { key: " ", bubbles: true })
+      );
+    });
+
+    // §12.3: both Enter and Space must activate the focused active tab.
+    expect(onTabChange).toHaveBeenCalledOnce();
+    expect(onTabChange).toHaveBeenCalledWith("mds");
+  });
+});
+
+describe("VizSwitcher — Gap G2: resolveFragmentOnMount with real hash values (jsdom)", () => {
+  afterEach(() => {
+    // Restore hash to neutral state after each test.
+    window.location.hash = "";
+  });
+
+  it("returns 'mds' when hash is empty", () => {
+    window.location.hash = "";
+    expect(resolveFragmentOnMount()).toBe("mds");
+  });
+
+  it("returns 'mds' when hash is '#mds'", () => {
+    window.location.hash = "#mds";
+    expect(resolveFragmentOnMount()).toBe("mds");
+  });
+
+  it("returns 'mds' when hash is '#freelist' (Phase 5 fallback)", () => {
+    window.location.hash = "#freelist";
+    expect(resolveFragmentOnMount()).toBe("mds");
+  });
+
+  it("returns 'mds' when hash is '#similarity' (Phase 5 fallback)", () => {
+    window.location.hash = "#similarity";
+    expect(resolveFragmentOnMount()).toBe("mds");
+  });
+
+  it("returns 'mds' when hash is '#drift' (Phase 5 fallback)", () => {
+    window.location.hash = "#drift";
+    expect(resolveFragmentOnMount()).toBe("mds");
+  });
+
+  it("emits console.warn for DISABLED_FRAGMENTS hash (#freelist)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.location.hash = "#freelist";
+    resolveFragmentOnMount();
+    expect(warnSpy).toHaveBeenCalledOnce();
+    expect(warnSpy.mock.calls[0][0]).toContain("freelist");
+    warnSpy.mockRestore();
+  });
+
+  it("does NOT emit console.warn for #mds (recognized active fragment)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.location.hash = "#mds";
+    resolveFragmentOnMount();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("does NOT emit console.warn for empty hash", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.location.hash = "";
+    resolveFragmentOnMount();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+});
+
+describe("VizSwitcher — Gap G3: ArrowLeft wrap-around from first tab to last", () => {
+  it("ArrowLeft from MDS Plot (first tab) wraps to Drift (last tab)", () => {
+    renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
+    const tabs = getTabs();
+    const mdsTab = tabs[0];
+    const driftTab = tabs[tabs.length - 1];
+
+    act(() => {
+      mdsTab.focus();
+      mdsTab.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })
+      );
+    });
+
+    expect(document.activeElement).toBe(driftTab);
+  });
+});
