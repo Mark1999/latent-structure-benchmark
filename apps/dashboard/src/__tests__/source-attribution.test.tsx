@@ -313,3 +313,86 @@ describe("SourceAttribution — forbidden vocabulary", () => {
     expect(container.textContent?.toLowerCase()).not.toContain("thinks");
   });
 });
+
+// ── Gap-fill: v0.4.3 WCAG AA token + (N of M models shown) ───────────────────
+// These tests target coverage gaps identified by the Tester agent at T10 review.
+
+describe("SourceAttribution — v0.4.3 WCAG AA fix (--color-text-caption token)", () => {
+  it("wrapper element uses --color-text-caption for its color style", () => {
+    // The v0.4.3 fix replaced --color-text-muted (1.75:1) with --color-text-caption
+    // (#6c757d, ~4.60:1) to pass WCAG AA for 12px body text.
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(SourceAttribution, { domainResult: fixture, selectedModels: ["model-a"] })
+    );
+    const wrapper = container.querySelector<HTMLElement>(".source-attribution");
+    expect(wrapper).not.toBeNull();
+    // jsdom preserves the CSS variable reference string in element.style.color.
+    expect(wrapper!.style.color).toBe("var(--color-text-caption)");
+  });
+
+  it("small-n note element uses --color-text-caption for its color style", () => {
+    // The small-n footnote must also use --color-text-caption, not
+    // --color-text-secondary (~3.40:1, insufficient for 12px italic).
+    const fixture = makeFixture(["model-a"], { romney_small_n_warning: true });
+    render(
+      createElement(SourceAttribution, { domainResult: fixture, selectedModels: ["model-a"] })
+    );
+    const note = container.querySelector<HTMLElement>(".source-attribution__small-n-note");
+    expect(note).not.toBeNull();
+    expect(note!.style.color).toBe("var(--color-text-caption)");
+  });
+});
+
+describe("SourceAttribution — (N of M models shown) subspan", () => {
+  it("renders '(N of M models shown)' when selectedModels.length < totalModelCount", () => {
+    // Fixture has 5 models total; selectedModels has 2. The "(2 of 5 models shown)"
+    // subspan should appear because n !== totalModelCount.
+    const fixture = makeFixture(["model-a", "model-b", "model-c", "model-d", "model-e"]);
+    render(
+      createElement(SourceAttribution, {
+        domainResult: fixture,
+        selectedModels: ["model-a", "model-b"],
+      })
+    );
+    expect(container.textContent).toContain("2 of 5 models shown");
+  });
+
+  it("does NOT render '(N of M models shown)' when all models are selected", () => {
+    // All 3 models selected — n === totalModelCount — subspan must be absent.
+    const fixture = makeFixture(["model-a", "model-b", "model-c"]);
+    render(
+      createElement(SourceAttribution, {
+        domainResult: fixture,
+        selectedModels: ["model-a", "model-b", "model-c"],
+      })
+    );
+    expect(container.textContent).not.toContain("models shown");
+  });
+
+  it("renders correct counts in '(N of M models shown)'", () => {
+    // Fixture has 11 models total (standard LSB v1 set); selectedModels = 6.
+    const modelIds = [
+      "claude-opus-4-6",
+      "claude-sonnet-4-6",
+      "deepseek/deepseek-v3.2",
+      "google/gemini-2.5-pro",
+      "meta-llama/llama-4-maverick",
+      "microsoft/phi-4",
+      "mistralai/mistral-large-2512",
+      "mistralai/mistral-small-2603",
+      "openai/gpt-5.4",
+      "openai/gpt-5.4-mini",
+      "x-ai/grok-4",
+    ];
+    const fixture = makeFixture(modelIds);
+    render(
+      createElement(SourceAttribution, {
+        domainResult: fixture,
+        selectedModels: modelIds.slice(0, 6),
+      })
+    );
+    // 6 selected out of 11 total.
+    expect(container.textContent).toContain("6 of 11 models shown");
+  });
+});

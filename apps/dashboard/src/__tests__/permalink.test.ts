@@ -174,3 +174,36 @@ describe("decodePermalink specific format", () => {
     expect(result!.vizTab).toBe("mds");
   });
 });
+
+// ── Gap-fill: '/' chars in model_id are percent-encoded ──────────────────────
+// Identified by the Tester agent at T10 review. encodePermalink uses
+// URLSearchParams which percent-encodes '/' as '%2F' inside param values.
+// This test makes the contract explicit and guards against any future
+// change that would break URL-safe encoding for provider-prefixed model ids.
+
+describe("encodePermalink — slash encoding in model_id (gap-fill)", () => {
+  it("encodes '/' in a model_id as '%2F' in the URL string", () => {
+    // deepseek/deepseek-v3.2 contains a '/'; the encoded URL must contain
+    // '%2F' (or '%2f') so the permalink survives copy-paste and HTTP routing.
+    const encoded = encodePermalink({
+      domain: "family",
+      models: ["deepseek/deepseek-v3.2"],
+      vizTab: "mds",
+    });
+    // URLSearchParams encodes '/' in a param value as '%2F'.
+    expect(encoded.toLowerCase()).toContain("%2f");
+  });
+
+  it("round-trips a model_id with multiple '/' chars without corruption", () => {
+    // meta-llama/llama-4-maverick contains one '/'.
+    // After encode → decode the model_id must be restored verbatim.
+    const state: PermalinkState = {
+      domain: "family",
+      models: ["meta-llama/llama-4-maverick", "openai/gpt-5.4"],
+      vizTab: "mds",
+    };
+    const decoded = decodePermalink(encodePermalink(state));
+    expect(decoded).not.toBeNull();
+    expect(decoded!.models).toEqual(["meta-llama/llama-4-maverick", "openai/gpt-5.4"]);
+  });
+});
