@@ -314,26 +314,30 @@ describe("App — T5 fetchDomain rejection handling", () => {
 });
 
 describe("App — embed mode (DESIGN_SYSTEM.md §12.5)", () => {
-  it("App.tsx isEmbedMode() function exists and returns false when search is empty", async () => {
-    // Read App.tsx to confirm isEmbedMode() is present and checks ?embed=true.
-    // We can't set window.location.search in node environment, so we verify the
-    // function's existence in the source text (the source-read strategy used for
-    // the activeSlug default test above).
+  it("App.tsx isEmbedMode() function exists and checks ?embed=true", async () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
     expect(appSrc).toContain("isEmbedMode");
     expect(appSrc).toContain('.get("embed") === "true"');
     // §12.5: embed mode renders no Header, Footer, ArticleHeader, KeyFinding.
     // The embed branch returns <div className="embed-root">.
     expect(appSrc).toContain("embed-root");
-    // Confirm DomainPicker and KeyFinding are absent from the embed branch.
-    // The embed-root block contains a <p> placeholder only — confirmed by
-    // verifying "embed-root" block does not include "<DomainPicker" or "<KeyFinding".
+  });
+
+  it("embed-root block renders DataExplorer (T9 — replaces static placeholder)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    // Extract the embed-root block.
     const embedRootBlock = appSrc.slice(
       appSrc.indexOf("embed-root"),
       appSrc.indexOf("// Full-page mode")
     );
+    // §12.5: DataExplorer renders in embed mode (T9 migration).
+    expect(embedRootBlock).toContain("DataExplorer");
+    // Header, Footer, ArticleHeader, KeyFinding, DomainPicker still absent.
     expect(embedRootBlock).not.toContain("<DomainPicker");
     expect(embedRootBlock).not.toContain("<KeyFinding");
+    expect(embedRootBlock).not.toContain("<Header");
+    expect(embedRootBlock).not.toContain("<Footer");
+    expect(embedRootBlock).not.toContain("<ArticleHeader");
   });
 });
 
@@ -353,38 +357,54 @@ describe("App — lede format regression (DESIGN_SYSTEM.md §3.8)", () => {
 });
 
 // ── T7 additions: selectedModels state ──────────────────────────────────────
+//
+// T9 note: selectedModels, MODEL_PALETTE_SLOTS, modelColors, activeVizTab,
+// handleVizTabChange, and the explorer-layout JSX block have all moved from
+// App.tsx into DataExplorer.tsx. The source assertions below are updated to
+// reflect the T9 migration. The functional logic is tested in data-explorer.test.tsx.
 
-describe("App — T7 selectedModels state", () => {
-  it("App.tsx declares selectedModels state (source assertion)", () => {
+describe("App — T7 selectedModels state (post-T9 source assertions)", () => {
+  it("App.tsx does NOT contain selectedModels state (moved to DataExplorer at T9)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("selectedModels");
-    expect(appSrc).toContain("setSelectedModels");
+    // T9 migration: selectedModels state is now in DataExplorer.tsx.
+    expect(appSrc).not.toContain("setSelectedModels");
   });
 
-  it("selectedModels state is reset to first-6 (sorted) on domain switch — DESIGN_SYSTEM.md §3.7 v0.4.2 binding", () => {
-    // App.tsx must call setSelectedModels(Object.keys(rawCoords).sort().slice(0, 6))
-    // per the §3.7 v0.4.2 max-6 initial-state binding (UI/UX F-T7-1).
+  it("App.tsx does NOT contain MODEL_PALETTE_SLOTS (moved to DataExplorer at T9)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("setSelectedModels(Object.keys(rawCoords).sort().slice(0, 6))");
+    expect(appSrc).not.toContain("MODEL_PALETTE_SLOTS");
   });
 
-  it("ModelSelector is imported and rendered (source assertion)", () => {
+  it("App.tsx does NOT contain modelColors useMemo (moved to DataExplorer at T9)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("ModelSelector");
-    expect(appSrc).toContain("<ModelSelector");
+    expect(appSrc).not.toContain("modelColors = useMemo");
   });
 
-  it("MDSPlot receives selectedModels prop (source assertion)", () => {
-    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("selectedModels={selectedModels}");
+  it("DataExplorer.tsx declares selectedModels state with sort+slice (source assertion)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("selectedModels");
+    expect(deSrc).toContain("setSelectedModels");
   });
 
-  it("domain switch resets selectedModels (simulated — new result has different model_ids)", async () => {
-    // When a new domain result arrives, selectedModels resets to all models in that domain.
-    // We test this by simulating two fetchDomain calls: first family, then holidays.
-    // The reset logic in App.tsx calls setSelectedModels(Object.keys(rawCoords)).
-    // Verify the logic inline here.
+  it("DataExplorer.tsx resets selectedModels to first-6 sorted on domain switch (§3.7 v0.4.2)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("Object.keys(rawCoords).sort().slice(0, 6)");
+  });
 
+  it("DataExplorer.tsx contains ModelSelector (not App.tsx after T9)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("ModelSelector");
+    expect(deSrc).toContain("<ModelSelector");
+  });
+
+  it("DataExplorer.tsx passes selectedModels to MDSPlot (source assertion)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("selectedModels={selectedModels}");
+  });
+
+  it("domain switch resets selectedModels (simulated — v0.4.2 sort+slice logic)", async () => {
+    // The reset logic now lives in DataExplorer.tsx.
+    // We verify the logic inline here to confirm it still produces the correct result.
     const familyMdsCoords: Record<string, unknown> = {
       "claude-opus-4-6": [0.1, 0.2],
       "deepseek/deepseek-v3.2": [0.3, 0.4],
@@ -395,30 +415,28 @@ describe("App — T7 selectedModels state", () => {
       "deepseek/deepseek-v3.2": [0.3, 0.4],
     };
 
-    // Simulate the reset logic from App.tsx.
+    // v0.4.2 binding: sort + slice to 6.
     function resetSelectedModels(rawCoords: Record<string, unknown>): string[] {
-      return Object.keys(rawCoords);
+      return Object.keys(rawCoords).sort().slice(0, 6);
     }
 
     const familySelected = resetSelectedModels(familyMdsCoords);
-    expect(familySelected).toHaveLength(3);
+    expect(familySelected).toHaveLength(3); // only 3 models, all selected
     expect(familySelected).toContain("claude-opus-4-6");
 
-    // Simulate switch to holidays domain.
     const holidaysSelected = resetSelectedModels(holidaysMdsCoords);
     expect(holidaysSelected).toHaveLength(2);
-    // Confirm the reset produces all holidays models, not the old family set.
     expect(holidaysSelected).not.toContain("google/gemini-2.5-pro");
   });
 
-  it("explorer-layout CSS class is used in App.tsx (source assertion)", () => {
-    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("explorer-layout");
+  it("explorer-layout CSS class is used in DataExplorer.tsx (moved from App.tsx at T9)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("explorer-layout");
   });
 
-  it("ModelSelector receives selectedModels and onSelectionChange props (source assertion)", () => {
-    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("onSelectionChange={setSelectedModels}");
+  it("DataExplorer.tsx passes onSelectionChange to ModelSelector (source assertion)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("onSelectionChange={setSelectedModels}");
   });
 });
 
@@ -443,28 +461,44 @@ describe("App — T7 selectedModels state", () => {
 // Source: docs/status/2026-05-09-phase5-architect-plan.md §4 T8 +
 //         DESIGN_SYSTEM.md §12.3 v0.4 binding override.
 
-describe("App — T8 VizSwitcher integration", () => {
-  it("VizSwitcher is imported and rendered in App.tsx (source assertion)", () => {
-    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("VizSwitcher");
-    expect(appSrc).toContain("<VizSwitcher");
+// ── T8 additions: VizSwitcher integration + URL fragment state ───────────────
+//
+// T9 note: VizSwitcher, activeVizTab state, handleVizTabChange, and
+// resolveFragmentOnMount have moved from App.tsx into DataExplorer.tsx.
+// Source assertions updated accordingly. Functional tests in data-explorer.test.tsx.
+
+describe("App — T8 VizSwitcher integration (post-T9 source assertions)", () => {
+  it("VizSwitcher is imported and rendered in DataExplorer.tsx (source assertion, T9 migration)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("VizSwitcher");
+    expect(deSrc).toContain("<VizSwitcher");
   });
 
-  it("App.tsx imports resolveFragmentOnMount from VizSwitcher (source assertion)", () => {
-    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("resolveFragmentOnMount");
+  it("DataExplorer.tsx imports resolveFragmentOnMount from VizSwitcher (source assertion)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("resolveFragmentOnMount");
   });
 
-  it("App.tsx declares activeVizTab state defaulting to resolveFragmentOnMount() (source assertion)", () => {
-    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("activeVizTab");
-    expect(appSrc).toContain("setActiveVizTab");
+  it("DataExplorer.tsx declares activeVizTab state (source assertion)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("activeVizTab");
+    expect(deSrc).toContain("setActiveVizTab");
   });
 
-  it("VizSwitcher receives activeTab and onTabChange props (source assertion)", () => {
+  it("VizSwitcher receives activeTab and onTabChange props in DataExplorer (source assertion)", () => {
+    const deSrc = readFileSync(resolve(__dirname, "../components/DataExplorer.tsx"), "utf-8");
+    expect(deSrc).toContain("activeTab={activeVizTab}");
+    expect(deSrc).toContain("onTabChange={handleVizTabChange}");
+  });
+
+  it("App.tsx does NOT contain activeVizTab state (moved to DataExplorer at T9)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("activeTab={activeVizTab}");
-    expect(appSrc).toContain("onTabChange={handleVizTabChange}");
+    expect(appSrc).not.toContain("setActiveVizTab");
+  });
+
+  it("App.tsx does NOT contain handleVizTabChange (moved to DataExplorer at T9)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).not.toContain("handleVizTabChange");
   });
 
   it("VizSwitcher is exported as a named function component", async () => {
@@ -473,7 +507,7 @@ describe("App — T8 VizSwitcher integration", () => {
   });
 
   it("default activeVizTab resolves to 'mds' (resolveFragmentOnMount falls back to mds in node env)", async () => {
-    // The App.tsx initial state is: useState<ActiveVizTab>(() => resolveFragmentOnMount())
+    // DataExplorer.tsx uses useState<ActiveVizTab>(() => resolveFragmentOnMount())
     // In the node test environment, window is not defined — the try/catch in
     // resolveFragmentOnMount catches the ReferenceError and returns "mds".
     const { resolveFragmentOnMount } = await import("../components/VizSwitcher");
