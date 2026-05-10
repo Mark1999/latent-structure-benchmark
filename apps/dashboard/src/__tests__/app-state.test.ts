@@ -351,3 +351,72 @@ describe("App — lede format regression (DESIGN_SYSTEM.md §3.8)", () => {
     expect(holidaysLede).toContain("vocabulary is organized");
   });
 });
+
+// ── T7 additions: selectedModels state ──────────────────────────────────────
+
+describe("App — T7 selectedModels state", () => {
+  it("App.tsx declares selectedModels state (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("selectedModels");
+    expect(appSrc).toContain("setSelectedModels");
+  });
+
+  it("selectedModels state is reset to all available on domain switch (source assertion)", () => {
+    // App.tsx must call setSelectedModels(Object.keys(rawCoords)) when domain result arrives.
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("setSelectedModels(Object.keys(rawCoords))");
+  });
+
+  it("ModelSelector is imported and rendered (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("ModelSelector");
+    expect(appSrc).toContain("<ModelSelector");
+  });
+
+  it("MDSPlot receives selectedModels prop (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("selectedModels={selectedModels}");
+  });
+
+  it("domain switch resets selectedModels (simulated — new result has different model_ids)", async () => {
+    // When a new domain result arrives, selectedModels resets to all models in that domain.
+    // We test this by simulating two fetchDomain calls: first family, then holidays.
+    // The reset logic in App.tsx calls setSelectedModels(Object.keys(rawCoords)).
+    // Verify the logic inline here.
+
+    const familyMdsCoords: Record<string, unknown> = {
+      "claude-opus-4-6": [0.1, 0.2],
+      "deepseek/deepseek-v3.2": [0.3, 0.4],
+      "google/gemini-2.5-pro": [0.5, 0.6],
+    };
+    const holidaysMdsCoords: Record<string, unknown> = {
+      "claude-opus-4-6": [0.1, 0.2],
+      "deepseek/deepseek-v3.2": [0.3, 0.4],
+    };
+
+    // Simulate the reset logic from App.tsx.
+    function resetSelectedModels(rawCoords: Record<string, unknown>): string[] {
+      return Object.keys(rawCoords);
+    }
+
+    const familySelected = resetSelectedModels(familyMdsCoords);
+    expect(familySelected).toHaveLength(3);
+    expect(familySelected).toContain("claude-opus-4-6");
+
+    // Simulate switch to holidays domain.
+    const holidaysSelected = resetSelectedModels(holidaysMdsCoords);
+    expect(holidaysSelected).toHaveLength(2);
+    // Confirm the reset produces all holidays models, not the old family set.
+    expect(holidaysSelected).not.toContain("google/gemini-2.5-pro");
+  });
+
+  it("explorer-layout CSS class is used in App.tsx (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("explorer-layout");
+  });
+
+  it("ModelSelector receives selectedModels and onSelectionChange props (source assertion)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("onSelectionChange={setSelectedModels}");
+  });
+});

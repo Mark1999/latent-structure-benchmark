@@ -582,6 +582,220 @@ a:focus-visible {
   line-height: var(--line-height-tight);
 }
 
+/* ===== Explorer layout — T7 two-column (MDS + ModelSelector) ===== */
+/*
+ * Desktop: CSS grid with two columns (viz left, selector right).
+ * Mobile: single column (viz on top, selector below).
+ * Breakpoint at 768px — below that, single column.
+ * Source: DESIGN_SYSTEM.md §3.1 (explorer layout).
+ */
+
+.explorer-layout {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  grid-template-areas: "viz selector";
+  gap: var(--space-6);
+  max-width: var(--max-explorer-width, 1200px);
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+  align-items: start;
+}
+
+.explorer-layout__viz {
+  grid-area: viz;
+  min-width: 0; /* allow shrinking in grid */
+}
+
+.explorer-layout__selector {
+  grid-area: selector;
+  width: 220px;
+  flex-shrink: 0;
+}
+
+@media (max-width: 768px) {
+  .explorer-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "viz"
+      "selector";
+  }
+
+  .explorer-layout__selector {
+    width: 100%;
+  }
+}
+
+/* ===== ModelSelector — DESIGN_SYSTEM.md §3.7 ===== */
+/*
+ * Control panel: checkbox per model, origin badge, weights indicator.
+ * Container: --color-surface background, --border-width border, --space-4 padding.
+ * Per-row: --space-2 vertical padding, --space-3 gap.
+ * Origin badge: --font-size-xs, bold, --color-origin-* token color.
+ * Hover: row background-color --color-surface-hover.
+ * All values via design tokens — no hardcoded colors.
+ */
+
+.model-selector {
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-4);
+  font-family: var(--font-body);
+}
+
+.model-selector__heading {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+
+/* Max-6 warning — role="alert" aria-live="polite" */
+.model-selector__max-warning {
+  font-size: var(--font-size-xs);
+  color: var(--color-error);
+  background-color: rgba(192, 57, 43, 0.08);
+  border: var(--border-width) solid rgba(192, 57, 43, 0.25);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2) var(--space-3);
+  margin-bottom: var(--space-3);
+  line-height: var(--line-height-data);
+}
+
+/* Thin divider between origin groups */
+.model-selector__group-divider {
+  border-top: var(--border-width) solid var(--color-border);
+  margin: var(--space-2) 0;
+}
+
+/* Per-model row: label wrapping checkbox + dot + name + badges */
+.model-selector__row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-2);
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  transition: background-color 100ms ease-out;
+  line-height: var(--line-height-tight);
+}
+
+.model-selector__row:hover {
+  background-color: var(--color-surface-hover);
+}
+
+.model-selector__row--disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.model-selector__row--disabled:hover {
+  background-color: transparent;
+}
+
+.model-selector__checkbox {
+  flex-shrink: 0;
+  width: 14px;
+  height: 14px;
+  cursor: pointer;
+  accent-color: var(--color-info);
+}
+
+.model-selector__row--disabled .model-selector__checkbox {
+  cursor: not-allowed;
+}
+
+/* 12px color dot */
+.model-selector__dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.model-selector__name {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  flex: 1;
+  min-width: 0;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Origin badge: [US] / [EU] / [CN] — color set inline via token value */
+.model-selector__origin-badge {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  background-color: var(--color-surface-hover);
+  border-radius: var(--border-radius-sm);
+  padding: 1px var(--space-1);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Open/closed weights indicator */
+.model-selector__weights-badge {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: 0 var(--space-1);
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.model-selector__weights-badge--open {
+  color: var(--color-success);
+  border-color: var(--color-success);
+}
+
+.model-selector__weights-badge--closed {
+  color: var(--color-text-muted);
+}
+
+/* Select all / Clear all buttons */
+.model-selector__actions {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-top: var(--space-3);
+  padding-top: var(--space-3);
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.model-selector__action-link {
+  background: none;
+  border: none;
+  padding: 0;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-info);
+  cursor: pointer;
+  text-decoration: none;
+  transition: color 100ms ease-out;
+}
+
+.model-selector__action-link:hover {
+  text-decoration: underline;
+}
+
+.model-selector__action-link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.model-selector__action-sep {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}
+
 /* ===== Utility: visually hidden (screen-reader only) ===== */
 
 .sr-only {

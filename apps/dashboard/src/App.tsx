@@ -22,6 +22,7 @@ import { DomainPicker } from "./components/DomainPicker";
 import type { Domain } from "./components/DomainPicker";
 import { KeyFinding } from "./components/KeyFinding";
 import { MDSPlot } from "./components/MDSPlot";
+import { ModelSelector } from "./components/ModelSelector";
 
 type AppState = "loading" | "loaded" | "error";
 
@@ -99,6 +100,8 @@ export default function App() {
   const [manifest, setManifest] = useState<Manifest | null>(null);
   const [activeSlug, setActiveSlug] = useState<string>("family");
   const [domainResult, setDomainResult] = useState<DomainResultPublished | null>(null);
+  /** T7: selected model_ids. Default to all available; reset on domain switch. */
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
   const embedMode = isEmbedMode();
 
   // Derived loading flag: result is absent or for a different domain than activeSlug.
@@ -159,6 +162,10 @@ export default function App() {
       .then((result) => {
         if (!cancelled) {
           setDomainResult(result);
+          // T7: reset selectedModels to all available models for the new domain.
+          // "All available" = all model_ids in mds_coordinates.
+          const rawCoords = result.mds_coordinates as unknown as Record<string, [number, number]>;
+          setSelectedModels(Object.keys(rawCoords));
         }
       })
       .catch(() => {
@@ -255,15 +262,29 @@ export default function App() {
                 </div>
               )}
 
-              {/* MDSPlot: shown when domain result is loaded (T6).
+              {/* MDSPlot + ModelSelector: shown when domain result is loaded (T6/T7).
                   reveal-cascade-item :nth-child(2) — within bounds per F-T5-1 carry-forward.
-                  §12.4: modelColors built from sorted model_ids above. */}
+                  §12.4: modelColors built from sorted model_ids above.
+                  T7: two-column layout (mds + selector) on wide viewports, single on narrow. */}
               {domainResult !== null && !domainLoading && (
                 <div className="reveal-cascade-item">
-                  <MDSPlot
-                    domainResult={domainResult}
-                    modelColors={modelColors}
-                  />
+                  <div className="explorer-layout">
+                    <div className="explorer-layout__viz">
+                      <MDSPlot
+                        domainResult={domainResult}
+                        modelColors={modelColors}
+                        selectedModels={selectedModels}
+                      />
+                    </div>
+                    <div className="explorer-layout__selector">
+                      <ModelSelector
+                        domainResult={domainResult}
+                        selectedModels={selectedModels}
+                        onSelectionChange={setSelectedModels}
+                        modelColors={modelColors}
+                      />
+                    </div>
+                  </div>
                 </div>
               )}
 

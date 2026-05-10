@@ -19,42 +19,22 @@
  *   R1-a: OCI value, state badge, top-5 free-list terms.
  *
  * SVG container: role="img", aria-label per §12.6 binding format.
+ *   With selectedModels: aria-label reflects n_displayed / n_total.
  *
  * OCI threshold: imported from config/analysis.ts (never as a literal).
  * Color assignment: received as modelColors prop (owner is App.tsx for Phase 5;
  *   moves to DataExplorer.tsx at T9 per §12.4).
+ *
+ * selectedModels (T7): controls which model points render. If empty, no points
+ *   render. If equal to total model count, all render (the default state).
+ *   Ellipses follow the same filter.
  */
 
 import { useState, useMemo, useCallback } from "react";
 import type { DomainResultPublished, R1State, EllipseParams } from "../data/types";
 import { OCI_LOW_CONCENTRATION_THRESHOLD } from "../config/analysis";
-
-// ── Short-name map ──────────────────────────────────────────────────────────
-
-/**
- * Map from canonical model_id to a short display name for chart labels.
- * Models not in this map fall back to the last path segment of the model_id.
- */
-const MODEL_SHORT_NAMES: Record<string, string> = {
-  "claude-opus-4-6": "Claude Opus 4.6",
-  "claude-sonnet-4-6": "Claude Sonnet 4.6",
-  "deepseek/deepseek-v3.2": "DeepSeek v3.2",
-  "google/gemini-2.5-pro": "Gemini 2.5 Pro",
-  "meta-llama/llama-4-maverick": "Llama 4 Maverick",
-  "microsoft/phi-4": "Phi-4",
-  "mistralai/mistral-large-2512": "Mistral Large",
-  "mistralai/mistral-small-2603": "Mistral Small",
-  "openai/gpt-5.4": "GPT-5.4",
-  "openai/gpt-5.4-mini": "GPT-5.4 mini",
-  "x-ai/grok-4": "Grok 4",
-};
-
-function modelShortName(modelId: string): string {
-  if (MODEL_SHORT_NAMES[modelId]) return MODEL_SHORT_NAMES[modelId];
-  // Fallback: last segment after "/" or the full id.
-  const parts = modelId.split("/");
-  return parts[parts.length - 1];
-}
+import { modelShortName } from "../lib/modelShortName";
+import { Legend } from "./Legend";
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -62,6 +42,11 @@ export interface MDSPlotProps {
   domainResult: DomainResultPublished;
   /** model_id → CSS color value. Computed by §12.4 sorted-model_id algorithm. */
   modelColors: Record<string, string>;
+  /**
+   * T7: subset of model_ids to display. If empty, renders no points.
+   * Default (undefined or omitted): render all models.
+   */
+  selectedModels?: string[];
 }
 
 // ── Internal types ──────────────────────────────────────────────────────────
@@ -284,95 +269,9 @@ function TooltipContent({ point }: { point: ModelPoint }) {
   );
 }
 
-// ── Legend ───────────────────────────────────────────────────────────────────
-
-/**
- * Inline legend below the plot.
- * Renders actual marker samples per §3.3.5 implementation requirement 4.
- * Each sample passes 3:1 contrast against the legend background (white).
- *
- * Marker sample colors use --color-model-1 as the sample color (DESIGN_SYSTEM.md §3.3.5 binding).
- */
-function MDSLegend() {
-  // Sample color: --color-model-1 = #3360a9
-  const sampleColor = "#3360a9";
-  const sampleColorFill60 = hexToRgba(sampleColor, 0.6);
-
-  // R1-a: solid filled circle
-  const r1aSvg = (
-    <svg width="14" height="14" aria-hidden="true" focusable="false">
-      <circle
-        cx="7"
-        cy="7"
-        r="5"
-        fill={sampleColor}
-        stroke="white"
-        strokeWidth="2"
-      />
-    </svg>
-  );
-
-  // R1-b: dashed-stroke circle with lighter fill (60% opacity fill, 100% stroke)
-  const r1bSvg = (
-    <svg width="14" height="14" aria-hidden="true" focusable="false">
-      <circle
-        cx="7"
-        cy="7"
-        r="5"
-        fill={sampleColorFill60}
-        stroke={sampleColor}
-        strokeWidth="2"
-        strokeDasharray="3 2"
-      />
-    </svg>
-  );
-
-  // R1-c: hollow triangle, 3px stroke, no fill
-  const r1cTriPath = trianglePathD(7, 7, 5.5);
-  const r1cSvg = (
-    <svg width="14" height="14" aria-hidden="true" focusable="false">
-      <path
-        d={r1cTriPath}
-        fill="none"
-        stroke={sampleColor}
-        strokeWidth="3"
-        strokeLinejoin="round"
-      />
-    </svg>
-  );
-
-  return (
-    <div className="mds-plot__legend" role="list" aria-label="Map marker legend">
-      <div className="mds-plot__legend-item" role="listitem">
-        {r1aSvg}
-        <div className="mds-plot__legend-label">
-          <span className="mds-plot__legend-primary">Typical concentration</span>
-          <span className="mds-plot__legend-secondary">confidence ellipse shown</span>
-        </div>
-      </div>
-      <div className="mds-plot__legend-item" role="listitem">
-        {r1bSvg}
-        <div className="mds-plot__legend-label">
-          <span className="mds-plot__legend-primary">Low output concentration</span>
-          <span className="mds-plot__legend-secondary">position uncertain</span>
-        </div>
-      </div>
-      <div className="mds-plot__legend-item" role="listitem">
-        {r1cSvg}
-        <div className="mds-plot__legend-label">
-          <span className="mds-plot__legend-primary">Deterministic output</span>
-          <span className="mds-plot__legend-secondary">
-            zero variance — the mismatch is the finding
-          </span>
-        </div>
-      </div>
-    </div>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
-export function MDSPlot({ domainResult, modelColors }: MDSPlotProps) {
+export function MDSPlot({ domainResult, modelColors, selectedModels }: MDSPlotProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
@@ -395,8 +294,8 @@ export function MDSPlot({ domainResult, modelColors }: MDSPlotProps) {
   const { toSvgX, toSvgY, domainMinX, domainMaxX, domainMinY, domainMaxY } =
     useMemo(() => buildScales(rawCoords), [rawCoords]);
 
-  // Build model point descriptors.
-  const points: ModelPoint[] = useMemo(() => {
+  // Build model point descriptors (ALL models — used for total count in aria-label).
+  const allPoints: ModelPoint[] = useMemo(() => {
     return Object.keys(rawCoords).map((modelId) => {
       const [dx, dy] = rawCoords[modelId];
       const r1State = domainResult.display.r1_states[modelId] ?? "typical_concentration";
@@ -422,16 +321,34 @@ export function MDSPlot({ domainResult, modelColors }: MDSPlotProps) {
     });
   }, [rawCoords, domainResult, withinModelLookup, modelColors, toSvgX, toSvgY]);
 
+  // T7: filter to selectedModels. If selectedModels is undefined, render all.
+  // If selectedModels is an empty array, render no points.
+  const selectedSet = useMemo(() => {
+    if (selectedModels === undefined) return null; // null means "all"
+    return new Set(selectedModels);
+  }, [selectedModels]);
+
+  const points: ModelPoint[] = useMemo(() => {
+    if (selectedSet === null) return allPoints;
+    return allPoints.filter((p) => selectedSet.has(p.modelId));
+  }, [allPoints, selectedSet]);
+
   // Scale factor from data units to SVG pixels (x-axis).
   const dataRangeX = domainMaxX - domainMinX;
   const svgUnitsPerDataUnit = PLOT_W / dataRangeX;
 
-  // Compute the aria-label per §12.6 binding format.
-  // Format: "MDS cognitive map of {n} frontier language models on the {domain} domain. {first sentence of generated_lede}."
-  const nModels = points.length;
+  // Compute the aria-label per §12.6 binding format (T7 extension).
+  // Format: "MDS cognitive map of {n_displayed} of {n_total} frontier language models
+  //          on the {domain} domain. {first sentence of generated_lede}."
+  // When all models are displayed, use the simpler original format.
+  const nTotal = allPoints.length;
+  const nDisplayed = points.length;
   const domainLabel = domainResult.domain_slug;
   const firstSentence = domainResult.generated_lede.split(". ")[0] ?? domainResult.generated_lede;
-  const ariaLabel = `MDS cognitive map of ${nModels} frontier language models on the ${domainLabel} domain. ${firstSentence}.`;
+  const ariaLabel =
+    nDisplayed === nTotal
+      ? `MDS cognitive map of ${nTotal} frontier language models on the ${domainLabel} domain. ${firstSentence}.`
+      : `MDS cognitive map of ${nDisplayed} of ${nTotal} frontier language models on the ${domainLabel} domain. ${firstSentence}.`;
 
   const handleMouseEnter = useCallback(
     (modelId: string, e: React.MouseEvent<SVGElement>) => {
@@ -715,8 +632,8 @@ export function MDSPlot({ domainResult, modelColors }: MDSPlotProps) {
         </div>
       )}
 
-      {/* ── Legend ── */}
-      <MDSLegend />
+      {/* ── Legend — extracted to Legend.tsx at T7 for reuse ── */}
+      <Legend />
     </div>
   );
 }

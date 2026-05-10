@@ -1018,3 +1018,149 @@ describe("MDSPlot — empty top_terms defensive path (gap fill)", () => {
     expect(MDS_SRC).toContain('display.top_terms[modelId] ?? []');
   });
 });
+
+// ═══════════════════════════════════════════════════════════════════════════════
+// T7 additions: selectedModels filtering
+// ═══════════════════════════════════════════════════════════════════════════════
+
+// ── T7: selectedModels — point rendering ─────────────────────────────────────
+
+describe("MDSPlot — selectedModels prop (T7)", () => {
+  it("when selectedModels is undefined (omitted), all 11 family points render", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    expect(container.querySelectorAll(".mds-plot__point")).toHaveLength(11);
+  });
+
+  it("when selectedModels is the full list, all 11 family points render", () => {
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: FAMILY_MODEL_IDS,
+    });
+    expect(container.querySelectorAll(".mds-plot__point")).toHaveLength(11);
+  });
+
+  it("when selectedModels is empty, NO points render", () => {
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: [],
+    });
+    expect(container.querySelectorAll(".mds-plot__point")).toHaveLength(0);
+  });
+
+  it("when selectedModels is a 5-item subset, only 5 points render", () => {
+    const five = FAMILY_MODEL_IDS.slice(0, 5);
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: five,
+    });
+    expect(container.querySelectorAll(".mds-plot__point")).toHaveLength(5);
+  });
+
+  it("when selectedModels has 5 of 9 holidays models, only 5 points render", () => {
+    const fiveHolidays = HOLIDAYS_MODELS.slice(0, 5).map((m) => m.id);
+    renderPlot({
+      domainResult: holidaysFixture,
+      modelColors: holidaysColors,
+      selectedModels: fiveHolidays,
+    });
+    expect(container.querySelectorAll(".mds-plot__point")).toHaveLength(5);
+  });
+});
+
+// ── T7: selectedModels — ellipse filtering ───────────────────────────────────
+
+describe("MDSPlot — ellipse filter follows selectedModels (T7)", () => {
+  it("when selectedModels is empty, NO ellipses render", () => {
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: [],
+    });
+    expect(container.querySelectorAll(".mds-plot__ellipse")).toHaveLength(0);
+  });
+
+  it("when selectedModels is 3 of 11 family (all R1-a), exactly 3 ellipses render", () => {
+    const three = FAMILY_MODEL_IDS.slice(0, 3);
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: three,
+    });
+    expect(container.querySelectorAll(".mds-plot__ellipse")).toHaveLength(3);
+  });
+
+  it("ellipse data-model-id values match the selected models exactly", () => {
+    const three = FAMILY_MODEL_IDS.slice(0, 3).sort();
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: three,
+    });
+    const ellipseIds = Array.from(container.querySelectorAll(".mds-plot__ellipse"))
+      .map((el) => el.getAttribute("data-model-id"))
+      .filter(Boolean)
+      .sort();
+    expect(ellipseIds).toEqual(three);
+  });
+
+  it("model not in selectedModels gets no ellipse even if R1-a", () => {
+    // Select all EXCEPT the first model.
+    const withoutFirst = FAMILY_MODEL_IDS.slice(1);
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: withoutFirst,
+    });
+    const ellipseIds = Array.from(container.querySelectorAll(".mds-plot__ellipse"))
+      .map((el) => el.getAttribute("data-model-id"));
+    expect(ellipseIds).not.toContain(FAMILY_MODEL_IDS[0]);
+  });
+});
+
+// ── T7: aria-label reflects n_displayed / n_total ────────────────────────────
+
+describe("MDSPlot — aria-label with selectedModels (T7, §12.6 update)", () => {
+  it("when all models selected, aria-label says 'cognitive map of 11 frontier language models'", () => {
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: FAMILY_MODEL_IDS,
+    });
+    const label = container.querySelector("svg.mds-plot__svg")?.getAttribute("aria-label") ?? "";
+    // Full-selection format: "MDS cognitive map of {n} frontier language models on ..."
+    expect(label).toMatch(/MDS cognitive map of 11 frontier language models on/);
+    // Should NOT say "X of Y" when showing all.
+    expect(label).not.toMatch(/\d+ of \d+/);
+  });
+
+  it("when selectedModels is undefined, aria-label uses total count (no 'of')", () => {
+    renderPlot({ domainResult: familyFixture, modelColors: familyColors });
+    const label = container.querySelector("svg.mds-plot__svg")?.getAttribute("aria-label") ?? "";
+    expect(label).toContain("11 frontier language models");
+    expect(label).not.toMatch(/\d+ of \d+/);
+  });
+
+  it("when 5 of 11 selected, aria-label says '5 of 11 frontier language models'", () => {
+    const five = FAMILY_MODEL_IDS.slice(0, 5);
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: five,
+    });
+    const label = container.querySelector("svg.mds-plot__svg")?.getAttribute("aria-label") ?? "";
+    expect(label).toContain("5 of 11 frontier language models");
+  });
+
+  it("when 0 selected, aria-label says '0 of 11 frontier language models'", () => {
+    renderPlot({
+      domainResult: familyFixture,
+      modelColors: familyColors,
+      selectedModels: [],
+    });
+    const label = container.querySelector("svg.mds-plot__svg")?.getAttribute("aria-label") ?? "";
+    expect(label).toContain("0 of 11 frontier language models");
+  });
+});
