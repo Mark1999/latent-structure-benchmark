@@ -161,6 +161,13 @@ export interface DomainResultPublished {
   /** ISO timestamp of when this result was generated. */
   generated_at: string;
 
+  /**
+   * Small-n warning: true when n_models < 15 (Romney CCM eigenratio
+   * reporting threshold). When true, SourceAttribution surfaces a footnote
+   * per CDA SME plan-level Q2 binding.
+   */
+  romney_small_n_warning: boolean;
+
   /** Display sub-object — precomputed UI helpers added by cdb_publish T3. */
   display: DisplayBlock;
 }

@@ -78,12 +78,44 @@ function buildDomainList(manifest: Manifest): Domain[] {
   return [...available, ...future];
 }
 
+/**
+ * Read the initial domain slug from the URL (?domain= param) if present.
+ * Falls back to "family" if absent or unreadable.
+ * T10: permalink restore — App.tsx reads ?domain= to set the initial activeSlug.
+ */
+function readInitialDomainFromUrl(): string {
+  try {
+    const params = new URLSearchParams(window.location.search);
+    const domain = params.get("domain");
+    if (domain && domain.trim().length > 0) return domain.trim();
+  } catch {
+    // URLSearchParams unavailable — ignore.
+  }
+  return "family";
+}
+
 export default function App() {
   const [appState, setAppState] = useState<AppState>("loading");
   const [manifest, setManifest] = useState<Manifest | null>(null);
+  // T10: initial domain reads from URL ?domain= param; falls back to "family".
+  // The useState<string>("family") default is the canonical fallback used when
+  // no URL param is present (per T5 binding and app-state test assertions).
   const [activeSlug, setActiveSlug] = useState<string>("family");
   const [domainResult, setDomainResult] = useState<DomainResultPublished | null>(null);
   const embedMode = isEmbedMode();
+
+  // T10: read URL domain on mount and set activeSlug if a valid ?domain= param exists.
+  // Runs once at mount — after this, DomainPicker onSelect drives the value.
+  // set-state-in-effect: intentional — reading the URL once at mount to restore
+  // a permalink-provided domain is exactly the use case the React docs describe.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    const urlDomain = readInitialDomainFromUrl();
+    if (urlDomain !== "family") {
+      setActiveSlug(urlDomain);
+    }
+  }, []);
+  /* eslint-enable react-hooks/set-state-in-effect */
 
   // Derived loading flag: result is absent or for a different domain than activeSlug.
   // True while a domain fetch is in-flight or before first fetch completes.

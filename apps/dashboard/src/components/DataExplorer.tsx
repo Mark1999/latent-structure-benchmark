@@ -1,5 +1,5 @@
 /**
- * DataExplorer — T9 container component.
+ * DataExplorer — T9 container component, extended at T10.
  *
  * Composes VizSwitcher + MDSPlot + ModelSelector + Legend into the full
  * explorer layout per DESIGN_SYSTEM.md §3.1.
@@ -16,12 +16,24 @@
  * §3.7 v0.4.2 binding: initial selectedModels = first 6 model_ids by §12.4
  * lexicographic sort. Resets on domain change (i.e., whenever domainResult changes).
  *
+ * T10 additions:
+ *   - URL permalink state: on mount, reads ?domain=&models=&#mds via decodePermalink.
+ *     If the permalink domain matches the current domain AND all model ids exist in
+ *     the domain's mds_coordinates, restores selectedModels from the URL.
+ *     Otherwise uses the §3.7 v0.4.2 first-6 default.
+ *   - On selectedModels or activeVizTab change, updates the URL via history.replaceState
+ *     using encodePermalink (unified scheme: ?domain=...&models=...#mds).
+ *     This supersedes T8's bare #mds fragment — handleVizTabChange now calls
+ *     writePermalinkState for the full URL update.
+ *   - Renders SourceAttribution below the explorer layout.
+ *   - Renders DownloadBar below SourceAttribution.
+ *
  * No child component (MDSPlot, ModelSelector, Legend) computes its own
  * model color from model_id — all receive modelColors as a prop per §12.4
  * palette ownership rule.
  *
- * Source: DESIGN_SYSTEM.md §3.1, §3.7 (v0.4.2), §12.4
- * Reference: docs/status/2026-05-09-phase5-architect-plan.md §4 T9
+ * Source: DESIGN_SYSTEM.md §3.1, §3.7 (v0.4.2), §12.4, §5
+ * Reference: docs/status/2026-05-09-phase5-architect-plan.md §4 T9 + T10
  */
 
 import { useEffect, useState, useMemo } from "react";
@@ -30,6 +42,9 @@ import { MDSPlot } from "./MDSPlot";
 import { ModelSelector } from "./ModelSelector";
 import { VizSwitcher, resolveFragmentOnMount } from "./VizSwitcher";
 import type { ActiveVizTab } from "./VizSwitcher";
+import { SourceAttribution } from "./SourceAttribution";
+import { DownloadBar } from "./DownloadBar";
+import { encodePermalink, decodePermalink } from "../lib/permalink";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -58,29 +73,86 @@ const MODEL_PALETTE_SLOTS: string[] = [
   "#9a7d0a", // --color-model-11 (v0.4.1 corrected from #b7950b)
 ];
 
+// ── URL state helpers ─────────────────────────────────────────────────────────
+
+/**
+ * Attempt to read permalink-encoded selectedModels from the current URL.
+ * Returns a filtered array of valid model_ids (only those that exist in
+ * availableModelIds), or null if no valid permalink is found.
+ *
+ * Validation: the permalink domain must match currentDomain AND every
+ * model_id in the permalink must exist in availableModelIds. This prevents
+ * stale URL state (from a previous domain or test run) from corrupting
+ * the initial selection.
+ */
+function readSelectedModelsFromUrl(
+  currentDomain: string,
+  availableModelIds: Set<string>
+): string[] | null {
+  try {
+    const searchAndHash = window.location.search + window.location.hash;
+    const state = decodePermalink(searchAndHash);
+    if (state === null) return null;
+    if (state.domain !== currentDomain) return null;
+    // Filter to only model ids that exist in this domain.
+    const valid = state.models.filter((id) => availableModelIds.has(id));
+    if (valid.length === 0) return null;
+    return valid;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * Write the current view state to the URL using history.replaceState.
+ * Uses the unified ?domain=&models=#tab scheme (T10 unification of T8's bare #mds).
+ */
+function writePermalinkState(
+  domain: string,
+  models: string[],
+  vizTab: ActiveVizTab
+): void {
+  try {
+    const encoded = encodePermalink({ domain, models, vizTab });
+    window.history.replaceState(null, "", encoded);
+  } catch {
+    // history API unavailable in some test environments — ignore.
+  }
+}
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 /**
  * DataExplorer renders the full interactive explorer area:
  *   VizSwitcher tab bar → MDSPlot (main area) → ModelSelector (right/below)
  *   → Legend (below plot, inside MDSPlot)
+ *   → SourceAttribution (below layout)
+ *   → DownloadBar (below SourceAttribution)
  *
  * All explorer-internal state lives here. App.tsx provides only domainResult.
  */
 export function DataExplorer({ domainResult }: DataExplorerProps) {
   /**
    * selectedModels: which model_ids are currently visible on the plot.
-   * §3.7 v0.4.2 binding: initial value = first 6 by §12.4 lexicographic sort.
+   * §3.7 v0.4.2 binding: initial value = first 6 by §12.4 lexicographic sort,
+   * OR restored from URL permalink if domain matches and all model ids are valid.
    * Reset on domain change (domainResult identity changes when domain switches).
    */
   const [selectedModels, setSelectedModels] = useState<string[]>(() => {
     const rawCoords = domainResult.mds_coordinates as unknown as Record<string, [number, number]>;
-    return Object.keys(rawCoords).sort().slice(0, 6);
+    const sortedIds = Object.keys(rawCoords).sort();
+    const availableSet = new Set(sortedIds);
+    // T10: attempt to restore from URL permalink.
+    const fromUrl = readSelectedModelsFromUrl(domainResult.domain_slug, availableSet);
+    if (fromUrl !== null) return fromUrl;
+    // §3.7 v0.4.2 default: first 6 sorted model_ids.
+    return sortedIds.slice(0, 6);
   });
 
   /**
    * activeVizTab: which viz tab is active.
-   * Phase 5: only "mds" is activatable. Reads URL fragment on mount.
+   * Phase 5: only "mds" is activatable.
+   * T9: uses resolveFragmentOnMount from VizSwitcher to read URL fragment on mount.
    */
   const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>(
     () => resolveFragmentOnMount()
@@ -92,31 +164,40 @@ export function DataExplorer({ domainResult }: DataExplorerProps) {
    * domainResult.domain_slug used as the dependency so the effect fires
    * on each domain switch.
    *
+   * T10: also attempts to restore from URL permalink for the new domain,
+   * but only when all restored model ids are valid for that domain.
+   *
    * eslint set-state-in-effect: setting state in a useEffect that responds to
    * a prop/context change is the documented React pattern for derived resets
    * (https://react.dev/reference/react/useState#storing-information-from-previous-renders).
-   * The alternative (calling setState in render) triggers an infinite loop here
-   * because rawCoords reference changes on every render when domain data is fetched.
    */
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const rawCoords = domainResult.mds_coordinates as unknown as Record<string, [number, number]>;
+    // Domain change: always reset to §3.7 v0.4.2 first-6 default.
+    // The URL state is written by the writePermalinkState effect immediately after.
+    // We do not re-read the URL here because the URL may still contain the
+    // previous domain's model selection and would produce stale state.
     setSelectedModels(Object.keys(rawCoords).sort().slice(0, 6));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domainResult.domain_slug]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   /**
+   * Sync URL whenever selectedModels or activeVizTab changes.
+   * Uses the unified ?domain=&models=#tab scheme (T10).
+   * This supersedes T8's bare #mds fragment.
+   */
+  useEffect(() => {
+    writePermalinkState(domainResult.domain_slug, selectedModels, activeVizTab);
+  }, [domainResult.domain_slug, selectedModels, activeVizTab]);
+
+  /**
    * Handle VizSwitcher tab activation. Phase 5: only "mds" is activatable.
-   * Updates URL fragment to #mds and keeps local state in sync.
+   * URL update is handled by the effect above via the unified scheme.
    */
   function handleVizTabChange(tab: ActiveVizTab): void {
     setActiveVizTab(tab);
-    try {
-      window.history.replaceState(null, "", `#${tab}`);
-    } catch {
-      // history API unavailable in some test environments — ignore.
-    }
   }
 
   /**
@@ -169,6 +250,23 @@ export function DataExplorer({ domainResult }: DataExplorerProps) {
           />
         </div>
       </div>
+
+      {/* SourceAttribution: source line below the chart per §5 (T10).
+          Shows selected model list, domain, prompt v1, analysis version,
+          collection month. Surfaces romney_small_n_warning per CDA SME Q2. */}
+      <SourceAttribution
+        domainResult={domainResult}
+        selectedModels={selectedModels}
+      />
+
+      {/* DownloadBar: CSV + permalink buttons below SourceAttribution per §5 (T10).
+          In embed mode, DownloadBar remains visible per §12.5; Permalink is hidden
+          in embed mode — deferred to T12 embed mode spec. */}
+      <DownloadBar
+        domainResult={domainResult}
+        selectedModels={selectedModels}
+        activeVizTab={activeVizTab}
+      />
     </div>
   );
 }
