@@ -306,6 +306,136 @@ a:focus-visible {
   padding: 0;
 }
 
+/* ===== DomainPicker — DESIGN_SYSTEM.md §2.3 ===== */
+/*
+ * Horizontal pill-button domain navigation above the explorer.
+ * Gap between pills: --space-3 (12px) per §2.3.
+ * Active pill: background fill + bold weight (non-color indicator per §12.3).
+ * Disabled pills: --color-text-muted, cursor: not-allowed (per §2.3 binding).
+ */
+
+.domain-picker {
+  max-width: var(--max-explorer-width);
+  margin: 0 auto;
+  padding: 0 var(--space-6);
+}
+
+.domain-picker__divider {
+  border-top: var(--border-width) solid var(--color-border);
+  margin-bottom: var(--space-6);
+}
+
+.domain-picker__list {
+  display: flex;
+  flex-direction: row;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  align-items: center;
+  padding-bottom: var(--space-6);
+}
+
+.domain-picker__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-4);
+  border-radius: var(--border-radius-lg);
+  border: var(--border-width) solid var(--color-border);
+  background-color: var(--color-background);
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  cursor: pointer;
+  transition: background-color 150ms ease-out, border-color 150ms ease-out;
+  /* Always pointer-responsive from first paint per §12.1 */
+  pointer-events: auto;
+}
+
+.domain-picker__pill:hover:not(.domain-picker__pill--disabled) {
+  background-color: var(--color-surface-hover);
+  border-color: var(--color-info);
+}
+
+/* Active pill: fill + bold weight — non-color indicator per §12.3 / §2.3 */
+.domain-picker__pill--active {
+  background-color: var(--color-info);
+  border-color: var(--color-info);
+  color: var(--color-background);
+  font-weight: var(--font-weight-bold);
+}
+
+.domain-picker__pill--active:hover {
+  background-color: var(--color-info);
+  border-color: var(--color-info);
+}
+
+/* Disabled pill: muted color, not-allowed cursor, focusable per §12.3 */
+.domain-picker__pill--disabled {
+  color: var(--color-text-muted);
+  cursor: not-allowed;
+  background-color: var(--color-background);
+  border-color: var(--color-border);
+}
+
+.domain-picker__pill--disabled:hover {
+  background-color: var(--color-background);
+  border-color: var(--color-border);
+}
+
+/* Focus ring on all pills — WCAG AA visible focus indicator */
+.domain-picker__pill:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+/* ===== KeyFinding — DESIGN_SYSTEM.md §3.8 ===== */
+/*
+ * The key finding sentence between ArticleHeader and the explorer.
+ * 4px --color-model-1 border-left, 780px max-width, light gray background.
+ * Padding: 24px 32px (--space-6 and --space-8).
+ *
+ * Domain-switch animation: 200ms fade in on remount (key-change strategy).
+ * prefers-reduced-motion: reduce → instant reveal, no animation.
+ */
+
+.key-finding {
+  max-width: var(--max-article-width);
+  margin: 0 auto var(--space-8);
+  padding: 0 var(--space-6);
+}
+
+.key-finding__content {
+  background-color: var(--color-surface);
+  border-left: 4px solid var(--color-model-1);
+  padding: var(--space-6) var(--space-8);
+  font-family: var(--font-body);
+  font-size: 20px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+  margin: 0;
+  /* Fade-in animation on mount — fires when key changes (domain switch) */
+  animation: keyFindingFade 200ms ease-out forwards;
+}
+
+@keyframes keyFindingFade {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+/* Respect prefers-reduced-motion: no fade */
+@media (prefers-reduced-motion: reduce) {
+  .key-finding__content {
+    animation: none;
+    opacity: 1;
+  }
+}
+
 /* ===== Utility: visually hidden (screen-reader only) ===== */
 
 .sr-only {
