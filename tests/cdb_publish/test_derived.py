@@ -188,3 +188,42 @@ def test_top_terms_metric_constant() -> None:
     """
     assert TOP_TERMS_METRIC == "sutrop_csi"
     assert DEFAULT_TOP_K == 5
+
+
+# ---------------------------------------------------------------------------
+# Gap-fill tests (Phase 5 T3 Tester verdict — added to complete edge coverage)
+# ---------------------------------------------------------------------------
+
+# Gap 1 — top_freelist_terms: k=0 returns empty list
+# ---------------------------------------------------------------------------
+
+def test_top_freelist_terms_k_zero_returns_empty() -> None:
+    """top_freelist_terms(k=0) returns an empty list even when input is non-empty.
+
+    Python slice semantics: sorted_items[:0] is always []. Exercising this
+    ensures callers that pass k=0 get an empty list rather than an error.
+    """
+    csi_dict = {
+        "alpha": _make_csi("alpha", csi=0.9),
+        "beta":  _make_csi("beta",  csi=0.7),
+    }
+    result = top_freelist_terms(csi_dict, k=0)
+    assert result == []
+
+
+# Gap 2 — top_freelist_terms: k > len(input) returns all available terms
+# ---------------------------------------------------------------------------
+
+def test_top_freelist_terms_k_exceeds_input_length() -> None:
+    """top_freelist_terms with k > len(input) returns all available terms.
+
+    Python slice semantics: sorted_items[:k] when k > len is safe and
+    returns all elements. Caller should not need to pre-clamp k.
+    """
+    csi_dict = {
+        "alpha": _make_csi("alpha", csi=0.9),
+        "beta":  _make_csi("beta",  csi=0.7),
+    }
+    result = top_freelist_terms(csi_dict, k=100)
+    assert len(result) == 2
+    assert result == ["alpha", "beta"]

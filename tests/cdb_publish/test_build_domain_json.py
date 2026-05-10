@@ -419,3 +419,83 @@ def test_real_corpus_smoke(tmp_path: Path) -> None:
         assert metric == "sutrop_csi", (
             f"{slug}: display.top_terms_metric must be 'sutrop_csi', got {metric!r}"
         )
+
+
+# ---------------------------------------------------------------------------
+# Gap-fill 3 — _compute_display fallback: model in mds_coordinates with no
+#              within_model_results entry defaults to "typical_concentration"
+# ---------------------------------------------------------------------------
+
+def test_display_r1_states_fallback_for_missing_within_model_result(
+    tmp_path: Path,
+) -> None:
+    """display.r1_states falls back to 'typical_concentration' for models
+    that are present in mds_coordinates but absent from within_model_results.
+
+    The build.py comment documents: 'Conservative fallback: no
+    within_model_result → treat as typical'. This test makes that fallback
+    machine-verifiable.
+    """
+    results_dir = tmp_path / "results"
+    output_dir = tmp_path / "output"
+
+    # Build a domain where one model is in mds_coordinates but NOT in
+    # within_model_results.
+    domain_dict = _minimal_domain_result(
+        slug="widgets",
+        model_ids=["model-a", "model-b"],
+    )
+    # Remove model-b from within_model_results so only model-a has an entry.
+    domain_dict["within_model_results"] = [
+        wr for wr in domain_dict["within_model_results"]
+        if wr["model_id"] == "model-a"
+    ]
+    _write_domain(results_dir, slug="widgets", version="0.2", domain_dict=domain_dict)
+
+    build(results_dir, output_dir)
+
+    published = json.loads((output_dir / "widgets.json").read_text())
+    r1_states = published.get("display", {}).get("r1_states", {})
+
+    # Both models must appear in r1_states.
+    assert "model-a" in r1_states
+    assert "model-b" in r1_states
+
+    # model-b has no within_model_result; must fall back to typical_concentration.
+    assert r1_states["model-b"] == "typical_concentration", (
+        f"Expected fallback 'typical_concentration' for model-b, got {r1_states['model-b']!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Gap-fill 4 — _compute_display: model with mds_coordinates but no sutrop_csi
+#              entry is absent from display.top_terms (not an error, not a
+#              zero-length entry — it is simply omitted)
+# ---------------------------------------------------------------------------
+
+def test_display_top_terms_absent_when_no_sutrop_csi(tmp_path: Path) -> None:
+    """display.top_terms omits models that have no sutrop_csi entries.
+
+    When include_sutrop_csi=False, the DomainResult carries no sutrop_csi
+    data at all. The published JSON should have top_terms == {} (empty) and
+    must not raise.
+    """
+    results_dir = tmp_path / "results"
+    output_dir = tmp_path / "output"
+
+    domain_dict = _minimal_domain_result(
+        slug="widgets",
+        model_ids=["model-a", "model-b"],
+        include_sutrop_csi=False,
+    )
+    _write_domain(results_dir, slug="widgets", version="0.2", domain_dict=domain_dict)
+
+    build(results_dir, output_dir)
+
+    published = json.loads((output_dir / "widgets.json").read_text())
+    top_terms = published.get("display", {}).get("top_terms", {})
+
+    # No models have sutrop_csi data; top_terms must be empty, not an error.
+    assert top_terms == {}, (
+        f"Expected empty top_terms when no sutrop_csi present, got {top_terms!r}"
+    )
