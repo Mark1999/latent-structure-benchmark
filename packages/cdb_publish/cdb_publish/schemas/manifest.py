@@ -11,6 +11,8 @@ from datetime import datetime
 
 from pydantic import BaseModel
 
+from cdb_publish.lede import OCI_LOW_CONCENTRATION_THRESHOLD
+
 
 class ManifestDomain(BaseModel):
     """Summary record for a single domain in the manifest."""
@@ -44,3 +46,11 @@ class Manifest(BaseModel):
 
     domains: list[ManifestDomain]
     """Available domains, sorted by slug."""
+
+    oci_low_concentration_threshold: float = OCI_LOW_CONCENTRATION_THRESHOLD
+    """The OCI threshold that separates R1-a (typical_concentration) from
+    R1-b (low_concentration). Published in the manifest so the dashboard's
+    apps/dashboard/src/config/analysis.ts can read the canonical value and
+    the methodology page can display it. See DESIGN_SYSTEM.md §3.3.5 item 7.
+    Source of truth for this value is cdb_publish.lede.OCI_LOW_CONCENTRATION_THRESHOLD.
+    """
