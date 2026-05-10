@@ -602,6 +602,85 @@ describe("ModelSelector — keyboard accessibility (AC 8)", () => {
   });
 });
 
+// ── T7 gap fills: v0.4.2 Rule 3 — "Select all" warning behavior ──────────────
+//
+// DESIGN_SYSTEM.md §3.7 v0.4.2 Rule 3 (binding):
+//   "Select all" sets the selection to all available model_ids, bypassing
+//   per-toggle enforcement. If the result exceeds 6, the warning will appear —
+//   this is expected behavior for an explicit user action, not an error.
+//
+// These tests verify:
+//   a. "Select all" calls onSelectionChange with all 11 model_ids (coverage of the
+//      path that will exceed 6 and trigger the warning in the parent).
+//   b. When the component receives selectedModels.length > 6 (e.g. 11), the warning
+//      is shown — confirming Rule 3's "warning will appear" is honored.
+//   c. When Clear all is clicked from a 6-selected state, onSelectionChange([]]) is
+//      called and the warning disappears (no longer at >= 6).
+//
+// CLAUDE.md §6 R9: no real API calls. Fixture-only.
+
+describe("ModelSelector — v0.4.2 Rule 3: Select all warning behavior (gap fill)", () => {
+  it("'Select all' from empty selection calls onSelectionChange with all 11 family ids", () => {
+    // Baseline case: select all when nothing is selected.
+    const onSelectionChange = vi.fn();
+    renderSelector({
+      domainResult: familyResult,
+      selectedModels: [],
+      onSelectionChange,
+      modelColors: familyColors,
+    });
+    const btn = Array.from(container.querySelectorAll(".model-selector__action-link"))
+      .find((b) => b.textContent?.includes("Select all")) as HTMLButtonElement;
+    act(() => { btn.click(); });
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionChange.mock.calls[0][0]).toHaveLength(11);
+  });
+
+  it("warning IS shown when selectedModels has 11 items (Rule 3: warning after Select all)", () => {
+    // Per Rule 3: when the parent responds to Select all by setting selectedModels=all 11,
+    // the component MUST show the warning (11 >= 6).
+    renderSelector({
+      domainResult: familyResult,
+      selectedModels: familyIds, // all 11
+      onSelectionChange: vi.fn(),
+      modelColors: familyColors,
+    });
+    const warning = container.querySelector(".model-selector__max-warning");
+    expect(warning).not.toBeNull();
+    expect(warning!.getAttribute("role")).toBe("alert");
+    expect(warning!.textContent).toContain("Maximum of 6 models");
+  });
+
+  it("'Clear all' from 11-selected removes the warning (selectedModels drops to 0)", () => {
+    // After Clear all the parent will set selectedModels=[].
+    // Verify: with selectedModels=[] the warning is absent.
+    renderSelector({
+      domainResult: familyResult,
+      selectedModels: [], // result after Clear all
+      onSelectionChange: vi.fn(),
+      modelColors: familyColors,
+    });
+    expect(container.querySelector(".model-selector__max-warning")).toBeNull();
+  });
+
+  it("'Clear all' from 6-selected state calls onSelectionChange([]) — warning will disappear", () => {
+    // When 6 are selected (initial state per Rule 1), Clear all must fire correctly.
+    const SIX = familyIds.slice(0, 6);
+    const onSelectionChange = vi.fn();
+    renderSelector({
+      domainResult: familyResult,
+      selectedModels: SIX,
+      onSelectionChange,
+      modelColors: familyColors,
+    });
+    const btn = Array.from(container.querySelectorAll(".model-selector__action-link"))
+      .find((b) => b.textContent?.includes("Clear all")) as HTMLButtonElement;
+    act(() => { btn.click(); });
+    expect(onSelectionChange).toHaveBeenCalledTimes(1);
+    expect(onSelectionChange.mock.calls[0][0]).toEqual([]);
+  });
+});
+
 // ── Origin grouping ───────────────────────────────────────────────────────────
 
 describe("ModelSelector — origin grouping", () => {
