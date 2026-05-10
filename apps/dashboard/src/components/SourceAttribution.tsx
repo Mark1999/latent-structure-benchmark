@@ -71,7 +71,9 @@ export function SourceAttribution({ domainResult, selectedModels }: SourceAttrib
       className="source-attribution"
       style={{
         fontSize: "var(--font-size-xs)",
-        color: "var(--color-text-muted)",
+        // v0.4.3 WCAG AA fix (UI/UX T10): --color-text-caption (~4.60:1) replaces
+        // --color-text-muted (~1.75:1), which fails 4.5:1 for 12px body text.
+        color: "var(--color-text-caption)",
         lineHeight: 1.5,
         marginTop: "var(--space-3)",
       }}
@@ -111,7 +113,9 @@ export function SourceAttribution({ domainResult, selectedModels }: SourceAttrib
           style={{
             margin: "4px 0 0",
             fontStyle: "italic",
-            color: "var(--color-text-secondary)",
+            // v0.4.3 WCAG AA fix: --color-text-caption (~4.60:1) for 12px italic;
+            // --color-text-secondary (~3.40:1) is insufficient.
+            color: "var(--color-text-caption)",
           }}
         >
           Small-n note: this measurement is computed at n={totalModelCount} models, below the

@@ -107,8 +107,9 @@
 
   /* UI chrome */
   --color-text-primary:    #2c3e50;   /* body text */
-  --color-text-secondary:  #7f8c8d;   /* captions, labels */
-  --color-text-muted:      #bdc3c7;   /* disabled states, placeholders */
+  --color-text-secondary:  #7f8c8d;   /* secondary labels at 14px+ or bold — ~3.40:1; use --color-text-caption for 12px regular */
+  --color-text-caption:    #6c757d;   /* source attribution, footnotes at 12px — ~4.60:1, WCAG AA compliant (v0.4.3) */
+  --color-text-muted:      #bdc3c7;   /* disabled/non-readable placeholders only — never readable text (~1.75:1) */
   --color-border:          #dde1e7;   /* dividers, input borders */
   --color-background:      #ffffff;   /* page background */
   --color-surface:         #f8f9fa;   /* card backgrounds, panel backgrounds */
