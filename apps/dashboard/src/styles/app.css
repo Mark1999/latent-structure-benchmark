@@ -436,6 +436,152 @@ a:focus-visible {
   }
 }
 
+/* ===== MDSPlot — DESIGN_SYSTEM.md §3.3 + §3.3.5 ===== */
+/*
+ * The signature MDS visualization.
+ * Hand-rolled SVG (no D3 dependency — Phase 5 per §3.2).
+ * R1-state rendering per §3.3.5 binding requirements.
+ * Ellipse colors set inline from modelColors prop (no hardcoded values here).
+ */
+
+.mds-plot {
+  position: relative;
+  max-width: var(--max-chart-width);
+  margin: 0 auto var(--space-8);
+  padding: 0 var(--space-6);
+}
+
+.mds-plot__svg {
+  display: block;
+  width: 100%;
+  height: auto;
+  overflow: visible;
+}
+
+/* ── Tooltip ── */
+
+.mds-plot__tooltip {
+  position: absolute;
+  z-index: 200;
+  background-color: var(--color-background);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  box-shadow: var(--shadow-md);
+  padding: var(--space-3) var(--space-4);
+  max-width: 260px;
+  pointer-events: none;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-data);
+  color: var(--color-text-primary);
+}
+
+.mds-plot__tooltip-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-1);
+}
+
+.mds-plot__tooltip-id {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-2);
+  word-break: break-all;
+}
+
+.mds-plot__tooltip-badge {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.mds-plot__tooltip-state {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.mds-plot__tooltip-text {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+  margin-bottom: var(--space-1);
+}
+
+.mds-plot__tooltip-threshold {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.mds-plot__tooltip-terms {
+  margin-top: var(--space-2);
+}
+
+.mds-plot__tooltip-terms-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-1);
+}
+
+.mds-plot__tooltip-terms-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+.mds-plot__tooltip-term {
+  display: inline-block;
+  background-color: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: 1px var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
+/* ── Legend (below plot per §3.3.5 imp. req. 4) ── */
+
+.mds-plot__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-6);
+  margin-top: var(--space-4);
+  padding: var(--space-3) var(--space-4);
+  background-color: var(--color-surface);
+  border-radius: var(--border-radius-sm);
+  border: var(--border-width) solid var(--color-border);
+}
+
+.mds-plot__legend-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+}
+
+.mds-plot__legend-label {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+
+.mds-plot__legend-primary {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.mds-plot__legend-secondary {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  font-style: italic;
+  line-height: var(--line-height-tight);
+}
+
 /* ===== Utility: visually hidden (screen-reader only) ===== */
 
 .sr-only {

@@ -8,7 +8,7 @@
  * Detects ?embed=true and suppresses chrome per §12.5.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import "./styles/tokens.css";
 import "./styles/app.css";
 
@@ -21,6 +21,7 @@ import { Footer } from "./components/Footer";
 import { DomainPicker } from "./components/DomainPicker";
 import type { Domain } from "./components/DomainPicker";
 import { KeyFinding } from "./components/KeyFinding";
+import { MDSPlot } from "./components/MDSPlot";
 
 type AppState = "loading" | "loaded" | "error";
 
@@ -57,6 +58,25 @@ const FUTURE_DOMAINS: Domain[] = [
 ];
 
 /**
+ * Model palette slot hex values, matching tokens.css §1.2 (v0.4.1).
+ * Defined at module level for stable reference in the modelColors useMemo.
+ * Assignment algorithm: §12.4 — sort model_ids ascending, assign slot 1…11.
+ */
+const MODEL_PALETTE_SLOTS: string[] = [
+  "#3360a9", // --color-model-1
+  "#c0392b", // --color-model-2
+  "#e67e22", // --color-model-3
+  "#27ae60", // --color-model-4
+  "#8e44ad", // --color-model-5
+  "#16a085", // --color-model-6
+  "#d35400", // --color-model-7
+  "#1a5276", // --color-model-8
+  "#7d3c98", // --color-model-9
+  "#148f77", // --color-model-10
+  "#9a7d0a", // --color-model-11 (v0.4.1 corrected from #b7950b)
+];
+
+/**
  * Build the domains list for DomainPicker from the manifest + future domains.
  * Available domains come from the manifest; future domains are appended as disabled.
  * Deduplicates: if a future domain slug appears in the manifest, it becomes available.
@@ -86,6 +106,22 @@ export default function App() {
   const domainLoading =
     appState === "loaded" &&
     (domainResult === null || domainResult.domain_slug !== activeSlug);
+
+  /**
+   * Build modelColors per §12.4 algorithm:
+   * Sort all model_ids ascending (lexicographic), assign palette slot 1…11.
+   * Assignment is stable: same model_id always gets the same slot.
+   * Ownership moves to DataExplorer.tsx at T9.
+   */
+  const modelColors = useMemo((): Record<string, string> => {
+    if (!domainResult) return {};
+    const sortedIds = [...Object.keys(domainResult.mds_coordinates)].sort();
+    const colors: Record<string, string> = {};
+    sortedIds.forEach((id, i) => {
+      colors[id] = MODEL_PALETTE_SLOTS[i % MODEL_PALETTE_SLOTS.length];
+    });
+    return colors;
+  }, [domainResult]);
 
   // Load manifest at mount.
   useEffect(() => {
@@ -219,6 +255,18 @@ export default function App() {
                 </div>
               )}
 
+              {/* MDSPlot: shown when domain result is loaded (T6).
+                  reveal-cascade-item :nth-child(2) — within bounds per F-T5-1 carry-forward.
+                  §12.4: modelColors built from sorted model_ids above. */}
+              {domainResult !== null && !domainLoading && (
+                <div className="reveal-cascade-item">
+                  <MDSPlot
+                    domainResult={domainResult}
+                    modelColors={modelColors}
+                  />
+                </div>
+              )}
+
               {/* Domain data loading state (per-domain fetch in progress) */}
               {domainLoading && (
                 <div
@@ -231,7 +279,7 @@ export default function App() {
                 </div>
               )}
 
-              {/* DataExplorer renders here in T6+ */}
+              {/* DataExplorer renders here in T9+ */}
             </div>
           )}
         </div>
