@@ -310,3 +310,67 @@ describe("injectTextMetadata — invalid input", () => {
     );
   });
 });
+
+// ── Gap-fill tests (T11 tester audit) ─────────────────────────────────────────
+
+describe("injectTextMetadata — keyword truncation at 79 chars (Latin-1 spec)", () => {
+  /**
+   * PNG tEXt spec (RFC 2083 §11.3.4.3): keyword is 1–79 Latin-1 characters.
+   * png-metadata.ts truncates keywords longer than 79 chars with .slice(0, 79).
+   * Verify: a 100-char keyword is stored as exactly 79 chars in the chunk.
+   */
+  it("keyword longer than 79 chars is truncated to 79 chars", async () => {
+    const longKey = "K".repeat(100); // 100-char keyword
+    const png = make1x1Blob();
+    const result = await injectTextMetadata(png, { [longKey]: "value" });
+    const chunks = await parsePngChunks(result);
+    const textChunk = chunks.find((c) => c.type === "tEXt");
+    expect(textChunk).toBeDefined();
+    const { keyword } = parseTextChunkData(textChunk!.data);
+    expect(keyword.length).toBe(79);
+    expect(keyword).toBe("K".repeat(79));
+  });
+
+  it("keyword of exactly 79 chars is stored verbatim (no truncation)", async () => {
+    const exactKey = "K".repeat(79);
+    const png = make1x1Blob();
+    const result = await injectTextMetadata(png, { [exactKey]: "value" });
+    const chunks = await parsePngChunks(result);
+    const textChunk = chunks.find((c) => c.type === "tEXt");
+    expect(textChunk).toBeDefined();
+    const { keyword } = parseTextChunkData(textChunk!.data);
+    expect(keyword.length).toBe(79);
+    expect(keyword).toBe(exactKey);
+  });
+});
+
+describe("injectTextMetadata — Latin-1 byte masking", () => {
+  /**
+   * latin1Encode in png-metadata.ts uses `charCodeAt(i) & 0xff`, which masks
+   * multi-byte Unicode characters to their low 8 bits.  Verify:
+   *   - U+0100 (Ā, "Latin Extended-A") is encoded as 0x00 (masked to low byte).
+   *   - U+00E9 (é) encodes as 0xE9 and round-trips correctly.
+   */
+  it("U+00E9 (é) is preserved in round-trip through Latin-1 encoding", async () => {
+    const png = make1x1Blob();
+    const result = await injectTextMetadata(png, { Author: "café" });
+    const chunks = await parsePngChunks(result);
+    const textChunk = chunks.find((c) => c.type === "tEXt");
+    expect(textChunk).toBeDefined();
+    // The data bytes for "café": 'c'=0x63, 'a'=0x61, 'f'=0x66, 'é'=0xE9
+    const afterNull = textChunk!.data.slice(textChunk!.data.indexOf(0) + 1);
+    expect(afterNull[3]).toBe(0xe9); // é encodes as 0xE9
+  });
+
+  it("high-codepoint character is masked to low 8 bits by latin1Encode", async () => {
+    // U+0141 (Ł) has charCode 0x141; & 0xff = 0x41 = 'A'.
+    const png = make1x1Blob();
+    const result = await injectTextMetadata(png, { Tag: "Ł" });
+    const chunks = await parsePngChunks(result);
+    const textChunk = chunks.find((c) => c.type === "tEXt");
+    expect(textChunk).toBeDefined();
+    const afterNull = textChunk!.data.slice(textChunk!.data.indexOf(0) + 1);
+    // 0x141 & 0xFF = 0x41 = 65 = 'A'
+    expect(afterNull[0]).toBe(0x41);
+  });
+});

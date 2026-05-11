@@ -529,3 +529,290 @@ describe("DownloadBar — PNG download triggers <a> element (T11)", () => {
     appendSpy.mockRestore();
   });
 });
+
+// ── Gap-fill tests (T11 tester audit) ─────────────────────────────────────────
+
+describe("DownloadBar — injectTextMetadata all 8 fields (T11 gap-fill)", () => {
+  /**
+   * The existing T11 test verifies Domain, Models, and Analysis-Version.
+   * This test verifies the remaining 5 fields: Title, Author, Source,
+   * Software, and Generated-At.
+   */
+  it("injectTextMetadata is called with all 8 required tEXt fields", async () => {
+    const { injectTextMetadata } = await import("../lib/png-metadata");
+
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgEl.setAttribute("role", "img");
+    document.body.appendChild(svgEl);
+
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+
+    const pngBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-btn");
+    await act(async () => {
+      pngBtn!.click();
+      await Promise.resolve();
+    });
+
+    expect(injectTextMetadata).toHaveBeenCalled();
+    const kvArg = (injectTextMetadata as ReturnType<typeof vi.fn>).mock.calls[0][1] as Record<string, string>;
+
+    // All 8 fields must be present and non-empty.
+    expect(kvArg["Title"]).toBeTruthy();
+    expect(kvArg["Author"]).toBeTruthy();
+    expect(kvArg["Source"]).toBeTruthy();
+    expect(kvArg["Software"]).toBeTruthy();
+    expect(kvArg["Domain"]).toBe("family");
+    expect(kvArg["Models"]).toBeTruthy();
+    expect(kvArg["Analysis-Version"]).toBeTruthy();
+    expect(kvArg["Generated-At"]).toBeTruthy();
+
+    document.body.removeChild(svgEl);
+  });
+
+  it("Title field includes the domain slug", async () => {
+    const { injectTextMetadata } = await import("../lib/png-metadata");
+
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgEl.setAttribute("role", "img");
+    document.body.appendChild(svgEl);
+
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+
+    const pngBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-btn");
+    await act(async () => {
+      pngBtn!.click();
+      await Promise.resolve();
+    });
+
+    const kvArg = (injectTextMetadata as ReturnType<typeof vi.fn>).mock.calls[0][1] as Record<string, string>;
+    expect(kvArg["Title"]).toContain("family");
+
+    document.body.removeChild(svgEl);
+  });
+});
+
+describe("DownloadBar — PNG download filename uses -mds-social / -mds-highres suffix (T11 gap-fill)", () => {
+  it("social PNG download filename contains '-mds-social'", async () => {
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgEl.setAttribute("role", "img");
+    document.body.appendChild(svgEl);
+
+    const appendSpy = vi.spyOn(document.body, "appendChild");
+
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+
+    const pngBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-btn");
+    await act(async () => {
+      pngBtn!.click();
+      await Promise.resolve();
+    });
+
+    const appendedLinks = appendSpy.mock.calls
+      .map((c) => c[0])
+      .filter((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+    const link = appendedLinks[appendedLinks.length - 1];
+    expect(link.getAttribute("download")).toContain("-mds-social");
+
+    document.body.removeChild(svgEl);
+    appendSpy.mockRestore();
+  });
+
+  it("hi-res PNG download filename contains '-mds-highres'", async () => {
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgEl.setAttribute("role", "img");
+    document.body.appendChild(svgEl);
+
+    const appendSpy = vi.spyOn(document.body, "appendChild");
+
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+
+    const hiresBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-hires-btn");
+    await act(async () => {
+      hiresBtn!.click();
+      await Promise.resolve();
+    });
+
+    const appendedLinks = appendSpy.mock.calls
+      .map((c) => c[0])
+      .filter((el): el is HTMLAnchorElement => el instanceof HTMLAnchorElement);
+    const link = appendedLinks[appendedLinks.length - 1];
+    expect(link.getAttribute("download")).toContain("-mds-highres");
+
+    document.body.removeChild(svgEl);
+    appendSpy.mockRestore();
+  });
+});
+
+describe("DownloadBar — PNG loading state 'Exporting…' (T11 gap-fill)", () => {
+  /**
+   * While renderToPng is in-flight, pngState === "loading".
+   * The social PNG button should display "Exporting…" and both PNG buttons
+   * should be disabled.
+   */
+  it("PNG social button shows 'Exporting…' while export is in-flight", async () => {
+    const { renderToPng } = await import("../lib/png-export");
+
+    // Make renderToPng hang (never resolve) so we can inspect mid-flight state.
+    let resolveExport!: (b: Blob) => void;
+    (renderToPng as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => new Promise<Blob>((res) => { resolveExport = res; })
+    );
+
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgEl.setAttribute("role", "img");
+    document.body.appendChild(svgEl);
+
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+
+    const pngBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-btn");
+
+    // Click to start — do NOT await the entire handler; we want mid-flight state.
+    await act(async () => {
+      pngBtn!.click();
+      // One tick so the async handler starts and sets pngState = "loading".
+      await Promise.resolve();
+    });
+
+    expect(container.textContent).toContain("Exporting");
+
+    // Clean up: resolve the hanging export.
+    await act(async () => {
+      resolveExport(new Blob([new Uint8Array([0x89, 0x50])], { type: "image/png" }));
+      await Promise.resolve();
+    });
+
+    document.body.removeChild(svgEl);
+  });
+
+  it("both PNG buttons are disabled while export is in-flight", async () => {
+    const { renderToPng } = await import("../lib/png-export");
+
+    let resolveExport!: (b: Blob) => void;
+    (renderToPng as ReturnType<typeof vi.fn>).mockImplementationOnce(
+      () => new Promise<Blob>((res) => { resolveExport = res; })
+    );
+
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgEl.setAttribute("role", "img");
+    document.body.appendChild(svgEl);
+
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+
+    const pngBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-btn");
+    const hiresBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-hires-btn");
+
+    await act(async () => {
+      pngBtn!.click();
+      await Promise.resolve();
+    });
+
+    // Both buttons should be disabled while loading.
+    expect(pngBtn!.disabled).toBe(true);
+    expect(hiresBtn!.disabled).toBe(true);
+
+    await act(async () => {
+      resolveExport(new Blob([new Uint8Array([0x89, 0x50])], { type: "image/png" }));
+      await Promise.resolve();
+    });
+
+    document.body.removeChild(svgEl);
+  });
+});
+
+describe("DownloadBar — PNG error state on rejection (T11 gap-fill)", () => {
+  it("displays 'PNG export failed' when renderToPng rejects", async () => {
+    const { renderToPng } = await import("../lib/png-export");
+
+    (renderToPng as ReturnType<typeof vi.fn>).mockRejectedValueOnce(
+      new Error("canvas error")
+    );
+
+    const svgEl = document.createElementNS("http://www.w3.org/2000/svg", "svg");
+    svgEl.setAttribute("role", "img");
+    document.body.appendChild(svgEl);
+
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+
+    const pngBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-btn");
+
+    await act(async () => {
+      pngBtn!.click();
+      // Allow both the rejection and the state-update microtask to run.
+      await new Promise((res) => setTimeout(res, 0));
+    });
+
+    expect(container.textContent).toContain("PNG export failed");
+
+    document.body.removeChild(svgEl);
+  });
+});
+
+describe("DownloadBar — linkStyle.color is --color-text-caption (F-T11-2 fix)", () => {
+  /**
+   * UI/UX F-T11-2 (blocking): the hi-res link button must use
+   * --color-text-caption, not --color-text-secondary, for WCAG AA at 12px.
+   * This test verifies the fix is present in the rendered DOM.
+   */
+  it("hi-res button inline style uses var(--color-text-caption)", () => {
+    const fixture = makeFixture(["model-a"]);
+    render(
+      createElement(DownloadBar, {
+        domainResult: fixture,
+        selectedModels: ["model-a"],
+        activeVizTab: "mds",
+      })
+    );
+    const hiresBtn = container.querySelector<HTMLButtonElement>(".download-bar__png-hires-btn");
+    expect(hiresBtn).not.toBeNull();
+    expect(hiresBtn!.style.color).toBe("var(--color-text-caption)");
+  });
+});

@@ -57,6 +57,12 @@ let widthLog: number[] = [];
 let heightLog: number[] = [];
 let ctxState: MockCtxState;
 
+/**
+ * When true, the canvas mock fires toBlob with null instead of DUMMY_PNG.
+ * Set to true inside a test and reset in the test's finally block.
+ */
+let forceToBlobNull = false;
+
 // Global Image override — must be a class/function for vitest constructor mocking.
 class MockImage {
   crossOrigin = "anonymous";
@@ -134,9 +140,9 @@ beforeEach(() => {
         ctxState as unknown as CanvasRenderingContext2D
       );
 
-      // Mock toBlob to fire immediately with DUMMY_PNG.
+      // Mock toBlob to fire immediately with DUMMY_PNG (or null when forceToBlobNull).
       vi.spyOn(el, "toBlob").mockImplementation((cb: BlobCallback) => {
-        cb(DUMMY_PNG);
+        cb(forceToBlobNull ? null : DUMMY_PNG);
       });
 
       return el;
@@ -318,5 +324,178 @@ describe("renderToPng — size param type contract", () => {
   it("accepts 'highres' as a PngSize literal", () => {
     const size: PngSize = "highres";
     expect(size).toBe("highres");
+  });
+});
+
+// ── Gap-fill tests (T11 tester audit) ─────────────────────────────────────────
+
+describe("renderToPng — watermark opacity (F5 binding: 3%)", () => {
+  it("social: ctx.globalAlpha is set to 0.03 before drawing watermark", async () => {
+    // The mock ctx records the last value assigned to globalAlpha.
+    // png-export.ts sets it inside ctx.save()...ctx.restore(), so we check
+    // the value captured at the time fillText is called.
+    // We instrument fillText to snapshot globalAlpha at call time.
+    let alphaAtFillText: number | undefined;
+    const renderToPng = await getRenderToPng();
+
+    // Wrap fillText to capture globalAlpha at invocation time.
+    const origFillText = ctxState.fillText;
+    ctxState.fillText = vi.fn().mockImplementation((...args: unknown[]) => {
+      alphaAtFillText = ctxState.globalAlpha;
+      return origFillText(...args);
+    });
+
+    await renderToPng(makeSvg(), { size: "social" });
+    expect(alphaAtFillText).toBe(0.03);
+  });
+
+  it("highres: ctx.globalAlpha is set to 0.03 before drawing watermark", async () => {
+    let alphaAtFillText: number | undefined;
+    const renderToPng = await getRenderToPng();
+
+    const origFillText = ctxState.fillText;
+    ctxState.fillText = vi.fn().mockImplementation((...args: unknown[]) => {
+      alphaAtFillText = ctxState.globalAlpha;
+      return origFillText(...args);
+    });
+
+    await renderToPng(makeSvg(), { size: "highres" });
+    expect(alphaAtFillText).toBe(0.03);
+  });
+});
+
+describe("renderToPng — watermark margin as 2% of canvas dimensions (F5 binding)", () => {
+  /**
+   * F5: position = canvasWidth * 0.02 (right margin) and canvasHeight * 0.02
+   * (bottom margin).  renderToPng calls:
+   *   ctx.fillText(text, canvasWidth - marginRight, canvasHeight - marginBottom)
+   * which for social is fillText("cogstructurelab.com", 1600-32, 900-18).
+   * i.e., fillText(text, 1568, 882).
+   */
+  it("social: fillText X coordinate equals canvasWidth - canvasWidth*0.02 = 1568", async () => {
+    const renderToPng = await getRenderToPng();
+    await renderToPng(makeSvg(), { size: "social" });
+    const [, xArg] = ctxState.fillText.mock.calls[0] as [string, number, number];
+    expect(xArg).toBeCloseTo(1600 - 1600 * 0.02, 5);
+  });
+
+  it("social: fillText Y coordinate equals canvasHeight - canvasHeight*0.02 = 882", async () => {
+    const renderToPng = await getRenderToPng();
+    await renderToPng(makeSvg(), { size: "social" });
+    const [, , yArg] = ctxState.fillText.mock.calls[0] as [string, number, number];
+    expect(yArg).toBeCloseTo(900 - 900 * 0.02, 5);
+  });
+
+  it("highres: fillText X coordinate equals canvasWidth - canvasWidth*0.02 = 1960", async () => {
+    const renderToPng = await getRenderToPng();
+    await renderToPng(makeSvg(), { size: "highres" });
+    const [, xArg] = ctxState.fillText.mock.calls[0] as [string, number, number];
+    expect(xArg).toBeCloseTo(2000 - 2000 * 0.02, 5);
+  });
+
+  it("highres: fillText Y coordinate equals canvasHeight - canvasHeight*0.02 = 1960", async () => {
+    const renderToPng = await getRenderToPng();
+    await renderToPng(makeSvg(), { size: "highres" });
+    const [, , yArg] = ctxState.fillText.mock.calls[0] as [string, number, number];
+    expect(yArg).toBeCloseTo(2000 - 2000 * 0.02, 5);
+  });
+});
+
+describe("renderToPng — watermark font family monospace (F5 binding)", () => {
+  it("social: ctx.font string contains 'monospace'", async () => {
+    const renderToPng = await getRenderToPng();
+    await renderToPng(makeSvg(), { size: "social" });
+    expect(ctxState.font).toContain("monospace");
+  });
+
+  it("highres: ctx.font string contains 'monospace'", async () => {
+    const renderToPng = await getRenderToPng();
+    await renderToPng(makeSvg(), { size: "highres" });
+    expect(ctxState.font).toContain("monospace");
+  });
+});
+
+describe("renderToPng — SVG aspect ratio letterboxing", () => {
+  /**
+   * A 900×600 SVG (3:2 ratio) rendered onto a 2000×2000 (1:1) canvas should
+   * be letter-boxed: the image fills width-first (scale = 2000/900 ≈ 2.22),
+   * and drawImage is called with height = 600 * 2.22 ≈ 1333, which is < 2000.
+   * The drawX offset should be 0 (width fills the canvas), and drawY should
+   * be (2000 - 1333) / 2 ≈ 333 (vertical centering).
+   *
+   * We verify that drawImage is called with correct positioning rather than
+   * clipping the image to the canvas.
+   */
+  it("square canvas: drawImage called with height < canvasHeight for wide SVG", async () => {
+    const renderToPng = await getRenderToPng();
+    // 900×600 SVG (wider than square), rendered on 2000×2000 canvas.
+    await renderToPng(makeSvg(900, 600), { size: "highres" });
+
+    expect(ctxState.drawImage).toHaveBeenCalled();
+    const drawArgs = ctxState.drawImage.mock.calls[0] as [unknown, number, number, number, number];
+    const [, , , drawW, drawH] = drawArgs;
+
+    // The draw should scale to fill 2000px wide.
+    // scaleX = 2000/900 ≈ 2.222, scaleY = 2000/600 ≈ 3.333 → scale = min = 2.222
+    // drawW ≈ 2000, drawH ≈ 1333 (< 2000 confirms letterboxing, not clipping)
+    expect(drawW).toBeCloseTo(2000, 0);
+    expect(drawH).toBeLessThan(2000);
+  });
+
+  it("square canvas: drawImage called with width < canvasWidth for tall SVG", async () => {
+    const renderToPng = await getRenderToPng();
+    // 600×900 SVG (taller than square), rendered on 2000×2000 canvas.
+    await renderToPng(makeSvg(600, 900), { size: "highres" });
+
+    expect(ctxState.drawImage).toHaveBeenCalled();
+    const drawArgs = ctxState.drawImage.mock.calls[0] as [unknown, number, number, number, number];
+    const [, , , drawW, drawH] = drawArgs;
+
+    // scaleX = 2000/600 ≈ 3.333, scaleY = 2000/900 ≈ 2.222 → scale = min = 2.222
+    // drawW ≈ 1333 (< 2000 confirms pillarboxing), drawH ≈ 2000
+    expect(drawW).toBeLessThan(2000);
+    expect(drawH).toBeCloseTo(2000, 0);
+  });
+});
+
+describe("renderToPng — toBlob returns null → rejects", () => {
+  it("rejects with descriptive error when canvas.toBlob returns null", async () => {
+    // The beforeEach createElement spy reads forceToBlobNull to decide what
+    // the toBlob mock returns. Set it to true for this test so the canvas
+    // calls cb(null), which should cause renderToPng to reject.
+    forceToBlobNull = true;
+    try {
+      const renderToPng = await getRenderToPng();
+      await expect(renderToPng(makeSvg(), { size: "social" })).rejects.toThrow(
+        /toBlob\(\) returned null/
+      );
+    } finally {
+      forceToBlobNull = false;
+    }
+  });
+});
+
+describe("renderToPng — Image onerror rejects promise", () => {
+  it("rejects with an error when the Image fires onerror", async () => {
+    // Install a MockImage class that fires onerror instead of onload.
+    class ErrorImage {
+      crossOrigin = "anonymous";
+      onload: (() => void) | null = null;
+      onerror: ((...args: unknown[]) => void) | null = null;
+      private _src = "";
+
+      get src() { return this._src; }
+      set src(v: string) {
+        this._src = v;
+        Promise.resolve().then(() => {
+          if (this.onerror) this.onerror(null, null, null, null, new Error("SVG load failed"));
+        });
+      }
+    }
+
+    (globalThis as unknown as Record<string, unknown>).Image = ErrorImage;
+
+    const renderToPng = await getRenderToPng();
+    await expect(renderToPng(makeSvg(), { size: "social" })).rejects.toThrow();
   });
 });
