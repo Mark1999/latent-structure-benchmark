@@ -398,7 +398,11 @@ export function CiteModal({
             <button
               type="button"
               className="cite-modal__copy-btn"
-              aria-label={`Copy ${tab.label} citation`}
+              aria-label={
+                copied
+                  ? `${tab.label} citation copied`
+                  : `Copy ${tab.label} citation`
+              }
               onClick={handleCopy}
               style={copyBtnStyle}
               onMouseEnter={(e) => {

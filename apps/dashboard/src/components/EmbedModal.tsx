@@ -311,7 +311,7 @@ export function EmbedModal({
         <button
           type="button"
           className="embed-modal__copy-btn"
-          aria-label="Copy embed code"
+          aria-label={copied ? "Embed code copied" : "Copy embed code"}
           onClick={handleCopy}
           style={copyBtnStyle}
           onMouseEnter={(e) => {
