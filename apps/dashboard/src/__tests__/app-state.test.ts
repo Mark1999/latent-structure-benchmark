@@ -341,6 +341,61 @@ describe("App — embed mode (DESIGN_SYSTEM.md §12.5)", () => {
   });
 });
 
+// ── T13 additions: MethodologySummary embed-mode suppression ──────────────────
+//
+// Verifies that MethodologySummary is imported in App.tsx and is suppressed
+// in embed mode per DESIGN_SYSTEM.md §12.5 and §12.7 (v0.4.4, T13).
+
+describe("App — T13 MethodologySummary integration (source assertions)", () => {
+  it("App.tsx imports MethodologySummary", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    expect(appSrc).toContain("MethodologySummary");
+    expect(appSrc).toContain("from \"./components/MethodologySummary\"");
+  });
+
+  it("App.tsx renders MethodologySummary in non-embed mode (full-page branch)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    // Extract the full-page mode block (after "// Full-page mode").
+    const fullPageBlock = appSrc.slice(appSrc.indexOf("// Full-page mode"));
+    expect(fullPageBlock).toContain("<MethodologySummary");
+  });
+
+  it("App.tsx suppresses MethodologySummary in embed mode (embed-root block does not contain it)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    // Extract the embed-root block: from "embed-root" to "// Full-page mode".
+    const embedRootBlock = appSrc.slice(
+      appSrc.indexOf("embed-root"),
+      appSrc.indexOf("// Full-page mode")
+    );
+    // MethodologySummary must NOT appear in the embed branch.
+    expect(embedRootBlock).not.toContain("MethodologySummary");
+  });
+
+  it("App.tsx wraps MethodologySummary in reveal-cascade-item div (F-T13-6 binding)", () => {
+    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    // The wrapper must be at App.tsx level — not inside MethodologySummary.tsx.
+    // Verify the pattern: reveal-cascade-item div immediately around MethodologySummary.
+    expect(appSrc).toContain("reveal-cascade-item");
+    expect(appSrc).toContain("<MethodologySummary");
+    // The component itself must not contain reveal-cascade-item.
+    const methodSummarySrc = readFileSync(
+      resolve(__dirname, "../components/MethodologySummary.tsx"),
+      "utf-8"
+    );
+    expect(methodSummarySrc).not.toContain("reveal-cascade-item");
+  });
+
+  it("MethodologySummary.tsx does not import anthropic/openai/LLM client (cdb_analyze boundary check adapted for dashboard)", () => {
+    // Belt-and-suspenders: the dashboard component must not import LLM clients.
+    const src = readFileSync(
+      resolve(__dirname, "../components/MethodologySummary.tsx"),
+      "utf-8"
+    );
+    expect(src).not.toContain("anthropic");
+    expect(src).not.toContain("openai");
+  });
+});
+
 describe("App — lede format regression (DESIGN_SYSTEM.md §3.8)", () => {
   it("generated_lede in fixture follows the canonical 'Across N frontier models, domain vocabulary...' format", () => {
     // Regression guard: the fixture ledes must match the canonical format that the

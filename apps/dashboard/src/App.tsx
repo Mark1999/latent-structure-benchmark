@@ -25,6 +25,7 @@ import { DomainPicker } from "./components/DomainPicker";
 import type { Domain } from "./components/DomainPicker";
 import { KeyFinding } from "./components/KeyFinding";
 import { DataExplorer } from "./components/DataExplorer";
+import { MethodologySummary } from "./components/MethodologySummary";
 
 type AppState = "loading" | "loaded" | "error";
 
@@ -305,6 +306,15 @@ export default function App() {
           )}
         </div>
       </main>
+
+      {/* MethodologySummary — T13: article-bottom method note per §12.7.
+          Suppressed in embed mode per §12.5. Cascade item after DataExplorer,
+          before Footer. Wrapper at App.tsx level per F-T13-6. */}
+      {!embedMode && (
+        <div className="reveal-cascade-item">
+          <MethodologySummary methodologyPageUrl={null} />
+        </div>
+      )}
 
       <div className="reveal-cascade-item">
         <Footer />

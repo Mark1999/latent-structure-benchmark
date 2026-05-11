@@ -66,12 +66,14 @@ a:focus-visible {
   /* 280ms duration + 320ms max delay = 600ms total cascade (DESIGN_SYSTEM.md §12.1 binding cap; v0.4.1 fix from 300ms which produced 620ms) */
 }
 
-/* Stagger delays for cascade (max 80ms between elements, total < 600ms) */
+/* Stagger delays for cascade (max 80ms between elements, 6 items, total = 280ms + 320ms = 600ms, within §12.1 cap) */
 .reveal-cascade-item:nth-child(1) { animation-delay: 0ms; }
 .reveal-cascade-item:nth-child(2) { animation-delay: 80ms; }
 .reveal-cascade-item:nth-child(3) { animation-delay: 160ms; }
 .reveal-cascade-item:nth-child(4) { animation-delay: 240ms; }
 .reveal-cascade-item:nth-child(5) { animation-delay: 320ms; }
+/* F-T13-1 (BLOCKING): 6th cascade slot for MethodologySummary/Footer at page-wrapper level. */
+.reveal-cascade-item:nth-child(6) { animation-delay: 320ms; }
 
 @keyframes revealFade {
   from {
@@ -908,4 +910,97 @@ a:focus-visible {
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border-width: 0;
+}
+
+/* ===== MethodologySummary block — DESIGN_SYSTEM.md §12.7 (v0.4.4, T13) ===== */
+
+.methodology-summary {
+  max-width: var(--max-prose-width);
+  margin: var(--space-16) auto 0;
+  padding: var(--space-8) var(--space-6) 0;
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.methodology-summary__heading {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+}
+
+/* F-T13-7 (BLOCKING): --color-text-caption (#6c757d, ~4.60:1 on white) — WCAG AA at 16px.
+   --color-text-secondary (#7f8c8d) fails at 16px/500 weight (~3.40:1). */
+.methodology-summary__tagline {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-body);
+  color: var(--color-text-caption);
+  margin-bottom: var(--space-4);
+}
+
+.methodology-summary__body {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-body);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+}
+
+.methodology-summary__footnote {
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-body);
+  color: var(--color-text-caption);
+}
+
+.methodology-summary__footnote a {
+  color: var(--color-info);
+  text-decoration: underline;
+}
+
+.methodology-summary__footnote a:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* ===== Mobile layout — five T13 gaps + explorer collapse ===== */
+/*
+ * T13 mobile gaps (DESIGN_SYSTEM.md §12.7, F-T13 findings):
+ *   1. DownloadBar touch targets ≥ 44px
+ *   2. CiteModal / EmbedModal full-screen sizing
+ *   3. ArticleHeader title font scale-down (48px → 32px)
+ *   4. Site header nav hide-on-mobile (Phase 6 adds hamburger)
+ *   5. MDSPlot viewBox already set in MDSPlot.tsx (no CSS gap)
+ * Bottom-drawer overlay deferred to Phase 6 per §12.7 binding ruling.
+ */
+
+@media (max-width: 768px) {
+  /* T13 mobile gap 1: DownloadBar touch targets ≥ 44px */
+  .download-bar__csv-btn,
+  .download-bar__permalink-btn,
+  .download-bar__png-btn,
+  .download-bar__png-hires-btn,
+  .download-bar__cite-btn,
+  .download-bar__embed-btn {
+    min-height: 44px;
+  }
+
+  /* T13 mobile gap 2: CiteModal / EmbedModal full-screen */
+  .cite-modal__dialog,
+  .embed-modal__dialog {
+    width: calc(100% - 32px);
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+
+  /* T13 mobile gap 3: ArticleHeader title scale-down */
+  .article-header__title {
+    font-size: var(--font-size-2xl);
+  }
+
+  /* T13 mobile gap 4: Site header nav hide-on-mobile (Phase 6 adds hamburger) */
+  .site-header__nav {
+    display: none;
+  }
 }
