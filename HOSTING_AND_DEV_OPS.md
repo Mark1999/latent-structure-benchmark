@@ -67,7 +67,7 @@ Headers are configured via `apps/dashboard/public/_headers` (Cloudflare Pages re
 To verify after deployment:
 
 ```bash
-curl -I https://cogstructurelab.com/ | grep -E "(Content-Security-Policy|X-Frame-Options|Strict-Transport-Security)"
+curl -I https://cogstructurelab.com/ | grep -E "(Content-Security-Policy|Strict-Transport-Security|Referrer-Policy)"
 ```
 
 All three should be present. If they aren't, the `_headers` file is in the wrong location or the build didn't include it.
