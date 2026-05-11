@@ -51,6 +51,9 @@ apps/dashboard/public/data/
 # Reference materials (PDFs, local copies of papers — not suitable for git)
 docs/references/
 
+# Host-local operator notes (VPS-specific; intentionally never committed)
+HARDWARE.md
+
 # OS
 .DS_Store
 Thumbs.db
