@@ -67,7 +67,9 @@ const buttonBase: React.CSSProperties = {
 const linkStyle: React.CSSProperties = {
   fontSize: "var(--font-size-xs)",
   fontFamily: "var(--font-body)",
-  color: "var(--color-text-secondary)",
+  // v0.4.3 WCAG AA (UI/UX T11 finding 2): --color-text-caption (~4.60:1) for
+  // 12px regular; --color-text-secondary (~3.40:1) fails 4.5:1 minimum.
+  color: "var(--color-text-caption)",
   cursor: "pointer",
   background: "none",
   border: "none",

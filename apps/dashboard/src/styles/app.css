@@ -880,12 +880,14 @@ a:focus-visible {
   border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
 }
 
-/* ===== DownloadBar focus indicators — v0.4.3 (UI/UX T10 finding 2) =====
+/* ===== DownloadBar focus indicators — v0.4.3 (UI/UX T10 finding 2, T11 finding 1) =====
    Explicit focus-visible rings matching the design-system pattern;
    browser-default focus rings are inconsistent across user agents. */
 
 .download-bar__csv-btn:focus-visible,
-.download-bar__permalink-btn:focus-visible {
+.download-bar__permalink-btn:focus-visible,
+.download-bar__png-btn:focus-visible,
+.download-bar__png-hires-btn:focus-visible {
   outline: 2px solid var(--color-info);
   outline-offset: 2px;
   border-radius: var(--border-radius-sm);
