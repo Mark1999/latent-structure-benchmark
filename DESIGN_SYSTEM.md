@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.3  
+**Version:** v0.4.4  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4.4** (T13 plan-level UI/UX verdict, 2026-05-11) adds §12.7 (MethodologySummary block visual specification). Specifies: component structure (`<section>` with `aria-labelledby`), heading element (`<h2 id="methodology-summary-heading">About this measurement</h2>`), tagline paragraph token (`--color-text-caption` not `--color-text-secondary` — the latter fails WCAG AA at 16px with ~3.40:1 contrast), body paragraph token (`--color-text-primary`), footnote conditional rendering (plain text when `methodologyPageUrl` is null; inline link when URL is set), CSS class names and spacing tokens, reveal cascade position (child 5, 240ms delay — requires adding a 6th cascade slot to `app.css`), mobile posture (max-width 680px renders full-width on narrow viewports automatically; no special mobile rule needed for the prose container). Records the mobile bottom-drawer deferral decision: §8 calls for a control panel bottom-drawer on `<768px`; T13 accepts the stacked-below layout as the Phase 5 mobile implementation; a true bottom-drawer overlay is deferred to Phase 6. Also records five mobile gaps the T13 Coder must close: DownloadBar touch targets (min-height: 44px at `<768px`), CiteModal/EmbedModal full-screen on mobile, ArticleHeader title font scale-down (48px → 32px at `<768px`), site header nav hide-on-mobile (display: none at `<768px`), MDSPlot viewBox verification.
 - **v0.4.3** (T10 per-commit UI/UX review, 2026-05-10) adds `--color-text-caption: #6c757d` to §1.2 UI chrome tokens. The T10 `SourceAttribution.tsx` implementation used `--color-text-muted` (#bdc3c7) for the source attribution line text, producing a contrast ratio of approximately 1.75:1 on white at 12px — a WCAG AA failure (4.5:1 required). The existing `--color-text-secondary` (#7f8c8d) computes to approximately 3.40:1 on white, also insufficient for 12px regular-weight text. The new `--color-text-caption: #6c757d` computes to approximately 4.60:1 on white, passes WCAG AA for 12px text, and is the correct token for the SourceAttribution source line and small-n footnote. The `--color-text-secondary` annotation is updated to clarify it is appropriate for bold or large secondary labels (14px+); the `--color-text-muted` annotation is tightened to "disabled states and non-readable placeholders only — never for readable body or caption text."
 - **v0.4.2** (T7 per-commit UI/UX review, 2026-05-10) adds the §3.7 initial-state and max-6 warning gating binding spec. The v0.4.1 §3.7 stated that max-6 was "enforced with an inline warning if exceeded" but did not specify the initial state — the T7 implementation defaulted to all-available models, causing the warning to appear on every page load before any user interaction. v0.4.2 adds three binding rules: (1) initial state is the first-6 model_ids by §12.4 lexicographic sort; (2) the warning fires only on interactive add to an already-at-6 selection; (3) "Select all" bypasses per-toggle and may legitimately trigger the warning. EU origin badge contrast (~4.44:1 on `--color-surface-hover`) is flagged as borderline pre-launch (badge is `aria-hidden="true"`, so functional accessibility via checkbox `aria-label` is intact).
 - **v0.4.1** (T4 per-commit UI/UX review, 2026-05-10) corrects `--color-model-11` in §1.2 and §12.4 from `#b7950b` to `#9a7d0a`. The v0.4 assertion that `#b7950b` passes WCAG AA 3:1 graphical contrast on white was incorrect — computed contrast ratio was approximately 2.89:1, below the 3:1 minimum. The corrected value `#9a7d0a` passes at approximately 3.96:1. The hue family (dark gold) is preserved.
@@ -688,8 +689,65 @@ DESIGN_SYSTEM.md §7 requires a "Read as table" toggle on every visualization. `
 - The Reviewer does not reject T13 for absence of `AccessibilityTableToggle.tsx`.
 - The Reviewer does reject T6 for absence of a descriptive `aria-label` on the MDSPlot SVG container. This is the minimum viable posture.
 
+### 12.7 MethodologySummary block (v0.4.4 — T13, 2026-05-11)
+
+The MethodologySummary is the article-bottom methodology note rendered below the DataExplorer per §2.1 page architecture. It is the "method note" level of the page — below the "lead" (KeyFinding strip), below the "visualization" (DataExplorer), above the Footer. It is not a section of the methodology *page* (Phase 6 §6); it is the in-article summary block.
+
+**Component:** `apps/dashboard/src/components/MethodologySummary.tsx`
+**Source constants:** `apps/dashboard/src/copy/methodology_summary.ts` (SME-approved, do not paraphrase)
+
+**Placement in page cascade:**
+- Positioned after DataExplorer, before Footer.
+- Wrapped in `<div className="reveal-cascade-item">` at `App.tsx` level (not inside the component).
+- Cascade position: child 5 → 240ms delay. Footer: child 6 → 320ms delay.
+- `app.css` must add `.reveal-cascade-item:nth-child(6) { animation-delay: 320ms; }` to accommodate the 6th cascade item without breaking the §12.1 600ms total cap.
+- **Excluded in embed mode** per §12.5.
+
+**Rendered structure:**
+
+```html
+<section className="methodology-summary" aria-labelledby="methodology-summary-heading">
+  <h2 id="methodology-summary-heading" className="methodology-summary__heading">
+    About this measurement
+  </h2>
+  <p className="methodology-summary__tagline">{taglineQuote}</p>
+  <p className="methodology-summary__body">{methodologySummary}</p>
+  <p className="methodology-summary__footnote">
+    {methodologyPageUrl ? (live link variant) : (plain text variant)}
+  </p>
+</section>
+```
+
+**Heading:** `<h2>` is required. The heading text "About this measurement" is binding for Phase 5. Phase 6 may update it when the full methodology page exists. The `aria-labelledby` attribute on the `<section>` pointing to the heading id makes the section landmark accessible to screen readers.
+
+**Tagline paragraph:** `--font-size-base` (16px), `--font-weight-medium` (500), `--color-text-caption` (#6c757d, ~4.60:1 on white — WCAG AA pass at 16px), `margin-bottom: var(--space-4)`. The tagline is NOT rendered at `--font-size-lg` (lead weight) — the KeyFinding strip above the explorer is the article lead; this is the method note. The tagline appears here as a brief orientation hook at slightly-receded-but-readable weight, separate from the body prose paragraph.
+
+**Body paragraph:** `--font-size-base` (16px), `--font-weight-regular` (400), `--color-text-primary`, `line-height: var(--line-height-body)`. One paragraph containing all six SME-approved sentences. Do not split into multiple paragraphs without CDA SME re-review.
+
+**Footnote paragraph:** `--font-size-xs` (12px), `--color-text-caption` (#6c757d, ~4.60:1 on white — WCAG AA pass at 12px per v0.4.3). Conditional rendering:
+- `methodologyPageUrl === null` (Phase 5 launch): render as plain `<p>` with no link, no fake-link styling.
+- `methodologyPageUrl` is a non-empty string (Phase 6+): render the footnote text with an inline `<a href={methodologyPageUrl}>Read the full methodology page →</a>` appended, using `--color-info` color and underline.
+
+**Max-width:** `var(--max-prose-width)` (680px), centered (`margin: auto`). This is the article-prose width — narrower than the DataExplorer container (1200px). On mobile viewports `<680px`, the container goes naturally full-width; no special mobile rule is needed for the prose container itself.
+
+**Top margin from DataExplorer:** `margin-top: var(--space-16)` (64px), plus a `border-top: var(--border-width) solid var(--color-border)` visual separator to signal the section break from the interactive explorer.
+
+**Mobile posture:** No special rule needed for the MethodologySummary prose container. The max-width of 680px renders as full-width on narrow viewports automatically.
+
+**Mobile bottom-drawer deferral (binding ruling):** DESIGN_SYSTEM.md §8 calls for the control panel to "collapse to a bottom drawer on screens narrower than 768px." T13 ships the stacked-below layout (ModelSelector below MDSPlot in a single-column grid) as the Phase 5 mobile implementation. A true bottom-drawer overlay — with scroll management, focus trap, and overlay positioning — is deferred to Phase 6 and should be listed in the Phase 6 feature plan. The Reviewer does not reject T13 for absence of a bottom-drawer overlay.
+
+**Five mobile gaps closed in T13 (binding, all must be present in the T13 commit):**
+1. **DownloadBar touch targets:** `@media (max-width: 768px)` rule adds `min-height: 44px` to all DownloadBar button elements (CSV, PNG, Permalink, Cite, Embed buttons).
+2. **CiteModal/EmbedModal mobile:** `@media (max-width: 768px)` rule sets modal container to `width: calc(100% - 32px); max-height: 90vh; overflow-y: auto`.
+3. **ArticleHeader title font scale:** `@media (max-width: 768px) { .article-header__title { font-size: var(--font-size-2xl); } }` (48px → 32px).
+4. **Site header nav hide-on-mobile:** `@media (max-width: 768px) { .site-header__nav { display: none; } }` (Phase 6 adds hamburger menu).
+5. **MDSPlot viewBox:** Verify `MDSPlot.tsx` sets a `viewBox` attribute on the `<svg>` element so aspect ratio is maintained at all viewport widths. The `width: 100%; height: auto` in `app.css` depends on viewBox being set.
+
+**Unit test requirement (binding, from CDA SME carry-forward note 3):**
+`apps/dashboard/src/copy/methodology_summary.test.ts` must assert `taglineQuote === TAGLINE` (importing from `./methodology_summary` and `./framing` respectively).
+
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.2. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.4.4. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
