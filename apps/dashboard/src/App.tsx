@@ -201,7 +201,7 @@ export default function App() {
           </p>
         )}
         {appState === "loaded" && domainResult !== null && !domainLoading && (
-          <DataExplorer domainResult={domainResult} />
+          <DataExplorer domainResult={domainResult} isEmbed={true} />
         )}
         {appState === "loaded" && domainLoading && (
           <p

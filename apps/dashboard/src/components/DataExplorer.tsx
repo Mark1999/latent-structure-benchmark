@@ -28,15 +28,21 @@
  *   - Renders SourceAttribution below the explorer layout.
  *   - Renders DownloadBar below SourceAttribution.
  *
+ * T12 additions:
+ *   - CiteModal and EmbedModal mounted here; isCiteOpen / isEmbedOpen state.
+ *   - citeTriggerRef / embedTriggerRef for focus-return on modal close.
+ *   - Passes onOpenCiteModal / onOpenEmbedModal callbacks to DownloadBar.
+ *   - isEmbed prop controls embed-mode DownloadBar behavior (Permalink+Embed hidden).
+ *
  * No child component (MDSPlot, ModelSelector, Legend) computes its own
  * model color from model_id — all receive modelColors as a prop per §12.4
  * palette ownership rule.
  *
  * Source: DESIGN_SYSTEM.md §3.1, §3.7 (v0.4.2), §12.4, §5
- * Reference: docs/status/2026-05-09-phase5-architect-plan.md §4 T9 + T10
+ * Reference: docs/status/2026-05-09-phase5-architect-plan.md §4 T9 + T10 + T12
  */
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useRef, useState, useMemo } from "react";
 import type { DomainResultPublished } from "../data/types";
 import { MDSPlot } from "./MDSPlot";
 import { ModelSelector } from "./ModelSelector";
@@ -44,12 +50,16 @@ import { VizSwitcher, resolveFragmentOnMount } from "./VizSwitcher";
 import type { ActiveVizTab } from "./VizSwitcher";
 import { SourceAttribution } from "./SourceAttribution";
 import { DownloadBar } from "./DownloadBar";
+import { CiteModal } from "./CiteModal";
+import { EmbedModal } from "./EmbedModal";
 import { encodePermalink, decodePermalink } from "../lib/permalink";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface DataExplorerProps {
   domainResult: DomainResultPublished;
+  /** In embed mode, DownloadBar hides Permalink and Embed buttons per §12.5. */
+  isEmbed?: boolean;
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -131,7 +141,7 @@ function writePermalinkState(
  *
  * All explorer-internal state lives here. App.tsx provides only domainResult.
  */
-export function DataExplorer({ domainResult }: DataExplorerProps) {
+export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProps) {
   /**
    * selectedModels: which model_ids are currently visible on the plot.
    * §3.7 v0.4.2 binding: initial value = first 6 by §12.4 lexicographic sort,
@@ -157,6 +167,12 @@ export function DataExplorer({ domainResult }: DataExplorerProps) {
   const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>(
     () => resolveFragmentOnMount()
   );
+
+  // T12: CiteModal / EmbedModal open state + trigger refs for focus-return.
+  const [isCiteOpen, setIsCiteOpen] = useState(false);
+  const [isEmbedOpen, setIsEmbedOpen] = useState(false);
+  const citeTriggerRef = useRef<HTMLButtonElement>(null);
+  const embedTriggerRef = useRef<HTMLButtonElement>(null);
 
   /**
    * Reset selectedModels to first-6 sorted whenever the domain changes.
@@ -259,13 +275,36 @@ export function DataExplorer({ domainResult }: DataExplorerProps) {
         selectedModels={selectedModels}
       />
 
-      {/* DownloadBar: CSV + permalink buttons below SourceAttribution per §5 (T10).
-          In embed mode, DownloadBar remains visible per §12.5; Permalink is hidden
-          in embed mode — deferred to T12 embed mode spec. */}
+      {/* DownloadBar: CSV + permalink + Cite + Embed + PNG per §5 (T10, T12).
+          isEmbed hides Permalink and Embed buttons per §12.5.
+          Callbacks open CiteModal / EmbedModal with trigger refs for focus-return. */}
       <DownloadBar
         domainResult={domainResult}
         selectedModels={selectedModels}
         activeVizTab={activeVizTab}
+        onOpenCiteModal={() => setIsCiteOpen(true)}
+        citeButtonRef={citeTriggerRef}
+        onOpenEmbedModal={() => setIsEmbedOpen(true)}
+        embedButtonRef={embedTriggerRef}
+        isEmbed={isEmbed}
+      />
+
+      {/* CiteModal — T12. Portal to document.body; ARIA dialog per §7. */}
+      <CiteModal
+        domainResult={domainResult}
+        selectedModels={selectedModels}
+        isOpen={isCiteOpen}
+        onClose={() => setIsCiteOpen(false)}
+        triggerRef={citeTriggerRef}
+      />
+
+      {/* EmbedModal — T12. Portal to document.body; ARIA dialog per §7. */}
+      <EmbedModal
+        domain={domainResult.domain_slug}
+        selectedModels={selectedModels}
+        isOpen={isEmbedOpen}
+        onClose={() => setIsEmbedOpen(false)}
+        triggerRef={embedTriggerRef}
       />
     </div>
   );

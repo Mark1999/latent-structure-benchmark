@@ -1,12 +1,16 @@
 /**
- * DownloadBar — CSV + permalink + PNG buttons below the chart.
+ * DownloadBar — CSV + permalink + Cite + Embed + PNG buttons below the chart.
  *
  * Per DESIGN_SYSTEM.md §5:
  * - CSV button: downloads current view as CSV via csv-export.ts.
  * - Permalink button: copies current view URL to clipboard via
  *   navigator.clipboard.writeText.
+ * - Cite button: opens CiteModal (passed via onOpenCiteModal callback).
+ * - Embed button: opens EmbedModal (passed via onOpenEmbedModal callback).
  * - PNG (social) button: exports 1600×900 PNG via png-export.ts + png-metadata.ts.
  * - PNG hi-res link: exports 2000×2000 PNG via the same pipeline.
+ *
+ * Button order per T12 spec: CSV | Permalink | Cite | Embed | PNG (social) | hi-res
  *
  * PNG handler chain:
  *   1. Find the MDSPlot SVG via the svgRef prop (preferred) or
@@ -18,12 +22,14 @@
  * tEXt metadata fields per T11 spec:
  *   Title, Author, Source, Software, Domain, Models, Analysis-Version, Generated-At
  *
- * ARIA: PNG button has aria-label="Download chart as PNG (social)" and
+ * ARIA: Cite button aria-label="Show citation formats",
+ *       Embed button aria-label="Show embed code",
+ *       PNG button has aria-label="Download chart as PNG (social)" and
  *       aria-label="Download chart as PNG (hi-res)" for the hi-res link.
  *
  * Buttons are left-aligned, styled with design tokens. Focus rings per §7.
  *
- * Source: DESIGN_SYSTEM.md §5, docs/status/2026-05-09-phase5-architect-plan.md §4 T11
+ * Source: DESIGN_SYSTEM.md §5, docs/status/2026-05-09-phase5-architect-plan.md §4 T11, T12
  */
 
 import { useState } from "react";
@@ -42,6 +48,19 @@ export interface DownloadBarProps {
   activeVizTab: "mds";
   /** Optional ref to the MDSPlot SVG element for clean export without querySelector. */
   svgRef?: React.RefObject<SVGSVGElement | null>;
+  /** Callback to open the CiteModal. */
+  onOpenCiteModal?: () => void;
+  /** Ref for the Cite button — used by CiteModal to return focus on close. */
+  citeButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  /** Callback to open the EmbedModal. */
+  onOpenEmbedModal?: () => void;
+  /** Ref for the Embed button — used by EmbedModal to return focus on close. */
+  embedButtonRef?: React.RefObject<HTMLButtonElement | null>;
+  /**
+   * In embed mode (§12.5): Permalink and Embed buttons are hidden.
+   * CSV and PNG download buttons remain visible for embed consumers.
+   */
+  isEmbed?: boolean;
 }
 
 // ── Shared button style ───────────────────────────────────────────────────────
@@ -143,6 +162,11 @@ export function DownloadBar({
   selectedModels,
   activeVizTab,
   svgRef,
+  onOpenCiteModal,
+  citeButtonRef,
+  onOpenEmbedModal,
+  embedButtonRef,
+  isEmbed = false,
 }: DownloadBarProps) {
   const [permalinkCopied, setPermalinkCopied] = useState(false);
   const [pngState, setPngState] = useState<"idle" | "loading" | "error">("idle");
@@ -235,23 +259,67 @@ export function DownloadBar({
         &#8659; Download CSV
       </button>
 
-      {/* Permalink button */}
-      <button
-        type="button"
-        className="download-bar__permalink-btn"
-        aria-label="Copy permalink to clipboard"
-        onClick={handlePermalinkCopy}
-        style={buttonBase}
-        onMouseEnter={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.backgroundColor =
-            "var(--color-surface-hover)";
-        }}
-        onMouseLeave={(e) => {
-          (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
-        }}
-      >
-        {permalinkCopied ? "✓ Copied!" : "🔗 Copy permalink"}
-      </button>
+      {/* Permalink button — hidden in embed mode per §12.5 */}
+      {!isEmbed && (
+        <button
+          type="button"
+          className="download-bar__permalink-btn"
+          aria-label="Copy permalink to clipboard"
+          onClick={handlePermalinkCopy}
+          style={buttonBase}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+              "var(--color-surface-hover)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+          }}
+        >
+          {permalinkCopied ? "✓ Copied!" : "🔗 Copy permalink"}
+        </button>
+      )}
+
+      {/* Cite button — hidden in embed mode */}
+      {!isEmbed && onOpenCiteModal !== undefined && (
+        <button
+          ref={citeButtonRef}
+          type="button"
+          className="download-bar__cite-btn"
+          aria-label="Show citation formats"
+          onClick={onOpenCiteModal}
+          style={buttonBase}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+              "var(--color-surface-hover)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+          }}
+        >
+          Cite
+        </button>
+      )}
+
+      {/* Embed button — hidden in embed mode per §12.5 */}
+      {!isEmbed && onOpenEmbedModal !== undefined && (
+        <button
+          ref={embedButtonRef}
+          type="button"
+          className="download-bar__embed-btn"
+          aria-label="Show embed code"
+          onClick={onOpenEmbedModal}
+          style={buttonBase}
+          onMouseEnter={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor =
+              "var(--color-surface-hover)";
+          }}
+          onMouseLeave={(e) => {
+            (e.currentTarget as HTMLButtonElement).style.backgroundColor = "transparent";
+          }}
+        >
+          &lt;/&gt; Embed
+        </button>
+      )}
 
       {/* PNG export group: primary button + hi-res link */}
       <div

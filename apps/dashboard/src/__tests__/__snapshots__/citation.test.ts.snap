@@ -1,0 +1,15 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`buildApa > snapshot — stable output for the base fixture 1`] = `"Cognitive Structure Lab. (2026). LSB: Family domain MDS [Data set]. https://cogstructurelab.com/family"`;
+
+exports[`buildBibtex > snapshot — stable output for the base fixture 1`] = `
+"@misc{lsb_family_2026,
+  author = {{Cognitive Structure Lab}},
+  title  = {LSB: Family domain MDS},
+  year   = {2026},
+  note   = {Analysis version 0.2; models: claude-opus-4-6, openai/gpt-5},
+  url    = {https://cogstructurelab.com/family},
+}"
+`;
+
+exports[`buildChicago > snapshot — stable output for the base fixture 1`] = `"Cognitive Structure Lab. 2026. "LSB: Family domain MDS." Cognitive Structure Lab. https://cogstructurelab.com/family."`;
