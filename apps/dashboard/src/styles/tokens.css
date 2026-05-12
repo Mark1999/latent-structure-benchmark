@@ -115,6 +115,11 @@
   --color-surface:         #f8f9fa;   /* card backgrounds, panel backgrounds */
   --color-surface-hover:   #f0f2f5;   /* hover states on surfaces */
 
+  /* SimilarityHeatmap component-scoped token (v0.4.5 — T5) */
+  /* Pure black required for WCAG AA compliance across the dark-text arm of the
+     alpha-blend gradient. See DESIGN_SYSTEM.md §12.8. Used only in SimilarityHeatmap.tsx. */
+  --color-heatmap-cell-text-dark: #000000;
+
   /* Semantic */
   --color-success: #27ae60;
   --color-warning: #f39c12;

@@ -1,0 +1,118 @@
+/*
+ * SimilarityHeatmap styles — Phase 6 T5
+ *
+ * Token-only. No hardcoded colors, fonts, or spacing values.
+ * All custom properties are from tokens.css (verified against DESIGN_SYSTEM.md §3 v0.4.5).
+ *
+ * One component-scoped token added in this release:
+ *   --color-heatmap-cell-text-dark: #000000
+ *   Defined in tokens.css per F-T5-C1 (UI/UX BINDING verdict).
+ *   Used only in SimilarityHeatmap.tsx via textFill CSS variable reference.
+ *
+ * F-T5-A1 (BINDING): sr-only pattern is already defined in freelist-compare.css.
+ *   The .sr-only class is reused here without redefinition.
+ *
+ * F-T5-C1 (BINDING): contrast-switch threshold 0.73 applied in component code.
+ *   No CSS for the threshold — it's a TypeScript constant (HEATMAP_TEXT_SWITCH_THRESHOLD).
+ *
+ * F-T5-M1 (ADVISORY — confirmed): label suppression on narrow viewports targets
+ *   .similarity-heatmap__cell-label (<text> elements) only. aria-label attributes
+ *   on <rect> cells are unaffected and remain in the DOM at all viewport widths.
+ *
+ * References:
+ *   - docs/status/2026-05-12-phase6-T5-architect-plan.md §2.5, §3.20
+ *   - docs/status/2026-05-12-phase6-T5-uiux-plan-verdict.md F-T5-M1
+ *   - DESIGN_SYSTEM.md §12.8 (v0.4.5)
+ */
+
+/* ── Root container ──────────────────────────────────────────────────────────── */
+
+.similarity-heatmap {
+  width: 100%;
+}
+
+/* ── SVG container (position: relative for tooltip overlay) ─────────────────── */
+
+.similarity-heatmap__svg-container {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
+/* ── SVG element ─────────────────────────────────────────────────────────────── */
+
+.similarity-heatmap__svg {
+  display: block;
+  width: 100%;
+}
+
+/* ── Header labels (col/row) ─────────────────────────────────────────────────── */
+
+.similarity-heatmap__header-label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  fill: var(--color-text-primary);
+}
+
+/* ── Cell numeric label ──────────────────────────────────────────────────────── */
+
+.similarity-heatmap__cell-label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  /* fill is set inline via style prop (contrast-switched) */
+  pointer-events: none;
+  user-select: none;
+}
+
+/* F-T5-M1: suppress cell labels on narrow viewports (≤480px).
+   ONLY <text> elements are suppressed. aria-label on <rect> cells is
+   unaffected — it lives in the DOM independent of rendering. */
+@media (max-width: 480px) {
+  .similarity-heatmap__cell-label {
+    display: none;
+  }
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────────── */
+
+.similarity-heatmap__tooltip {
+  background: var(--color-text-primary);
+  color: var(--color-background);
+  padding: var(--space-1) var(--space-2);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+}
+
+.similarity-heatmap__tooltip-line1 {
+  font-weight: var(--font-weight-medium);
+  margin-bottom: 2px;
+}
+
+.similarity-heatmap__tooltip-line2 {
+  font-weight: var(--font-weight-regular);
+  opacity: 0.9;
+}
+
+/* ── Caption (CDA SME N1 verbatim text — styling only) ──────────────────────── */
+
+.similarity-heatmap__caption {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  margin: var(--space-3) 0 0 0;
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────────── */
+
+.similarity-heatmap__empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  padding: var(--space-4) 0;
+  margin: 0;
+}

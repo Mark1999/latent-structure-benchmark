@@ -111,8 +111,9 @@ describe("VizSwitcher — aria-selected", () => {
 });
 
 describe("VizSwitcher — aria-disabled", () => {
-  // Phase 6 T7: Free Lists tab is now active (not disabled). Only Similarity and
-  // Drift remain disabled.
+  // Phase 6 T7: Free Lists tab is now active (not disabled). Only Drift
+  // remains disabled.
+  // Phase 6 T5: Similarity tab is now active (not disabled). Only Drift remains.
   it("Free Lists tab does NOT have aria-disabled (Phase 6 T7 — tab is now active)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
@@ -120,11 +121,11 @@ describe("VizSwitcher — aria-disabled", () => {
     expect(tab!.getAttribute("aria-disabled")).toBeNull();
   });
 
-  it("Similarity tab has aria-disabled='true'", () => {
+  it("Similarity tab does NOT have aria-disabled (Phase 6 T5 — tab is now active)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
     const tab = Array.from(tabs).find((t) => t.textContent?.trim() === "Similarity");
-    expect(tab!.getAttribute("aria-disabled")).toBe("true");
+    expect(tab!.getAttribute("aria-disabled")).toBeNull();
   });
 
   it("Drift tab has aria-disabled='true'", () => {
@@ -184,11 +185,13 @@ describe("VizSwitcher — tooltip text (§12.3 binding)", () => {
     expect(tab!.title).toBeFalsy();
   });
 
-  it("Similarity tab has title='Coming in a future update'", () => {
+  // Phase 6 T5: Similarity tab is now active — no tooltip.
+  it("Similarity tab does NOT have tooltip (Phase 6 T5 — tab is now active)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
     const tab = Array.from(tabs).find((t) => t.textContent?.trim() === "Similarity");
-    expect(tab!.title).toBe("Coming in a future update");
+    // Active tab has no tooltip.
+    expect(tab!.title).toBeFalsy();
   });
 
   it("Drift tab has title='Coming in a future update'", () => {
@@ -236,7 +239,8 @@ describe("VizSwitcher — click interactions", () => {
     expect(onTabChange).toHaveBeenCalledWith("freelist");
   });
 
-  it("clicking Similarity tab does NOT call onTabChange", () => {
+  // Phase 6 T5: clicking Similarity now calls onTabChange('similarity').
+  it("clicking Similarity tab calls onTabChange('similarity') (Phase 6 T5 — tab is now active)", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
@@ -246,7 +250,8 @@ describe("VizSwitcher — click interactions", () => {
       tab.click();
     });
 
-    expect(onTabChange).not.toHaveBeenCalled();
+    expect(onTabChange).toHaveBeenCalledOnce();
+    expect(onTabChange).toHaveBeenCalledWith("similarity");
   });
 
   it("clicking Drift tab does NOT call onTabChange", () => {
@@ -306,17 +311,24 @@ describe("VizSwitcher — active tab visual indicator", () => {
     });
   });
 
-  // Phase 6 T7: only Similarity and Drift are still disabled.
-  it("Similarity and Drift tabs have viz-switcher__tab--disabled class", () => {
+  // Phase 6 T5: only Drift is still disabled (Similarity is now active).
+  it("Only Drift tab has viz-switcher__tab--disabled class (Phase 6 T5)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
-    const stillDisabledTabs = Array.from(tabs).filter(
-      (t) => t.textContent?.trim() === "Similarity" || t.textContent?.trim() === "Drift"
+    const driftTab = Array.from(tabs).find((t) => t.textContent?.trim() === "Drift");
+    expect(driftTab!.classList.contains("viz-switcher__tab--disabled")).toBe(true);
+    // Verify exactly one disabled tab remains.
+    const disabledTabs = Array.from(tabs).filter((t) =>
+      t.classList.contains("viz-switcher__tab--disabled")
     );
-    expect(stillDisabledTabs.length).toBe(2);
-    stillDisabledTabs.forEach((tab) => {
-      expect(tab.classList.contains("viz-switcher__tab--disabled")).toBe(true);
-    });
+    expect(disabledTabs.length).toBe(1);
+  });
+
+  it("Similarity tab does NOT have viz-switcher__tab--disabled class (Phase 6 T5 — active)", () => {
+    renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
+    const tabs = getTabs();
+    const tab = Array.from(tabs).find((t) => t.textContent?.trim() === "Similarity")!;
+    expect(tab.classList.contains("viz-switcher__tab--disabled")).toBe(false);
   });
 
   it("Free Lists tab does NOT have viz-switcher__tab--disabled class (Phase 6 T7)", () => {
@@ -392,8 +404,25 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("mds");
   });
 
-  // Phase 6 T7: tabs[1] is now Free Lists (active). Use Similarity (tabs[2]) for disabled test.
-  it("Enter on disabled tab (Similarity) does NOT call onTabChange", () => {
+  // Phase 6 T5: tabs[2] is now Similarity (active). Use Drift (tabs[3]) for disabled test.
+  it("Enter on disabled tab (Drift) does NOT call onTabChange", () => {
+    const onTabChange = vi.fn();
+    renderSwitcher({ activeTab: "mds", onTabChange });
+    const tabs = getTabs();
+    const driftTab = tabs[3];
+
+    act(() => {
+      driftTab.focus();
+      driftTab.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "Enter", bubbles: true })
+      );
+    });
+
+    expect(onTabChange).not.toHaveBeenCalled();
+  });
+
+  // Phase 6 T5: Enter on Similarity now calls onTabChange('similarity').
+  it("Enter on Similarity tab calls onTabChange('similarity') (Phase 6 T5)", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
@@ -406,7 +435,7 @@ describe("VizSwitcher — keyboard navigation", () => {
       );
     });
 
-    expect(onTabChange).not.toHaveBeenCalled();
+    expect(onTabChange).toHaveBeenCalledWith("similarity");
   });
 
   it("Enter on Free Lists tab calls onTabChange('freelist') (Phase 6 T7)", () => {
@@ -425,15 +454,16 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("freelist");
   });
 
-  it("Space on disabled tab does NOT call onTabChange", () => {
+  // Phase 6 T5: tabs[2] is now Similarity (active). Use Drift (tabs[3]) for disabled Space test.
+  it("Space on disabled tab (Drift) does NOT call onTabChange", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const similarityTab = tabs[2];
+    const driftTab = tabs[3];
 
     act(() => {
-      similarityTab.focus();
-      similarityTab.dispatchEvent(
+      driftTab.focus();
+      driftTab.dispatchEvent(
         new KeyboardEvent("keydown", { key: " ", bubbles: true })
       );
     });
@@ -504,9 +534,10 @@ describe("VizSwitcher — Gap G2: resolveFragmentOnMount with real hash values (
     expect(resolveFragmentOnMount()).toBe("freelist");
   });
 
-  it("returns 'mds' when hash is '#similarity' (still disabled)", () => {
+  // Phase 6 T5: #similarity is now an active tab — returns 'similarity', no warning.
+  it("returns 'similarity' when hash is '#similarity' (Phase 6 T5 — active tab)", () => {
     window.location.hash = "#similarity";
-    expect(resolveFragmentOnMount()).toBe("mds");
+    expect(resolveFragmentOnMount()).toBe("similarity");
   });
 
   it("returns 'mds' when hash is '#drift' (still disabled)", () => {
@@ -523,12 +554,21 @@ describe("VizSwitcher — Gap G2: resolveFragmentOnMount with real hash values (
     warnSpy.mockRestore();
   });
 
-  it("emits console.warn for DISABLED_FRAGMENTS hash (#similarity)", () => {
+  // Phase 6 T5: #similarity is now active — no warn emitted.
+  it("does NOT emit console.warn for #similarity (Phase 6 T5 — active)", () => {
     const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
     window.location.hash = "#similarity";
     resolveFragmentOnMount();
+    expect(warnSpy).not.toHaveBeenCalled();
+    warnSpy.mockRestore();
+  });
+
+  it("emits console.warn for DISABLED_FRAGMENTS hash (#drift)", () => {
+    const warnSpy = vi.spyOn(console, "warn").mockImplementation(() => {});
+    window.location.hash = "#drift";
+    resolveFragmentOnMount();
     expect(warnSpy).toHaveBeenCalledOnce();
-    expect(warnSpy.mock.calls[0][0]).toContain("similarity");
+    expect(warnSpy.mock.calls[0][0]).toContain("drift");
     warnSpy.mockRestore();
   });
 

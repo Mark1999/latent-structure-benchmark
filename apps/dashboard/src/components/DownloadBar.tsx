@@ -45,8 +45,8 @@ import { injectTextMetadata } from "../lib/png-metadata";
 export interface DownloadBarProps {
   domainResult: DomainResultPublished;
   selectedModels: string[];
-  /** Phase 5: "mds". Phase 6 T7: widened to include "freelist". */
-  activeVizTab: "mds" | "freelist";
+  /** Phase 5: "mds". Phase 6 T7: widened to include "freelist". Phase 6 T5: widened to include "similarity". */
+  activeVizTab: "mds" | "freelist" | "similarity";
   /** Optional ref to the MDSPlot SVG element for clean export without querySelector. */
   svgRef?: React.RefObject<SVGSVGElement | null>;
   /** Callback to open the CiteModal. */

@@ -6,7 +6,8 @@
  * communicate future capability without claiming it exists.
  *
  * Phase 6 T7: Free Lists tab is now active. #freelist is a valid URL fragment.
- * Similarity and Drift remain disabled (Phase-6-T5 / Phase-6-T4 territory).
+ * Phase 6 T5: Similarity tab is now active. #similarity is a valid URL fragment.
+ * Drift remains disabled (Phase-6-T4 territory).
  *
  * Accessibility — DESIGN_SYSTEM.md §12.3 binding (overrides T8 plan spec):
  *   - Container: role="tablist" with aria-label="Visualization view".
@@ -21,15 +22,17 @@
  *   - Keyboard: ArrowLeft / ArrowRight between tabs, Enter / Space to activate.
  *
  * URL state: clicking MDS Plot pushes #mds fragment; clicking Free Lists
- * pushes #freelist. Similarity / Drift do not update the URL (disabled).
+ * pushes #freelist; clicking Similarity pushes #similarity. Drift does not
+ * update the URL (disabled).
  *
  * Reference: docs/status/2026-05-12-phase6-T7-architect-plan.md §2.1
+ *            docs/status/2026-05-12-phase6-T5-architect-plan.md §2
  */
 
 import { type KeyboardEvent } from "react";
 
-/** Active tab values — widened from "mds" to include "freelist" at Phase 6 T7. */
-export type ActiveVizTab = "mds" | "freelist";
+/** Active tab values — widened from "mds" | "freelist" to include "similarity" at Phase 6 T5. */
+export type ActiveVizTab = "mds" | "freelist" | "similarity";
 
 export interface VizSwitcherProps {
   activeTab: ActiveVizTab;
@@ -38,7 +41,7 @@ export interface VizSwitcherProps {
 
 /** Type guard for activatable tab ids. */
 function isActivatableTab(id: string): id is ActiveVizTab {
-  return id === "mds" || id === "freelist";
+  return id === "mds" || id === "freelist" || id === "similarity";
 }
 
 /** Tab definition (internal). */
@@ -52,12 +55,12 @@ interface TabDef {
 const TABS: TabDef[] = [
   { id: "mds",        label: "MDS Plot",    active: true,  disabled: false },
   { id: "freelist",   label: "Free Lists",  active: false, disabled: false },
-  { id: "similarity", label: "Similarity",  active: false, disabled: true  },
+  { id: "similarity", label: "Similarity",  active: false, disabled: false },
   { id: "drift",      label: "Drift",       active: false, disabled: true  },
 ];
 
-/** Fragments that are still disabled (Phase-6-T4 / Phase-6-T5 territory). */
-const DISABLED_FRAGMENTS = new Set(["similarity", "drift"]);
+/** Fragments that are still disabled (Phase-6-T4 territory). */
+const DISABLED_FRAGMENTS = new Set(["drift"]);
 
 /**
  * Read the URL fragment on mount and reconcile with active tabs.
@@ -76,6 +79,9 @@ export function resolveFragmentOnMount(): ActiveVizTab {
     }
     if (raw === "freelist") {
       return "freelist";
+    }
+    if (raw === "similarity") {
+      return "similarity";
     }
     if (DISABLED_FRAGMENTS.has(raw)) {
       console.warn(

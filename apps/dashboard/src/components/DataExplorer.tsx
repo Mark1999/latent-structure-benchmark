@@ -49,6 +49,7 @@ import { ModelSelector } from "./ModelSelector";
 import { VizSwitcher, resolveFragmentOnMount } from "./VizSwitcher";
 import type { ActiveVizTab } from "./VizSwitcher";
 import { FreeListCompare } from "./FreeListCompare";
+import { SimilarityHeatmap } from "./SimilarityHeatmap";
 import { SourceAttribution } from "./SourceAttribution";
 import { DownloadBar } from "./DownloadBar";
 import { CiteModal } from "./CiteModal";
@@ -263,6 +264,15 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
             <FreeListCompare
               domainResult={domainResult}
               modelColors={modelColors}
+              selectedModels={selectedModels}
+            />
+          )}
+          {/* SimilarityHeatmap: rendered when Similarity tab is active (Phase 6 T5).
+              Hand-rolled SVG per plan §2.1. No model colors used — alpha-blend encoding.
+              selectedModels drives displayed grid (plan §2.8 dual-index translation). */}
+          {activeVizTab === "similarity" && (
+            <SimilarityHeatmap
+              domainResult={domainResult}
               selectedModels={selectedModels}
             />
           )}

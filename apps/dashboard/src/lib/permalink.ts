@@ -16,8 +16,8 @@
 export interface PermalinkState {
   domain: string;
   models: string[];
-  /** Phase 5: "mds". Phase 6 T7: widened to include "freelist". */
-  vizTab: "mds" | "freelist";
+  /** Phase 5: "mds". Phase 6 T7: widened to include "freelist". Phase 6 T5: widened to include "similarity". */
+  vizTab: "mds" | "freelist" | "similarity";
 }
 
 /**
@@ -54,9 +54,9 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     const searchPart = hashIndex >= 0 ? searchAndHash.slice(0, hashIndex) : searchAndHash;
     const hashPart = hashIndex >= 0 ? searchAndHash.slice(hashIndex + 1) : "";
 
-    // Validate viz tab — "mds" and "freelist" are valid (Phase 5 + Phase 6 T7).
+    // Validate viz tab — "mds", "freelist", and "similarity" are valid (Phase 5 + Phase 6 T7 + Phase 6 T5).
     const vizTab = hashPart.toLowerCase();
-    if (vizTab !== "mds" && vizTab !== "freelist" && vizTab !== "") return null;
+    if (vizTab !== "mds" && vizTab !== "freelist" && vizTab !== "similarity" && vizTab !== "") return null;
 
     const params = new URLSearchParams(searchPart);
     const domain = params.get("domain");
@@ -73,10 +73,14 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
 
     if (models.length === 0) return null;
 
+    const resolvedTab =
+      vizTab === "freelist" ? "freelist"
+      : vizTab === "similarity" ? "similarity"
+      : "mds";
     return {
       domain,
       models,
-      vizTab: (vizTab === "freelist" ? "freelist" : "mds") as "mds" | "freelist",
+      vizTab: resolvedTab as "mds" | "freelist" | "similarity",
     };
   } catch {
     return null;
