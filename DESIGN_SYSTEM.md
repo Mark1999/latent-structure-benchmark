@@ -748,6 +748,48 @@ The MethodologySummary is the article-bottom methodology note rendered below the
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.4. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+### 12.8 SimilarityHeatmap cell-text contrast specification (v0.4.5 — T5, 2026-05-12)
+
+The SimilarityHeatmap uses alpha-blended cell backgrounds: `rgba(44, 62, 80, similarity)` composited over white (#ffffff). This creates a continuous background-darkness gradient from near-white (similarity ≈ 0) to near-opaque dark (similarity ≈ 1). Standard dark text tokens fail WCAG AA 4.5:1 across the mid-range of this gradient. This section specifies the correct contrast-switch rule and the component-scoped token required to pass WCAG AA in both shipped domains.
+
+**New token (add to `apps/dashboard/src/styles/tokens.css`):**
+
+```css
+/* SimilarityHeatmap cell text — pure black required for WCAG AA compliance
+   across the dark-text arm of the alpha-blend gradient. See DESIGN_SYSTEM.md §12.8. */
+--color-heatmap-cell-text-dark: #000000;
+```
+
+**Contrast-switch threshold (binding — overrides T5 plan §2.2 value of 0.5 and fallback of 0.55):**
+
+```ts
+const HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73;
+// WCAG AA rationale (2026-05-12 UI/UX verdict):
+// rgba(44,62,80,sim) composited on white gives background luminance:
+//   sim=0.51 → L≈0.356 → white text 2.59:1 FAIL
+//   sim=0.55 → L≈0.322 → white text 2.82:1 FAIL
+//   sim=0.73 → L≈0.183 → white text 4.50:1 PASS (threshold)
+//   sim=0.73 → L≈0.183 → black text 4.66:1 PASS (threshold)
+//   --color-text-primary (#2c3e50, L≈0.060) passes only at sim≤0.40;
+//   holidays.json min off-diagonal ≈ 0.45 (fails dark text).
+```
+
+**Cell text color selection (binding):**
+
+```ts
+textFill = similarity > HEATMAP_TEXT_SWITCH_THRESHOLD
+  ? "var(--color-background)"                  // white, passes ≥4.5:1 at similarity > 0.73
+  : "var(--color-heatmap-cell-text-dark)"      // black, passes ≥4.66:1 at similarity ≤ 0.73
+```
+
+**Diagonal cells** (similarity = 1.0) always receive white text (1.0 > 0.73).
+
+**Why pure black, not `--color-text-primary`:** `--color-text-primary` (#2c3e50, relative luminance ≈ 0.060) only achieves 4.5:1 contrast on backgrounds lighter than approximately similarity = 0.40. Both shipped domains have off-diagonal cells in the 0.40–0.73 range (holidays.json minimum ≈ 0.45; family.json minimum ≈ 0.50). Pure black (L = 0) passes 4.66:1 at the threshold and improves monotonically for lighter backgrounds.
+
+**Scope:** `--color-heatmap-cell-text-dark` is used only in `SimilarityHeatmap.tsx`. No other component references it.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.4.5. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
