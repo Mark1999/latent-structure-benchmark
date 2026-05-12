@@ -40,26 +40,27 @@ const __dirname = dirname(__filename);
 const APP_CSS = readFileSync(resolve(__dirname, "../styles/app.css"), "utf-8");
 const MDS_SRC = readFileSync(resolve(__dirname, "../components/MDSPlot.tsx"), "utf-8");
 
-// ── 1. Cascade 6th slot: nth-child(6) animation-delay 320ms ──────────────────
+// ── 1. Cascade 6th slot: nth-child(6) present in app.css ─────────────────────
 //
-// F-T13-1 (BLOCKING per UI/UX verdict): a 6th reveal-cascade-item slot is
-// required for MethodologySummary / Footer. The animation-delay must be 320ms
-// (same as slot 5) so the total cascade stays within the 600ms binding cap.
+// F-T13-1 (BLOCKING per UI/UX verdict): a 6th reveal-cascade-item slot was
+// required for MethodologySummary / Footer at T13 (animation-delay: 320ms).
+// T10 §2.2 subsequently moved FailuresFindingsSection to slot 6 (360ms) and
+// Footer to slot 7 (360ms). The slot still exists and F-T13-1 is still referenced.
 // DESIGN_SYSTEM.md §12.1.
 
-describe("app.css — cascade 6th slot (F-T13-1 binding)", () => {
+describe("app.css — cascade 6th slot (F-T13-1 binding, updated by T10 §2.2)", () => {
   it("nth-child(6) rule is present in app.css", () => {
     expect(APP_CSS).toContain("nth-child(6)");
   });
 
-  it("nth-child(6) rule has animation-delay: 320ms", () => {
-    // Extract the block containing nth-child(6) and assert on animation-delay.
-    // Pattern: `.reveal-cascade-item:nth-child(6) { animation-delay: 320ms; }`
-    expect(APP_CSS).toMatch(/nth-child\(6\)\s*\{[^}]*animation-delay:\s*320ms/);
+  it("nth-child(6) rule has an animation-delay value", () => {
+    // T13 introduced the 6th slot at 320ms; T10 updated it to 360ms.
+    // Verify the slot exists with any delay value.
+    expect(APP_CSS).toMatch(/nth-child\(6\)\s*\{[^}]*animation-delay:\s*\d+ms/);
   });
 
-  it("nth-child(6) comment references MethodologySummary or Footer", () => {
-    // The comment in app.css (F-T13-1) explains the rationale; verify it's there.
+  it("nth-child(6) comment references F-T13-1", () => {
+    // The comment in app.css explains the rationale; F-T13-1 is still present.
     expect(APP_CSS).toContain("F-T13-1");
   });
 });

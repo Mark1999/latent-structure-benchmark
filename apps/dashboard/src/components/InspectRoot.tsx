@@ -25,11 +25,13 @@
  */
 
 import { useEffect, useState } from "react";
-import { fetchManifest, fetchDomain } from "../api/client";
+import { fetchManifest, fetchDomain, fetchFailures } from "../api/client";
 import type { Manifest } from "../data/types";
 import { InspectSection } from "./InspectSection";
 import { InspectTable } from "./InspectTable";
 import type { ColumnDef } from "./InspectTable";
+import { FailuresInspectView } from "./FailuresInspectView";
+import type { FailuresPublishedFile } from "./FailuresFindingsSection";
 
 // ── Local narrower interfaces matching the actual JSON shape ─────────────────
 // (NOT data/types.ts which is partially mismatched — see file header note)
@@ -115,6 +117,9 @@ function InspectNav({ activeMode }: { activeMode: string }) {
     { slug: "manifest", label: "Manifest" },
     { slug: "family", label: "Family domain" },
     { slug: "holidays", label: "Holidays domain" },
+    // T10 §2.8: failures inspect modes — forward-compatible, generated from known slugs
+    { slug: "failures-family", label: "Family failures" },
+    { slug: "failures-holidays", label: "Holidays failures" },
   ];
   return (
     <nav className="inspect-nav" aria-label="Inspection modes">
@@ -679,6 +684,15 @@ function DomainView({
 
 // ── InspectRoot ───────────────────────────────────────────────────────────────
 
+/** Extract failures slug from a mode string like "failures-family" → "family". */
+function failuresSlugFromMode(mode: string): string | null {
+  if (mode.startsWith("failures-")) {
+    const slug = mode.slice("failures-".length);
+    return slug.length > 0 ? slug : null;
+  }
+  return null;
+}
+
 export function InspectRoot({ mode, manifest: passedManifest }: InspectRootProps) {
   // Inject <meta robots noindex> on mount, remove on unmount.
   // This prevents inspect URLs from being indexed by search engines.
@@ -696,12 +710,22 @@ export function InspectRoot({ mode, manifest: passedManifest }: InspectRootProps
     };
   }, []);
 
+  // Determine mode type
+  const failuresSlug = failuresSlugFromMode(mode);
+  const isFailuresMode = failuresSlug !== null;
+  const isDomainMode = !isFailuresMode && mode !== "manifest";
+
   // Fetch manifest if not passed (this InspectRoot also self-fetches for manifest mode)
   const [localManifest, setLocalManifest] = useState<Manifest | null>(passedManifest);
   const [manifestError, setManifestError] = useState<string | null>(null);
   const [domainResult, setDomainResult] = useState<RawDomainJSON | null>(null);
   const [domainError, setDomainError] = useState<string | null>(null);
-  const [domainLoading, setDomainLoading] = useState(mode !== "manifest");
+  const [domainLoading, setDomainLoading] = useState(isDomainMode);
+
+  // T10 §2.8: failures inspect state
+  const [failuresResult, setFailuresResult] = useState<FailuresPublishedFile | null>(null);
+  const [failuresError, setFailuresError] = useState<string | null>(null);
+  const [failuresLoading, setFailuresLoading] = useState(isFailuresMode);
 
   // Sync passedManifest into local state when App.tsx finishes loading it.
   // set-state-in-effect: intentional — syncing from a prop that may update later
@@ -728,14 +752,14 @@ export function InspectRoot({ mode, manifest: passedManifest }: InspectRootProps
     return () => { cancelled = true; };
   }, [localManifest]);
 
-  // Fetch domain JSON for non-manifest modes.
+  // Fetch domain JSON for non-manifest, non-failures modes.
   // set-state-in-effect: intentional — resetting loading/error state at the top of
   // the effect is the documented React pattern for loading UX
   // (https://react.dev/learn/you-might-not-need-an-effect: "loading data" is an
   //  accepted use case; the loading flag is not derived state, it's UX state).
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
-    if (mode === "manifest") return;
+    if (!isDomainMode) return;
     let cancelled = false;
     setDomainLoading(true);
     setDomainError(null);
@@ -753,7 +777,31 @@ export function InspectRoot({ mode, manifest: passedManifest }: InspectRootProps
         }
       });
     return () => { cancelled = true; };
-  }, [mode]);
+  }, [mode, isDomainMode]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // T10 §2.8: fetch failures JSON for failures-{slug} modes.
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (!isFailuresMode || failuresSlug === null) return;
+    let cancelled = false;
+    setFailuresLoading(true);
+    setFailuresError(null);
+    fetchFailures(failuresSlug)
+      .then((result) => {
+        if (!cancelled) {
+          setFailuresResult(result as unknown as FailuresPublishedFile);
+          setFailuresLoading(false);
+        }
+      })
+      .catch(() => {
+        if (!cancelled) {
+          setFailuresError(`Could not load failures for "${failuresSlug}".`);
+          setFailuresLoading(false);
+        }
+      });
+    return () => { cancelled = true; };
+  }, [mode, isFailuresMode, failuresSlug]);
   /* eslint-enable react-hooks/set-state-in-effect */
 
   const manifestDomain = localManifest?.domains.find((d) => d.slug === mode);
@@ -796,7 +844,8 @@ export function InspectRoot({ mode, manifest: passedManifest }: InspectRootProps
           <ManifestView manifest={localManifest} />
         )}
 
-        {mode !== "manifest" && domainLoading && (
+        {/* Domain loading / error / result */}
+        {isDomainMode && domainLoading && (
           <p
             style={{
               color: "var(--color-text-caption)",
@@ -808,7 +857,7 @@ export function InspectRoot({ mode, manifest: passedManifest }: InspectRootProps
           </p>
         )}
 
-        {mode !== "manifest" && domainError && (
+        {isDomainMode && domainError && (
           <p
             style={{
               color: "var(--color-text-caption)",
@@ -820,12 +869,41 @@ export function InspectRoot({ mode, manifest: passedManifest }: InspectRootProps
           </p>
         )}
 
-        {mode !== "manifest" && !domainLoading && !domainError && domainResult !== null && (
+        {isDomainMode && !domainLoading && !domainError && domainResult !== null && (
           <DomainView
             domain={domainResult}
             slug={mode}
             manifestDomain={manifestDomain}
           />
+        )}
+
+        {/* T10 §2.8: failures inspect mode — flat table per T0 posture */}
+        {isFailuresMode && failuresLoading && (
+          <p
+            style={{
+              color: "var(--color-text-caption)",
+              fontSize: "var(--font-size-base)",
+              padding: "var(--space-6)",
+            }}
+          >
+            Loading...
+          </p>
+        )}
+
+        {isFailuresMode && failuresError && (
+          <p
+            style={{
+              color: "var(--color-text-caption)",
+              fontSize: "var(--font-size-base)",
+              padding: "var(--space-6)",
+            }}
+          >
+            {failuresError}
+          </p>
+        )}
+
+        {isFailuresMode && !failuresLoading && !failuresError && failuresResult !== null && failuresSlug !== null && (
+          <FailuresInspectView data={failuresResult} slug={failuresSlug} />
         )}
       </main>
     </div>

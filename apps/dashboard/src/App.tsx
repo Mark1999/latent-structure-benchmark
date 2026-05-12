@@ -26,6 +26,7 @@ import type { Domain } from "./components/DomainPicker";
 import { KeyFinding } from "./components/KeyFinding";
 import { DataExplorer } from "./components/DataExplorer";
 import { MethodologySummary } from "./components/MethodologySummary";
+import { FailuresFindingsSection } from "./components/FailuresFindingsSection";
 import { InspectRoot } from "./components/InspectRoot";
 import "./styles/inspect.css";
 
@@ -335,13 +336,27 @@ export default function App() {
 
       {/* MethodologySummary — T13: article-bottom method note per §12.7.
           Suppressed in embed mode per §12.5. Cascade item after DataExplorer,
-          before Footer. Wrapper at App.tsx level per F-T13-6. */}
+          before FailuresFindingsSection. Wrapper at App.tsx level per F-T13-6. */}
       {!embedMode && (
         <div className="reveal-cascade-item">
           <MethodologySummary methodologyPageUrl={null} />
         </div>
       )}
 
+      {/* FailuresFindingsSection — T10: failures-as-findings UI surface.
+          Per ARCHITECTURE.md §1.5.6: first-class evidence, not a debug log.
+          Suppressed in embed mode per DESIGN_SYSTEM.md §12.5.
+          Cascade slot 6 (360ms) per T10 plan §2.2.
+          Wrapper at App.tsx level per §12.7 precedent.
+          H2 sibling of MethodologySummary's H2 (CDA SME §2.4 — failures are
+          parallel evidence, not subordinate methodology). */}
+      {!embedMode && appState === "loaded" && activeSlug.length > 0 && (
+        <div className="reveal-cascade-item">
+          <FailuresFindingsSection domainSlug={activeSlug} />
+        </div>
+      )}
+
+      {/* Footer — T10: moves to cascade slot 7 (360ms) per T10 plan §2.2. */}
       <div className="reveal-cascade-item">
         <Footer />
       </div>

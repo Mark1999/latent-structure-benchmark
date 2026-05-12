@@ -739,17 +739,17 @@ describe("Phase 6 T0 — no new package.json dependencies (AC12)", () => {
     expect(pkgSrc).not.toContain("react-router-dom");
   });
 
-  it("api/client.ts has no new fetch helpers added", () => {
+  it("api/client.ts exports fetchManifest and fetchDomain (T0 scope)", () => {
     const clientSrc = readFileSync(
       resolve(__dirname, "../api/client.ts"),
       "utf-8"
     );
-    // T0 must only use fetchManifest and fetchDomain
-    // No new exported async functions should have been added
+    // T0 scope: fetchManifest and fetchDomain are present.
+    // T10 added fetchFailures — updated assertion counts 3 exports.
     expect(clientSrc).toContain("fetchManifest");
     expect(clientSrc).toContain("fetchDomain");
-    // The only exports are these two
+    expect(clientSrc).toContain("fetchFailures");
     const exportCount = (clientSrc.match(/^export async function/gm) ?? []).length;
-    expect(exportCount).toBe(2);
+    expect(exportCount).toBe(3);
   });
 });

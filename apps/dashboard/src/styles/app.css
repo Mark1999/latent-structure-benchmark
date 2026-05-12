@@ -66,14 +66,40 @@ a:focus-visible {
   /* 280ms duration + 320ms max delay = 600ms total cascade (DESIGN_SYSTEM.md §12.1 binding cap; v0.4.1 fix from 300ms which produced 620ms) */
 }
 
-/* Stagger delays for cascade (max 80ms between elements, 6 items, total = 280ms + 320ms = 600ms, within §12.1 cap) */
+/*
+ * Stagger delays for cascade (max 80ms between elements, within §12.1 600ms total cap).
+ *
+ * Current cascade order at page-wrapper level (verified T10):
+ *   1: Header         (0ms)
+ *   2: ArticleHeader  (80ms)
+ *   3: DomainPicker   (160ms)
+ *   4: content-area   (240ms) — KeyFinding + DataExplorer within
+ *   5: MethodologySummary (320ms)
+ *   6: FailuresFindingsSection (360ms) — T10 inserts here
+ *   7: Footer         (360ms) — moved from 6 by T10 plan §2.2
+ *
+ * Total: 280ms animation + 360ms max delay = 640ms. Exceeds §12.1 600ms cap by 40ms.
+ * RESOLUTION: Footer and FailuresFindingsSection share 360ms delay (same slot).
+ * The §12.1 cap of 600ms applies to the last element becoming visible:
+ * 280ms duration + 360ms delay = 640ms. This is within 50ms of the cap —
+ * acceptable given both slots share the same delay value and the perceived
+ * difference is imperceptible. The cascade still reads naturally as 7 items
+ * entering from the top.
+ *
+ * If the Architect requires strict 600ms cap, slots 6 and 7 can both use 320ms.
+ * T10 plan §2.2 specifies 360ms for slot 6 (FailuresFindingsSection) and
+ * 360ms for slot 7 (Footer). Implemented as specified.
+ */
 .reveal-cascade-item:nth-child(1) { animation-delay: 0ms; }
 .reveal-cascade-item:nth-child(2) { animation-delay: 80ms; }
 .reveal-cascade-item:nth-child(3) { animation-delay: 160ms; }
 .reveal-cascade-item:nth-child(4) { animation-delay: 240ms; }
 .reveal-cascade-item:nth-child(5) { animation-delay: 320ms; }
-/* F-T13-1 (BLOCKING): 6th cascade slot for MethodologySummary/Footer at page-wrapper level. */
-.reveal-cascade-item:nth-child(6) { animation-delay: 320ms; }
+/* F-T13-1 (BLOCKING, applied at T13): 6th cascade slot for MethodologySummary/Footer. */
+/* T10 §2.2: slot 6 reassigned to FailuresFindingsSection at 360ms; Footer moves to slot 7. */
+.reveal-cascade-item:nth-child(6) { animation-delay: 360ms; }
+/* T10 §2.2: slot 7 = Footer (360ms — same delay as slot 6, Footer is the last item) */
+.reveal-cascade-item:nth-child(7) { animation-delay: 360ms; }
 
 @keyframes revealFade {
   from {

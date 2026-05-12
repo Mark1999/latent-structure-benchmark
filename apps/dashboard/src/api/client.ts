@@ -67,3 +67,29 @@ export async function fetchDomain(
 
   return response.json() as Promise<DomainResultPublished>;
 }
+
+/**
+ * Fetch a failures JSON file for a given domain slug.
+ *
+ * Published at /data/failures/{slug}.json by the T9 data layer.
+ * Cast through unknown at this boundary — data/types.ts is NOT touched (T14).
+ * See FailuresFindingsSection.tsx for the local FailuresPublishedFile interface.
+ *
+ * @param slug - Domain slug (e.g., "family", "holidays").
+ * @throws {Error} when fetch fails or response is not OK.
+ */
+export async function fetchFailures(slug: string): Promise<unknown> {
+  const url = `${BASE_PATH}/failures/${slug}.json`;
+  const response = await fetch(url, {
+    credentials: "omit",
+    cache: "default",
+  });
+
+  if (!response.ok) {
+    throw new Error(
+      `Failed to load failures for "${slug}": HTTP ${response.status} ${response.statusText}`
+    );
+  }
+
+  return (await response.json()) as unknown;
+}
