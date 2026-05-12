@@ -36,10 +36,34 @@ def main() -> int:
         type=Path,
         help="Directory where manifest.json will be written.",
     )
+    parser.add_argument(
+        "--failures-path",
+        type=Path,
+        default=Path("data/raw/failures.jsonl"),
+        help="Path to failures.jsonl (default: data/raw/failures.jsonl).",
+    )
+    parser.add_argument(
+        "--decline-interviews-path",
+        type=Path,
+        default=Path("data/raw/decline_interviews.jsonl"),
+        help="Path to decline_interviews.jsonl (default: data/raw/decline_interviews.jsonl).",
+    )
+    parser.add_argument(
+        "--informants-path",
+        type=Path,
+        default=Path("data/raw/informants.jsonl"),
+        help="Path to informants.jsonl (default: data/raw/informants.jsonl).",
+    )
     args = parser.parse_args()
 
     try:
-        manifest = build(args.results_dir, args.output_dir)
+        manifest = build(
+            args.results_dir,
+            args.output_dir,
+            raw_failures_path=args.failures_path,
+            raw_decline_interviews_path=args.decline_interviews_path,
+            raw_informants_path=args.informants_path,
+        )
     except DomainValidationError as exc:
         print(f"Validation error: {exc.path}", file=sys.stderr)
         print(str(exc.cause), file=sys.stderr)

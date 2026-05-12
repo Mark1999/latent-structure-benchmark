@@ -32,6 +32,7 @@ from cdb_core.schemas import DomainResult, SutropCSI
 from pydantic import ValidationError
 
 from cdb_publish.derived import TOP_TERMS_METRIC, r1_state_for, top_freelist_terms
+from cdb_publish.failures import build_failures
 from cdb_publish.lede import generate_lede
 from cdb_publish.schemas.manifest import Manifest, ManifestDomain
 
@@ -109,7 +110,13 @@ def _compute_display(domain_result: DomainResult) -> dict:
     }
 
 
-def build(results_dir: Path, output_dir: Path) -> Manifest:
+def build(
+    results_dir: Path,
+    output_dir: Path,
+    raw_failures_path: Path | None = None,
+    raw_decline_interviews_path: Path | None = None,
+    raw_informants_path: Path | None = None,
+) -> Manifest:
     """Read domain result files, inject ledes, compute display fields, and write output.
 
     Build flow:
@@ -117,7 +124,9 @@ def build(results_dir: Path, output_dir: Path) -> Manifest:
       2. For each domain: call generate_lede() and inject into generated_lede.
       3. Compute the display sub-object (r1_states, top_terms, top_terms_metric).
       4. Write {slug}.json and {slug}.v{version}.json to output_dir.
-      5. Write manifest.json with oci_low_concentration_threshold = 3.0.
+      5. Build failures JSON files per domain (T9 failures-as-findings layer).
+      6. Write manifest.json with oci_low_concentration_threshold = 3.0 and
+         the failures map from step 5.
 
     Parameters
     ----------
@@ -128,6 +137,15 @@ def build(results_dir: Path, output_dir: Path) -> Manifest:
     output_dir:
         Directory where domain JSON files and ``manifest.json`` will be
         written. Created if it does not exist.
+    raw_failures_path:
+        Path to ``data/raw/failures.jsonl``. Read-only. Defaults to
+        ``Path("data/raw/failures.jsonl")`` when None.
+    raw_decline_interviews_path:
+        Path to ``data/raw/decline_interviews.jsonl``. Read-only. Defaults to
+        ``Path("data/raw/decline_interviews.jsonl")`` when None.
+    raw_informants_path:
+        Path to ``data/raw/informants.jsonl``. Read-only. Defaults to
+        ``Path("data/raw/informants.jsonl")`` when None.
 
     Returns
     -------
@@ -141,6 +159,14 @@ def build(results_dir: Path, output_dir: Path) -> Manifest:
         The error message includes the offending file path.
     """
     output_dir.mkdir(parents=True, exist_ok=True)
+
+    # Apply defaults for raw-data paths (allow callers to override for testing).
+    if raw_failures_path is None:
+        raw_failures_path = Path("data/raw/failures.jsonl")
+    if raw_decline_interviews_path is None:
+        raw_decline_interviews_path = Path("data/raw/decline_interviews.jsonl")
+    if raw_informants_path is None:
+        raw_informants_path = Path("data/raw/informants.jsonl")
 
     domain_dirs = sorted(
         [d for d in results_dir.iterdir() if d.is_dir()],
@@ -202,9 +228,21 @@ def build(results_dir: Path, output_dir: Path) -> Manifest:
             )
         )
 
+    # Build failures-as-findings JSON files for every domain (T9).
+    # Every domain slug gets a file; empty-domain files have records: [].
+    domain_slugs = [d.slug for d in manifest_domains]
+    failures_map = build_failures(
+        raw_failures_path=raw_failures_path,
+        raw_decline_interviews_path=raw_decline_interviews_path,
+        raw_informants_path=raw_informants_path,
+        output_dir=output_dir / "failures",
+        domain_slugs=domain_slugs,
+    )
+
     manifest = Manifest(
         built_at=datetime.now(tz=UTC),
         domains=manifest_domains,
+        failures=failures_map,
     )
 
     manifest_path = output_dir / "manifest.json"

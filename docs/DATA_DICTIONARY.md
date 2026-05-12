@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.13 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
+**Version:** v0.1.14 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.14** (2026-05-12) — Phase 6 T9: Added §12 documenting the published failures JSON shape emitted by `packages/cdb_publish/cdb_publish/failures.py` to `apps/dashboard/public/data/failures/{slug}.json`. New publish-layer schemas in `packages/cdb_publish/cdb_publish/schemas/failures.py` (`PublishedFailuresFile`, `PublishedFailureRecord`). New sanitization module `packages/cdb_publish/cdb_publish/sanitize.py`. `Manifest` schema gains `failures: dict[str, str]` field. `scripts/publish.py` gains three new CLI args for raw-data paths. No changes to `cdb_core/schemas.py`. CDA SME verdict: `docs/status/2026-05-12-phase6-T9-cda-sme-verdict.md` (PASS-WITH-NOTES; §5.1–§5.5 applied).
 - **v0.1.13** (2026-05-07) — Fix-forward metadata accuracy (sibling task between Phase 4b T2 and T3): `AdapterResult` gains `max_tokens_used: int = 4096` field; every adapter now sets this to the actual `max_tokens` value it sends to the API (4096 for Anthropic/HuggingFace/OpenAI-compat; 16384 for Google Gemini; `compute_effective_max_tokens(prompt, context_length)` for OpenRouter — typically 16384 for large-context models, ~13872 for phi-4). `runner.py` `_assemble_record()` now reads `freelist_result.max_tokens_used` instead of the hardcoded `4096` constant. Updated `InformantRecord.max_tokens` field description to add the editorial note documenting the historical inaccuracy in records collected before this commit. No schema changes to `InformantRecord` or `GroundingRef`; no new dependencies. Historical records in `informants.jsonl` are unchanged (append-only invariant preserved). Reviewer-T2 finding (commit `f7ca048`): `docs/status/2026-05-07-phase4b-t2-reviewer-verdict.md` note 1. Mark's Option A ruling: fix forward only, no backfill. Precedent: `memory/project_metadata_fix_forward_precedent.md`.
 - **v0.1.12** (2026-05-05) — T4 redo RD-2 (commit 1 scaffold): Added §11 documenting the `ConfabulationClassification` schema in `packages/cdb_analyze/cdb_analyze/confabulation_classification.py`. This is a derived-data schema for the 9 originally-Gemini cap-exhaustion decline-interview rows (Phase 4a.1); it lives in `cdb_analyze`, not `cdb_core`, and is not part of the open-data-bundle schema commitment. Architect plan: `docs/status/2026-05-05-t4-redo-architect-plan.md` §2 RD-2. CDA SME verdict: `docs/status/2026-05-05-t4-redo-cda-sme-verdict.md` (T1 wording rules, T2 enum naming applied). No changes to `InformantRecord`, `GroundingRef`, or any `cdb_core` schema.
 - **v0.1.11** (2026-05-04) — Task #16.B: Added `thoughts_token_count: int = 0` to `FreelistRecord`, `PileSortRecord`, and `InterviewRecord` step schemas. Field captures provider-reported reasoning/thoughts token count per step, enabling the cap-exhausted-reasoning diagnostic (`output_tokens == 0 AND thoughts_token_count > 0`). Default `0` (not `None`) preserves arithmetic ergonomics and prevents false-positives on providers that do not surface reasoning tokens (Anthropic, HuggingFace at this version). Added `thoughts_token_count` as an optional top-level field in `failures.jsonl` entries (§9.2) and to both `freelist` and `pile_sort` sub-objects in `partial_session` (§9.3). Added three new columns (`freelist_thoughts_token_count`, `pilesort_thoughts_token_count`, `interview_thoughts_token_count`) to the `informants` table DDL in `scripts/build_db.py`. Backward-compatible: Pydantic v2 with `int = 0` default loads old JSONL lines lacking the field with the value materialised as `0`. Architect sign-off: `docs/status/2026-05-04-task-16-architect-plan.md` §2 Task 16.B. CDA SME verdict: `docs/status/2026-05-04-task-16-cda-sme-verdict.md` (notes S1–S4 applied to field semantics below). Predecessor: Task 16.A (commit `7f8f7f7`) added `thoughts_token_count` to `AdapterResult` and both adapters.
@@ -1047,4 +1048,146 @@ One `ConfabulationClassification` per line, sorted by `decline_interview_id`. 9 
 
 ---
 
-*End of `docs/DATA_DICTIONARY.md` v0.1. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
+## 12. Published failures JSON shape
+
+**Files:** `apps/dashboard/public/data/failures/{domain_slug}.json`
+
+**Produced by:** `packages/cdb_publish/cdb_publish/failures.py:build_failures()`, called from `cdb_publish.build.build()`.
+
+**Source data:** `data/raw/failures.jsonl` (failure records, raw dicts) and `data/raw/decline_interviews.jsonl` (`DeclineInterview` Pydantic records). Both files are read-only; their SHA256 is byte-identical before and after the build (Reviewer R4).
+
+**Relationship to open data:** the published failures JSON is part of the open data contract under the 2026-04-23 "failures are findings" directive. Every failed, refused, or partial collection session that can be joined to a domain is surfaced verbatim (after defensive sanitization — see §12.3 below) in these files. Researchers using the dashboard JSON can access the verbatim bytes of every non-successful elicitation for the domains listed in the manifest.
+
+**Note on quotation.** The `response_verbatim` fields preserve raw model output bytes from sessions that did not produce a parseable primary-step response. These bytes are not authored by LSB and do not represent LSB's framing. Researchers and journalists citing this data should attribute quotes to the model output, not to model intent (e.g., "the response bytes contained the string 'I cannot assist'" rather than "the model refused"). See ARCHITECTURE.md §1.5.4.
+
+---
+
+### 12.1 Top-level structure
+
+```json
+{
+  "domain_slug": "family",
+  "generated_at": "2026-05-12T18:30:00.123456+00:00",
+  "n_records": 47,
+  "n_failure_records": 32,
+  "n_decline_interview_records": 15,
+  "framing_note": "These records preserve verbatim outputs from collection sessions that did not produce a parseable primary-step response...",
+  "records": [ ... ]
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `domain_slug` | `str` | The domain slug. Mirrors the same field in the per-domain `DomainResult` JSON. |
+| `generated_at` | `str` (ISO-8601 UTC) | Build-time wallclock when this file was written. |
+| `n_records` | `int` | Total record count (`n_failure_records + n_decline_interview_records`). |
+| `n_failure_records` | `int` | Count of records with `record_type == "failure"`. |
+| `n_decline_interview_records` | `int` | Count of records with `record_type == "decline_interview"`. |
+| `framing_note` | `str` | LSB-authored corpus-lens framing note. Verbatim text from `docs/status/2026-05-12-phase6-T9-cda-sme-verdict.md` §5.1. T10 is contracted to render this field adjacent to the records. See §12.5 below. |
+| `records` | `list` | The records themselves, sorted by `collection_date` ascending (then `record_type` ascending, then stable identifier). |
+
+**Empty-domain case:** every domain in the manifest has an entry in this directory, even if it has zero records (`records: []`, `n_records: 0`). This is the first-class empty state per ARCHITECTURE.md §1.5.5. "Zero failures observed for this domain" is a normal observation, not a placeholder.
+
+---
+
+### 12.2 Per-record field tables
+
+Every record carries `record_type` (`"failure"` or `"decline_interview"`) and a common set of fields. Fields specific to one record type are absent on records of the other type (not serialised as `null` — they are omitted).
+
+#### 12.2.1 Failure records (`record_type == "failure"`)
+
+Source: `data/raw/failures.jsonl` raw dicts written by `cdb_collect.jsonl.append_failure()`.
+
+| Field | Type | Source field | Notes |
+|---|---|---|---|
+| `record_type` | `"failure"` | Derived | Constant discriminator. |
+| `collection_date` | `str` (ISO-8601) | `timestamp` | Renamed for symmetry with decline_interview records. Primary sort key. |
+| `model_id` | `str` | `context.model_id` | |
+| `domain_slug` | `str` | `context.domain` | Domain join key. Records without this field are not published. |
+| `error_type` | `str` | `error_type` | Python exception class name. |
+| `error_message` | `str` (sanitized) | `error_message` | Defensive sanitization applied (§12.3). |
+| `run_index` | `int` | `context.run_index` | |
+| `originating_outcome_class` | `null` | Derived | Always `null` for failure records; use `error_type` instead. |
+| `retry_attempts` | `list[dict]` | `retry_attempts` | Always present (defaults to `[]`); each entry carries `attempt_index`, `response_verbatim`, `thinking_verbatim`, `stop_reason`, `input_tokens`, `output_tokens`, `latency_ms`, `parse_error_message`. Strings sanitized. |
+| `prompt_verbatim` | `str` (sanitized) | `prompt_verbatim` | Optional; omitted when absent in source. |
+| `response_verbatim` | `str` (sanitized) | `response_verbatim` | Optional; omitted when absent in source. |
+| `thinking_verbatim` | `str` (sanitized) | `thinking_verbatim` | Optional; omitted when absent in source. |
+| `stop_reason` | `str` | `stop_reason` | Optional; omitted when absent in source. |
+| `thoughts_token_count` | `int` | `thoughts_token_count` | Optional; omitted when absent in source. |
+| `partial_session` | `dict` (recursively sanitized) | `partial_session` | Optional; structure mirrors `append_failure()` docstring. |
+
+#### 12.2.2 Decline-interview records (`record_type == "decline_interview"`)
+
+Source: `data/raw/decline_interviews.jsonl` `DeclineInterview` Pydantic records (see §10 of this dictionary for the schema).
+
+| Field | Type | Source field | Notes |
+|---|---|---|---|
+| `record_type` | `"decline_interview"` | Derived | Constant discriminator. |
+| `collection_date` | `str` (ISO-8601) | `followup_timestamp` | Renamed for symmetry with failure records. Primary sort key. |
+| `model_id` | `str` | `model_id` | |
+| `domain_slug` | `str` | Derived via join | `DeclineInterview` does not carry `domain_slug` directly; it is resolved via `originating_informant_id` → `informants.jsonl` or `originating_failure_id` → `failures.jsonl`. Records whose originator cannot be resolved are not published (logged at WARNING). |
+| `decline_interview_id` | `str` | `decline_interview_id` | Stable identifier. |
+| `originating_informant_id` | `str?` | `originating_informant_id` | One of two xor-paired join keys; see §10. |
+| `originating_failure_id` | `str?` | `originating_failure_id` | The other xor-paired key. |
+| `originating_step` | `str` | `originating_step` | `"freelist"`, `"pile_sort"`, `"interview"`, or `"pre_session"`. |
+| `originating_outcome_class` | `str` | `originating_outcome_class` | **Each enum value names the LSB-side detection rule that classified the record (e.g., `refusal_string_match` indicates that the output matched a refusal-string detector maintained by the LSB pipeline). The enum values do not attribute intent, belief, or state-of-mind to the model. See ARCHITECTURE.md §1.5.4 for the language-guardrails table and the methodology page for the failures-as-findings framing.** Values: `empty_output`, `refusal_string_match`, `single_degenerate_pile`, `parse_failure`, `http_error`, `timeout`, `other`. |
+| `detection_rule_version` | `str` | `detection_rule_version` | `"v1"` at this version. |
+| `model_version_returned` | `str` | `model_version_returned` | The exact version string returned by the API (distinct from `model_id`; see CLAUDE.md §9 pitfall #1). |
+| `provider` | `str` | `provider` | |
+| `api_endpoint` | `str` (sanitized) | `api_endpoint` | Defensive sanitization applied. |
+| `prompt_version` | `str` | `prompt_version` | `"decline_v1"` at this version. |
+| `sha256_manifest` | `str` | `sha256_manifest` | SHA256 of the verbatim follow-up prompt. Researchers can verify byte-identity with the source JSONL record. |
+| `prompt_verbatim` | `str` (sanitized) | `prompt_verbatim` | The follow-up prompt LSB sent to the model ("In your own words, please describe what happened in that exchange"). |
+| `response_verbatim` | `str` (sanitized) | `response_verbatim` | The model's reply to the follow-up prompt. The substantive content of the decline interview. |
+| `thinking_verbatim` | `str` (sanitized) | `thinking_verbatim` | The follow-up call's reasoning trace (not the originating session's trace). Empty string when not surfaced by the provider. |
+| `input_tokens` | `int` | `input_tokens` | |
+| `output_tokens` | `int` | `output_tokens` | |
+| `latency_ms` | `int` | `latency_ms` | |
+| `stop_reason` | `str` | `stop_reason` | |
+| `qa_notes` | `str` (sanitized) | `qa_notes` | |
+| `version_drift_flag` | `bool` | `version_drift_flag` | `True` if the provider rolled a snapshot between the original collection session and the decline-interview pass. |
+
+---
+
+### 12.3 Sanitization policy
+
+Before any string field is written to the published JSON, it passes through `cdb_publish.sanitize.sanitize_for_publication()`. This applies three defensive redaction passes in order:
+
+1. **API-key patterns:** Anthropic (`sk-ant-...`), OpenRouter (`sk-or-v1-...`), HuggingFace (`hf_...`), and a generic Anthropic/OpenAI shape (`\bsk-[a-zA-Z0-9_-]{50,}` — word-boundary anchored, minimum 50 chars per CDA SME verdict §5.4). Matched strings are replaced with `"[redacted: secret pattern]"`.
+2. **Slack webhook URL patterns:** `https://hooks.slack.com/services/T.../B.../...`. Matched strings are replaced with `"[redacted: secret pattern]"`.
+3. **Local filesystem path patterns:** `/opt/lsb-agent/...`, `/home/lsb/...`, `/home/markd/...`, `data/raw/...`, `data/results/...`, `data/processed/...`. Matched strings are replaced with `"[redacted: local path]"`.
+
+Redaction markers are **visible** — they replace the matched content with a distinct string so that readers inspecting the published JSON can detect that redaction occurred. Silent suppression would hide that a pattern was present, which would weaken the analytical transparency claim.
+
+These patterns should never appear in model-generated text under normal circumstances; the sanitization pass is defense-in-depth per SECURITY_AND_HARDENING.md §3.3. Model refusal text and reasoning traces are published verbatim (after the above passes), because verbatim publication is the substance of the "failures are findings" directive.
+
+---
+
+### 12.4 Manifest integration
+
+The `Manifest` schema (`packages/cdb_publish/cdb_publish/schemas/manifest.py`) carries a `failures: dict[str, str]` field that maps every domain slug to its published failures JSON path relative to `apps/dashboard/public/`. Example:
+
+```json
+{
+  "failures": {
+    "family": "data/failures/family.json",
+    "holidays": "data/failures/holidays.json"
+  }
+}
+```
+
+Every domain in the manifest's `domains` list has an entry in `failures`. The value is never `null` — empty-domain files are emitted with `records: []` and the manifest entry still points to them. T10 can rely on `manifest.failures[slug]` always being a valid path.
+
+---
+
+### 12.5 Framing note
+
+Every published failures JSON file carries a top-level `framing_note` field. The verbatim text of this field was reviewed line-by-line against ARCHITECTURE.md §1.5.4 by the CDA SME and is binding. T10 is contracted to render this field adjacent to the records in the dashboard UI, so that both dashboard users and open-data-bundle readers who download the JSON directly receive the corpus-lens framing context.
+
+The `framing_note` text:
+
+> These records preserve verbatim outputs from collection sessions that did not produce a parseable primary-step response. Each record is a property of the LSB collection pipeline's output distribution, not a claim about the model's intent or state-of-mind. The `originating_outcome_class` field names the LSB-side detection rule (e.g., `refusal_string_match` describes a string-pattern match by the LSB pipeline, not a model decision to refuse). See the methodology page for the failures-as-findings framing.
+
+---
+
+*End of `docs/DATA_DICTIONARY.md` v0.1.14. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*

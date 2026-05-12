@@ -54,3 +54,14 @@ class Manifest(BaseModel):
     the methodology page can display it. See DESIGN_SYSTEM.md §3.3.5 item 7.
     Source of truth for this value is cdb_publish.lede.OCI_LOW_CONCENTRATION_THRESHOLD.
     """
+
+    failures: dict[str, str] = {}
+    """Map from domain_slug to the published failures JSON path, relative to
+    apps/dashboard/public/. Always present and always non-null for every domain
+    in ``domains`` — empty-domain files are emitted with ``records: []``.
+
+    Example: ``{"family": "data/failures/family.json", "holidays": "data/failures/holidays.json"}``
+
+    See docs/status/2026-05-12-phase6-T9-architect-plan.md §2.5 and §2.7, and
+    docs/DATA_DICTIONARY.md §12 for the published shape documentation.
+    """
