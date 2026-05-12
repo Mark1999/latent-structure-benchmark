@@ -16,7 +16,8 @@
 export interface PermalinkState {
   domain: string;
   models: string[];
-  vizTab: "mds";
+  /** Phase 5: "mds". Phase 6 T7: widened to include "freelist". */
+  vizTab: "mds" | "freelist";
 }
 
 /**
@@ -53,9 +54,9 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     const searchPart = hashIndex >= 0 ? searchAndHash.slice(0, hashIndex) : searchAndHash;
     const hashPart = hashIndex >= 0 ? searchAndHash.slice(hashIndex + 1) : "";
 
-    // Validate viz tab — only "mds" is valid in Phase 5.
+    // Validate viz tab — "mds" and "freelist" are valid (Phase 5 + Phase 6 T7).
     const vizTab = hashPart.toLowerCase();
-    if (vizTab !== "mds" && vizTab !== "") return null;
+    if (vizTab !== "mds" && vizTab !== "freelist" && vizTab !== "") return null;
 
     const params = new URLSearchParams(searchPart);
     const domain = params.get("domain");
@@ -75,7 +76,7 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     return {
       domain,
       models,
-      vizTab: "mds",
+      vizTab: (vizTab === "freelist" ? "freelist" : "mds") as "mds" | "freelist",
     };
   } catch {
     return null;

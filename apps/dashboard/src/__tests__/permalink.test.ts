@@ -135,9 +135,18 @@ describe("decodePermalink invalid inputs", () => {
     expect(decodePermalink("?domain=family&models=#mds")).toBeNull();
   });
 
-  it("returns null for invalid viz tab", () => {
-    // Non-mds, non-empty hash → invalid
-    expect(decodePermalink("?domain=family&models=a#freelist")).toBeNull();
+  it("returns null for invalid viz tab (unrecognised fragment)", () => {
+    // Non-mds, non-freelist, non-empty hash → invalid
+    expect(decodePermalink("?domain=family&models=a#similarity")).toBeNull();
+    expect(decodePermalink("?domain=family&models=a#drift")).toBeNull();
+    expect(decodePermalink("?domain=family&models=a#unknown")).toBeNull();
+  });
+
+  it("accepts #freelist as a valid viz tab (Phase 6 T7)", () => {
+    // #freelist is now an active tab per T7.
+    const result = decodePermalink("?domain=family&models=a#freelist");
+    expect(result).not.toBeNull();
+    expect(result?.vizTab).toBe("freelist");
   });
 
   it("returns null for a bare fragment with no search params", () => {

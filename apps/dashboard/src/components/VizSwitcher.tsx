@@ -5,6 +5,9 @@
  * Similarity, Drift). Disabled tabs are rendered as visible affordances that
  * communicate future capability without claiming it exists.
  *
+ * Phase 6 T7: Free Lists tab is now active. #freelist is a valid URL fragment.
+ * Similarity and Drift remain disabled (Phase-6-T5 / Phase-6-T4 territory).
+ *
  * Accessibility — DESIGN_SYSTEM.md §12.3 binding (overrides T8 plan spec):
  *   - Container: role="tablist" with aria-label="Visualization view".
  *   - Each tab: role="tab" with aria-selected and aria-disabled as appropriate.
@@ -17,19 +20,25 @@
  *     weight — non-color indicator required by §12.3.
  *   - Keyboard: ArrowLeft / ArrowRight between tabs, Enter / Space to activate.
  *
- * URL state: clicking MDS Plot pushes #mds fragment. Other tabs do not update
- * the URL (they are inert in Phase 5). On mount, #freelist / #similarity /
- * #drift are treated as #mds with a console warning.
+ * URL state: clicking MDS Plot pushes #mds fragment; clicking Free Lists
+ * pushes #freelist. Similarity / Drift do not update the URL (disabled).
+ *
+ * Reference: docs/status/2026-05-12-phase6-T7-architect-plan.md §2.1
  */
 
 import { type KeyboardEvent } from "react";
 
-/** The only active tab value in Phase 5. */
-export type ActiveVizTab = "mds";
+/** Active tab values — widened from "mds" to include "freelist" at Phase 6 T7. */
+export type ActiveVizTab = "mds" | "freelist";
 
 export interface VizSwitcherProps {
   activeTab: ActiveVizTab;
   onTabChange: (tab: ActiveVizTab) => void;
+}
+
+/** Type guard for activatable tab ids. */
+function isActivatableTab(id: string): id is ActiveVizTab {
+  return id === "mds" || id === "freelist";
 }
 
 /** Tab definition (internal). */
@@ -42,17 +51,18 @@ interface TabDef {
 
 const TABS: TabDef[] = [
   { id: "mds",        label: "MDS Plot",    active: true,  disabled: false },
-  { id: "freelist",   label: "Free Lists",  active: false, disabled: true  },
+  { id: "freelist",   label: "Free Lists",  active: false, disabled: false },
   { id: "similarity", label: "Similarity",  active: false, disabled: true  },
   { id: "drift",      label: "Drift",       active: false, disabled: true  },
 ];
 
-/** Fragments that are valid Phase-5 aliases for the only active tab. */
-const DISABLED_FRAGMENTS = new Set(["freelist", "similarity", "drift"]);
+/** Fragments that are still disabled (Phase-6-T4 / Phase-6-T5 territory). */
+const DISABLED_FRAGMENTS = new Set(["similarity", "drift"]);
 
 /**
- * Read the URL fragment on mount and reconcile with Phase 5 active tab.
- * Returns "mds" in all cases; emits a console warning for unrecognised fragments.
+ * Read the URL fragment on mount and reconcile with active tabs.
+ * Returns "mds" or "freelist" as appropriate; falls back to "mds" for
+ * unrecognised or disabled fragments (similarity, drift).
  *
  * Exported for direct unit testing — the react-refresh mixed-export warning
  * below is intentional; this function is not a component.
@@ -63,6 +73,9 @@ export function resolveFragmentOnMount(): ActiveVizTab {
     const raw = window.location.hash.replace(/^#/, "").toLowerCase();
     if (raw === "mds" || raw === "") {
       return "mds";
+    }
+    if (raw === "freelist") {
+      return "freelist";
     }
     if (DISABLED_FRAGMENTS.has(raw)) {
       console.warn(
@@ -101,8 +114,8 @@ export function VizSwitcher({ activeTab, onTabChange }: VizSwitcherProps) {
       }
     } else if (e.key === "Enter" || e.key === " ") {
       e.preventDefault();
-      if (!tab.disabled && tab.id === "mds") {
-        onTabChange("mds");
+      if (!tab.disabled && isActivatableTab(tab.id)) {
+        onTabChange(tab.id);
       }
     }
   }
@@ -137,8 +150,8 @@ export function VizSwitcher({ activeTab, onTabChange }: VizSwitcherProps) {
                  per §12.3. Exact string required: no phase numbering. */
               title={tab.disabled ? "Coming in a future update" : undefined}
               onClick={() => {
-                if (!tab.disabled && tab.id === "mds") {
-                  onTabChange("mds");
+                if (!tab.disabled && isActivatableTab(tab.id)) {
+                  onTabChange(tab.id);
                 }
                 /* Disabled tabs: click is suppressed (no onTabChange call, no
                    URL update). The button still receives the click event so the

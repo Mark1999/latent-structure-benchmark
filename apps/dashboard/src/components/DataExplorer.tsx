@@ -48,6 +48,7 @@ import { MDSPlot } from "./MDSPlot";
 import { ModelSelector } from "./ModelSelector";
 import { VizSwitcher, resolveFragmentOnMount } from "./VizSwitcher";
 import type { ActiveVizTab } from "./VizSwitcher";
+import { FreeListCompare } from "./FreeListCompare";
 import { SourceAttribution } from "./SourceAttribution";
 import { DownloadBar } from "./DownloadBar";
 import { CiteModal } from "./CiteModal";
@@ -248,13 +249,23 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
           or below (mobile) per §3.1 layout and app.css .explorer-layout. */}
       <div className="explorer-layout">
         <div className="explorer-layout__viz">
-          {/* MDSPlot receives modelColors from DataExplorer — §12.4 palette
-              ownership. Legend is rendered inside MDSPlot per T6/T7 design. */}
-          <MDSPlot
-            domainResult={domainResult}
-            modelColors={modelColors}
-            selectedModels={selectedModels}
-          />
+          {/* MDSPlot: rendered when MDS Plot tab is active. */}
+          {activeVizTab === "mds" && (
+            <MDSPlot
+              domainResult={domainResult}
+              modelColors={modelColors}
+              selectedModels={selectedModels}
+            />
+          )}
+          {/* FreeListCompare: rendered when Free Lists tab is active (Phase 6 T7).
+              modelColors and selectedModels follow §12.4 palette ownership. */}
+          {activeVizTab === "freelist" && (
+            <FreeListCompare
+              domainResult={domainResult}
+              modelColors={modelColors}
+              selectedModels={selectedModels}
+            />
+          )}
         </div>
         <div className="explorer-layout__selector">
           {/* ModelSelector receives modelColors from DataExplorer — §12.4. */}
