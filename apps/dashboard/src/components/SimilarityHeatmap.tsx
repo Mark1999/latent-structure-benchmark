@@ -30,17 +30,33 @@
  *   "agrees", "perceives", "understands", "missing", "placeholder", "pending"
  *   in any user-visible string per CLAUDE.md §7 and ARCHITECTURE.md §1.5.4.
  *
+ * T8: ReadAsTableToggle + SimilarityTable + ScreenReaderSummary.
+ *   readAsTable state: local useState (per-viz, no DataExplorer state pollution).
+ *   U1 (BINDING): table container div always in DOM; aria-hidden + display:none when inactive.
+ *   ScreenReaderSummary: always present regardless of readAsTable state.
+ *   Does NOT touch data/types.ts (AC #19).
+ *
  * Reference:
  *   docs/status/2026-05-12-phase6-T5-architect-plan.md
  *   docs/status/2026-05-12-phase6-T5-cda-sme-verdict.md §5.1–§5.4
  *   docs/status/2026-05-12-phase6-T5-uiux-plan-verdict.md F-T5-A1, F-T5-C1, F-T5-M1
  *   DESIGN_SYSTEM.md §12.8 (v0.4.5)
+ *   docs/status/2026-05-12-phase6-T8-architect-plan.md §2.3.3
+ *   docs/status/2026-05-12-phase6-T8-cda-sme-verdict.md §4.3
  */
 
 import { useMemo, useState, useCallback } from "react";
 import type { DomainResultPublished } from "../data/types";
 import { modelShortName } from "../lib/modelShortName";
 import { SIMILARITY_NULL_VALUE } from "../config/analysis";
+import { ScreenReaderSummary } from "./ScreenReaderSummary";
+import { ReadAsTableToggle } from "./ReadAsTableToggle";
+import { SimilarityTable } from "./SimilarityTable";
+import {
+  READ_AS_TABLE_LABEL_REST,
+  READ_AS_TABLE_LABEL_PRESSED,
+  similarityScreenReaderSummary,
+} from "../copy/screen_reader_summaries";
 import "../styles/similarity-heatmap.css";
 
 // ── Shape interfaces matching actual JSON (NOT data/types.ts — T14 concern) ──
@@ -167,6 +183,9 @@ const TOOLTIP_HIDDEN: TooltipState = {
   isDiagonal: false,
 };
 
+// Stable ID for the T8 table container (U1: always in DOM)
+const SIMILARITY_TABLE_CONTAINER_ID = "similarity-table-container";
+
 // ── Props ─────────────────────────────────────────────────────────────────────
 
 export interface SimilarityHeatmapProps {
@@ -204,6 +223,12 @@ export function SimilarityHeatmap({
 
   // ── Tooltip state ──────────────────────────────────────────────────────────
   const [tooltip, setTooltip] = useState<TooltipState>(TOOLTIP_HIDDEN);
+
+  // T8: Read-as-table toggle state (per-viz local, resets on unmount per plan §2.4)
+  const [readAsTable, setReadAsTable] = useState<boolean>(false);
+
+  // T8: ScreenReaderSummary text (always computed, always rendered)
+  const srSummaryText = similarityScreenReaderSummary(domainResult, selectedModels);
 
   // ── Dual-index translation (plan §2.8) ────────────────────────────────────
   /**
@@ -302,9 +327,29 @@ export function SimilarityHeatmap({
       <div className="similarity-heatmap">
         {/* F-T5-A1 binding: sr-only h2 as first child of root div */}
         <h2 className="sr-only">Similarity heatmap</h2>
+        {/* T8: ScreenReaderSummary always present (handles n=0 case internally) */}
+        <ScreenReaderSummary text={srSummaryText} />
+        {/* T8: Toggle still present so keyboard users know the affordance exists */}
+        <ReadAsTableToggle
+          pressed={readAsTable}
+          onToggle={() => setReadAsTable((v) => !v)}
+          tableContainerId={SIMILARITY_TABLE_CONTAINER_ID}
+          labels={{ rest: READ_AS_TABLE_LABEL_REST, pressed: READ_AS_TABLE_LABEL_PRESSED }}
+        />
         <p className="similarity-heatmap__empty">
           Select one or more models to see the similarity heatmap.
         </p>
+        {/* T8: Table container — U1 always in DOM */}
+        <div
+          id={SIMILARITY_TABLE_CONTAINER_ID}
+          aria-hidden={readAsTable ? undefined : true}
+          style={{ display: readAsTable ? undefined : "none" }}
+        >
+          <SimilarityTable
+            domainResult={domainResult}
+            selectedModels={selectedModels}
+          />
+        </div>
       </div>
     );
   }
@@ -316,8 +361,24 @@ export function SimilarityHeatmap({
           Heading hierarchy: page h1 → this h2 → column/row header elements. */}
       <h2 className="sr-only">Similarity heatmap</h2>
 
-      {/* SVG container — positioned relative for tooltip overlay */}
-      <div className="similarity-heatmap__svg-container">
+      {/* T8: ScreenReaderSummary — always present in both viz and table modes (plan §2.5) */}
+      <ScreenReaderSummary text={srSummaryText} />
+
+      {/* T8: ReadAsTableToggle — below the SVG container, above caption (plan §2.2) */}
+      <ReadAsTableToggle
+        pressed={readAsTable}
+        onToggle={() => setReadAsTable((v) => !v)}
+        tableContainerId={SIMILARITY_TABLE_CONTAINER_ID}
+        labels={{ rest: READ_AS_TABLE_LABEL_REST, pressed: READ_AS_TABLE_LABEL_PRESSED }}
+      />
+
+      {/* SVG container — T8: hidden via aria-hidden + display:none when table is active.
+          U1 Option A: always render; use aria-hidden + display:none when inactive. */}
+      <div
+        className="similarity-heatmap__svg-container"
+        aria-hidden={readAsTable || undefined}
+        style={{ display: readAsTable ? "none" : undefined }}
+      >
         <svg
           className="similarity-heatmap__svg"
           role="img"
@@ -489,11 +550,29 @@ export function SimilarityHeatmap({
         Source: docs/status/2026-05-12-phase6-T5-cda-sme-verdict.md §5.1.
         Do NOT paraphrase or alter this text without CDA SME re-approval.
       */}
-      <p className="similarity-heatmap__caption">
+      <p
+        className="similarity-heatmap__caption"
+        aria-hidden={readAsTable || undefined}
+        style={{ display: readAsTable ? "none" : undefined }}
+      >
         Each cell shows how similarly two models organize this domain (1.00 ={" "}
         identical organization; 0.50 = no shared structure). Dashed cells: 95%
         confidence interval includes the no-shared-structure value.
       </p>
+
+      {/* T8: SimilarityTable container — U1 Option A: ALWAYS in DOM.
+          aria-hidden="true" + display:none when readAsTable = false.
+          SimilarityTable renders conditionally inside. */}
+      <div
+        id={SIMILARITY_TABLE_CONTAINER_ID}
+        aria-hidden={readAsTable ? undefined : true}
+        style={{ display: readAsTable ? undefined : "none" }}
+      >
+        <SimilarityTable
+          domainResult={domainResult}
+          selectedModels={selectedModels}
+        />
+      </div>
     </div>
   );
 }

@@ -80,6 +80,19 @@ function renderHeatmap(props: SimilarityHeatmapProps): void {
   });
 }
 
+/**
+ * Returns text content of only elements that are NOT inside [aria-hidden="true"]
+ * containers. Used for "no methodology prose" checks that should not fire on
+ * T8 table captions hidden via aria-hidden + display:none.
+ */
+function visibleTextContent(el: HTMLElement): string {
+  // Clone the element so we can mutate freely
+  const clone = el.cloneNode(true) as HTMLElement;
+  // Remove all aria-hidden subtrees
+  clone.querySelectorAll('[aria-hidden="true"]').forEach((n) => n.remove());
+  return (clone.textContent ?? "").toLowerCase();
+}
+
 // ── Fixture builder ────────────────────────────────────────────────────────────
 //
 // The fixture uses clearly artificial model ids ("model-x", "model-y", "model-z")
@@ -399,14 +412,19 @@ describe("SimilarityHeatmap — CDA SME §5.5 no methodology narration (gap-fill
     expect((container.textContent ?? "").toLowerCase()).not.toContain("we use");
   });
 
-  it("rendered text contains no 'bootstrap' methodology prose", () => {
+  it("rendered text contains no 'bootstrap' methodology prose (visible content only)", () => {
+    // T8 adds a SimilarityTable caption that contains "bootstrap" for accessibility,
+    // but it lives inside aria-hidden="true" + display:none when readAsTable=false.
+    // This test checks that "bootstrap" does not appear in the *visible* UI — i.e.,
+    // not in any element that is visible to sighted users.
+    // See: docs/status/2026-05-12-phase6-T8-architect-plan.md §2.3.2 (U1 binding).
     const domainResult = makeFixture(
       TWO_MODEL_IDS,
       TWO_MODEL_SIM_MATRIX,
       TWO_MODEL_CI_MATRIX
     );
     renderHeatmap({ domainResult, selectedModels: TWO_MODEL_IDS });
-    expect((container.textContent ?? "").toLowerCase()).not.toContain("bootstrap");
+    expect(visibleTextContent(container)).not.toContain("bootstrap");
   });
 
   it("rendered text contains no 'smoothing' methodology prose", () => {

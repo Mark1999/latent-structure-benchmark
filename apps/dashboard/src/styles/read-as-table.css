@@ -1,0 +1,195 @@
+/*
+ * read-as-table.css — Token-only CSS for ReadAsTableToggle + table renderers.
+ *
+ * Phase 6 T8. No new tokens introduced; all values from tokens.css.
+ * Implements DESIGN_SYSTEM.md §12.9 (v0.4.6) U1 + U2 binding requirements.
+ *
+ * U2 (BINDING — WCAG 1.4.11): Pressed-state non-text visual indicator.
+ *   aria-pressed="true":  border: 2px solid var(--color-info)  (~7.3:1 on white — PASS)
+ *   aria-pressed="false": border: 2px solid transparent         (prevents layout shift)
+ *   padding compensates for 2px border to prevent layout shift.
+ *
+ * Reference:
+ *   docs/status/2026-05-12-phase6-T8-uiux-plan-verdict.md U1, U2
+ *   DESIGN_SYSTEM.md §12.9 (v0.4.6)
+ */
+
+/* ===== ReadAsTableToggle ===== */
+
+.read-as-table-toggle {
+  margin-top: var(--space-3);
+  margin-bottom: var(--space-2);
+}
+
+.read-as-table-toggle__button {
+  /* Base styles */
+  background: none;
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  text-decoration: underline;
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--border-radius-sm);
+
+  /* Touch target: min 44px at narrow viewports */
+  min-height: 32px;
+
+  /* Focus indicator — WCAG AA 3:1 */
+  outline-offset: 2px;
+}
+
+.read-as-table-toggle__button:hover {
+  color: var(--color-text-primary);
+}
+
+.read-as-table-toggle__button:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+/* U2 BINDING (WCAG 1.4.11) — pressed-state non-text visual indicator.
+   border: 2px solid var(--color-info) (#3360a9) on white ≈ 7.3:1 PASS.
+   Padding compensation: subtract 2px to prevent layout shift vs rest state. */
+.read-as-table-toggle__button[aria-pressed="true"] {
+  border: 2px solid var(--color-info);
+  padding: calc(var(--space-2) - 2px) calc(var(--space-3) - 2px);
+}
+
+.read-as-table-toggle__button[aria-pressed="false"] {
+  border: 2px solid transparent;
+}
+
+/* Touch target floor on narrow viewports */
+@media (max-width: 768px) {
+  .read-as-table-toggle__button {
+    min-height: 44px;
+  }
+}
+
+/* ===== Table container ===== */
+
+.read-as-table__container {
+  overflow-x: auto;
+  margin-top: var(--space-4);
+  /* Mobile horizontal scroll — native, no special treatment */
+}
+
+/* ===== Table ===== */
+
+.read-as-table__table {
+  border-collapse: collapse;
+  width: 100%;
+  min-width: max-content;
+  font-size: var(--font-size-sm);
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-data);
+}
+
+/* Caption — binding text from screen_reader_summaries.ts */
+.read-as-table__caption {
+  text-align: left;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  padding-bottom: var(--space-3);
+  caption-side: top;
+  max-width: 600px;
+  line-height: var(--line-height-body);
+}
+
+/* Column headers */
+.read-as-table__th {
+  text-align: left;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 2px solid var(--color-border);
+  white-space: nowrap;
+  background-color: var(--color-surface);
+}
+
+.read-as-table__th--numeric {
+  text-align: right;
+}
+
+/* Table rows */
+.read-as-table__tr:nth-child(even) {
+  background-color: var(--color-surface);
+}
+
+.read-as-table__tr:hover {
+  background-color: var(--color-surface-hover);
+}
+
+/* Table cells */
+.read-as-table__td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+  font-size: var(--font-size-sm);
+}
+
+.read-as-table__td--numeric {
+  text-align: right;
+  font-family: var(--font-mono);
+}
+
+.read-as-table__td--mono {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+/* ===== Empty states ===== */
+
+.read-as-table__empty {
+  color: var(--color-text-caption);
+  font-size: var(--font-size-sm);
+  padding: var(--space-4) 0;
+  font-style: italic;
+}
+
+.read-as-table__empty-inline {
+  color: var(--color-text-caption);
+  font-size: var(--font-size-sm);
+  padding: var(--space-2) 0;
+  font-style: italic;
+}
+
+/* ===== FreeListTable per-model section ===== */
+
+.read-as-table__model-section {
+  margin-bottom: var(--space-8);
+}
+
+.read-as-table__model-section:last-child {
+  margin-bottom: 0;
+}
+
+.read-as-table__model-heading {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-3);
+}
+
+.read-as-table__color-dot {
+  display: inline-block;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Shared-term star glyph in FreeListTable (matches FreeListCompare ★) */
+.read-as-table__shared-star {
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+}

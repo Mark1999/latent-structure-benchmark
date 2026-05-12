@@ -28,6 +28,12 @@
  * selectedModels (T7): controls which model points render. If empty, no points
  *   render. If equal to total model count, all render (the default state).
  *   Ellipses follow the same filter.
+ *
+ * T8: ReadAsTableToggle + MdsTable + ScreenReaderSummary.
+ *   readAsTable state: local useState (per-viz, no DataExplorer state pollution).
+ *   U1 (BINDING): table container div always in DOM; aria-hidden + display:none when inactive.
+ *   ScreenReaderSummary: always present regardless of readAsTable state.
+ *   Does NOT touch data/types.ts (AC #19).
  */
 
 import { useState, useMemo, useCallback } from "react";
@@ -35,6 +41,14 @@ import type { DomainResultPublished, R1State, EllipseParams } from "../data/type
 import { OCI_LOW_CONCENTRATION_THRESHOLD } from "../config/analysis";
 import { modelShortName } from "../lib/modelShortName";
 import { Legend } from "./Legend";
+import { ScreenReaderSummary } from "./ScreenReaderSummary";
+import { ReadAsTableToggle } from "./ReadAsTableToggle";
+import { MdsTable } from "./MdsTable";
+import {
+  READ_AS_TABLE_LABEL_REST,
+  READ_AS_TABLE_LABEL_PRESSED,
+  mdsScreenReaderSummary,
+} from "../copy/screen_reader_summaries";
 
 // ── Props ───────────────────────────────────────────────────────────────────
 
@@ -271,9 +285,14 @@ function TooltipContent({ point }: { point: ModelPoint }) {
 
 // ── Main component ────────────────────────────────────────────────────────────
 
+// Stable ID for the T8 table container (U1: always in DOM)
+const MDS_TABLE_CONTAINER_ID = "mds-table-container";
+
 export function MDSPlot({ domainResult, modelColors, selectedModels }: MDSPlotProps) {
   const [hoveredId, setHoveredId] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
+  // T8: Read-as-table toggle state (per-viz local, resets on unmount per plan §2.4)
+  const [readAsTable, setReadAsTable] = useState<boolean>(false);
 
   // Build a lookup of OCI + deterministic_output from within_model_results array.
   const withinModelLookup = useMemo(() => {
@@ -393,9 +412,25 @@ export function MDSPlot({ domainResult, modelColors, selectedModels }: MDSPlotPr
 
   const hoveredPoint = hoveredId ? points.find((p) => p.modelId === hoveredId) ?? null : null;
 
+  // T8: ScreenReaderSummary text (always computed, always rendered in DOM)
+  const effectiveSelectedModels = selectedModels ?? Object.keys(rawCoords);
+  const srSummaryText = mdsScreenReaderSummary(domainResult, effectiveSelectedModels);
+
   return (
     <div className="mds-plot">
-      {/* SVG visualization */}
+      {/* T8: ScreenReaderSummary — always present in both viz and table modes (plan §2.5) */}
+      <ScreenReaderSummary text={srSummaryText} />
+
+      {/* T8: ReadAsTableToggle — below the viz area, above SourceAttribution (plan §2.2) */}
+      <ReadAsTableToggle
+        pressed={readAsTable}
+        onToggle={() => setReadAsTable((v) => !v)}
+        tableContainerId={MDS_TABLE_CONTAINER_ID}
+        labels={{ rest: READ_AS_TABLE_LABEL_REST, pressed: READ_AS_TABLE_LABEL_PRESSED }}
+      />
+
+      {/* T8: SVG visualization — hidden via aria-hidden + display:none when table is active.
+          U1 Option A: always render; use aria-hidden + display:none when inactive. */}
       <svg
         className="mds-plot__svg"
         width={SVG_WIDTH}
@@ -403,7 +438,8 @@ export function MDSPlot({ domainResult, modelColors, selectedModels }: MDSPlotPr
         viewBox={`0 0 ${SVG_WIDTH} ${SVG_HEIGHT}`}
         role="img"
         aria-label={ariaLabel}
-        style={{ overflow: "visible" }}
+        aria-hidden={readAsTable || undefined}
+        style={{ overflow: "visible", display: readAsTable ? "none" : undefined }}
       >
         {/* ── Plot frame ── */}
         <rect
@@ -619,7 +655,7 @@ export function MDSPlot({ domainResult, modelColors, selectedModels }: MDSPlotPr
       </svg>
 
       {/* ── Tooltip (rendered outside SVG for overflow) ── */}
-      {tooltip !== null && hoveredPoint !== null && (
+      {!readAsTable && tooltip !== null && hoveredPoint !== null && (
         <div
           className="mds-plot__tooltip"
           role="tooltip"
@@ -633,7 +669,22 @@ export function MDSPlot({ domainResult, modelColors, selectedModels }: MDSPlotPr
       )}
 
       {/* ── Legend — extracted to Legend.tsx at T7 for reuse ── */}
-      <Legend />
+      {!readAsTable && <Legend />}
+
+      {/* T8: MdsTable container — U1 Option A: ALWAYS in DOM.
+          aria-hidden="true" + display:none when readAsTable = false.
+          MdsTable renders conditionally inside to avoid computing when not needed. */}
+      <div
+        id={MDS_TABLE_CONTAINER_ID}
+        aria-hidden={readAsTable ? undefined : true}
+        style={{ display: readAsTable ? undefined : "none" }}
+      >
+        <MdsTable
+          domainResult={domainResult}
+          selectedModels={effectiveSelectedModels}
+          modelColors={modelColors}
+        />
+      </div>
     </div>
   );
 }

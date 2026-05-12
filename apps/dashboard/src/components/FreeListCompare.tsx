@@ -33,15 +33,31 @@
  * F-T7-A1 (BINDING): sr-only h2 as first child of root element.
  * F-T7-C1 (ADVISORY): bar fill opacity adjusted to 0.8 — see freelist-compare.css.
  *
+ * T8: ReadAsTableToggle + FreeListTable + ScreenReaderSummary.
+ *   readAsTable state: local useState (per-viz, no DataExplorer state pollution).
+ *   U1 (BINDING): table container div always in DOM; aria-hidden + display:none when inactive.
+ *   ScreenReaderSummary: always present regardless of readAsTable state.
+ *   Does NOT touch data/types.ts (AC #19).
+ *
  * Reference: docs/status/2026-05-12-phase6-T7-architect-plan.md
  *            docs/status/2026-05-12-phase6-T7-cda-sme-verdict.md §5.1–§5.2
  *            docs/status/2026-05-12-phase6-T7-uiux-plan-verdict.md F-T7-A1
+ *            docs/status/2026-05-12-phase6-T8-architect-plan.md §2.3.2
+ *            docs/status/2026-05-12-phase6-T8-cda-sme-verdict.md §4.2
  */
 
 import { useState, useMemo } from "react";
 import type { DomainResultPublished } from "../data/types";
 import { FreeListColumn } from "./FreeListColumn";
 import type { TermRecord } from "./FreeListColumn";
+import { ScreenReaderSummary } from "./ScreenReaderSummary";
+import { ReadAsTableToggle } from "./ReadAsTableToggle";
+import { FreeListTable } from "./FreeListTable";
+import {
+  READ_AS_TABLE_LABEL_REST,
+  READ_AS_TABLE_LABEL_PRESSED,
+  freeListScreenReaderSummary,
+} from "../copy/screen_reader_summaries";
 import "../styles/freelist-compare.css";
 
 // ── Shape interfaces matching actual JSON (NOT data/types.ts — see file header) ─
@@ -62,6 +78,9 @@ export interface FreeListCompareProps {
   selectedModels: string[];
 }
 
+// Stable ID for the T8 table container (U1: always in DOM)
+const FREELIST_TABLE_CONTAINER_ID = "freelist-table-container";
+
 // ── Component ─────────────────────────────────────────────────────────────────
 
 export function FreeListCompare({
@@ -71,6 +90,8 @@ export function FreeListCompare({
 }: FreeListCompareProps) {
   // Cross-column hover highlight state
   const [hoveredTerm, setHoveredTerm] = useState<string | null>(null);
+  // T8: Read-as-table toggle state (per-viz local, resets on unmount per plan §2.4)
+  const [readAsTable, setReadAsTable] = useState<boolean>(false);
 
   // Cast-through-unknown: types.ts disagrees with actual JSON shape for sutrop_csi.
   // The actual JSON is Record<string, Array<SutropCsiItemActual>>.
@@ -146,6 +167,9 @@ export function FreeListCompare({
     return intersection;
   }, [termsByModel, selectedModels]);
 
+  // T8: ScreenReaderSummary text (always computed, always rendered)
+  const srSummaryText = freeListScreenReaderSummary(domainResult, selectedModels);
+
   return (
     <div
       className="freelist-compare"
@@ -156,22 +180,43 @@ export function FreeListCompare({
           The DataExplorer section has no visible h2 antecedent. */}
       <h2 className="sr-only">Free list comparison</h2>
 
+      {/* T8: ScreenReaderSummary — always present in both viz and table modes (plan §2.5) */}
+      <ScreenReaderSummary text={srSummaryText} />
+
+      {/* T8: ReadAsTableToggle — below the description, above the columns (plan §2.2) */}
+      <ReadAsTableToggle
+        pressed={readAsTable}
+        onToggle={() => setReadAsTable((v) => !v)}
+        tableContainerId={FREELIST_TABLE_CONTAINER_ID}
+        labels={{ rest: READ_AS_TABLE_LABEL_REST, pressed: READ_AS_TABLE_LABEL_PRESSED }}
+      />
+
       {/* Component description — functional sentence only, no marketing copy */}
-      <p className="freelist-compare__description">
+      {/* Hidden when table is active (aria-hidden + display:none via U1 Option A on columns container) */}
+      <p
+        className="freelist-compare__description"
+        aria-hidden={readAsTable || undefined}
+        style={{ display: readAsTable ? "none" : undefined }}
+      >
         Each column lists the terms one model produced for this domain, ordered
         by Sutrop salience (Sutrop CSI).
       </p>
 
-      {/* Case A: no models selected */}
-      {selectedModels.length === 0 && (
+      {/* Case A: no models selected — shown in viz mode only */}
+      {selectedModels.length === 0 && !readAsTable && (
         <p className="freelist-compare__empty">
           Select one or more models to see their free lists.
         </p>
       )}
 
-      {/* Normal: one or more models selected — horizontal scrollable columns */}
+      {/* T8: Visualization columns — hidden via aria-hidden + display:none when table is active.
+          U1 Option A: always render; use aria-hidden + display:none when inactive. */}
       {selectedModels.length > 0 && (
-        <div className="freelist-compare__columns">
+        <div
+          className="freelist-compare__columns"
+          aria-hidden={readAsTable || undefined}
+          style={{ display: readAsTable ? "none" : undefined }}
+        >
           {selectedModels.map((modelId) => {
             // termsByModel[modelId] may be null (Case B), [] (Case C), or populated.
             // The key may be absent if modelId wasn't in the useMemo result —
@@ -196,6 +241,21 @@ export function FreeListCompare({
           })}
         </div>
       )}
+
+      {/* T8: FreeListTable container — U1 Option A: ALWAYS in DOM.
+          aria-hidden="true" + display:none when readAsTable = false.
+          FreeListTable renders conditionally inside. */}
+      <div
+        id={FREELIST_TABLE_CONTAINER_ID}
+        aria-hidden={readAsTable ? undefined : true}
+        style={{ display: readAsTable ? undefined : "none" }}
+      >
+        <FreeListTable
+          domainResult={domainResult}
+          selectedModels={selectedModels}
+          modelColors={modelColors}
+        />
+      </div>
     </div>
   );
 }

@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.5  
+**Version:** v0.4.6  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4.6** (T8 plan-level UI/UX verdict, 2026-05-12) closes §12.6 Phase-5 "Read as table" deferral. T8 implements the §7 binding for MDS, FreeList, and Similarity. Adds §12.9 (ReadAsTableToggle + ScreenReaderSummary visual specification): `aria-controls` DOM-presence requirement (U1), pressed-state non-text contrast (U2 — `border: 2px solid var(--color-info)`, ~7.3:1 on white, WCAG 1.4.11 PASS), and `.sr-only` reuse. No new tokens.
 - **v0.4.5** (T5 plan-level UI/UX verdict, 2026-05-12) adds §12.8 (SimilarityHeatmap cell-text contrast specification) and introduces one component-scoped token `--color-heatmap-cell-text-dark: #000000`. The T5 plan's §2.2 binary text-color switch at similarity = 0.5 (fallback 0.55) fails WCAG AA 4.5:1 across the observed data range in both shipped domains. §12.8 specifies the corrected switch threshold of 0.73 and the `HEATMAP_TEXT_SWITCH_THRESHOLD` constant. The plan's "raise to 0.55" fallback is superseded.
 - **v0.4.4** (T13 plan-level UI/UX verdict, 2026-05-11) adds §12.7 (MethodologySummary block visual specification). Specifies: component structure (`<section>` with `aria-labelledby`), heading element (`<h2 id="methodology-summary-heading">About this measurement</h2>`), tagline paragraph token (`--color-text-caption` not `--color-text-secondary` — the latter fails WCAG AA at 16px with ~3.40:1 contrast), body paragraph token (`--color-text-primary`), footnote conditional rendering (plain text when `methodologyPageUrl` is null; inline link when URL is set), CSS class names and spacing tokens, reveal cascade position (child 5, 240ms delay — requires adding a 6th cascade slot to `app.css`), mobile posture (max-width 680px renders full-width on narrow viewports automatically; no special mobile rule needed for the prose container). Records the mobile bottom-drawer deferral decision: §8 calls for a control panel bottom-drawer on `<768px`; T13 accepts the stacked-below layout as the Phase 5 mobile implementation; a true bottom-drawer overlay is deferred to Phase 6. Also records five mobile gaps the T13 Coder must close: DownloadBar touch targets (min-height: 44px at `<768px`), CiteModal/EmbedModal full-screen on mobile, ArticleHeader title font scale-down (48px → 32px at `<768px`), site header nav hide-on-mobile (display: none at `<768px`), MDSPlot viewBox verification.
 - **v0.4.3** (T10 per-commit UI/UX review, 2026-05-10) adds `--color-text-caption: #6c757d` to §1.2 UI chrome tokens. The T10 `SourceAttribution.tsx` implementation used `--color-text-muted` (#bdc3c7) for the source attribution line text, producing a contrast ratio of approximately 1.75:1 on white at 12px — a WCAG AA failure (4.5:1 required). The existing `--color-text-secondary` (#7f8c8d) computes to approximately 3.40:1 on white, also insufficient for 12px regular-weight text. The new `--color-text-caption: #6c757d` computes to approximately 4.60:1 on white, passes WCAG AA for 12px text, and is the correct token for the SourceAttribution source line and small-n footnote. The `--color-text-secondary` annotation is updated to clarify it is appropriate for bold or large secondary labels (14px+); the `--color-text-muted` annotation is tightened to "disabled states and non-readable placeholders only — never for readable body or caption text."
@@ -523,7 +524,7 @@ The methodology page is written in plain English, not academic jargon. It assume
 These are non-negotiable. The Reviewer agent enforces them.
 
 - **Color + shape together:** model origin is encoded in both color and point shape. The MDS plot is interpretable in grayscale.
-- **"Read as table" toggle:** every visualization has a toggle that renders the underlying data as an accessible HTML table.
+- **"Read as table" toggle:** every visualization has a toggle that renders the underlying data as an accessible HTML table. (implemented in Phase 6 T8; `ReadAsTableToggle.tsx`; binding visual spec in §12.9)
 - **Keyboard navigation:** all interactive controls (sliders, checkboxes, tabs, buttons) are fully keyboard accessible.
 - **ARIA labels:** every chart element has appropriate ARIA labels. D3 visualizations must use `role="img"` with descriptive `aria-label` on the SVG container.
 - **Focus indicators:** visible focus rings on all interactive elements. Never `outline: none` without a replacement.
@@ -679,16 +680,15 @@ The `?embed=true` URL parameter suppresses page chrome for iframe embedding.
 - The SVG container retains its `role="img"` and `aria-label` in embed mode.
 - **Security prerequisite (T12 gate):** `apps/dashboard/public/_headers` currently specifies `frame-ancestors 'none'`. The embed mode `<iframe>` cannot function without a `frame-ancestors` relaxation for the embeddable path. This is a security decision. Before T12 can pass, the Coder must flag this to the Reviewer; the Reviewer must approve the `_headers` change per `SECURITY_AND_HARDENING.md` before it is committed. The Coder does not modify `_headers` unilaterally.
 
-### 12.6 Phase 5 deferral of "Read as table" toggle
+### 12.6 Phase 5 deferral of "Read as table" toggle — CLOSED (Phase 6 T8)
 
-DESIGN_SYSTEM.md §7 requires a "Read as table" toggle on every visualization. `AccessibilityTableToggle.tsx` is listed as a Phase 6 component in §11 and is explicitly deferred by the Phase 5 plan.
+DESIGN_SYSTEM.md §7 requires a "Read as table" toggle on every visualization. This section recorded the Phase 5 deferral; T8 implements the §7 binding for MDS, FreeList, and Similarity visualizations.
 
-**Ruling:** The deferral is accepted. The §7 requirement applies at Phase 6 completion, not as a Phase 5 gate.
+**Status:** Deferral closed by Phase 6 T8 (2026-05-12). The §7 requirement is now fully satisfied for all three active visualizations. See §12.9 for the binding visual specification.
 
-**Minimum viable Phase 5 screen-reader posture (binding, enforced at T6 and T13):**
-- The MDSPlot SVG container must carry a descriptive `aria-label`. Required format: `"MDS cognitive map of {n} frontier language models on the {domain} domain. {first sentence of generated_lede}."` This gives screen reader users the key finding without requiring the full table toggle.
-- The Reviewer does not reject T13 for absence of `AccessibilityTableToggle.tsx`.
-- The Reviewer does reject T6 for absence of a descriptive `aria-label` on the MDSPlot SVG container. This is the minimum viable posture.
+**Phase 5 SVG aria-label posture (retained):** The MDSPlot SVG container continues to carry a descriptive `aria-label` per T6/T13 binding. This minimum posture remains intact; T8 adds the full table toggle and ScreenReaderSummary on top of it.
+
+**Forward-compatibility note:** When T4 (DriftTracker) ships in a future phase, the drift viz will add a fourth table renderer using T8's pattern (toggle + DriftTable + driftScreenReaderSummary). The T8 implementation provides the structural primitives (ReadAsTableToggle, ScreenReaderSummary) that the drift table will reuse.
 
 ### 12.7 MethodologySummary block (v0.4.4 — T13, 2026-05-11)
 
@@ -791,6 +791,67 @@ textFill = similarity > HEATMAP_TEXT_SWITCH_THRESHOLD
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.5. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+### 12.9 ReadAsTableToggle + ScreenReaderSummary visual specification (v0.4.6 — T8, 2026-05-12)
+
+Phase 6 T8 implements the §7 "Read as table" toggle and the §7 ScreenReaderSummary for all three active visualizations (MDS, FreeList, Similarity).
+
+**Components:**
+- `ReadAsTableToggle.tsx` — the toggle button primitive.
+- `ScreenReaderSummary.tsx` — the visually-hidden prose renderer.
+- `MdsTable.tsx`, `FreeListTable.tsx`, `SimilarityTable.tsx` — table renderers.
+- `src/copy/screen_reader_summaries.ts` — single source of truth for all LSB-authored copy.
+
+**U1 (BINDING — WAI-ARIA 1.2 §6.6.5 DOM-presence requirement):**
+
+The table container `<div id={tableContainerId}>` is ALWAYS rendered in the DOM. `aria-controls` on the toggle button therefore always references an existing element.
+
+When `readAsTable === false`: `aria-hidden="true"` + `display: none` on the container.
+When `readAsTable === true`: container visible, viz element hidden (`aria-hidden` + `display: none`).
+
+Implementation: Option A (always-present container). The Coder chose this option at T8.
+
+**U2 (BINDING — WCAG 1.4.11 non-text contrast):**
+
+A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 non-text contrast. The following CSS rules are required and are binding in `read-as-table.css`:
+
+```css
+.read-as-table-toggle__button[aria-pressed="true"] {
+  border: 2px solid var(--color-info);
+  padding: calc(var(--space-2) - 2px) calc(var(--space-3) - 2px);
+}
+.read-as-table-toggle__button[aria-pressed="false"] {
+  border: 2px solid transparent;
+}
+```
+
+`--color-info` (#3360a9) on white ≈ 7.3:1 (WCAG 1.4.11 PASS). The transparent rest-border prevents layout shift. Padding compensation (-2px on each side) maintains the same visual box size in both states.
+
+**ScreenReaderSummary placement (binding):**
+- Always rendered immediately after the `<h2 className="sr-only">` bridge in each viz component's root.
+- Present in both visualization mode and table mode — screen-reader users get the summary regardless of toggle state.
+- Text is the output of the corresponding programmatic template function (not `generated_lede`).
+
+**SR template boundary (CDA SME S11 binding):**
+- `generated_lede` (per-domain finding) — used only in `ArticleHeader.tsx`. Not reused in any SR template.
+- SR templates (per-viz structural summaries) — live in `src/copy/screen_reader_summaries.ts`. Deterministic, no LLM calls.
+
+**`.sr-only` CSS class:** reused from `app.css` (established at T5/T7). No new visually-hidden class introduced by T8.
+
+**Button labels (CDA SME §3 APPROVED verbatim):**
+- Rest state: `"Read as table"`
+- Pressed state: `"Show visualization"`
+
+**Table captions (CDA SME §4 binding verbatim):** see `src/copy/screen_reader_summaries.ts`.
+
+**R10 column adjacency (binding):**
+- MdsTable: ellipse columns (semi-major, semi-minor, rotation, n_bootstrap) adjacent to x/y in each row.
+- FreeListTable: inclusion-frequency column adjacent to Salience (CSI) in each row.
+- SimilarityTable: 95% CI low / high adjacent to Similarity in each row.
+
+**Follow-up: T14 doc-sweep** should wire a methodology-page link from the SimilarityTable caption's "no bootstrap interval available" phrase (or via a `?` affordance) to the section of the methodology page that explains the null-CI mechanism. T8 ships with the caption as plain text per Phase 6 minimum-viable surface posture.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.4.6. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
