@@ -141,7 +141,7 @@
 .read-as-table__td--mono {
   font-family: var(--font-mono);
   font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
+  color: var(--color-text-caption);
 }
 
 /* ===== Empty states ===== */
@@ -190,6 +190,6 @@
 
 /* Shared-term star glyph in FreeListTable (matches FreeListCompare ★) */
 .read-as-table__shared-star {
-  color: var(--color-text-secondary);
+  color: var(--color-text-caption);
   font-size: var(--font-size-xs);
 }
