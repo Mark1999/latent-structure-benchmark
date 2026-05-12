@@ -91,3 +91,25 @@ No CDA SME re-review is required (the failure is CSS token selection only). No U
 ---
 
 *LSB Reviewer agent (Sonnet), 2026-05-12. Only Mark can override a FAIL.*
+
+---
+
+## Re-review: PASS (post-fix) — 2026-05-12
+
+**Fix commit:** e801a76
+
+**Verification:**
+
+- Line 144 `.read-as-table__td--mono`: now `color: var(--color-text-caption)` — confirmed.
+- Line 193 `.read-as-table__shared-star`: now `color: var(--color-text-caption)` — confirmed.
+- Broader scan of T8 style and component files for `--color-text-secondary` + `font-size-xs` co-occurrence: two grep hits found, both non-issues — `tokens.css:110` is the token definition line (comment explicitly warns against 12px regular use), `DownloadBar.tsx:91` is a code comment documenting why the token is NOT used there. No live style rule violation.
+- `npm run test`: 1138/1138 passed (34 test files).
+- `npm run lint`: 0 errors.
+- `npm run build`: clean — 88.57 KB JS gzip, 5.25 KB CSS gzip. No regression from pre-fix build numbers.
+- All nine binding checks remain PASS or N/A as recorded in the original verdict above.
+
+**REVIEWER VERDICT: PASS**
+
+F1 resolved. No regressions. T8 may merge.
+
+*LSB Reviewer agent (Sonnet), 2026-05-12 re-review.*
