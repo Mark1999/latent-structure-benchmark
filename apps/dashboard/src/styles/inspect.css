@@ -1,0 +1,184 @@
+/*
+ * LSB Operator Inspection Page — layout and table styles.
+ *
+ * Uses design tokens from tokens.css only. No hardcoded colors, fonts, or spacing.
+ * UI/UX binding:
+ *   F-T0-B1: background uses --color-surface (the correct token per tokens.css line 115)
+ *   F-T0-B2: mono font uses --font-mono (the correct token per tokens.css line 55)
+ *
+ * Mobile posture: tables overflow horizontally — no special treatment.
+ * This is an operator surface; desktop-first per feedback_ui_polish_scope.md.
+ *
+ * Source: docs/status/2026-05-12-phase6-T0-architect-plan.md §2.2
+ */
+
+/* ── Root layout ───────────────────────────────────────────────────────────── */
+
+.inspect-root {
+  font-family: var(--font-body);
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  min-height: 100vh;
+}
+
+/* ── Header ────────────────────────────────────────────────────────────────── */
+
+.inspect-header {
+  background: var(--color-surface);
+  border-bottom: var(--border-width) solid var(--color-border);
+  padding: var(--space-4) var(--space-8);
+  position: sticky;
+  top: 0;
+  z-index: 10;
+  display: flex;
+  align-items: center;
+  gap: var(--space-8);
+  flex-wrap: wrap;
+}
+
+.inspect-header__title {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0;
+  line-height: var(--line-height-tight);
+}
+
+/* ── Navigation ─────────────────────────────────────────────────────────────── */
+
+.inspect-nav {
+  display: flex;
+  gap: var(--space-2);
+  flex-wrap: wrap;
+}
+
+.inspect-nav__link {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  padding: var(--space-1) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-background);
+  transition: background 0.1s ease;
+}
+
+.inspect-nav__link:hover {
+  background: var(--color-surface-hover);
+}
+
+.inspect-nav__link--active {
+  background: var(--color-surface);
+  font-weight: var(--font-weight-medium);
+  border-color: var(--color-text-secondary);
+}
+
+/* ── Main content ─────────────────────────────────────────────────────────── */
+
+.inspect-main {
+  padding: var(--space-6) var(--space-8);
+  max-width: 1400px;
+}
+
+/* ── Section ─────────────────────────────────────────────────────────────── */
+
+.inspect-section {
+  margin-bottom: var(--space-10);
+}
+
+.inspect-section__heading {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3) 0;
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+  line-height: var(--line-height-tight);
+}
+
+.inspect-section__description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  margin: 0 0 var(--space-3) 0;
+  line-height: var(--line-height-body);
+}
+
+/* ── Tables ──────────────────────────────────────────────────────────────── */
+
+.inspect-table {
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--font-size-sm);
+  line-height: var(--line-height-data);
+  margin-bottom: var(--space-4);
+  overflow-x: auto;
+  display: block;
+}
+
+.inspect-table caption {
+  caption-side: top;
+  text-align: left;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  margin-bottom: var(--space-1);
+  font-weight: var(--font-weight-medium);
+}
+
+.inspect-table th {
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  font-weight: var(--font-weight-medium);
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  white-space: nowrap;
+}
+
+.inspect-table td {
+  padding: var(--space-2) var(--space-3);
+  border: var(--border-width) solid var(--color-border);
+  vertical-align: top;
+  color: var(--color-text-primary);
+}
+
+.inspect-table tr:nth-child(even) td {
+  background: var(--color-surface);
+}
+
+/* ── Pre-formatted JSON blocks ──────────────────────────────────────────── */
+
+.inspect-pre {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  white-space: pre-wrap;
+  word-break: break-word;
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  margin: 0 0 var(--space-3) 0;
+  color: var(--color-text-primary);
+  overflow-x: auto;
+}
+
+/* ── Free-list and per-model block separators ────────────────────────────── */
+
+.inspect-freelist-block {
+  margin-bottom: var(--space-6);
+}
+
+/* ── Other top-level fields fallback ─────────────────────────────────────── */
+
+.inspect-other-field {
+  margin-bottom: var(--space-4);
+}
+
+/* Rendered as <p> (not h3) to respect H1→H2-only heading hierarchy */
+.inspect-other-field__key {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-1) 0;
+}

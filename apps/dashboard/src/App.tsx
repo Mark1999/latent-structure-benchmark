@@ -26,6 +26,8 @@ import type { Domain } from "./components/DomainPicker";
 import { KeyFinding } from "./components/KeyFinding";
 import { DataExplorer } from "./components/DataExplorer";
 import { MethodologySummary } from "./components/MethodologySummary";
+import { InspectRoot } from "./components/InspectRoot";
+import "./styles/inspect.css";
 
 type AppState = "loading" | "loaded" | "error";
 
@@ -38,6 +40,22 @@ function isEmbedMode(): boolean {
     return new URLSearchParams(window.location.search).get("embed") === "true";
   } catch {
     return false;
+  }
+}
+
+/**
+ * Detect operator inspection mode: ?inspect=<slug> renders InspectRoot.
+ * Returns the slug string when inspect mode is active, null otherwise.
+ * Empty slug (?inspect=) returns null (treated as no inspect mode).
+ * Source: Phase 6 T0 plan §2.1, §2.2.
+ */
+function isInspectMode(): string | null {
+  try {
+    const slug = new URLSearchParams(window.location.search).get("inspect");
+    if (slug === null || slug.trim() === "") return null;
+    return slug.trim();
+  } catch {
+    return null;
   }
 }
 
@@ -104,6 +122,7 @@ export default function App() {
   const [activeSlug, setActiveSlug] = useState<string>("family");
   const [domainResult, setDomainResult] = useState<DomainResultPublished | null>(null);
   const embedMode = isEmbedMode();
+  const inspectSlug = isInspectMode();
 
   // T10: read URL domain on mount and set activeSlug if a valid ?domain= param exists.
   // Runs once at mount — after this, DomainPicker onSelect drives the value.
@@ -173,6 +192,13 @@ export default function App() {
       cancelled = true;
     };
   }, [appState, activeSlug]);
+
+  // Inspect mode: render InspectRoot when ?inspect=<slug> is present.
+  // Suppress all reader-mode chrome. The InspectRoot manages its own data fetching.
+  // Source: Phase 6 T0 plan §2.1, §2.2.
+  if (inspectSlug !== null) {
+    return <InspectRoot mode={inspectSlug} manifest={manifest} />;
+  }
 
   // Embed mode: render only the DataExplorer per §12.5.
   // No Header, Footer, ArticleHeader, KeyFinding, MethodologySummary.
