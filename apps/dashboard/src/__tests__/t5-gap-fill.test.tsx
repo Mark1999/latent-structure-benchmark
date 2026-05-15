@@ -8,7 +8,7 @@
  *   - CDA SME §5.5 no methodology narration: no <details>, no <summary>,
  *     no info-icon button, no "we chose / we use / bootstrap / smoothing" prose
  *   - F-T5-A1 (BINDING): sr-only h2 is the FIRST child of root <div> (not just present)
- *   - F-T5-C1 (BINDING): HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73 in source (not 0.5, not 0.55)
+ *   - F-T6-C1 (BINDING): HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60 in source (T6 supersedes T5 0.73)
  *   - F-T5-C1 (BINDING): --color-heatmap-cell-text-dark: #000000 in tokens.css
  *   - F-T5-C1: plan-fallback 0.55 NOT present as executable code
  *   - SIMILARITY_NULL_VALUE = 0.5 in config/analysis.ts (no literal 0.5 in component)
@@ -531,7 +531,7 @@ describe("SimilarityHeatmap — F-T5-A1 sr-only h2 as first child (gap-fill)", (
 // GAP 5: Static-source checks (F-T5-C1 threshold + token + fallback absence)
 //
 // Source-file scans guard against regression:
-//   a. HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73 is the live constant
+//   a. HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60 is the live constant (T6 supersedes T5 0.73)
 //   b. --color-heatmap-cell-text-dark: #000000 in tokens.css
 //   c. 0.55 does NOT appear as an executable threshold in SimilarityHeatmap.tsx
 //   d. SIMILARITY_NULL_VALUE = 0.5 in config/analysis.ts (canonical location)
@@ -539,9 +539,10 @@ describe("SimilarityHeatmap — F-T5-A1 sr-only h2 as first child (gap-fill)", (
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("SimilarityHeatmap — F-T5-C1 static-source checks (gap-fill)", () => {
-  it("SimilarityHeatmap.tsx declares HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73", () => {
-    // The binding constant from UI/UX PASS-WITH-NOTES verdict F-T5-C1.
-    expect(SIMILARITY_HEATMAP_SRC).toContain("HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73");
+  it("SimilarityHeatmap.tsx declares HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60 (T6 supersedes T5 0.73)", () => {
+    // T6 F-T6-C1 BINDING: threshold changed from 0.73 (T5) to 0.60 (T6).
+    // See docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md F-T6-C1.
+    expect(SIMILARITY_HEATMAP_SRC).toContain("HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60");
   });
 
   it("tokens.css declares --color-heatmap-cell-text-dark: #000000 (F-T5-C1 new token)", () => {

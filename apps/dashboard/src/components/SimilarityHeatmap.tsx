@@ -1,10 +1,10 @@
 /**
- * SimilarityHeatmap — Phase 6 T5.
+ * SimilarityHeatmap — Phase 6 T5 / T6.
  *
  * Hand-rolled SVG heatmap showing pairwise cross-model similarity for the
- * currently selected models. Each cell encodes similarity as an alpha-blended
- * background, shows the numeric value, and provides a per-cell aria-label
- * with CI disclosure.
+ * currently selected models. Each cell encodes similarity via a 5-stop
+ * discrete sequential color scale, shows the numeric value, and provides a
+ * per-cell aria-label with CI disclosure.
  *
  * R10 compliance:
  *   - Visual: numeric similarity label on every cell (var(--font-mono),
@@ -14,9 +14,10 @@
  *     dashed border (§4.5 reduced-saturation substitution per plan §2.3).
  *
  * F-T5-A1 (BINDING): <h2 className="sr-only"> as first child of root <div>.
- * F-T5-C1 (BINDING): HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73; new token
- *   --color-heatmap-cell-text-dark used in dark-text arm. Plan §2.2 switch
- *   at 0.5 / fallback 0.55 NOT implemented (superseded by UI/UX verdict).
+ * F-T6-PALETTE (BINDING): HEATMAP_SEQ_STOPS — 5 discrete hex stops replacing
+ *   T5 alpha-blend. Bin boundaries [0,0.20,0.40,0.60,0.80,1.00].
+ * F-T6-C1 (BINDING): HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60 (T5 value 0.73
+ *   superseded). Dark text on stops 0–2; white text on stops 3–4.
  * F-T5-M1 (ADVISORY): CSS label-suppression targets <text> only; aria-label
  *   on <rect> cells remains in DOM unaffected at all viewport widths.
  *
@@ -40,7 +41,8 @@
  *   docs/status/2026-05-12-phase6-T5-architect-plan.md
  *   docs/status/2026-05-12-phase6-T5-cda-sme-verdict.md §5.1–§5.4
  *   docs/status/2026-05-12-phase6-T5-uiux-plan-verdict.md F-T5-A1, F-T5-C1, F-T5-M1
- *   DESIGN_SYSTEM.md §12.8 (v0.4.5)
+ *   docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md F-T6-PALETTE, F-T6-C1
+ *   DESIGN_SYSTEM.md §12.8 (v0.4.9)
  *   docs/status/2026-05-12-phase6-T8-architect-plan.md §2.3.3
  *   docs/status/2026-05-12-phase6-T8-cda-sme-verdict.md §4.3
  */
@@ -70,27 +72,35 @@ type SimilarityCiMatrix = Array<Array<[number, number] | null>>;
 // ── Constants ──────────────────────────────────────────────────────────────────
 
 /**
- * RGB components of --color-text-primary (#2c3e50).
- * Used to compute alpha-blended cell backgrounds.
- * Kept in sync with tokens.css via this comment naming the source token.
+ * Sequential color scale — heatmap stops (v0.4.9 — T6).
+ * See DESIGN_SYSTEM.md §1.2 sequential scale and §12.8 (F-T6-PALETTE BINDING).
+ * Five named stops from --color-scale-seq-0 (lightest) to --color-scale-seq-4 (darkest).
+ * Discrete binning: each similarity value maps to one stop via equal-width 0.20 bins.
  */
-const HEATMAP_BASE_RGB = "44, 62, 80"; // --color-text-primary
+const HEATMAP_SEQ_STOPS: readonly string[] = [
+  "#eaf0f8",  // --color-scale-seq-0  sim ∈ [0.00, 0.20)
+  "#b8cce4",  // --color-scale-seq-1  sim ∈ [0.20, 0.40)
+  "#6b9dc8",  // --color-scale-seq-2  sim ∈ [0.40, 0.60)
+  "#2e6da4",  // --color-scale-seq-3  sim ∈ [0.60, 0.80)
+  "#1a3a5c",  // --color-scale-seq-4  sim ∈ [0.80, 1.00]
+];
 
 /**
- * Contrast-switch threshold per DESIGN_SYSTEM.md §12.8 (F-T5-C1 BINDING).
- * Above this value: white text (var(--color-background), ≥4.5:1 at sim > 0.73).
- * At or below: black text (var(--color-heatmap-cell-text-dark), ≥4.66:1 at sim ≤ 0.73).
+ * Contrast-switch threshold per DESIGN_SYSTEM.md §12.8 (F-T6-C1 BINDING).
+ * At or above this value: white text (var(--color-background), ≥5.47:1 at stop 3/4).
+ * Below: black text (var(--color-heatmap-cell-text-dark), ≥7.27:1 at stop 0/1/2).
  *
- * The plan §2.2 switch at 0.5 and fallback at 0.55 are NOT implemented —
- * both fail WCAG AA 4.5:1 across the observed data range (holidays.json min ≈ 0.45).
- * See docs/status/2026-05-12-phase6-T5-uiux-plan-verdict.md §2 for full analysis.
+ * The T5 threshold of 0.73 is SUPERSEDED by T6 (2026-05-15).
+ * See docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md.
  */
-const HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73;
-// WCAG AA rationale:
-//   sim=0.51 → L≈0.356 → white text 2.59:1 FAIL
-//   sim=0.55 → L≈0.322 → white text 2.82:1 FAIL
-//   sim=0.73 → L≈0.183 → white text 4.50:1 PASS (threshold)
-//   sim=0.73 → L≈0.183 → black text 4.66:1 PASS (threshold)
+const HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60;
+// WCAG AA rationale (2026-05-15 UI/UX verdict — F-T6-C1 BINDING):
+// Discrete-binning model. Threshold is the [0.40,0.60)→[0.60,0.80) bin boundary.
+//   sim < 0.60 → stop 0/1/2 → dark text (#000000):
+//     stop 2 (darkest dark-text stop): dark text 7.27:1 PASS, white text 2.89:1 FAIL
+//   sim >= 0.60 → stop 3/4 → white text (#ffffff):
+//     stop 3 (lightest white-text stop): white text 5.47:1 PASS, dark text 3.84:1 FAIL
+// T5 threshold of 0.73 is SUPERSEDED. Do not use.
 
 // ── Layout constants ────────────────────────────────────────────────────────────
 
@@ -102,19 +112,21 @@ const SVG_PADDING = 8;        // px — outer SVG padding
 // ── Helpers ──────────────────────────────────────────────────────────────────────
 
 /**
- * Alpha-blended cell background using --color-text-primary RGB.
+ * Returns the hex fill for a heatmap cell via discrete binning into 5 stops.
+ * See DESIGN_SYSTEM.md §12.8 (F-T6-PALETTE BINDING).
  */
 function cellBackground(similarity: number): string {
-  return `rgba(${HEATMAP_BASE_RGB}, ${similarity})`;
+  const idx = Math.min(Math.floor(similarity / 0.20), 4);
+  return HEATMAP_SEQ_STOPS[idx];
 }
 
 /**
  * Returns white or black text fill per DESIGN_SYSTEM.md §12.8 contrast rule.
  */
 function cellTextFill(similarity: number): string {
-  return similarity > HEATMAP_TEXT_SWITCH_THRESHOLD
-    ? "var(--color-background)"             // white ≥4.5:1 at sim > 0.73
-    : "var(--color-heatmap-cell-text-dark)"; // black ≥4.66:1 at sim ≤ 0.73
+  return similarity >= HEATMAP_TEXT_SWITCH_THRESHOLD
+    ? "var(--color-background)"             // white ≥5.47:1 at sim >= 0.60 (stop 3/4)
+    : "var(--color-heatmap-cell-text-dark)"; // black ≥7.27:1 at sim < 0.60 (stop 0/1/2)
 }
 
 /**
