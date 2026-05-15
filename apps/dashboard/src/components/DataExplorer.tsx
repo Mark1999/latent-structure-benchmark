@@ -34,11 +34,16 @@
  *   - Passes onOpenCiteModal / onOpenEmbedModal callbacks to DownloadBar.
  *   - isEmbed prop controls embed-mode DownloadBar behavior (Permalink+Embed hidden).
  *
+ * T12 (Phase 6) additions:
+ *   - mobileSelectorOpen state + drawerTriggerRef for the bottom-drawer.
+ *   - MobileModelSelectorDrawer conditionally mounted at <768px.
+ *   - Focus restored to drawerTriggerRef on drawer close.
+ *
  * No child component (MDSPlot, ModelSelector, Legend) computes its own
  * model color from model_id — all receive modelColors as a prop per §12.4
  * palette ownership rule.
  *
- * Source: DESIGN_SYSTEM.md §3.1, §3.7 (v0.4.2), §12.4, §5
+ * Source: DESIGN_SYSTEM.md §3.1, §3.7 (v0.4.2), §12.4, §5, §8.2
  * Reference: docs/status/2026-05-09-phase5-architect-plan.md §4 T9 + T10 + T12
  */
 
@@ -55,6 +60,13 @@ import { DownloadBar } from "./DownloadBar";
 import { CiteModal } from "./CiteModal";
 import { EmbedModal } from "./EmbedModal";
 import { encodePermalink, decodePermalink } from "../lib/permalink";
+import { MobileModelSelectorDrawer } from "./MobileModelSelectorDrawer";
+import {
+  MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED,
+  MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN,
+  MOBILE_MODEL_DRAWER_TRIGGER_TEXT,
+} from "../copy/mobile_model_drawer";
+import "../styles/mobile-model-drawer.css";
 
 // ── Props ─────────────────────────────────────────────────────────────────────
 
@@ -176,6 +188,10 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
   const citeTriggerRef = useRef<HTMLButtonElement>(null);
   const embedTriggerRef = useRef<HTMLButtonElement>(null);
 
+  // T12 (Phase 6): mobile model selector drawer state + trigger ref.
+  const [mobileSelectorOpen, setMobileSelectorOpen] = useState(false);
+  const drawerTriggerRef = useRef<HTMLButtonElement>(null);
+
   /**
    * Reset selectedModels to first-6 sorted whenever the domain changes.
    * §3.7 v0.4.2 initial-state binding: first 6 model_ids by §12.4 sort.
@@ -209,6 +225,15 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
   useEffect(() => {
     writePermalinkState(domainResult.domain_slug, selectedModels, activeVizTab);
   }, [domainResult.domain_slug, selectedModels, activeVizTab]);
+
+  // Restore focus to the drawer trigger when the drawer closes (any close path).
+  const prevDrawerOpenRef = useRef(mobileSelectorOpen);
+  useEffect(() => {
+    if (prevDrawerOpenRef.current === true && mobileSelectorOpen === false) {
+      drawerTriggerRef.current?.focus();
+    }
+    prevDrawerOpenRef.current = mobileSelectorOpen;
+  }, [mobileSelectorOpen]);
 
   /**
    * Handle VizSwitcher tab activation. Phase 5: only "mds" is activatable.
@@ -278,15 +303,49 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
           )}
         </div>
         <div className="explorer-layout__selector">
-          {/* ModelSelector receives modelColors from DataExplorer — §12.4. */}
+          {/* ModelSelector receives modelColors from DataExplorer — §12.4.
+              Hidden at <768px via CSS; drawer trigger shown instead. */}
           <ModelSelector
             domainResult={domainResult}
             selectedModels={selectedModels}
             onSelectionChange={setSelectedModels}
             modelColors={modelColors}
           />
+          {/* Mobile drawer trigger — visible at <768px only, hidden at ≥768px via CSS. */}
+          <button
+            ref={drawerTriggerRef}
+            type="button"
+            className="explorer-layout__mobile-selector-trigger"
+            aria-label={
+              mobileSelectorOpen
+                ? MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN
+                : MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED
+            }
+            aria-expanded={mobileSelectorOpen}
+            aria-controls="mobile-model-drawer-panel"
+            aria-haspopup="dialog"
+            onClick={() => setMobileSelectorOpen((prev) => !prev)}
+          >
+            {MOBILE_MODEL_DRAWER_TRIGGER_TEXT(selectedModels.length)}
+          </button>
         </div>
       </div>
+
+      {/* Mobile model selector drawer — conditionally mounted, inline (not portal).
+          §8.2.12: position: fixed escapes stacking context without portal. */}
+      {mobileSelectorOpen && (
+        <MobileModelSelectorDrawer
+          id="mobile-model-drawer-panel"
+          onClose={() => setMobileSelectorOpen(false)}
+        >
+          <ModelSelector
+            domainResult={domainResult}
+            selectedModels={selectedModels}
+            onSelectionChange={setSelectedModels}
+            modelColors={modelColors}
+          />
+        </MobileModelSelectorDrawer>
+      )}
 
       {/* SourceAttribution: source line below the chart per §5 (T10).
           Shows selected model list, domain, prompt v1, analysis version,

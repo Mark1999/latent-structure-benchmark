@@ -681,13 +681,54 @@ a:focus-visible {
 @media (max-width: 768px) {
   .explorer-layout {
     grid-template-columns: 1fr;
-    grid-template-areas:
-      "viz"
-      "selector";
   }
 
   .explorer-layout__selector {
-    width: 100%;
+    width: auto;
+  }
+
+  .explorer-layout__selector .model-selector {
+    display: none;
+  }
+}
+
+.explorer-layout__mobile-selector-trigger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.explorer-layout__mobile-selector-trigger:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+}
+
+.explorer-layout__mobile-selector-trigger:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-md);
+}
+
+.explorer-layout__mobile-selector-trigger:active {
+  background: var(--color-surface);
+}
+
+@media (max-width: 768px) {
+  .explorer-layout__mobile-selector-trigger {
+    display: flex;
   }
 }
 
