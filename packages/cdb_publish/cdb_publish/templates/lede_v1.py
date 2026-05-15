@@ -64,7 +64,7 @@ PATTERNS: dict[str, str] = {
         " (Smith's S = {s}, 95% CI [{lo}, {hi}])."
         " {n_low_oci} of these {n} models produced low output concentration"
         " on this domain -- their position on the map is shown without a"
-        " confidence ellipse, signalling that the runs did not converge on a"
+        " confidence ellipse, signaling that the runs did not converge on a"
         " single sort."
     ),
 

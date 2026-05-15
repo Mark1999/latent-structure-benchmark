@@ -1,1 +1,5 @@
-# Phase 1 deliverable
+slug: food
+version: v1
+display_name: Food
+prompt_seed: "type of food or dish"
+truncation_k: 50

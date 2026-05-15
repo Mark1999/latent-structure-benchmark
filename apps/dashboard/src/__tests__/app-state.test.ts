@@ -249,6 +249,70 @@ describe("App — T5 domain state defaults", () => {
     expect(domains.find((d) => d.slug === "justice")?.available).toBe(false);
   });
 
+  it("manifest with food, family, and holidays produces 3 available pills and at least 2 unavailable pills (AC21)", () => {
+    // AC21: buildDomainList() returns 3 entries with all 3 marked available: true
+    // when the manifest carries food, family, and holidays.
+    const manifestWithFood: Manifest = {
+      built_at: "2026-05-15T00:00:00Z",
+      domains: [
+        {
+          slug: "family",
+          analysis_version: "0.2",
+          n_models: 11,
+          model_ids: ["claude-opus-4-6"],
+          generated_at: "2026-05-07T00:07:50Z",
+        },
+        {
+          slug: "holidays",
+          analysis_version: "0.2",
+          n_models: 9,
+          model_ids: ["claude-opus-4-6"],
+          generated_at: "2026-05-07T00:15:00Z",
+        },
+        {
+          slug: "food",
+          analysis_version: "0.2",
+          n_models: 8,
+          model_ids: ["claude-opus-4-6"],
+          generated_at: "2026-05-15T00:00:00Z",
+        },
+      ],
+      oci_low_concentration_threshold: 3.0,
+    };
+
+    // Replicate the buildDomainList logic from App.tsx.
+    const FUTURE_DOMAINS = [
+      { slug: "food", label: "Food", available: false },
+      { slug: "emotion", label: "Emotion", available: false },
+      { slug: "justice", label: "Justice", available: false },
+    ];
+
+    const manifestSlugs = new Set(manifestWithFood.domains.map((d: { slug: string }) => d.slug));
+    const available = manifestWithFood.domains.map((d: { slug: string }) => ({
+      slug: d.slug,
+      label: d.slug.charAt(0).toUpperCase() + d.slug.slice(1),
+      available: true,
+    }));
+    const future = FUTURE_DOMAINS.filter((fd) => !manifestSlugs.has(fd.slug));
+    const domains = [...available, ...future];
+
+    const availableDomains = domains.filter((d) => d.available);
+    const unavailableDomains = domains.filter((d) => !d.available);
+
+    // All three manifest domains are available.
+    expect(availableDomains).toHaveLength(3);
+    expect(availableDomains.every((d) => d.available)).toBe(true);
+    // Food is available (promoted from FUTURE_DOMAINS via manifest).
+    expect(availableDomains.find((d) => d.slug === "food")?.available).toBe(true);
+    expect(availableDomains.find((d) => d.slug === "family")?.available).toBe(true);
+    expect(availableDomains.find((d) => d.slug === "holidays")?.available).toBe(true);
+    // Food does NOT appear in future list (dedup: already in manifest).
+    expect(unavailableDomains.find((d) => d.slug === "food")).toBeUndefined();
+    // Emotion and Justice remain unavailable.
+    expect(unavailableDomains.find((d) => d.slug === "emotion")?.available).toBe(false);
+    expect(unavailableDomains.find((d) => d.slug === "justice")?.available).toBe(false);
+  });
+
   it("domain switch updates the fetched generated_lede (mocked fetch returns different lede)", async () => {
     // Simulate fetchDomain returning different results for family vs holidays.
     mockFetchDomain

@@ -313,6 +313,100 @@ describe("DomainPicker — aria-label content", () => {
   });
 });
 
+// ── AC22: 3-pill scenario (family + holidays + food all available) ────────────
+//
+// These tests cover the T13 acceptance criterion: when food becomes an available
+// domain (promoted from FUTURE_DOMAINS via manifest), DomainPicker renders 3
+// active pills and ArrowRight cycles correctly through all three with wrap-around.
+// AC22 focus: pill 2 (index 2) → ArrowRight → pill 0 (wrap-around).
+
+const THREE_ACTIVE_DOMAINS: Domain[] = [
+  { slug: "family", label: "Family", available: true },
+  { slug: "holidays", label: "Holidays", available: true },
+  { slug: "food", label: "Food", available: true },
+];
+
+describe("DomainPicker — 3-pill scenario (AC22: food domain active)", () => {
+  it("renders exactly 3 pills when all three domains are available", () => {
+    renderPicker({ domains: THREE_ACTIVE_DOMAINS, activeSlug: "family", onSelect: vi.fn() });
+    const pills = getPills();
+    expect(pills.length).toBe(3);
+  });
+
+  it("food pill is available (aria-disabled is not 'true') when all three are active", () => {
+    renderPicker({ domains: THREE_ACTIVE_DOMAINS, activeSlug: "family", onSelect: vi.fn() });
+    const pills = getPills();
+    const foodPill = Array.from(pills).find((p) => p.textContent === "Food")!;
+    expect(foodPill).toBeDefined();
+    expect(foodPill.getAttribute("aria-disabled")).not.toBe("true");
+  });
+
+  it("clicking the food pill calls onSelect('food') when food is available", () => {
+    const onSelect = vi.fn();
+    renderPicker({ domains: THREE_ACTIVE_DOMAINS, activeSlug: "family", onSelect });
+    const pills = getPills();
+    const foodPill = Array.from(pills).find((p) => p.textContent === "Food")!;
+
+    act(() => {
+      foodPill.click();
+    });
+
+    expect(onSelect).toHaveBeenCalledOnce();
+    expect(onSelect).toHaveBeenCalledWith("food");
+  });
+
+  it("ArrowRight from pill 2 (index 2) wraps to pill 0 — 3-pill cycle (AC22)", () => {
+    // Confirms (2 + 1 + 3) % 3 = 0: wrap-around with N=3.
+    renderPicker({ domains: THREE_ACTIVE_DOMAINS, activeSlug: "family", onSelect: vi.fn() });
+    const pills = getPills();
+    expect(pills.length).toBe(3);
+    const thirdPill = pills[2];  // "Food" at index 2
+    const firstPill = pills[0];  // "Family" at index 0
+
+    act(() => {
+      thirdPill.focus();
+      thirdPill.dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+      );
+    });
+
+    expect(document.activeElement).toBe(firstPill);
+  });
+
+  it("ArrowRight cycles through all 3 pills: 0→1→2→0 wrap-around (AC22 full cycle)", () => {
+    renderPicker({ domains: THREE_ACTIVE_DOMAINS, activeSlug: "family", onSelect: vi.fn() });
+    const pills = getPills();
+    expect(pills.length).toBe(3);
+
+    // Start at index 0; move to 1.
+    act(() => {
+      pills[0].focus();
+      pills[0].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+      );
+    });
+    expect(document.activeElement).toBe(pills[1]);
+
+    // From index 1; move to 2.
+    act(() => {
+      pills[1].focus();
+      pills[1].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+      );
+    });
+    expect(document.activeElement).toBe(pills[2]);
+
+    // From index 2; wrap to 0.
+    act(() => {
+      pills[2].focus();
+      pills[2].dispatchEvent(
+        new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true })
+      );
+    });
+    expect(document.activeElement).toBe(pills[0]);
+  });
+});
+
 describe("DomainPicker — tablist role", () => {
   it("container has role='tablist'", () => {
     renderPicker({ domains: DOMAINS, activeSlug: "family", onSelect: vi.fn() });
