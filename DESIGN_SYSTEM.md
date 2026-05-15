@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.7  
+**Version:** v0.4.8  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4.8** (T12 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.2 (Mobile bottom-drawer for ModelSelector — full specification). Adds `MobileModelSelectorDrawer.tsx`, `apps/dashboard/src/copy/mobile_model_drawer.ts`, and `apps/dashboard/src/styles/mobile-model-drawer.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap (mirroring §8.1.1); half-sheet panel from bottom (max-height: 75vh, position: fixed bottom edge); semi-opaque backdrop scrim above panel; close button inside panel receives initial focus; live-update selection semantics (no Apply button); Esc + scrim-tap + close-button dismissal; scroll lock on open (body overflow hidden — key divergence from §8.1); inline DOM mount inside DataExplorer.tsx (position: fixed escapes stacking context); z-index: 200 (matching §8.1.14 hamburger, both surfaces cannot co-render at <768px); slide-up transition 200ms ease-out, gated by prefers-reduced-motion (instant when reduced-motion set); trigger button styling 48×48 px touch target, full-width at <768px; min-height: 44px on .model-selector__row inside drawer; stacked-below app.css rule superseded; confirmed a11y strings verbatim; no visible heading inside drawer (aria-label on dialog panel only); no Apply button (live update); no swipe gesture; no drag handle. No new tokens.
 - **v0.4.7** (T11 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.0 (general mobile behavior, retaining existing bullets) and §8.1 (Mobile hamburger menu — full specification). Adds `MobileNav.tsx`, `Header.tsx` (T11 update), `apps/dashboard/src/copy/mobile_nav.ts`, and `apps/dashboard/src/styles/mobile-nav.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap; three-line hamburger glyph (inline SVG, 20×16 viewBox, 2px stroke, 6px center-to-center gap); no glyph-to-X transform (single close button inside panel, initial focus lands there); full-screen overlay panel from top; instant open/close (no transition, `prefers-reduced-motion` trivially satisfied); no backdrop scrim (full-bleed panel); trigger button styling (tokens only); open-panel link styling (tokens only); 48×48 px touch targets; trigger hidden when panel open; no visible heading inside panel (aria-label only); confirmed a11y strings verbatim; no scroll lock; inline mount inside Header.tsx (not a portal). No new tokens.
 - **v0.4.6** (T8 plan-level UI/UX verdict, 2026-05-12) closes §12.6 Phase-5 "Read as table" deferral. T8 implements the §7 binding for MDS, FreeList, and Similarity. Adds §12.9 (ReadAsTableToggle + ScreenReaderSummary visual specification): `aria-controls` DOM-presence requirement (U1), pressed-state non-text contrast (U2 — `border: 2px solid var(--color-info)`, ~7.3:1 on white, WCAG 1.4.11 PASS), and `.sr-only` reuse. No new tokens.
 - **v0.4.5** (T5 plan-level UI/UX verdict, 2026-05-12) adds §12.8 (SimilarityHeatmap cell-text contrast specification) and introduces one component-scoped token `--color-heatmap-cell-text-dark: #000000`. The T5 plan's §2.2 binary text-color switch at similarity = 0.5 (fallback 0.55) fails WCAG AA 4.5:1 across the observed data range in both shipped domains. §12.8 specifies the corrected switch threshold of 0.73 and the `HEATMAP_TEXT_SWITCH_THRESHOLD` constant. The plan's "raise to 0.55" fallback is superseded.
@@ -905,6 +906,505 @@ Note: `role="dialog"` overrides any native element semantics. The inner `<nav>` 
 
 ---
 
+### 8.2 Mobile bottom-drawer for ModelSelector (v0.4.8 — T12, 2026-05-15)
+
+**Breakpoint:** `max-width: 768px`. The drawer trigger is visible and the inline `ModelSelector` is hidden at `<768px`. At `≥768px`, the inline `ModelSelector` is visible and the drawer trigger is hidden. The breakpoint value must be byte-identical on both rules to prevent dead-zone rendering. This supersedes the T13 stacked-below rule at `app.css:681–692` — see §8.2.10.
+
+---
+
+#### 8.2.1 ARIA pattern — dialog with focus trap
+
+The drawer panel uses the **dialog pattern**: `role="dialog"`, `aria-modal="true"`, `aria-label={MOBILE_MODEL_DRAWER_PANEL_LABEL}` (no visible heading; see §8.2.10). The trigger button carries `aria-expanded={boolean}` (reflecting drawer open/close state), `aria-controls="mobile-model-drawer-panel"`, `aria-haspopup="dialog"`.
+
+**Rationale:** the drawer overlays the page content below it and uses a semi-opaque backdrop scrim, making modal semantics correct. The `getFocusableElements` helper from `MobileNav.tsx` (or extracted to a shared module) is the reuse pattern. The Architect plan §2.4 lean (close button as initial focus, dialog pattern) is confirmed.
+
+**Focus behavior:**
+
+| Event | Required behavior |
+|---|---|
+| Drawer opens | Initial focus moves to the close button inside the drawer. |
+| Tab | Cycles forward through focusable elements inside the drawer only. Does not escape to page content while drawer is open. |
+| Shift+Tab | Cycles backward within the drawer only. |
+| Esc | Closes the drawer; focus returns to the drawer trigger button. |
+| Scrim / outside-tap | Closes the drawer; focus returns to the drawer trigger button. |
+| Close button activated | Closes the drawer; focus returns to the drawer trigger button. |
+| Drawer closes (any path) | Focus restored to the drawer trigger via parent's `useEffect` (`prevDrawerOpen` ref posture per Architect plan §2.3 sketch). |
+
+**Focus trap implementation:** reuse `getFocusableElements` from `MobileNav.tsx` (or extract to `apps/dashboard/src/lib/focus-trap.ts` per plan §5's optional extraction, which is the preferred path if the Coder takes it). The drawer's focusable set is: close button (1) + all enabled checkbox rows (up to 11) + "Select all" button (1) + "Clear all" button (1) = up to 14 focusable elements. Tab from the last element ("Clear all") wraps to the close button; Shift+Tab from the close button wraps to "Clear all".
+
+**WCAG 2.1.2 compliance:** Esc and the close button are both always-available escape paths. The scrim tap is an additional dismissal path. The focus trap does not prevent Esc from closing.
+
+---
+
+#### 8.2.2 Drawer direction and shape — half-sheet from bottom
+
+The drawer panel renders as a **bottom-anchored half-sheet**: `position: fixed; bottom: 0; left: 0; right: 0; max-height: 75vh`. It rises from the bottom edge upward. It is not full-screen (contrast with §8.1.4 which is full-screen from top). It is not a side drawer.
+
+**Rationale:** the ModelSelector list can contain up to 11 model rows plus origin-group dividers, max-6 warning, "Select all", and "Clear all" — this content can exceed a short mobile viewport but does not need full-screen to be usable. A 75vh cap gives the list room to scroll internally on tall phones and does not completely bury the page context on short phones (a narrow strip of scrimmed page content remains visible above the drawer, reinforcing the modal-overlay relationship). Full-screen was considered but rejected: for a single control panel, full-screen increases perceived cognitive overhead for what is a brief interaction (select a few models, close). Half-sheet is lighter and matches the "scientific instrument" posture better than a full-coverage take-over for a filter panel.
+
+**No snap points.** The drawer is a static `max-height: 75vh` — not draggable, not resizable, no peek state. Snap points require touch event listeners and either new dependencies or substantial custom code; both are out of scope for Phase 6 per the plan §5 out-of-scope list.
+
+**No drag handle.** A drag handle implies draggable snap behavior. Not present.
+
+**Internal scroll:** the drawer content area (`mobile-model-drawer__body`) is `overflow-y: auto` so the model list scrolls inside the drawer without pushing content out the top or spilling to the page.
+
+**Panel width:** full viewport width (`left: 0; right: 0`). No horizontal margin at `<768px`.
+
+**Top border-radius:** `border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0` (12px on top-left and top-right corners only; square at bottom since the drawer is flush to the viewport bottom edge).
+
+---
+
+#### 8.2.3 Backdrop scrim — semi-opaque overlay above the page
+
+A semi-opaque backdrop scrim is placed between the page content and the drawer panel. The scrim element is `aria-hidden="true"` (it is a presentational overlay, not an interactive control for AT users — the Esc key and the close button serve keyboard and screen-reader users; the scrim serves sighted touch users).
+
+**Scrim specification:**
+
+```css
+.mobile-model-drawer__scrim {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 199;                          /* one below the drawer panel at z-index 200 */
+  background: rgba(0, 0, 0, 0.45);
+}
+```
+
+**Scrim interaction:** a `pointerdown` event on the scrim (outside the drawer panel) calls `onClose`. This provides touch-dismissal without an `onClick` on the `document` body. The scrim element sits below the drawer in z-order (z-index: 199 vs. z-index: 200 on the panel), so clicks/taps that land on the visible drawer panel do not reach the scrim.
+
+**Rationale for `rgba(0,0,0,0.45)`:** this opacity is sufficient to visually recede the page content and signal the modal state without making it fully invisible. The scrim itself carries no WCAG contrast requirement (it is `aria-hidden`, non-interactive). The 45% opacity is the minimum that reads clearly as a page overlay on both light and dark ambient page content.
+
+**Contrast of text above scrim:** the scrim does not cover the drawer panel; it covers only the page content behind the drawer. Text inside the drawer panel sits on `--color-background` (#ffffff) and is unaffected by the scrim.
+
+---
+
+#### 8.2.4 Transition — 200ms slide-up, gated by prefers-reduced-motion
+
+The drawer panel slides up from the bottom edge of the viewport on open, and is dismissed instantly (no slide-down animation) on close. This asymmetric animation (animate in, instant out) follows a common mobile-sheet pattern and avoids the user waiting for a close animation before regaining page access.
+
+**Open transition:**
+
+```css
+.mobile-model-drawer__panel {
+  transform: translateY(100%);
+}
+
+.mobile-model-drawer__panel--open {
+  transform: translateY(0);
+  transition: transform 200ms ease-out;
+}
+```
+
+**Implementation note for Coder:** the slide-up is triggered by adding the `--open` modifier class immediately after mount (one `requestAnimationFrame` delay to allow the browser to paint the initial `translateY(100%)` state before transitioning). OR — simpler and equally correct — the component conditionally mounts only when `mobileSelectorOpen === true` (per the Architect plan §2.3 sketch), so the `--open` class can be applied at mount via a `useEffect` with a 0ms timeout or via a CSS animation keyframe.
+
+**Scrim:** the scrim appears instantly at mount (no fade-in). Phase 6 minimum-viable posture.
+
+**`prefers-reduced-motion: reduce` handling (mandatory CSS block, belt-and-suspenders):**
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .mobile-model-drawer__panel {
+    transition: none;
+    animation: none;
+  }
+}
+```
+
+This block is required in `mobile-model-drawer.css` even if a different approach is used, as a forward-safety guard. When `prefers-reduced-motion: reduce` is set, the drawer appears instantly with no transform animation.
+
+**Rationale for slide-up:** the §0 "no decorative animation" rule prohibits hover sparkles, parallax, and looping animations. A one-shot 200ms entry transition on a bottom-sheet is standard affordance signaling — it communicates that the panel came from the bottom edge and can be dismissed via the bottom direction. It is not decorative. The OWID design language does not prohibit purposeful motion affordances; it prohibits motion as decoration. This is the one animation T12 introduces; it is gated by `prefers-reduced-motion`.
+
+---
+
+#### 8.2.5 Drawer trigger button styling
+
+The trigger button is displayed inside `.explorer-layout__selector` at `<768px`, replacing the inline `ModelSelector` visually (the inline `ModelSelector` is `display: none` at `<768px`; the trigger is `display: flex` at `<768px`).
+
+**Token-only CSS:**
+
+```css
+.explorer-layout__mobile-selector-trigger {
+  display: none;                          /* hidden on desktop */
+  align-items: center;
+  justify-content: center;
+  width: 100%;
+  min-height: 48px;
+  padding: var(--space-2) var(--space-4);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  text-align: center;
+  gap: var(--space-2);
+}
+
+.explorer-layout__mobile-selector-trigger:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-border);
+}
+
+.explorer-layout__mobile-selector-trigger:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-md);
+}
+
+.explorer-layout__mobile-selector-trigger:active {
+  background: var(--color-surface);
+}
+
+@media (max-width: 768px) {
+  .explorer-layout__mobile-selector-trigger {
+    display: flex;
+  }
+}
+```
+
+**Touch target:** the trigger is full-width at `<768px` with `min-height: 48px`. Touch-target height is 48px, meeting the WCAG 2.5.5 44px floor and mirroring the §8.1.8 posture.
+
+**No glyph.** The trigger renders visible text only (the parameterized `MOBILE_MODEL_DRAWER_TRIGGER_TEXT(n)` string). No icon or glyph is added. Rationale: a model-selector affordance does not have a universally recognized icon; text is more legible than a guessable glyph. The "scientific instrument" posture prefers plain labeled controls over icon-guessing.
+
+**Contrast verification:** `--color-text-primary` (#2c3e50) on `--color-surface` (#f8f9fa) ≈ 11.8:1 (WCAG 1.4.3 4.5:1 PASS). `--color-border` (#dde1e7) on `--color-background` (#ffffff) for the border is a non-text element; the border's contrast against the surrounding background (#f8f9fa surface on #ffffff page) is minimal but the border is a decorative separator, not an informational indicator on its own — the button's accessible name and role are provided via ARIA. `--color-info` (#3360a9) focus ring on white ≈ 7.3:1 (WCAG 1.4.11 3:1 PASS).
+
+---
+
+#### 8.2.6 Trigger button states
+
+| State | CSS behavior |
+|---|---|
+| Rest | `background: var(--color-surface)`; `border: 1px solid var(--color-border)` |
+| Hover | `background: var(--color-surface-hover)` |
+| Focus-visible | `outline: 2px solid var(--color-info); outline-offset: 2px` |
+| Active (pressed) | `background: var(--color-surface)` (same as rest; no additional treatment) |
+| Trigger when drawer open | The trigger remains visible (it is NOT hidden when the drawer is open — contrast with §8.1.9 which hides the hamburger). Rationale: the drawer is a half-sheet, not full-screen; the trigger above the drawer tells the user where to look. The `aria-expanded="true"` on the trigger communicates the open state to screen readers. |
+
+**Trigger visibility when drawer open:** the trigger button remains visible at `<768px` regardless of drawer state. The trigger text updates to reflect the current selection count (via `MOBILE_MODEL_DRAWER_TRIGGER_TEXT(n)`); `aria-expanded` reflects state; `aria-label` updates via `MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED` / `MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN`.
+
+**Trigger toggle (binding M1):** the trigger's `onClick` is `() => setMobileSelectorOpen(prev => !prev)` — toggle, NOT open-only. Tapping the trigger when the drawer is open closes the drawer. This is required because the trigger remains visible when the drawer is open; a visible-but-noop trigger would be a WCAG 2.4.3 / cognitive confusion risk.
+
+---
+
+#### 8.2.7 Open-drawer panel styling
+
+The drawer panel (`role="dialog"`) contains: a header row (close button, no visible heading), a scrollable body (the `<ModelSelector>` component), and no footer (live-update semantics; no Apply button).
+
+**Panel CSS:**
+
+```css
+.mobile-model-drawer__panel {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  max-height: 75vh;
+  z-index: 200;
+  background: var(--color-background);
+  border-radius: var(--border-radius-lg) var(--border-radius-lg) 0 0;
+  border-top: var(--border-width) solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.mobile-model-drawer__header {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  padding: var(--space-2) var(--space-4);
+  border-bottom: var(--border-width) solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.mobile-model-drawer__close {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.mobile-model-drawer__close:hover {
+  background: var(--color-surface-hover);
+}
+
+.mobile-model-drawer__close:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.mobile-model-drawer__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-4);
+  -webkit-overflow-scrolling: touch;
+}
+```
+
+**Close button glyph:** the close button renders `×` (U+00D7) as a text node inside a `<span aria-hidden="true">`, identical to `.mobile-nav__close` per §8.1. The button's accessible name comes from its `aria-label` attribute.
+
+**Close button position:** top-right corner of the drawer header (`justify-content: flex-end` on `.mobile-model-drawer__header`). This mirrors the §8.1 close-button-at-top convention.
+
+**No visible heading inside the drawer.** The panel's accessible name is provided solely by `aria-label={MOBILE_MODEL_DRAWER_PANEL_LABEL}` on the `role="dialog"` element. The `<ModelSelector>` component already renders an inner `<h3 class="model-selector__heading">Models</h3>` at line 147 — this heading remains visible inside the drawer without modification. The dialog's `aria-label` overrides any `aria-labelledby` fallback for the dialog role itself.
+
+**No Apply/Done button.** Selection is live-update: each checkbox toggle inside the drawer immediately calls `onSelectionChange` in `DataExplorer`, updating `selectedModels` state. The drawer is a presentational envelope, not a transaction. This matches the existing desktop behavior. No commit step is introduced.
+
+**Panel event propagation (binding M2):** the drawer panel element MUST add `onPointerDown={(e) => e.stopPropagation()}` to prevent `pointerdown` events from bubbling up to the scrim's `onPointerDown={onClose}` handler. Without this, a tap anywhere inside the drawer panel propagates through React's synthetic event system and may dismiss the drawer.
+
+**Contrast:** `--color-text-primary` (#2c3e50) on `--color-background` (#ffffff) ≈ 12.6:1 (WCAG 1.4.3 PASS). `--color-info` (#3360a9) focus ring on white ≈ 7.3:1 (WCAG 1.4.11 PASS).
+
+---
+
+#### 8.2.8 Touch target size — 44px floor for rows, 48px for close button (binding M3)
+
+- **Drawer trigger button:** `min-height: 48px`, full-width. Above the 44px WCAG 2.5.5 floor.
+- **Close button inside drawer:** 48×48 px (explicit `width` and `height` on `.mobile-model-drawer__close`). Mirrors §8.1.8.
+- **`.model-selector__row` inside the open drawer:** `min-height: 44px` rule scoped to `.mobile-model-drawer__body .model-selector__row`. The current `.model-selector__row` uses `padding: var(--space-2) var(--space-2)` (8px top + 8px bottom = 16px padding) — insufficient to guarantee a 44px touch target on short content. The scoped override ensures each row meets the WCAG 2.5.5 minimum without modifying the desktop row styling.
+- **"Select all" and "Clear all" buttons:** these are small action buttons inside `.model-selector__actions`. They do not reach 44px individually. Apply `min-height: 44px; padding: var(--space-2) var(--space-3)` scoped to `.mobile-model-drawer__body .model-selector__actions` and `.mobile-model-drawer__body .model-selector__action-link` to ensure WCAG 2.5.5 compliance inside the drawer.
+
+**All scoped touch-target rules live in `mobile-model-drawer.css`**, not in `app.css`. This keeps desktop row sizing unchanged and scopes the mobile override precisely.
+
+```css
+/* Touch-target floor for rows inside the open drawer — WCAG 2.5.5 */
+.mobile-model-drawer__body .model-selector__row {
+  min-height: 44px;
+}
+
+/* Touch-target floor for action buttons inside the open drawer — WCAG 2.5.5 */
+.mobile-model-drawer__body .model-selector__actions {
+  margin-top: var(--space-4);
+}
+
+.mobile-model-drawer__body .model-selector__action-link {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
+  padding: var(--space-2) var(--space-3);
+}
+```
+
+---
+
+#### 8.2.9 Trigger visibility when drawer open
+
+The trigger button remains visible when the drawer is open (contrast with §8.1.9's hamburger which hides). The drawer is a partial-height sheet; the trigger sitting above the scrim visually anchors what opened the drawer. `aria-expanded="true"` on the trigger communicates the open state to screen readers.
+
+The trigger's `aria-label` updates when the drawer opens: `MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN` ("Close model selector") surfaces on the trigger when `mobileSelectorOpen === true`. Tapping the trigger while the drawer is open closes the drawer (toggle behavior per M1; the trigger's `onClick` toggles `mobileSelectorOpen`).
+
+---
+
+#### 8.2.10 Stacked-below CSS rule supersession
+
+The existing `app.css:681–692` rule:
+
+```css
+@media (max-width: 768px) {
+  .explorer-layout {
+    grid-template-columns: 1fr;
+    grid-template-areas:
+      "viz"
+      "selector";
+  }
+  .explorer-layout__selector {
+    width: 100%;
+  }
+}
+```
+
+Is **replaced** by T12. The Coder applies this replacement approach:
+
+1. **Retain the single-column grid collapse** (`grid-template-columns: 1fr`) so the viz area is full-width at `<768px`.
+2. **Remove `grid-template-areas`** — with only the trigger visible in the selector slot, stacking order is implicit from DOM order.
+3. **Replace `width: 100%` on `.explorer-layout__selector`** with `width: auto` (the trigger is `width: 100%` via its own class rule).
+4. **Hide the inline ModelSelector** at `<768px` by adding `.explorer-layout__selector .model-selector { display: none; }` in the `@media (max-width: 768px)` block. The `<ModelSelector>` remains in the DOM at `<768px` (desktop-fallback rendering posture) but is visually hidden; only the trigger button is visible.
+
+The post-T12 `@media (max-width: 768px)` block in `app.css` replaces the old rule exactly; the Reviewer confirms no residual `grid-template-areas: "viz" "selector"` remains.
+
+---
+
+#### 8.2.11 Scroll lock — mandatory (key divergence from §8.1)
+
+T12 introduces body scroll lock. This is the single substantive divergence from §8.1.13 (which specifies no scroll lock for the hamburger menu).
+
+**Rationale:** the ModelSelector list can exceed mobile viewport height; the drawer scrolls internally; touch-scroll gestures inside the drawer must not bleed to the underlying page body.
+
+**Implementation pattern (binding):**
+
+```tsx
+useEffect(() => {
+  const prevOverflow = document.body.style.overflow;
+  document.body.style.overflow = 'hidden';
+  return () => {
+    document.body.style.overflow = prevOverflow;
+  };
+}, []);
+```
+
+The `useEffect` runs on mount (when `mobileSelectorOpen === true` triggers mounting of `MobileModelSelectorDrawer`). The cleanup function runs on unmount (when the drawer closes via any path: Esc, scrim-tap, close button, or parent re-render / route change). The prior overflow value is captured in the closure before mutation and restored from the closure on cleanup. No ref is needed when the cleanup captures `prevOverflow` directly.
+
+**Tester verification:** (a) `document.body.style.overflow === 'hidden'` immediately after drawer mounts; (b) value restored after Esc close; (c) value restored after close-button click; (d) value restored after forced `root.unmount()` while drawer open.
+
+---
+
+#### 8.2.12 DOM mount — inline inside DataExplorer.tsx
+
+The `MobileModelSelectorDrawer` panel mounts **inline inside `DataExplorer.tsx`**, not as a portal to `document.body`. The panel uses `position: fixed` with `z-index: 200`, which escapes the normal document flow and DataExplorer's stacking context. Portal complexity is not justified.
+
+**z-index values (binding):**
+
+| Element | z-index | Source |
+|---|---|---|
+| Site header | 100 | `app.css` (existing) |
+| Mobile nav panel (§8.1) | 200 | `mobile-nav.css` (T11) |
+| Mobile model drawer scrim | 199 | `mobile-model-drawer.css` (T12) |
+| Mobile model drawer panel | 200 | `mobile-model-drawer.css` (T12) |
+
+**T11 + T12 coexistence:** both the hamburger nav panel and the model-drawer panel use z-index 200. They cannot both be open simultaneously: the hamburger is in the `<header>` and visible only via a trigger in the header; the drawer is in `DataExplorer` and visible only at `<768px`. There is no code path where both are open at the same time. No stacking conflict.
+
+---
+
+#### 8.2.13 Reduced-motion handling
+
+See §8.2.4. The mandatory CSS block is:
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .mobile-model-drawer__panel {
+    transition: none;
+    animation: none;
+  }
+}
+```
+
+This block must appear in `mobile-model-drawer.css` regardless. When `prefers-reduced-motion: reduce` is set, the drawer appears and disappears instantly.
+
+---
+
+#### 8.2.14 Confirmed accessibility strings
+
+All strings are confirmed verbatim. No additional visible or SR-only prose is introduced beyond these. CDA SME bypass applies (all four are short, generic, accessibility-required, with no model-facing or methodology-flavored language).
+
+| Export name | Value | Usage |
+|---|---|---|
+| `MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED` | `"Open model selector"` | `aria-label` on trigger when drawer is closed (`mobileSelectorOpen === false`) |
+| `MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN` | `"Close model selector"` | `aria-label` on trigger when drawer is open (`mobileSelectorOpen === true`); also `aria-label` on the close button inside the drawer |
+| `MOBILE_MODEL_DRAWER_PANEL_LABEL` | `"Model selector"` | `aria-label` on `role="dialog"` panel |
+| `MOBILE_MODEL_DRAWER_TRIGGER_TEXT(n: number): string` | `` `Select models (${n} selected)` `` | Visible text on the trigger button; `n` is `selectedModels.length` |
+
+**`MOBILE_MODEL_DRAWER_HEADING` is not introduced.** No visible dialog heading is added; inner `<h3>` from `ModelSelector` remains; dialog `aria-label` on the panel.
+
+**§1.5.4 forbidden vocabulary check:** "Select models (N selected)" — descriptive, count-based, no psychological attribution. "Open model selector" / "Close model selector" / "Model selector" — technical a11y phrasing, no forbidden terms. All four pre-cleared.
+
+---
+
+#### 8.2.15 Component structure summary
+
+```
+DataExplorer.tsx
+  <div className="data-explorer">
+    ...
+    <div className="explorer-layout">
+      <div className="explorer-layout__viz"> ... </div>
+      <div className="explorer-layout__selector">
+
+        {/* Desktop inline rendering (≥768px, CSS-controlled via display:none at <768px) */}
+        <ModelSelector
+          domainResult={domainResult}
+          selectedModels={selectedModels}
+          onSelectionChange={setSelectedModels}
+          modelColors={modelColors}
+        />
+
+        {/* Mobile drawer trigger (<768px only, display: none at ≥768px via CSS) */}
+        <button
+          ref={drawerTriggerRef}
+          type="button"
+          className="explorer-layout__mobile-selector-trigger"
+          aria-label={mobileSelectorOpen
+            ? MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN
+            : MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED}
+          aria-expanded={mobileSelectorOpen}
+          aria-controls="mobile-model-drawer-panel"
+          aria-haspopup="dialog"
+          onClick={() => setMobileSelectorOpen(prev => !prev)}
+        >
+          {MOBILE_MODEL_DRAWER_TRIGGER_TEXT(selectedModels.length)}
+        </button>
+
+      </div>
+    </div>
+
+    {/* Mobile model drawer — conditionally mounted, inline (not portal) */}
+    {mobileSelectorOpen && (
+      <MobileModelSelectorDrawer
+        id="mobile-model-drawer-panel"
+        onClose={() => setMobileSelectorOpen(false)}
+      >
+        <ModelSelector
+          domainResult={domainResult}
+          selectedModels={selectedModels}
+          onSelectionChange={setSelectedModels}
+          modelColors={modelColors}
+        />
+      </MobileModelSelectorDrawer>
+    )}
+
+  </div>
+
+
+MobileModelSelectorDrawer.tsx
+  /* Scrim */
+  <div
+    className="mobile-model-drawer__scrim"
+    aria-hidden="true"
+    onPointerDown={onClose}
+  />
+  /* Panel */
+  <div
+    ref={panelRef}
+    role="dialog"
+    aria-modal="true"
+    aria-label={MOBILE_MODEL_DRAWER_PANEL_LABEL}
+    id={id}
+    className="mobile-model-drawer__panel mobile-model-drawer__panel--open"
+    onPointerDown={(e) => e.stopPropagation()}
+  >
+    <div className="mobile-model-drawer__header">
+      <button
+        ref={closeBtnRef}
+        className="mobile-model-drawer__close"
+        aria-label={MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN}
+        onClick={onClose}
+        type="button"
+      >
+        <span aria-hidden="true">{"×"}</span>
+      </button>
+    </div>
+    <div className="mobile-model-drawer__body">
+      {children}   {/* <ModelSelector> passed in from DataExplorer */}
+    </div>
+  </div>
+```
+
+Note: the scrim element uses `onPointerDown` (not `onClick`) for lower latency on touch devices. The panel uses `onPointerDown={(e) => e.stopPropagation()}` to prevent scrim-dismissal when the user taps inside the panel (binding M2).
+
+---
+
 ## 9. Performance Requirements
 
 - **Initial page load:** under 3 seconds on a 4G connection
@@ -970,6 +1470,9 @@ All components to be built, in implementation order:
 - `Header.tsx` — updated in T11 to add hamburger trigger state + `MobileNav` wiring.
 - `apps/dashboard/src/copy/mobile_nav.ts` — three a11y strings (`MOBILE_NAV_TRIGGER_LABEL_CLOSED`, `MOBILE_NAV_TRIGGER_LABEL_OPEN`, `MOBILE_NAV_PANEL_LABEL`).
 - `apps/dashboard/src/styles/mobile-nav.css` — token-only styles for trigger + panel.
+- `MobileModelSelectorDrawer.tsx` — mobile bottom-drawer overlay for ModelSelector (`<768px` only). Half-sheet from bottom, dialog pattern, focus trap, scroll lock. Spec: DESIGN_SYSTEM.md §8.2.
+- `apps/dashboard/src/copy/mobile_model_drawer.ts` — four a11y strings/functions (`MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED`, `MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN`, `MOBILE_MODEL_DRAWER_PANEL_LABEL`, `MOBILE_MODEL_DRAWER_TRIGGER_TEXT(n)`).
+- `apps/dashboard/src/styles/mobile-model-drawer.css` — token-only styles for trigger, scrim, drawer panel, close button, touch-target floor rules, and mandatory `prefers-reduced-motion` block.
 
 **Methodology page (Phase 6, Mark writes prose):**
 - `MethodologyPage.tsx` — long-form article template
@@ -1215,6 +1718,6 @@ A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 no
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.7. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.4.8. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

@@ -849,9 +849,9 @@ describe("G24 — HamburgerGlyph SVG matches §8.1.2 binding spec", () => {
 // G25 — DESIGN_SYSTEM.md v0.4.7 static scan: §8.1 and §8.1.11 present
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("G25 — DESIGN_SYSTEM.md v0.4.7 static scan (§8.1 + §8.1.11 table)", () => {
-  it("version line reads v0.4.7", () => {
-    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.4\.7/);
+describe("G25 — DESIGN_SYSTEM.md v0.4.8 static scan (§8.1 + §8.1.11 table)", () => {
+  it("version line reads v0.4.8", () => {
+    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.4\.8/);
   });
 
   it("§8.1 section header is present", () => {
