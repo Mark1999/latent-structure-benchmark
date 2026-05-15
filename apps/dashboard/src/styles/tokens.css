@@ -115,6 +115,18 @@
   --color-surface:         #f8f9fa;   /* card backgrounds, panel backgrounds */
   --color-surface-hover:   #f0f2f5;   /* hover states on surfaces */
 
+  /* Sequential color scale — SimilarityHeatmap (v0.4.9 — T6, 2026-05-15)        */
+  /* OWID-style single-hue blue ramp. 5 stops, lightness index 0=lightest.        */
+  /* Runtime: discrete binning [0,0.20)→seq-0, [0.20,0.40)→seq-1,                */
+  /*          [0.40,0.60)→seq-2, [0.60,0.80)→seq-3, [0.80,1.00]→seq-4.          */
+  /* Compositional-only (stops 0–2); standalone-swatch-safe (stops 3–4).         */
+  /* See DESIGN_SYSTEM.md §1.2 sequential scale and §12.8 for contrast table.    */
+  --color-scale-seq-0: #eaf0f8;   /* sim 0.00 ref — near-white blue tint; L≈0.877 */
+  --color-scale-seq-1: #b8cce4;   /* sim 0.25 ref — light blue; L≈0.590 */
+  --color-scale-seq-2: #6b9dc8;   /* sim 0.50 ref — mid blue; L≈0.314 */
+  --color-scale-seq-3: #2e6da4;   /* sim 0.75 ref — medium-dark blue; L≈0.142; standalone PASS 5.47:1 */
+  --color-scale-seq-4: #1a3a5c;   /* sim 1.00 ref — deep navy; L≈0.040; standalone PASS 11.65:1 */
+
   /* SimilarityHeatmap component-scoped token (v0.4.5 — T5) */
   /* Pure black required for WCAG AA compliance across the dark-text arm of the
      alpha-blend gradient. See DESIGN_SYSTEM.md §12.8. Used only in SimilarityHeatmap.tsx. */

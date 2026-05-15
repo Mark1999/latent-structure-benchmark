@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.8  
+**Version:** v0.4.9  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4.9** (T6 plan-level UI/UX verdict, 2026-05-15) introduces the §1.2 sequential color scale token set (`--color-scale-seq-0` through `--color-scale-seq-4`) as a perceptually-graded OWID-style single-hue blue ramp (light gray-blue → deep navy). Mark's Posture B choice: replaces the T5 alpha-blend formula `rgba(44, 62, 80, similarity)` with a 5-stop discrete-binning model. SimilarityHeatmap.tsx is reworked: `cellBackground()` now maps similarity to one of five named hex stops via bin boundaries [0, 0.20, 0.40, 0.60, 0.80, 1.00]; `HEATMAP_TEXT_SWITCH_THRESHOLD` changes from 0.73 to 0.60 (dark text on stops 0–2, white text on stops 3–4, both arms ≥4.5:1 WCAG AA). §12.8 rewritten for the new palette with full WCAG AA contrast table. CI-crosses-null dashed-border treatment retained verbatim from T5 (T14 follow-up per CDA SME T5 §5.4). Stops 0–2 do not pass WCAG 3:1 standalone-swatch contrast on white; documented as compositional-only (used only as heatmap cell fills with adjacent cell borders and similarity text, not as standalone swatches). Token `--color-heatmap-cell-text-dark: #000000` retained (pure black required; `--color-text-primary` fails at stop 2 at 3.31:1). No diverging scale added. See `docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md`.
 - **v0.4.8** (T12 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.2 (Mobile bottom-drawer for ModelSelector — full specification). Adds `MobileModelSelectorDrawer.tsx`, `apps/dashboard/src/copy/mobile_model_drawer.ts`, and `apps/dashboard/src/styles/mobile-model-drawer.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap (mirroring §8.1.1); half-sheet panel from bottom (max-height: 75vh, position: fixed bottom edge); semi-opaque backdrop scrim above panel; close button inside panel receives initial focus; live-update selection semantics (no Apply button); Esc + scrim-tap + close-button dismissal; scroll lock on open (body overflow hidden — key divergence from §8.1); inline DOM mount inside DataExplorer.tsx (position: fixed escapes stacking context); z-index: 200 (matching §8.1.14 hamburger, both surfaces cannot co-render at <768px); slide-up transition 200ms ease-out, gated by prefers-reduced-motion (instant when reduced-motion set); trigger button styling 48×48 px touch target, full-width at <768px; min-height: 44px on .model-selector__row inside drawer; stacked-below app.css rule superseded; confirmed a11y strings verbatim; no visible heading inside drawer (aria-label on dialog panel only); no Apply button (live update); no swipe gesture; no drag handle. No new tokens.
 - **v0.4.7** (T11 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.0 (general mobile behavior, retaining existing bullets) and §8.1 (Mobile hamburger menu — full specification). Adds `MobileNav.tsx`, `Header.tsx` (T11 update), `apps/dashboard/src/copy/mobile_nav.ts`, and `apps/dashboard/src/styles/mobile-nav.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap; three-line hamburger glyph (inline SVG, 20×16 viewBox, 2px stroke, 6px center-to-center gap); no glyph-to-X transform (single close button inside panel, initial focus lands there); full-screen overlay panel from top; instant open/close (no transition, `prefers-reduced-motion` trivially satisfied); no backdrop scrim (full-bleed panel); trigger button styling (tokens only); open-panel link styling (tokens only); 48×48 px touch targets; trigger hidden when panel open; no visible heading inside panel (aria-label only); confirmed a11y strings verbatim; no scroll lock; inline mount inside Header.tsx (not a portal). No new tokens.
 - **v0.4.6** (T8 plan-level UI/UX verdict, 2026-05-12) closes §12.6 Phase-5 "Read as table" deferral. T8 implements the §7 binding for MDS, FreeList, and Similarity. Adds §12.9 (ReadAsTableToggle + ScreenReaderSummary visual specification): `aria-controls` DOM-presence requirement (U1), pressed-state non-text contrast (U2 — `border: 2px solid var(--color-info)`, ~7.3:1 on white, WCAG 1.4.11 PASS), and `.sr-only` reuse. No new tokens.
@@ -110,12 +111,30 @@ All visual decisions derive from these tokens. They are defined once in `apps/da
 --color-surface:         #f8f9fa;   /* card backgrounds, panel backgrounds */
 --color-surface-hover:   #f0f2f5;   /* hover states on surfaces */
 
+/* Sequential color scale — heatmap (v0.4.9 — T6, 2026-05-15) */
+/* OWID-style single-hue blue ramp. 5 discrete stops indexed by lightness:   */
+/* 0 = lightest (similarity 0.00 reference), 4 = darkest (similarity 1.00).  */
+/* Runtime use: SimilarityHeatmap.tsx maps similarity to a stop via discrete  */
+/* bins [0,0.20), [0.20,0.40), [0.40,0.60), [0.60,0.80), [0.80,1.00].       */
+/* Compositional-only for stops 0–2 (contrast on white: 1.13:1, 1.64:1,     */
+/* 2.89:1 — below WCAG 3:1 standalone threshold; used only as area fills     */
+/* with adjacent cell borders and inline similarity text as discriminators).  */
+/* Stops 3–4 pass WCAG AA 3:1 standalone: 5.47:1 and 11.65:1.               */
+/* Cross-reference: DESIGN_SYSTEM.md §12.8.                                  */
+--color-scale-seq-0: #eaf0f8;   /* similarity 0.00 ref — near-white blue tint; sRGB rel. luminance 0.877 */
+--color-scale-seq-1: #b8cce4;   /* similarity 0.25 ref — light blue; L≈0.590 */
+--color-scale-seq-2: #6b9dc8;   /* similarity 0.50 ref — mid blue; L≈0.314 */
+--color-scale-seq-3: #2e6da4;   /* similarity 0.75 ref — medium-dark blue; L≈0.142; WCAG AA 3:1 standalone PASS (5.47:1 on white) */
+--color-scale-seq-4: #1a3a5c;   /* similarity 1.00 ref — deep navy; L≈0.040; WCAG AA 3:1 standalone PASS (11.65:1 on white) */
+
 /* Semantic */
 --color-success:  #27ae60;
 --color-warning:  #f39c12;
 --color-error:    #c0392b;
 --color-info:     #3360a9;
 ```
+
+**Sequential scale — usage rules.** The five `--color-scale-seq-*` tokens are the runtime fill palette for `SimilarityHeatmap.tsx`; the Coder maps each cell's similarity value to a stop via equal-width bins (see §12.8). Stops 0–2 are compositional-only: they are used only as heatmap cell fills where the adjacent cell border (`--color-border`) and the inline similarity text value together provide sufficient visual discrimination; they must not be used as standalone swatches in a legend, download artifact, or print rendering without adding a visible border. The sequential scale does not include a diverging arm; `--color-scale-div-*` tokens are deferred to T4 DriftTracker.
 
 ### 1.3 Spacing
 
@@ -1615,45 +1634,110 @@ The MethodologySummary is the article-bottom methodology note rendered below the
 
 ---
 
-### 12.8 SimilarityHeatmap cell-text contrast specification (v0.4.5 — T5, 2026-05-12)
+### 12.8 SimilarityHeatmap cell-text contrast specification (v0.4.9 — T6, 2026-05-15; supersedes v0.4.5 T5)
 
-The SimilarityHeatmap uses alpha-blended cell backgrounds: `rgba(44, 62, 80, similarity)` composited over white (#ffffff). This creates a continuous background-darkness gradient from near-white (similarity ≈ 0) to near-opaque dark (similarity ≈ 1). Standard dark text tokens fail WCAG AA 4.5:1 across the mid-range of this gradient. This section specifies the correct contrast-switch rule and the component-scoped token required to pass WCAG AA in both shipped domains.
+The SimilarityHeatmap uses a 5-stop discrete-binning model (T6, Posture B). Each cell's similarity value is mapped to one of five named hex stops from `--color-scale-seq-0` through `--color-scale-seq-4` via equal-width bins. This section specifies the WCAG AA contrast compliance for each stop and the binding text-color switch threshold.
 
-**New token (add to `apps/dashboard/src/styles/tokens.css`):**
+**Cell background mapping (binding — replaces T5 alpha-blend formula):**
+
+```ts
+// Bin boundaries: [0, 0.20, 0.40, 0.60, 0.80, 1.00]
+// sim ∈ [0.00, 0.20) → --color-scale-seq-0  (#eaf0f8)
+// sim ∈ [0.20, 0.40) → --color-scale-seq-1  (#b8cce4)
+// sim ∈ [0.40, 0.60) → --color-scale-seq-2  (#6b9dc8)
+// sim ∈ [0.60, 0.80) → --color-scale-seq-3  (#2e6da4)
+// sim ∈ [0.80, 1.00] → --color-scale-seq-4  (#1a3a5c)
+// Diagonal cells (similarity = 1.00 by construction) always land in stop 4.
+```
+
+**WCAG AA contrast table — F-T6-C1 BINDING (supersedes F-T5-C1):**
+
+All luminance values are sRGB relative luminance (WCAG 2.1 definition). Contrast ratios use (L_lighter + 0.05) / (L_darker + 0.05). White text = `var(--color-background)` (#ffffff, L=1.0). Dark text = `var(--color-heatmap-cell-text-dark)` (#000000, L=0.0).
+
+| Stop | Hex | L_bg | White text contrast | Dark text contrast | Text arm used |
+|---|---|---|---|---|---|
+| seq-0 | #eaf0f8 | 0.877 | 1.13:1 FAIL | 18.54:1 PASS | Dark (#000000) |
+| seq-1 | #b8cce4 | 0.590 | 1.64:1 FAIL | 12.79:1 PASS | Dark (#000000) |
+| seq-2 | #6b9dc8 | 0.314 | 2.89:1 FAIL | 7.27:1 PASS | Dark (#000000) |
+| seq-3 | #2e6da4 | 0.142 | 5.47:1 PASS | 3.84:1 FAIL | White (#ffffff) |
+| seq-4 | #1a3a5c | 0.040 | 11.65:1 PASS | 1.80:1 FAIL | White (#ffffff) |
+
+**Contrast-switch threshold (binding — replaces T5 threshold of 0.73):**
+
+```ts
+const HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60;
+// WCAG AA rationale (2026-05-15 UI/UX verdict — F-T6-C1 BINDING):
+// Discrete-binning model: sim < 0.60 → stop 0/1/2 (L ≥ 0.314) → dark text.
+// sim ≥ 0.60 → stop 3/4 (L ≤ 0.142) → white text.
+//   stop 2 (sim ∈ [0.40,0.60)): dark text 7.27:1 PASS, white text 2.89:1 FAIL
+//   stop 3 (sim ∈ [0.60,0.80)): white text 5.47:1 PASS, dark text 3.84:1 FAIL
+// Both arms satisfy WCAG AA 4.5:1 at their respective stops.
+// The previous T5 threshold of 0.73 is SUPERSEDED and must not be used.
+```
+
+**Cell text color selection (binding — replaces T5 rule):**
+
+```ts
+textFill = similarity >= HEATMAP_TEXT_SWITCH_THRESHOLD
+  ? "var(--color-background)"                  // white, passes ≥5.47:1 at stop 3/4
+  : "var(--color-heatmap-cell-text-dark)"      // black, passes ≥7.27:1 at stop 0/1/2
+```
+
+Note: the T5 rule used `similarity > 0.73`; the T6 rule uses `similarity >= 0.60` (inclusive lower bound, matching the bin-boundary convention where 0.60 falls into the [0.60, 0.80) bin → stop 3 → white text).
+
+**Diagonal cells** (similarity = 1.0) always land in stop 4 → white text 11.65:1 PASS.
+
+**Component-scoped token (retained from v0.4.5):**
 
 ```css
-/* SimilarityHeatmap cell text — pure black required for WCAG AA compliance
-   across the dark-text arm of the alpha-blend gradient. See DESIGN_SYSTEM.md §12.8. */
+/* Pure black required for WCAG AA compliance across the dark-text arm. See §12.8. */
 --color-heatmap-cell-text-dark: #000000;
 ```
 
-**Contrast-switch threshold (binding — overrides T5 plan §2.2 value of 0.5 and fallback of 0.55):**
+`--color-text-primary` (#2c3e50, L≈0.060) is not a valid replacement: at stop 2 it achieves (0.314+0.05)/(0.060+0.05) = 0.364/0.110 = 3.31:1 — a WCAG AA failure for normal-weight text at 12px.
 
-```ts
-const HEATMAP_TEXT_SWITCH_THRESHOLD = 0.73;
-// WCAG AA rationale (2026-05-12 UI/UX verdict):
-// rgba(44,62,80,sim) composited on white gives background luminance:
-//   sim=0.51 → L≈0.356 → white text 2.59:1 FAIL
-//   sim=0.55 → L≈0.322 → white text 2.82:1 FAIL
-//   sim=0.73 → L≈0.183 → white text 4.50:1 PASS (threshold)
-//   sim=0.73 → L≈0.183 → black text 4.66:1 PASS (threshold)
-//   --color-text-primary (#2c3e50, L≈0.060) passes only at sim≤0.40;
-//   holidays.json min off-diagonal ≈ 0.45 (fails dark text).
-```
+**Standalone-swatch constraint (binding):**
 
-**Cell text color selection (binding):**
+Stops 0–2 do not pass WCAG AA 3:1 graphical-object contrast on `--color-background` (#ffffff):
 
-```ts
-textFill = similarity > HEATMAP_TEXT_SWITCH_THRESHOLD
-  ? "var(--color-background)"                  // white, passes ≥4.5:1 at similarity > 0.73
-  : "var(--color-heatmap-cell-text-dark)"      // black, passes ≥4.66:1 at similarity ≤ 0.73
-```
+| Stop | Standalone contrast on white | Standalone use |
+|---|---|---|
+| seq-0 | 1.13:1 | Compositional-only — NOT for standalone legend swatches |
+| seq-1 | 1.64:1 | Compositional-only — NOT for standalone legend swatches |
+| seq-2 | 2.89:1 | Compositional-only — NOT for standalone legend swatches |
+| seq-3 | 5.47:1 | Standalone swatch permitted |
+| seq-4 | 11.65:1 | Standalone swatch permitted |
 
-**Diagonal cells** (similarity = 1.0) always receive white text (1.0 > 0.73).
+If a future legend or downloadable PNG uses these stops as swatches, stops 0–2 must have a 1px `--color-border` (#dde1e7) outline added to provide boundary discrimination.
 
-**Why pure black, not `--color-text-primary`:** `--color-text-primary` (#2c3e50, relative luminance ≈ 0.060) only achieves 4.5:1 contrast on backgrounds lighter than approximately similarity = 0.40. Both shipped domains have off-diagonal cells in the 0.40–0.73 range (holidays.json minimum ≈ 0.45; family.json minimum ≈ 0.50). Pure black (L = 0) passes 4.66:1 at the threshold and improves monotonically for lighter backgrounds.
+**R1-marker collision check:**
 
-**Scope:** `--color-heatmap-cell-text-dark` is used only in `SimilarityHeatmap.tsx`. No other component references it.
+The sequential scale occupies the blue hue family. The following model palette colors share this family:
+
+| Model token | Hex | L | Nearest sequential stop | L_stop | Contrast between them |
+|---|---|---|---|---|---|
+| --color-model-1 | #3360a9 | 0.119 | seq-3 (#2e6da4) | 0.142 | 1.15:1 |
+| --color-model-8 | #1a5276 | 0.076 | seq-4 (#1a3a5c) | 0.040 | 1.47:1 |
+
+Stop 3 and model-1 are in the same blue hue family and similar luminance (1.15:1 ratio). Stop 4 and model-8 are both dark blue (1.47:1 ratio). These are below the 3:1 threshold that would distinguish them as separate graphical objects if used adjacently as same-size swatches.
+
+**Mitigation and acceptance:** The collision is operationally acceptable because:
+1. SimilarityHeatmap and MDSPlot occupy separate VizSwitcher tabs and are never simultaneously visible in the same viewport.
+2. Stop 3 and stop 4 appear as 52×52 px solid area fills in cells; model-1 and model-8 appear as small legend dots (~10–12px circles). The shape encoding provides secondary discrimination beyond hue.
+3. Each heatmap cell carries a printed similarity value (mono font, center-aligned) that provides a textual discriminator independent of color.
+4. No information is conveyed by sequential-scale color alone — the numeric similarity value and the cell position (row/column model labels) together communicate the full finding.
+
+Non-blue model palette colors (model-2 through model-7, model-9 through model-11) are in distinct hue families (red, orange, green, purple, teal, dark orange, dark purple, dark teal, dark gold) and are not in perceptual collision with any sequential stop.
+
+**CI-crosses-null treatment (deferred — retained from T5):**
+
+The dashed-border treatment for cells where the 95% CI crosses the Mantel-correlation null (SIMILARITY_NULL_VALUE = 0.5) is **retained verbatim from T5** (SimilarityHeatmap.tsx). The dashed-border rendering continues as the token-constrained substitution for §4.5's "reduced saturation" instruction, per CDA SME T5 §4 approval. The §4.5 doc-text refinement (CDA SME T5 §5.4 suggested replacement sentence) remains a T14 follow-up.
+
+Implementation site: `apps/dashboard/src/components/SimilarityHeatmap.tsx`. Dashed-border logic is unchanged by T6.
+
+The binding caption text (CDA SME T5 §5.1) is **not changed**: "Each cell shows how similarly two models organize this domain (1.00 = identical organization; 0.50 = no shared structure). Dashed cells: 95% confidence interval includes the no-shared-structure value."
+
+The binding dashed-cell aria-label augmentation (CDA SME T5 §5.2) is **not changed**: "; confidence interval includes the no-shared-structure value of 0.50" appended when CI crosses null.
 
 ---
 
@@ -1718,6 +1802,6 @@ A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 no
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.8. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.4.9. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
