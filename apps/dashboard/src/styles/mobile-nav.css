@@ -1,0 +1,85 @@
+/* DESIGN_SYSTEM.md §8.1 — token-only styles for the mobile hamburger nav panel and trigger. */
+
+.mobile-nav__panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  background: var(--color-background);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-6);
+  overflow-y: auto;
+}
+
+.mobile-nav__close {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.mobile-nav__close:hover {
+  background: var(--color-surface-hover);
+}
+
+.mobile-nav__close:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.mobile-nav__links {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-6);
+  gap: 0;
+}
+
+.mobile-nav__link {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.mobile-nav__link:first-child {
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.mobile-nav__link:hover {
+  color: var(--color-info);
+  background: var(--color-surface-hover);
+}
+
+.mobile-nav__link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: -2px;
+  border-radius: var(--border-radius-sm);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav__panel {
+    transition: none;
+    animation: none;
+  }
+}

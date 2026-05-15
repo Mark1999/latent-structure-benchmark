@@ -201,6 +201,44 @@ a:focus-visible {
   border-radius: var(--border-radius-sm);
 }
 
+/* T11 / DESIGN_SYSTEM §8.1 — hamburger trigger (hidden on desktop; displayed at <768px) */
+
+.site-header__hamburger {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+
+.site-header__hamburger:hover {
+  background: var(--color-surface-hover);
+  border-color: transparent;
+}
+
+.site-header__hamburger:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.site-header__hamburger:active {
+  background: var(--color-surface);
+}
+
+@media (max-width: 768px) {
+  .site-header__hamburger {
+    display: flex;
+  }
+}
+
 /* ===== Article header — DESIGN_SYSTEM.md §2.1 ===== */
 
 .article-header {
@@ -1025,7 +1063,7 @@ a:focus-visible {
     font-size: var(--font-size-2xl);
   }
 
-  /* T13 mobile gap 4: Site header nav hide-on-mobile (Phase 6 adds hamburger) */
+  /* T11 / DESIGN_SYSTEM §8.1 — site-header__hamburger replaces this nav at <768px */
   .site-header__nav {
     display: none;
   }
