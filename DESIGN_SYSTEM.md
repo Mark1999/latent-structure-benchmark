@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.6  
+**Version:** v0.4.7  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4.7** (T11 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.0 (general mobile behavior, retaining existing bullets) and §8.1 (Mobile hamburger menu — full specification). Adds `MobileNav.tsx`, `Header.tsx` (T11 update), `apps/dashboard/src/copy/mobile_nav.ts`, and `apps/dashboard/src/styles/mobile-nav.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap; three-line hamburger glyph (inline SVG, 20×16 viewBox, 2px stroke, 6px center-to-center gap); no glyph-to-X transform (single close button inside panel, initial focus lands there); full-screen overlay panel from top; instant open/close (no transition, `prefers-reduced-motion` trivially satisfied); no backdrop scrim (full-bleed panel); trigger button styling (tokens only); open-panel link styling (tokens only); 48×48 px touch targets; trigger hidden when panel open; no visible heading inside panel (aria-label only); confirmed a11y strings verbatim; no scroll lock; inline mount inside Header.tsx (not a portal). No new tokens.
 - **v0.4.6** (T8 plan-level UI/UX verdict, 2026-05-12) closes §12.6 Phase-5 "Read as table" deferral. T8 implements the §7 binding for MDS, FreeList, and Similarity. Adds §12.9 (ReadAsTableToggle + ScreenReaderSummary visual specification): `aria-controls` DOM-presence requirement (U1), pressed-state non-text contrast (U2 — `border: 2px solid var(--color-info)`, ~7.3:1 on white, WCAG 1.4.11 PASS), and `.sr-only` reuse. No new tokens.
 - **v0.4.5** (T5 plan-level UI/UX verdict, 2026-05-12) adds §12.8 (SimilarityHeatmap cell-text contrast specification) and introduces one component-scoped token `--color-heatmap-cell-text-dark: #000000`. The T5 plan's §2.2 binary text-color switch at similarity = 0.5 (fallback 0.55) fails WCAG AA 4.5:1 across the observed data range in both shipped domains. §12.8 specifies the corrected switch threshold of 0.73 and the `HEATMAP_TEXT_SWITCH_THRESHOLD` constant. The plan's "raise to 0.55" fallback is superseded.
 - **v0.4.4** (T13 plan-level UI/UX verdict, 2026-05-11) adds §12.7 (MethodologySummary block visual specification). Specifies: component structure (`<section>` with `aria-labelledby`), heading element (`<h2 id="methodology-summary-heading">About this measurement</h2>`), tagline paragraph token (`--color-text-caption` not `--color-text-secondary` — the latter fails WCAG AA at 16px with ~3.40:1 contrast), body paragraph token (`--color-text-primary`), footnote conditional rendering (plain text when `methodologyPageUrl` is null; inline link when URL is set), CSS class names and spacing tokens, reveal cascade position (child 5, 240ms delay — requires adding a 6th cascade slot to `app.css`), mobile posture (max-width 680px renders full-width on narrow viewports automatically; no special mobile rule needed for the prose container). Records the mobile bottom-drawer deferral decision: §8 calls for a control panel bottom-drawer on `<768px`; T13 accepts the stacked-below layout as the Phase 5 mobile implementation; a true bottom-drawer overlay is deferred to Phase 6. Also records five mobile gaps the T13 Coder must close: DownloadBar touch targets (min-height: 44px at `<768px`), CiteModal/EmbedModal full-screen on mobile, ArticleHeader title font scale-down (48px → 32px at `<768px`), site header nav hide-on-mobile (display: none at `<768px`), MDSPlot viewBox verification.
@@ -537,12 +538,370 @@ These are non-negotiable. The Reviewer agent enforces them.
 
 The dashboard is desktop-first but mobile-readable. Not mobile-optimized — readable.
 
+### 8.0 General mobile layout
+
 - **Control panel collapses** to a bottom drawer on screens narrower than 768px
 - **Domain selector** wraps to two lines on mobile, does not scroll horizontally
 - **MDS plot** renders at full width with pinch-to-zoom enabled
 - **Free list compare** shows maximum 2 columns on mobile (others accessible via horizontal scroll)
 - **Sliders** use large touch targets (minimum 44px height)
 - **Download buttons** are full-width on mobile
+
+### 8.1 Mobile hamburger menu (v0.4.7 — T11, 2026-05-15)
+
+**Breakpoint:** `max-width: 768px`. The hamburger trigger is `display: none` at `≥768px`; the desktop nav (`.site-header__nav`) is `display: none` at `<768px` (existing rule, `app.css` line 1029). Breakpoint value must be byte-identical on both rules to prevent dead-zone rendering.
+
+---
+
+#### 8.1.1 ARIA pattern — dialog with focus trap
+
+The mobile nav panel uses the **dialog pattern**: `role="dialog"`, `aria-modal="true"`, `aria-label={MOBILE_NAV_PANEL_LABEL}` (no visible heading; see §8.1.10). The trigger button carries `aria-expanded={boolean}` (reflecting panel open/close state), `aria-controls="mobile-nav-panel"`, and `aria-haspopup="dialog"`.
+
+**Rationale:** the full-screen overlay visually occludes the entire page, making modal semantics correct. The existing `CiteModal`/`EmbedModal` focus-trap helper (`getFocusableElements`, `CiteModal.tsx` lines 76–89) is the canonical reuse pattern.
+
+**Focus behavior:**
+
+| Event | Required behavior |
+|---|---|
+| Panel opens | Initial focus moves to the close button inside the panel (the first and immediately obvious interactive element). |
+| Tab | Cycles forward through focusable elements inside the panel only. Does not escape to page content while panel is open. |
+| Shift+Tab | Cycles backward within the panel only. |
+| Esc | Closes the panel; focus returns to the hamburger trigger button. |
+| Backdrop / outside-tap | N/A — no scrim; panel is full-bleed. See §8.1.5. |
+| Close button activated | Closes the panel; focus returns to the hamburger trigger button. |
+| Panel closes (any path) | Focus restored to the hamburger trigger element via `triggerRef.current?.focus()`. |
+
+**Focus trap implementation:** reuse the `getFocusableElements` / `keydown` handler pattern from `CiteModal.tsx` lines 220–264. The panel has exactly two categories of focusable elements: the close button and the four nav link anchors. Tab wraps from last link back to close button; Shift+Tab from close button wraps to last link.
+
+**WCAG 2.1.2 compliance:** Esc and the close button are both always-available escape paths. The focus trap does not prevent Esc from closing.
+
+---
+
+#### 8.1.2 Hamburger glyph shape — three horizontal lines (inline SVG)
+
+The glyph is three horizontal lines, rendered as an inline SVG following the `LogoGlyph` pattern (no external icon dependency).
+
+**Binding SVG specification:**
+
+```tsx
+<svg
+  viewBox="0 0 20 16"
+  width="20"
+  height="16"
+  aria-hidden="true"
+  focusable="false"
+  xmlns="http://www.w3.org/2000/svg"
+>
+  <line x1="0" y1="2"  x2="20" y2="2"  stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  <line x1="0" y1="8"  x2="20" y2="8"  stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+  <line x1="0" y1="14" x2="20" y2="14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+</svg>
+```
+
+- **Viewbox:** 20×16 px (width × height of the three-line field)
+- **Stroke weight:** 2px
+- **Line gap:** 6px (center-to-center; lines at y=2, y=8, y=14)
+- **Color:** `currentColor` — inherits from the button's `color: var(--color-text-primary)` so it automatically meets WCAG 1.4.11 3:1 non-text contrast against `--color-background` (#ffffff). `--color-text-primary` (#2c3e50) on white ≈ 12.6:1.
+- **`aria-hidden="true"` and `focusable="false"`** — the button's accessible name is provided by `aria-label` on the `<button>` element; the SVG is decorative.
+
+---
+
+#### 8.1.3 Glyph-to-X transformation — none
+
+The hamburger glyph does NOT transform to an X on open. The trigger button remains in its rest-state appearance when the panel opens. The close affordance is a dedicated close button **inside the panel** (§8.1.9). The `aria-label` on the trigger button changes dynamically (`MOBILE_NAV_TRIGGER_LABEL_CLOSED` / `MOBILE_NAV_TRIGGER_LABEL_OPEN`) to communicate state to screen readers.
+
+**Rationale:** a glyph-to-X CSS transform requires additional animation CSS that violates the Phase 6 minimum-viable surface posture. A dedicated close button inside the panel provides a larger, clearer close target on touch surfaces and is the simpler implementation path.
+
+---
+
+#### 8.1.4 Panel direction and shape — full-screen overlay from top
+
+The panel renders as a **full-screen overlay** that covers the entire viewport from the top edge downward. It is positioned `fixed`, `top: 0; left: 0; right: 0; bottom: 0`. It is not a side drawer.
+
+**Rationale:** full-screen is the simplest z-index story (one stacking context, no slide-in animation required), matches the "scientific instrument" aesthetic (avoids the consumer-product side-drawer idiom), and is fully compatible with the site-header's `position: sticky; z-index: 100` stacking context since the panel uses `position: fixed` and sits above all page content.
+
+The panel sits on top of the sticky header itself (panel `z-index: 200`, above header `z-index: 100`). The panel background covers the header.
+
+---
+
+#### 8.1.5 Transition and backdrop scrim — instant open/close, no scrim
+
+**Transition:** none. The panel appears and disappears instantly on trigger activation and close-button activation. CSS: no `transition` or `animation` properties on `.mobile-nav__panel`. This trivially satisfies `prefers-reduced-motion: reduce` — there is nothing to suppress.
+
+**Backdrop scrim:** none. The panel is full-bleed (`background: var(--color-background)`, full viewport), so a separate scrim layer would be invisible beneath it. No `rgba(0,0,0,*)` overlay element.
+
+**`prefers-reduced-motion` CSS block (still required as a belt-and-suspenders declaration, for forward safety if a transition is ever added):**
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .mobile-nav__panel {
+    transition: none;
+    animation: none;
+  }
+}
+```
+
+This block must appear in `mobile-nav.css` regardless of whether a transition is currently specified. It ensures any future addition of a transition is automatically gated.
+
+---
+
+#### 8.1.6 Trigger button styling
+
+The hamburger trigger button uses token-only styling. No new tokens are introduced.
+
+```css
+.site-header__hamburger {
+  display: none;                          /* hidden on desktop */
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  flex-shrink: 0;
+}
+
+.site-header__hamburger:hover {
+  background: var(--color-surface-hover);
+  border-color: transparent;
+}
+
+.site-header__hamburger:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.site-header__hamburger:active {
+  background: var(--color-surface);
+}
+
+@media (max-width: 768px) {
+  .site-header__hamburger {
+    display: flex;
+  }
+}
+```
+
+**Contrast verification:** `--color-text-primary` (#2c3e50) on `--color-background` (#ffffff) ≈ 12.6:1 for the glyph (WCAG 1.4.11 3:1 PASS). `--color-surface-hover` (#f0f2f5) on white for the hover background is a non-text surface (no contrast requirement on hover backgrounds per WCAG). The `--color-info` focus ring (#3360a9) on white ≈ 7.3:1 (WCAG 1.4.11 PASS).
+
+---
+
+#### 8.1.7 Open-panel link styling
+
+Links inside the open panel are styled for touch-first readability.
+
+```css
+.mobile-nav__panel {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 200;
+  background: var(--color-background);
+  display: flex;
+  flex-direction: column;
+  padding: var(--space-4) var(--space-6);
+  overflow-y: auto;
+}
+
+.mobile-nav__close {
+  align-self: flex-end;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  background: transparent;
+  border: 2px solid transparent;
+  border-radius: var(--border-radius-sm);
+  cursor: pointer;
+  color: var(--color-text-primary);
+  font-size: var(--font-size-xl);
+  line-height: 1;
+  flex-shrink: 0;
+}
+
+.mobile-nav__close:hover {
+  background: var(--color-surface-hover);
+}
+
+.mobile-nav__close:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+.mobile-nav__links {
+  display: flex;
+  flex-direction: column;
+  margin-top: var(--space-6);
+  gap: 0;
+}
+
+.mobile-nav__link {
+  display: flex;
+  align-items: center;
+  min-height: 48px;
+  padding: 0 var(--space-2);
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-medium);
+  line-height: var(--line-height-tight);
+  color: var(--color-text-primary);
+  text-decoration: none;
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.mobile-nav__link:first-child {
+  border-top: var(--border-width) solid var(--color-border);
+}
+
+.mobile-nav__link:hover {
+  color: var(--color-info);
+  background: var(--color-surface-hover);
+}
+
+.mobile-nav__link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: -2px;
+  border-radius: var(--border-radius-sm);
+}
+```
+
+**Typography tokens used:** `--font-size-lg` (18px), `--font-weight-medium` (500), `--line-height-tight` (1.3), `--color-text-primary` (#2c3e50).
+
+**Contrast:** `--color-text-primary` (#2c3e50) on `--color-background` (#ffffff) ≈ 12.6:1 (WCAG 1.4.3 4.5:1 PASS). `--color-info` (#3360a9) on white ≈ 7.3:1 (hover color — WCAG AA PASS).
+
+---
+
+#### 8.1.8 Touch target size — 48×48 px
+
+- **Hamburger trigger button:** 48×48 px (explicit `width` and `height` on `.site-header__hamburger`). Above the 44×44 px WCAG 2.5.5 floor.
+- **Close button inside panel:** 48×48 px (explicit `width` and `height` on `.mobile-nav__close`). Above the floor.
+- **Each nav link in the open panel:** `min-height: 48px` on `.mobile-nav__link`. Full-width tap target. Above the floor.
+
+---
+
+#### 8.1.9 Trigger position when panel is open — hidden
+
+When the panel is open, the hamburger trigger button is hidden (`display: none` applied via React state). The close affordance is the `.mobile-nav__close` button at the top-right corner of the open panel. This is the only close affordance visible when the panel is open (in addition to Esc).
+
+**Implementation note:** the `aria-label` on the trigger still toggles between `MOBILE_NAV_TRIGGER_LABEL_CLOSED` and `MOBILE_NAV_TRIGGER_LABEL_OPEN` via React state for correctness, even though the trigger is hidden when open. The close button inside the panel does not need an `aria-expanded` attribute; it is a plain close button with `aria-label={MOBILE_NAV_TRIGGER_LABEL_OPEN}` (i.e., "Close navigation menu").
+
+**Close button glyph:** the close button renders the "×" character as a React text node (`×`, Unicode U+00D7). No external icon dependency. `aria-hidden="true"` on the character span if used; the button's accessible name comes from its `aria-label`.
+
+---
+
+#### 8.1.10 Visible heading inside panel — omitted
+
+The open panel does NOT include a visible `<h2>` heading. The panel's accessible name is provided solely by `aria-label={MOBILE_NAV_PANEL_LABEL}` ("Site navigation") on the `role="dialog"` element. This avoids adding visible heading-level chrome that could confuse the page's existing heading hierarchy (which belongs to the article content, not the navigation overlay).
+
+**No `MOBILE_NAV_HEADING` constant is introduced.** The `mobile_nav.ts` copy module exports exactly three strings (§8.1.11).
+
+---
+
+#### 8.1.11 Confirmed accessibility strings
+
+All three strings are confirmed verbatim. No additional visible or SR-only prose is introduced beyond these. CDA SME bypass applies (Architect §2.6 rationale confirmed).
+
+| Export name | Value | Usage |
+|---|---|---|
+| `MOBILE_NAV_TRIGGER_LABEL_CLOSED` | `"Open navigation menu"` | `aria-label` on trigger when `isOpen === false` |
+| `MOBILE_NAV_TRIGGER_LABEL_OPEN` | `"Close navigation menu"` | `aria-label` on trigger when `isOpen === true`; also `aria-label` on the close button inside panel |
+| `MOBILE_NAV_PANEL_LABEL` | `"Site navigation"` | `aria-label` on `role="dialog"` panel |
+
+---
+
+#### 8.1.12 Reduced-motion handling
+
+See §8.1.5. The panel has no transition by default. The `prefers-reduced-motion: reduce` CSS block in `mobile-nav.css` is required regardless as a forward-safety guard.
+
+---
+
+#### 8.1.13 Scroll lock — none
+
+No scroll lock is applied when the panel is open. `document.body.style.overflow` is not modified. This matches the existing `CiteModal`/`EmbedModal` posture and keeps T11's surface minimal. Users can scroll the underlying page while the panel is open; given the full-screen panel covers all content, this is an acceptable Phase 6 posture.
+
+---
+
+#### 8.1.14 DOM mount — inline inside Header.tsx
+
+The `MobileNav` panel mounts **inline inside `Header.tsx`**, not as a portal to `document.body`. The panel uses `position: fixed` with `z-index: 200` (above the header's `z-index: 100`), so it overlays the full page correctly from within the header's containing block. Portal complexity is not required.
+
+**Rationale for diverging from Architect lean (portal):** the panel's `position: fixed` already escapes the normal document flow and the header's stacking context. The added complexity of `createPortal` is not justified for a full-viewport fixed-position element. This also keeps the component tree simpler (no portal target management) and matches the minimum-viable-surface posture.
+
+**`z-index` values (binding):**
+- Site header: `z-index: 100` (existing, `app.css` line 143)
+- Mobile nav panel: `z-index: 200` (new, in `mobile-nav.css`)
+
+---
+
+#### 8.1.15 NAV_LINKS export requirement
+
+Acceptance criterion 15 in the Architect plan requires the Coder to use `NAV_LINKS` as a single source of truth — no duplication in `MobileNav.tsx`. Currently `NAV_LINKS` is a module-private `const` in `Header.tsx` (line 46). **The Coder must export `NAV_LINKS` from `Header.tsx`** (add `export` keyword) so `MobileNav.tsx` can import it, OR pass it as a prop from `Header` to `MobileNav`. Either approach satisfies the single-source requirement. The `NavLink` interface must also be exported. This is a binding implementation requirement arising from the design system's single-source-of-truth rule.
+
+---
+
+#### 8.1.16 Component structure summary
+
+```
+Header.tsx
+  <header className="site-header">
+    <div className="site-header__inner">
+      <a> (logo — unchanged)
+      <nav className="site-header__nav"> (desktop nav — unchanged, hidden <768px)
+      <button className="site-header__hamburger"
+              aria-label={isOpen ? MOBILE_NAV_TRIGGER_LABEL_OPEN : MOBILE_NAV_TRIGGER_LABEL_CLOSED}
+              aria-expanded={isOpen}
+              aria-controls="mobile-nav-panel"
+              aria-haspopup="dialog"
+              style={{ display: isOpen ? 'none' : undefined }}  /* hidden when panel open */
+              onClick={openPanel}
+      >
+        <HamburgerGlyph />   /* inline SVG per §8.1.2 */
+      </button>
+    </div>
+
+    {isOpen && (
+      <MobileNav
+        id="mobile-nav-panel"
+        links={NAV_LINKS}
+        onClose={closePanel}
+        triggerRef={triggerRef}
+      />
+    )}
+  </header>
+
+MobileNav.tsx
+  <div role="dialog"
+       aria-modal="true"
+       aria-label={MOBILE_NAV_PANEL_LABEL}
+       id={id}
+       className="mobile-nav__panel"
+  >
+    <button className="mobile-nav__close"
+            aria-label={MOBILE_NAV_TRIGGER_LABEL_OPEN}
+            onClick={onClose}
+    >
+      <span aria-hidden="true">×</span>
+    </button>
+    <nav className="mobile-nav__links" aria-label={MOBILE_NAV_PANEL_LABEL}>
+      {links.map(link => (
+        <a key={link.href} href={link.href} className="mobile-nav__link">
+          {link.label}
+        </a>
+      ))}
+    </nav>
+  </div>
+```
+
+Note: `role="dialog"` overrides any native element semantics. The inner `<nav>` provides the navigation landmark for AT users who navigate by landmark; the outer `dialog` provides modal semantics. This structure matches the Architect's §10 risk note 6 guidance: `<div role="dialog"><nav>…</nav></div>`.
 
 ---
 
@@ -607,6 +966,10 @@ All components to be built, in implementation order:
 - `ModelDetailPanel.tsx` — slide-in panel for model detail
 - `AccessibilityTableToggle.tsx` — chart → table switch
 - `ScreenReaderSummary.tsx` — hidden prose for screen readers
+- `MobileNav.tsx` — mobile hamburger nav panel (full-screen overlay, dialog pattern, focus trap; `<768px` only). Spec: DESIGN_SYSTEM.md §8.1.
+- `Header.tsx` — updated in T11 to add hamburger trigger state + `MobileNav` wiring.
+- `apps/dashboard/src/copy/mobile_nav.ts` — three a11y strings (`MOBILE_NAV_TRIGGER_LABEL_CLOSED`, `MOBILE_NAV_TRIGGER_LABEL_OPEN`, `MOBILE_NAV_PANEL_LABEL`).
+- `apps/dashboard/src/styles/mobile-nav.css` — token-only styles for trigger + panel.
 
 **Methodology page (Phase 6, Mark writes prose):**
 - `MethodologyPage.tsx` — long-form article template
@@ -852,6 +1215,6 @@ A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 no
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.6. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.4.7. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
