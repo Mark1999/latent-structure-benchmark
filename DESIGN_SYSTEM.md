@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.9  
+**Version:** v0.4.10  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.4.10** (T14 documentation sweep, 2026-05-16) extends §11 Component Inventory with ten Phase 6 components shipped in T0/T7/T8/T9/T10 that were not yet listed: `FailuresFindingsSection.tsx` (T10), `FailuresInspectView.tsx` (T0+T10), `FreeListColumn.tsx` (T7), `FreeListTable.tsx` (T8), `InspectRoot.tsx` (T0), `InspectSection.tsx` (T0), `InspectTable.tsx` (T0), `MdsTable.tsx` (T8), `ReadAsTableToggle.tsx` (T8), `SimilarityTable.tsx` (T8). `ScreenReaderSummary.tsx` already listed; not re-added (M1). `AccessibilityTableToggle.tsx` pending entry annotated as renamed to `ReadAsTableToggle.tsx` per T8 UI/UX verdict. Verification pass (AC7): all Phase 6 tokens confirmed present in §1.2 and `tokens.css` — no tokens missing. Verification pass (AC8): §2.3 domain nav confirmed `[Family] [Holidays] [Food] [Emotion *] [Justice *]`, no edit required. Internal-consistency verification: §12.8 vs. v0.4.9 CONSISTENT; §12.9 vs. v0.4.6 CONSISTENT; §8.1 vs. v0.4.7 CONSISTENT; §8.2 vs. v0.4.8 CONSISTENT. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-uiux-plan-verdict.md`). No new tokens. No new visual decisions.
 - **v0.4.9** (T6 plan-level UI/UX verdict, 2026-05-15) introduces the §1.2 sequential color scale token set (`--color-scale-seq-0` through `--color-scale-seq-4`) as a perceptually-graded OWID-style single-hue blue ramp (light gray-blue → deep navy). Mark's Posture B choice: replaces the T5 alpha-blend formula `rgba(44, 62, 80, similarity)` with a 5-stop discrete-binning model. SimilarityHeatmap.tsx is reworked: `cellBackground()` now maps similarity to one of five named hex stops via bin boundaries [0, 0.20, 0.40, 0.60, 0.80, 1.00]; `HEATMAP_TEXT_SWITCH_THRESHOLD` changes from 0.73 to 0.60 (dark text on stops 0–2, white text on stops 3–4, both arms ≥4.5:1 WCAG AA). §12.8 rewritten for the new palette with full WCAG AA contrast table. CI-crosses-null dashed-border treatment retained verbatim from T5 (T14 follow-up per CDA SME T5 §5.4). Stops 0–2 do not pass WCAG 3:1 standalone-swatch contrast on white; documented as compositional-only (used only as heatmap cell fills with adjacent cell borders and similarity text, not as standalone swatches). Token `--color-heatmap-cell-text-dark: #000000` retained (pure black required; `--color-text-primary` fails at stop 2 at 3.31:1). No diverging scale added. See `docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md`.
 - **v0.4.8** (T12 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.2 (Mobile bottom-drawer for ModelSelector — full specification). Adds `MobileModelSelectorDrawer.tsx`, `apps/dashboard/src/copy/mobile_model_drawer.ts`, and `apps/dashboard/src/styles/mobile-model-drawer.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap (mirroring §8.1.1); half-sheet panel from bottom (max-height: 75vh, position: fixed bottom edge); semi-opaque backdrop scrim above panel; close button inside panel receives initial focus; live-update selection semantics (no Apply button); Esc + scrim-tap + close-button dismissal; scroll lock on open (body overflow hidden — key divergence from §8.1); inline DOM mount inside DataExplorer.tsx (position: fixed escapes stacking context); z-index: 200 (matching §8.1.14 hamburger, both surfaces cannot co-render at <768px); slide-up transition 200ms ease-out, gated by prefers-reduced-motion (instant when reduced-motion set); trigger button styling 48×48 px touch target, full-width at <768px; min-height: 44px on .model-selector__row inside drawer; stacked-below app.css rule superseded; confirmed a11y strings verbatim; no visible heading inside drawer (aria-label on dialog panel only); no Apply button (live update); no swipe gesture; no drag handle. No new tokens.
 - **v0.4.7** (T11 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.0 (general mobile behavior, retaining existing bullets) and §8.1 (Mobile hamburger menu — full specification). Adds `MobileNav.tsx`, `Header.tsx` (T11 update), `apps/dashboard/src/copy/mobile_nav.ts`, and `apps/dashboard/src/styles/mobile-nav.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap; three-line hamburger glyph (inline SVG, 20×16 viewBox, 2px stroke, 6px center-to-center gap); no glyph-to-X transform (single close button inside panel, initial focus lands there); full-screen overlay panel from top; instant open/close (no transition, `prefers-reduced-motion` trivially satisfied); no backdrop scrim (full-bleed panel); trigger button styling (tokens only); open-panel link styling (tokens only); 48×48 px touch targets; trigger hidden when panel open; no visible heading inside panel (aria-label only); confirmed a11y strings verbatim; no scroll lock; inline mount inside Header.tsx (not a portal). No new tokens.
@@ -1478,13 +1479,23 @@ All components to be built, in implementation order:
 - `EmbedModal.tsx` — embed code modal
 
 **Phase 6 (full dashboard):**
+- `FailuresFindingsSection.tsx` — domain-page failures-as-findings entry point (T10). File: `apps/dashboard/src/components/FailuresFindingsSection.tsx`.
+- `FailuresInspectView.tsx` — operator inspection variant for failures (T0 + T10). File: `apps/dashboard/src/components/FailuresInspectView.tsx`.
+- `FreeListColumn.tsx` — single-model ranked list column, sibling of `FreeListCompare` (T7). File: `apps/dashboard/src/components/FreeListColumn.tsx`.
 - `FreeListCompare.tsx` — side-by-side ranked lists
+- `FreeListTable.tsx` — read-as-table rendering for `FreeListCompare` (T8). File: `apps/dashboard/src/components/FreeListTable.tsx`.
+- `InspectRoot.tsx` — operator inspection-mode root (T0). File: `apps/dashboard/src/components/InspectRoot.tsx`.
+- `InspectSection.tsx` — operator inspection-mode section wrapper (T0). File: `apps/dashboard/src/components/InspectSection.tsx`.
+- `InspectTable.tsx` — operator inspection-mode tabular rendering (T0). File: `apps/dashboard/src/components/InspectTable.tsx`.
+- `MdsTable.tsx` — read-as-table rendering for `MDSPlot` (T8). File: `apps/dashboard/src/components/MdsTable.tsx`.
+- `ReadAsTableToggle.tsx` — toggle component for chart/table switch (T8). File: `apps/dashboard/src/components/ReadAsTableToggle.tsx`.
+- `ScreenReaderSummary.tsx` — hidden prose for screen readers
 - `SimilarityHeatmap.tsx` — Plotly heatmap with CI tooltips
+- `SimilarityTable.tsx` — read-as-table rendering for `SimilarityHeatmap` (T8). File: `apps/dashboard/src/components/SimilarityTable.tsx`.
 - `DriftTracker.tsx` — longitudinal D3 chart with date slider
 - `DateSlider.tsx` — scrubbing control for drift view
 - `ModelDetailPanel.tsx` — slide-in panel for model detail
-- `AccessibilityTableToggle.tsx` — chart → table switch
-- `ScreenReaderSummary.tsx` — hidden prose for screen readers
+- `AccessibilityTableToggle.tsx` — renamed to `ReadAsTableToggle.tsx` per T8 UI/UX verdict; see §12.9. (Legacy name retained as historical pointer.)
 - `MobileNav.tsx` — mobile hamburger nav panel (full-screen overlay, dialog pattern, focus trap; `<768px` only). Spec: DESIGN_SYSTEM.md §8.1.
 - `Header.tsx` — updated in T11 to add hamburger trigger state + `MobileNav` wiring.
 - `apps/dashboard/src/copy/mobile_nav.ts` — three a11y strings (`MOBILE_NAV_TRIGGER_LABEL_CLOSED`, `MOBILE_NAV_TRIGGER_LABEL_OPEN`, `MOBILE_NAV_PANEL_LABEL`).
@@ -1802,6 +1813,6 @@ A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 no
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.9. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.4.10. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

@@ -201,6 +201,8 @@ These are mistakes that have happened on similar projects, or that the LSB desig
 
 14. **Reintroducing a spend-cap mechanism.** The `CDB_MAX_SPEND_USD` framework was removed twice (2026-05-01 across three commits; 2026-05-08 definitively). It produces friction (script aborts, agent hesitation, hook denials, dispatch friction) without producing safety value — actual API spend has been 2–3 orders of magnitude below the estimates the framework was sized against. CI grep check + Reviewer R13 enforce removal mechanically. If you find yourself wanting to add "just one more guard" in a script or "just a small estimate paragraph" in a plan: don't. Mark monitors provider billing dashboards directly; that is the cost safety. <!-- noqa: spend-gate-check -->
 
+15. **Referencing a CSS custom property that does not exist in `tokens.css`.** When a component uses `var(--token-name)` for a token that was never defined in `tokens.css` or that was renamed, the browser silently treats the declaration as invalid at computed-value time — non-inheritable properties fall back to their initial value (e.g., `transparent`, `0`), inheritable properties fall back to the inherited value. No compile-time error is produced, no Vite/TypeScript warning appears, and no test fails because the build chain has no visibility into CSS custom-property resolution. The visual result is silently broken. Phase 6 T8 produced the originating incident of this bug class; see `docs/status/2026-05-12-phase6-T8-reviewer-verdict.md` (PASS addendum) for the specific tokens involved. Fix pattern: grep `tokens.css` before adding any `var(--...)` reference; if the token is absent, route to the UI/UX agent for a design-system update before using it.
+
 ---
 
 ## 10. When you're stuck

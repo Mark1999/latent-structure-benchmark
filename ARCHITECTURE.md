@@ -1088,6 +1088,20 @@ The v0.3.1 design retained FastAPI for the drift endpoint, which needed light on
 
 If v2 needs realtime collection status, a write path, or user accounts, re-introduce a backend at that point. Until then, no server.
 
+#### 4.4.6 Failures-as-findings publish layer (Phase 6 T9/T10)
+
+Phase 6 T9 added a per-domain failures publish path alongside the `DomainResult` domain JSON. The `cdb_publish.failures` module reads `data/raw/failures.jsonl` and `data/raw/decline_interviews.jsonl` (both read-only append-only files — the SHA256 of each file is the same before and after the build; no edits to `data/raw/*.jsonl` are permitted) and writes one JSON file per active domain to `apps/dashboard/public/data/failures/{domain}.json`.
+
+**Publish-layer redaction boundary.** Sanitization runs in `cdb_publish.sanitize.sanitize_for_publication()` before any string is written to `apps/dashboard/public/data/failures/{domain}.json`. Sanitization replaces strings matching defensive regex patterns (API-key shapes, Slack webhook URLs, local filesystem paths) with visible markers before publication. The redaction markers (`[redacted: secret pattern]`, `[redacted: local path]`) preserve the signal that a match occurred. This is defense-in-depth per `SECURITY_AND_HARDENING.md` §3.3; see that document for the full sanitization rationale. The AC3 redaction-boundary language does not attribute intent to the model for emitting any matched string.
+
+**Framing note.** Each published failures JSON carries a top-level `framing_note` field whose verbatim text is governed by `docs/status/2026-05-12-phase6-T9-cda-sme-verdict.md` §5.1 and documented in `docs/DATA_DICTIONARY.md` §12. The dashboard renders this field adjacent to the records per the T9/T10 rendering contract.
+
+**Field tables.** For the complete per-record field tables (`PublishedFailuresFile`, `PublishedFailureRecord`), see `docs/DATA_DICTIONARY.md` §12. Do not duplicate the field tables here.
+
+**Publication-eligibility.** `data/raw/failures.jsonl` and `data/raw/decline_interviews.jsonl` are the sources of truth. The append-only invariant on both files is enforced by the CI append-only check and is the open-data-bundle reproducibility guarantee (§1 commitment 9).
+
+**UI surface.** `FailuresFindingsSection.tsx` is the domain-page entry point for the failures UI (T10). The operator inspection variant is `FailuresInspectView.tsx` (T0 + T10). The component inventory is in `DESIGN_SYSTEM.md` §11.
+
 ---
 
 ### 4.5 Frontend (`apps/dashboard`)
@@ -1338,12 +1352,16 @@ The aggregate ratio (`g1_aggregate_stability`) is retained as the mean of the tw
 - Ship to Cloudflare Pages staging URL (auto-deployed from main branch)
 
 **Phase 6 — All domains, all visualizations (iterative)**
-- Add domains one at a time
-- Add heatmap, free-list compare
-- **Add `DriftTracker` (§4.5) — cross-version drift plus the longitudinal date-slider scrubbing view of corpus-lens shift across collection dates** (consolidates the v0.6 TemporalView; same data layer, single component)
+- Add domains one at a time — **SHIPPED (T13, 2026-05-11):** `food` promoted as third active domain alongside `family` and `holidays`; see `docs/status/2026-05-15-phase6-T13-reviewer-verdict.md`.
+- Add heatmap, free-list compare — **SHIPPED:** `SimilarityHeatmap` with cell-level CIs and CI-crosses-null reduced-saturation rule (T5, 2026-05-12), revised to 5-stop sequential palette (T6, 2026-05-15); `FreeListCompare` with per-term bootstrap inclusion-frequency bars (T7, 2026-05-12); see `docs/status/2026-05-12-phase6-T5-reviewer-verdict.md`, `docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md`, `docs/status/2026-05-12-phase6-T7-reviewer-verdict.md`.
+- Operator inspection mode `?inspect=<slug>` — **SHIPPED (T0, 2026-05-12):** see `docs/status/2026-05-12-phase6-T0-reviewer-verdict.md`.
+- "Read as table" toggle + `ScreenReaderSummary` across MDS, Free List, and Similarity — **SHIPPED (T8, 2026-05-12):** see `docs/status/2026-05-12-phase6-T8-reviewer-verdict.md` (PASS addendum).
+- Failures-as-findings data layer — **SHIPPED (T9, 2026-05-12):** see `docs/status/2026-05-12-phase6-T9-reviewer-verdict.md`; failures UI surface — **SHIPPED (T10, 2026-05-12):** see `docs/status/2026-05-12-phase6-T10-reviewer-verdict.md`.
+- Mobile hamburger nav — **SHIPPED (T11, 2026-05-15):** see `docs/status/2026-05-15-phase6-T11-reviewer-verdict.md`; mobile model-selector bottom-drawer — **SHIPPED (T12, 2026-05-15):** see `docs/status/2026-05-15-phase6-T12-reviewer-verdict.md`.
+- **Add `DriftTracker` (§4.5) — cross-version drift plus the longitudinal date-slider scrubbing view of corpus-lens shift across collection dates** (consolidates the v0.6 TemporalView; same data layer, single component) — **PENDING:** deferred until the next collection campaign produces multi-date data per `model_version_returned`. The 0.2 corpus has at most one collection date per model version; a drift visualization cannot be driven without violating R10.
 - Add journalist affordances (lede, export, summary, citation modal, embed modal)
-- First public release of the open data bundle to Backblaze B2 + Zenodo DOI (§6.7)
-- Methodology page first draft (Mark writes or reviews personally — not Coder-generated). The methodology page's "What this measures and what it does not" section (per `DESIGN_SYSTEM.md` §6.1 item 5) draws on §1.5 and is load-bearing for the project's defensibility; see §1.5.6.
+- First public release of the open data bundle to Backblaze B2 + Zenodo DOI (§6.7) — **PENDING (Phase 8).**
+- Methodology page first draft (Mark writes or reviews personally — not Coder-generated). The methodology page's "What this measures and what it does not" section (per `DESIGN_SYSTEM.md` §6.1 item 5) draws on §1.5 and is load-bearing for the project's defensibility; see §1.5.6. — **PENDING (T1 + T2):** blocked on Mark's routing decision (single long-scroll vs. multi-route) and Mark-authored prose; `methodologyPageUrl` in `MethodologySummary` remains `null`.
 
 **Phase 7 — Social pipeline (one session)**
 - Triggers, drafters, review CLI
