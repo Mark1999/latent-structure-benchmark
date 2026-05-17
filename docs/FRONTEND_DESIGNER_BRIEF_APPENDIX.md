@@ -1,7 +1,7 @@
 # LSB Frontend Designer Brief — Appendix: Aesthetic context
 
 **Document name:** `docs/FRONTEND_DESIGNER_BRIEF_APPENDIX.md`
-**Version:** v0.1 (written 2026-05-17 by the orchestrator Claude that ran Phase 6)
+**Version:** v0.2 (CDA SME advisory §1 polarity tag applied 2026-05-17; §3a and §4 deferred to Mark)
 **Status:** Opinionated, not doctrinal. Treat everything here as a recommendation, not a binding constraint.
 **Companion:** `docs/FRONTEND_DESIGNER_BRIEF.md` (the doctrinal brief — CDA SME approved at v0.2)
 
@@ -195,7 +195,7 @@ This is the easiest place to sound wrong. A few concrete rules I'd apply:
 
 > The "Wrong" example below uses §1.5.4 forbidden terms in order to demonstrate the failure mode (same documented exception class as the §3.1 forbidden-vocabulary table in the doctrinal brief: naming forbidden terms in order to forbid them).
 
-**Wrong:**
+**Wrong** *[do not write copy like this — forbidden vocabulary used here only to demonstrate the failure mode]***:**
 > "It's shocking how differently AI models think about families! GPT-5 sees family as fundamentally Western, while Claude views it through a more globalist lens."
 
 **Right:**
@@ -296,4 +296,4 @@ Good luck.
 
 ---
 
-*End of `FRONTEND_DESIGNER_BRIEF_APPENDIX.md` v0.1. Opinions are not doctrine; the companion `FRONTEND_DESIGNER_BRIEF.md` is doctrine.*
+*End of `FRONTEND_DESIGNER_BRIEF_APPENDIX.md` v0.2. Opinions are not doctrine; the companion `FRONTEND_DESIGNER_BRIEF.md` is doctrine.*
