@@ -1,7 +1,7 @@
 # LSB Frontend Designer Brief
 
 **Document name:** `docs/FRONTEND_DESIGNER_BRIEF.md`
-**Version:** v0.1 (first canonical version, written 2026-05-17)
+**Version:** v0.2 (CDA SME PASS-WITH-NOTES applied 2026-05-17 — Register-1/Register-2 rows added to §3.1, register operational rule added, §7.2 register annotations, §8.1 SR-templates + aria-labels gated, §10 question 7 anchor sentence)
 **Audience:** The AI frontend designer taking over the dashboard from the Claude Code agent pipeline
 **Companion docs (binding):** `ARCHITECTURE.md`, `DESIGN_SYSTEM.md`, `CLAUDE.md`, `docs/DATA_DICTIONARY.md`, `SECURITY_AND_HARDENING.md`
 
@@ -45,7 +45,7 @@ These five rules are binding on every change you make. Three are doctrinal; two 
 
 ### 3.1. Forbidden vocabulary (binding on every piece of generated text)
 
-Models do not have minds. Do not write copy that says they do. The full table lives in `CLAUDE.md` §7 and `ARCHITECTURE.md` §1.5.4. Highlights:
+Models do not have minds. Do not write copy that says they do. The canonical table lives in `CLAUDE.md` §7 and `ARCHITECTURE.md` §1.5.4. Full table reproduced here:
 
 | Don't write | Write instead |
 |---|---|
@@ -55,8 +55,16 @@ Models do not have minds. Do not write copy that says they do. The full table li
 | "Model X's worldview" | "Model X's categorical structure" / "Model X's corpus lens" |
 | "Cultural bias" (standalone) | "Categorical divergence from [baseline]" |
 | "What the model understands" | "What the model's outputs pattern as" |
+| "Within-model consensus" | "Representational coherence" / "Output Concentration Index (OCI)" |
+| "Within-model cultural consensus" | "Output distribution analysis" |
+| "Within-model eigenratio" | "Output Concentration Index (OCI)" |
+| "Within-model CCM" | "Output distribution analysis" |
+| "LSB hypothesizes that..." / "LSB tested whether..." / "LSB confirms that..." / "LSB found that [hypothesis]" | "LSB measures..." / "LSB reports..." / "LSB observes..." |
+| "LSB predicted X and the data confirmed/refuted it" | "LSB ran the protocol; here is what came out" |
 
 **Generic terms forbidden in any model-facing context:** `worldview`, `believes`, `thinks` (when applied to models).
+
+**Register matters.** OCI describes one model's output concentration (Register 1); Romney CCM / `consensus_type` describes structure shared *across* multiple models (Register 2). Do not write "within-model consensus" — that crosses the register boundary and is the most common methodology-adjacent copy failure mode. Statistics carry registers; tooltip and caption copy must respect them.
 
 The plain-language term for what LSB measures is **corpus lens**. The phrase is doing real work — it signals that this is a property of the *training corpus as filtered through the model*, not a property of the model's cognition. Use it.
 
@@ -215,9 +223,12 @@ The canonical per-domain analysis output produced by `cdb_analyze` and packaged 
 - `mds_coordinates` per model, with bootstrap ellipse parameters
 - `similarity_matrix` (pairwise model similarity) with per-cell CIs
 - `free_lists` per model, with Sutrop CSI salience scores
-- `cluster_consensus_metrics`: Smith's S, OCI per model, romney_small_n_warning, consensus_type enum
+- Per-item / per-model statistics: Smith's S (per-item salience), OCI per model (per-model output concentration — **Register 1**)
+- Cross-model consensus metrics: `romney_small_n_warning`, `consensus_type` enum (**Register 2**)
 - `generated_lede` — deterministically produced from the above
 - Reproducibility metadata (versions, run IDs)
+
+The JSON on disk may bundle these under a single `cluster_consensus_metrics` key; the register annotation above is doctrinal, not structural. OCI is **not** a consensus statistic regardless of where it sits in the JSON — see §3.1 register note.
 
 Field-by-field documentation: `docs/DATA_DICTIONARY.md` §1–§11.
 
@@ -248,6 +259,8 @@ If you want to change anything that *describes the method or interprets the data
 - Empty-state copy that hints at "why is this empty"
 - Tooltip text that explains a statistic (Smith's S, OCI, CSI, bootstrap)
 - Glossary entries
+- Screen-reader summary templates (`apps/dashboard/src/copy/screen_reader_summaries.ts`) — these passed CDA SME review at T8 with binding consensus-type plain-English mapping
+- ARIA-labels and chart captions that describe a statistic (e.g., "no shared structure" on similarity-heatmap dashed cells) — these passed CDA SME review at T5/T7/T8/T13 with binding phrasings
 
 Surface the change to the CDA SME agent (Slack `#lsb-cda-sme`, or via Mark) before shipping. The CDA SME issues a four-axis verdict (protocol / analytical / claims / audience translation). PASS-WITH-NOTES is the common verdict and means "apply these notes before shipping." FAIL means "rework."
 
@@ -299,7 +312,7 @@ These are real choices waiting for you:
 4. **The "explorer" affordance.** Right now `DataExplorer` is a tabbed widget below the lede. OWID embeds tend to have a more explicit "↓ explore the data" handoff. Is that worth the pixels?
 5. **Type system.** Current body type is serif via `--font-body`, but the actual font family is generic ("Georgia, Times, serif"). A real type pairing (e.g., GT Sectra body + Inter UI, or any of OWID's actual pairings if licensable) would lift gravitas immediately. Pick one.
 6. **Data viz polish.** The MDS plot, heatmap, and free-list compare all work but look schematic. Each has room for a redesign that increases information density without breaking R10 or accessibility. Where are the wins?
-7. **The failures-as-findings section.** It's currently a passable list at the bottom of the article. Mark's binding directive ("failures are findings") wants this to be a *first-class* surface, not a footer. How do you elevate it without making refusals feel like the headline?
+7. **The failures-as-findings section.** It's currently a passable list at the bottom of the article. Mark's binding directive ("failures are findings") wants this to be a *first-class* surface, not a footer. How do you elevate it without making refusals feel like the headline? **Binding scope-limit:** the directive is first-class status (co-equal with successful elicitations), not headline-dominant treatment. A design that visually centers refusals as *the* finding crosses into §1.5.4 territory by inviting readers to attribute intent. The T9/T10 verdicts in `docs/status/` document the binding constraints on failures-section copy and badge labels — read them before sketching.
 8. **Mobile experience.** Phase 6 shipped hamburger + bottom drawer. They work; they don't sing. Mobile-first redesign is worth a pass.
 
 ---
@@ -367,4 +380,4 @@ When the spec is ambiguous, ask. Don't improvise architectural decisions. Don't 
 
 ---
 
-*End of `FRONTEND_DESIGNER_BRIEF.md` v0.1. Read at the start of every session. When this file disagrees with `ARCHITECTURE.md` or `DESIGN_SYSTEM.md`, the more specific document wins and this file should be updated to match.*
+*End of `FRONTEND_DESIGNER_BRIEF.md` v0.2. Read at the start of every session. When this file disagrees with `ARCHITECTURE.md` or `DESIGN_SYSTEM.md`, the more specific document wins and this file should be updated to match.*
