@@ -369,7 +369,7 @@ The full list of environment variables LSB reads, where each one is set, and wha
 | USB SSD for fireproof safe | $0 incremental | — | Existing hardware |
 | Zenodo | $0 | — | Free for open science |
 | HuggingFace Datasets | $0 | — | Free for public datasets |
-| ProtonMail security contact | ~$5 | monthly | Existing personal Proton account; LSB pays for the dedicated `security@cogstructurelab.ai` address as part of the existing plan |
+| Cloudflare Email Routing (security contact) | $0 | monthly | Forwards `security@cogstructurelab.com` → Mark's ProtonMail. Setup: Mark-action M1 (one-time DNS + routing rule). Free Cloudflare feature; no subscription required. |
 | **Total infrastructure** | **~$23 / month + ~$80 / year** | | Excluding LLM API spend |
 
 The infrastructure cost is small enough to be a personal expense for Mark and does not require external funding or grant support to sustain.

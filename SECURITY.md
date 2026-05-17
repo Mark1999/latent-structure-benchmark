@@ -10,6 +10,10 @@ Please report security vulnerabilities by email to:
 
 **security@cogstructurelab.com**
 
+This address forwards via Cloudflare Email Routing to a private inbox monitored
+by the project maintainer. It is not a public inbox; your report goes directly
+to a single recipient.
+
 Do not open public GitHub issues for security vulnerabilities.
 
 We will acknowledge your report within 72 hours (sooner for critical issues).

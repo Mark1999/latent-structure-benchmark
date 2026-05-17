@@ -304,7 +304,7 @@ LSB has a small number of critical accounts. Each one is hardened identically pe
 | Hugging Face (`AILLM1999`) | Hugging Face | Inference Providers + Datasets mirror | Yes (when collection starts and when first dataset is published) |
 | Backblaze B2 | Backblaze | Backup storage, open data distribution | Yes (after first nightly backup) |
 | Zenodo | Zenodo | DOI minting for the open data bundle | Yes (after Phase 4 validation) |
-| ProtonMail | Proton | Dedicated `security@cogstructurelab.ai` security contact (and standalone account before the domain is live) | Yes from day 1 |
+| ProtonMail | Proton | Dedicated security contact inbox; `security@cogstructurelab.com` forwards via Cloudflare Email Routing to this ProtonMail account | Yes from day 1 |
 | Hetzner Cloud | Hetzner | `lsb-agent-01` VPS | Yes (after first provisioning) |
 | 1Password (or chosen password manager) | — | Credential storage | Yes from day 1 |
 
@@ -316,7 +316,7 @@ For each account:
 2. **Enroll two YubiKey 5C NFC keys** as the WebAuthn / FIDO2 second factors. Both keys are enrolled before the account holds any live data. One key on Mark's keychain (daily-carry); one key in the fireproof safe with the backup drives (cold-storage).
 3. **Disable any weaker second factors** (SMS, TOTP, email codes) wherever the provider allows. WebAuthn / FIDO2 only.
 4. **Generate and store recovery codes.** Print them to paper and put the printout in the fireproof safe. Also store them in the password manager vault. Recovery codes are the failsafe if both YubiKeys are lost.
-5. **Set the account's recovery email to the dedicated ProtonMail address** (`security@cogstructurelab.ai` post-domain; the standalone ProtonMail account before the domain is live). Never the personal email.
+5. **Set the account's recovery email to the dedicated ProtonMail address** (the ProtonMail account that receives mail forwarded from `security@cogstructurelab.com`). Never the personal email.
 6. **Enable login notifications** wherever the provider supports them. New-device login notifications go to the dedicated ProtonMail address.
 7. **Document the account in the password manager** with the username, the recovery email, the recovery code location ("fireproof safe + 1Password vault"), and the hardening completion date.
 
@@ -331,7 +331,7 @@ After this procedure, no account in the §5.1 table is logged into without a Yub
 
 ### 5.4 ProtonMail security contact
 
-The dedicated ProtonMail address is `security@cogstructurelab.ai` once the domain is live. Before the domain is live, a standalone ProtonMail account is used. The address is **not connected to Mark's personal email** in any way — separate password, separate recovery, separate device sessions.
+The canonical security contact address is **`security@cogstructurelab.com`**, forwarded via Cloudflare Email Routing (free tier) to a dedicated ProtonMail account monitored by Mark. The forwarding mechanism means the address works with the project's primary domain while the actual inbox is a private ProtonMail account. The ProtonMail account is **not connected to Mark's personal email** in any way — separate password, separate recovery, separate device sessions.
 
 This address is used for:
 
@@ -371,7 +371,7 @@ The safe is rated for the storage type (paper + electronics). Physical access is
 
 ### 6.1 Where reports go
 
-Security disclosures go to **`security@cogstructurelab.ai`** (the dedicated ProtonMail address from §5.4). Before the domain is live, the address is published as the standalone ProtonMail account.
+Security disclosures go to **`security@cogstructurelab.com`** (forwarded via Cloudflare Email Routing to the dedicated ProtonMail inbox described in §5.4). This is the canonical security contact for both the `.com` and `.ai` domains.
 
 ### 6.2 What LSB commits to
 
@@ -421,7 +421,11 @@ Only the `main` branch is supported pre-launch. After the v1 dashboard launches,
 
 Please report security vulnerabilities by email to:
 
-**security@cogstructurelab.ai**
+**security@cogstructurelab.com**
+
+This address forwards via Cloudflare Email Routing to a private inbox monitored
+by the project maintainer. It is not a public inbox; your report goes directly
+to a single recipient.
 
 Do not open public GitHub issues for security vulnerabilities.
 
@@ -435,7 +439,9 @@ release notes if you want credit, or keep your report anonymous if you prefer.
 For full details see SECURITY_AND_HARDENING.md §6 in this repository.
 ```
 
-The Reviewer agent rejects any PR that materially weakens this file (e.g., points the contact at a non-ProtonMail address, removes the "Do not open public issues" line, or removes the SLA commitment).
+The canonical security contact is `security@cogstructurelab.com`, forwarded via Cloudflare Email Routing (free; no monthly cost) to Mark's ProtonMail. This address is the canonical security contact for both the `.com` and `.ai` domains. Mark performs the Cloudflare Email Routing setup as Mark-action M1 (one-time DNS and routing rule). The doc update in this section is independent of M1 — the address is consistent across all documentation regardless of when forwarding is configured.
+
+The Reviewer agent rejects any PR that materially weakens this file (e.g., changes the contact address, removes the "Do not open public issues" line, or removes the SLA commitment).
 
 ---
 
