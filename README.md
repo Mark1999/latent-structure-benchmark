@@ -54,7 +54,7 @@ License files at the repo root: `LICENSE` (Apache 2.0), `LICENSE-DATA` (CC-BY-4.
 
 The `data/grounding/family/romney_1996/` directory contains historical reference data extracted before the 2026-05-07 amendment that removed human baselines from v1 (see `docs/status/2026-05-07-lsb-philosophy-and-framing.md`). Per the existing `data/grounding/family/romney_1996/source.md`, the Romney et al. (1996) attribution requirement applies to anyone reusing that file.
 
-For the full licensing rationale see [`ARCHITECTURE.md`](ARCHITECTURE.md) §6.6 and §6.7.
+For the full licensing rationale see [`ARCHITECTURE.md`](ARCHITECTURE.md) §6.6 and §6.7. For the canonical path-by-path license mapping see [`docs/LICENSE_COVERAGE.md`](docs/LICENSE_COVERAGE.md).
 
 ## Citation
 
