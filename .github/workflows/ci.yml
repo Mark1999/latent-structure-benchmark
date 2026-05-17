@@ -58,6 +58,43 @@ jobs:
       - name: Check no LLM imports in cdb_analyze
         run: uv run python scripts/check_no_llm_imports.py
 
+  cdb-social-boundary:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Reject cdb_analyze imports inside cdb_social
+        run: |
+          if grep -rnE 'from cdb_analyze|import cdb_analyze' packages/cdb_social/; then
+            echo "BOUNDARY VIOLATION: cdb_social imports from cdb_analyze (§2 boundary rule)"
+            exit 1
+          fi
+      - name: Reject writes to data/raw or data/processed from cdb_social
+        run: |
+          # Allow mentions inside comments (#) and docstring-boundary-documentation
+          # lines (triple-quoted strings that explicitly say "do not write to
+          # data/raw/"). The filter excludes: (a) lines whose content starts with
+          # a # comment marker; (b) lines inside triple-quoted docstrings that use
+          # the phrase "do not write" or "boundary" or similar documentation wording.
+          # A simple grep-vE covers the known boundary-documentation patterns.
+          HITS=$(grep -rnE "(data/raw|data/processed)" packages/cdb_social/cdb_social/ \
+            | grep -vE '^\s*#|do not write to|boundary|docstring|comment')
+          if [ -n "$HITS" ]; then
+            echo "BOUNDARY VIOLATION: cdb_social writes to data/raw or data/processed (§2 boundary rule)"
+            echo "$HITS"
+            exit 1
+          fi
+      - name: Reject autonomous LLM calls in cli.py detect path (§11.1 B-1)
+        run: |
+          # cli.py may import drafters (the publish subcommand does NOT call drafters,
+          # but the imports may exist for type hints). The detect subcommand body must
+          # not invoke any drafter class.
+          if grep -nE 'BlueskyDrafter\(|XDrafter\(|LinkedInDrafter\(' \
+            packages/cdb_social/cdb_social/cli.py; then
+            echo "BOUNDARY VIOLATION: cli.py instantiates a drafter — §11.1 B-1 forbids autonomous LLM calls"
+            echo "Drafter instantiation is admin console only (cdb_social/admin_console/routes.py)"
+            exit 1
+          fi
+
   gitleaks:
     runs-on: ubuntu-latest
     permissions:

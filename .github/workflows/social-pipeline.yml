@@ -1,0 +1,43 @@
+name: Social Pipeline — Daily Detection
+
+on:
+  schedule:
+    # 14:00 UTC daily per kickoff §11.9.3 ratification
+    - cron: '0 14 * * *'
+  workflow_dispatch:  # allow manual trigger
+
+jobs:
+  detect:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --all-packages
+
+      - name: Run detection cron (no auto-publish, no auto-draft)
+        env:
+          LSB_SMTP_USERNAME: ${{ secrets.LSB_SMTP_USERNAME }}
+          LSB_SMTP_PASSWORD: ${{ secrets.LSB_SMTP_PASSWORD }}
+          LSB_DIGEST_RECIPIENT: ${{ secrets.LSB_DIGEST_RECIPIENT }}
+        run: uv run python -m cdb_social.cli detect
+
+      - name: Commit state file updates
+        run: |
+          if [[ -n $(git status --porcelain out/social/state/) ]]; then
+            git config user.name "social-pipeline-bot"
+            git config user.email "social-pipeline-bot@cogstructurelab.com"
+            git add out/social/state/
+            git commit -m "chore(social): daily detection state update [skip ci]"
+            git push
+          else
+            echo "No state changes to commit."
+          fi

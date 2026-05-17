@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.15 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
+**Version:** v0.1.16 (aligned with `ARCHITECTURE.md` v0.7.4; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.16** (2026-05-17) — Phase 7 T7 docs sweep: §13.5 updated to add `emailed_dedupe_keys.json` state file (introduced in T6a but not previously documented). The `framing_checks` field is confirmed to carry four canonical keys (`hypothesis_framing`, `cognition_attribution`, `bare_numeric_without_ci`, `register_boundary`) as defined in T3 CDA SME §5.11 and implemented in `cdb_social/drafters/base.py`. Note added to §13.3 queue-acceptance contract. No schema changes. See `ARCHITECTURE.md` v0.7.4 changelog.
 - **v0.1.15** (2026-05-17) — Phase 7 T1: Added §13 documenting the social publishing pipeline schemas and on-disk layout. Three new types in `cdb_core/schemas.py`: `SocialTrigger`, `SocialDraft`, `SocialPostRecord`. Three new enums: `TriggerType`, `Platform`, `PublishStatus`. New directory tree at `out/social/queue/{pending,approved,published,failed}/` and `out/social/state/` (gitignored; only `out/social/README.md` is tracked). CDA SME PASS-WITH-NOTES verdict applied: §5.2 (`forbidden_terms_hit` docstring contract), §5.3 (`framing_check_passed` + new `framing_checks: dict[str, bool]` sibling), §5.4 (renamed `confidence_score` → `drafter_self_rating: float = 0.0`), §5.5 (`suggested_posting_time` operational-only docstring), §5.6 (`evidence` dict docstring + T2 carry-forward), §5.8 (`dedupe_key` formula + exclusion of `drafter_version`/`prompt_version`). No changes to `InformantRecord`, `GroundingRef`, or any existing `cdb_core` schema. CDA SME verdict: `docs/status/2026-05-17-phase7-T1-cda-sme-verdict.md` (PASS-WITH-NOTES).
 - **v0.1.14** (2026-05-12) — Phase 6 T9: Added §12 documenting the published failures JSON shape emitted by `packages/cdb_publish/cdb_publish/failures.py` to `apps/dashboard/public/data/failures/{slug}.json`. New publish-layer schemas in `packages/cdb_publish/cdb_publish/schemas/failures.py` (`PublishedFailuresFile`, `PublishedFailureRecord`). New sanitization module `packages/cdb_publish/cdb_publish/sanitize.py`. `Manifest` schema gains `failures: dict[str, str]` field. `scripts/publish.py` gains three new CLI args for raw-data paths. No changes to `cdb_core/schemas.py`. CDA SME verdict: `docs/status/2026-05-12-phase6-T9-cda-sme-verdict.md` (PASS-WITH-NOTES; §5.1–§5.5 applied).
 - **v0.1.13** (2026-05-07) — Fix-forward metadata accuracy (sibling task between Phase 4b T2 and T3): `AdapterResult` gains `max_tokens_used: int = 4096` field; every adapter now sets this to the actual `max_tokens` value it sends to the API (4096 for Anthropic/HuggingFace/OpenAI-compat; 16384 for Google Gemini; `compute_effective_max_tokens(prompt, context_length)` for OpenRouter — typically 16384 for large-context models, ~13872 for phi-4). `runner.py` `_assemble_record()` now reads `freelist_result.max_tokens_used` instead of the hardcoded `4096` constant. Updated `InformantRecord.max_tokens` field description to add the editorial note documenting the historical inaccuracy in records collected before this commit. No schema changes to `InformantRecord` or `GroundingRef`; no new dependencies. Historical records in `informants.jsonl` are unchanged (append-only invariant preserved). Reviewer-T2 finding (commit `f7ca048`): `docs/status/2026-05-07-phase4b-t2-reviewer-verdict.md` note 1. Mark's Option A ruling: fix forward only, no backfill. Precedent: `memory/project_metadata_fix_forward_precedent.md`.
@@ -1359,11 +1360,39 @@ documented on the corresponding `detect_*` functions in `cdb_social.triggers`
 | `seen_domains.json` | `list[str]` — domain slugs | Bootstrap state for `detect_new_domain` |
 | `divergence_highs.json` | `dict[str, float]` — domain slug → max pairwise distance | Bootstrap state for `detect_divergence` |
 | `monthly_roundup.json` | `{"last_fired": "YYYY-MM"}` | Last-fired month for the monthly trigger |
-| `posted_dedupe_keys.json` | `list[str]` — dedupe key strings | Trigger idempotency log; entries are never removed unless a manual re-fire is intended |
+| `emailed_dedupe_keys.json` | `{"keys": list[str]}` — dedupe key strings | Triggers that have been included in an email digest to Mark. Distinct from `posted_dedupe_keys.json`. A trigger may be in this file (Mark was told) without being in `posted_dedupe_keys.json` (Mark chose not to act). Introduced in Phase 7 T6a (`cdb_social/cli.py`). |
+| `posted_dedupe_keys.json` | `list[str]` — dedupe key strings | Trigger idempotency log for published Bluesky posts; entries are never removed unless a manual re-fire is intended |
+
+**Note on the two dedupe-key state files:** `emailed_dedupe_keys.json` tracks
+"Mark was told about this trigger via email digest." `posted_dedupe_keys.json`
+tracks "this trigger produced a live post on Bluesky." These are separate facts
+and separate files by design — the Phase 7 §11 architecture separates detection
+(cron) from drafting (admin console, human-triggered) from publishing (second
+click). The cron only updates `emailed_dedupe_keys.json`; the admin console
+publish handler updates `posted_dedupe_keys.json`.
 
 First-run bootstrap: each `detect_*` function writes its initial state and
 emits zero triggers on the first run (no "we just started" false-positive posts).
 
 ---
 
-*End of `docs/DATA_DICTIONARY.md` v0.1.15. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
+### 13.6 `framing_checks` canonical keys (Phase 7 T3 clarification)
+
+The `SocialDraft.framing_checks: dict[str, bool]` field (§13.3) carries four
+canonical keys as defined in CDA SME T3 §5.11 and implemented in
+`cdb_social/drafters/base.py:validate_draft()`:
+
+| Key | Check | Pass condition |
+|---|---|---|
+| `hypothesis_framing` | No hypothesis-framing phrase in draft text (§5.3) | `True` iff no match |
+| `cognition_attribution` | No forbidden word-stem applied to a model (§5.1) | `True` iff no match |
+| `bare_numeric_without_ci` | Every non-exempt numeric has an adjacent CI (§5.2, R10) | `True` iff all numerics are CI-bracketed |
+| `register_boundary` | No §1.5.4 rows 7-10 boundary phrases (§5.3) | `True` iff no match |
+
+All four keys must be `True` for `framing_check_passed` to be `True`. The
+queue-acceptance contract (§13.3) is unchanged: `forbidden_terms_hit == []`
+AND `framing_check_passed == True` AND all `framing_checks` values `True`.
+
+---
+
+*End of `docs/DATA_DICTIONARY.md` v0.1.16. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*

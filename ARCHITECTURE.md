@@ -2,11 +2,12 @@
 
 **Project name:** Latent Structure Benchmark (LSB)
 **Public-facing site:** Cognitive Structure Lab — `cogstructurelab.com`
-**Status:** Draft v0.7.1 — handoff document for the Claude Code development team
+**Status:** Draft v0.7.4 — handoff document for the Claude Code development team
 **Audience:** Architect / CDA SME / UI/UX / Coder / Reviewer / Tester agents + human reviewer (Mark)
 **Companion docs:** `CDB_Briefing_Opus46.docx` (product vision), `CLAUDE.md` (team constitution), `DESIGN_SYSTEM.md` (binding for all frontend work), `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `PHASE_0_TASKS.md`, `docs/DATA_DICTIONARY.md` (Phase 1 deliverable)
 
 **Changelog:**
+- **v0.7.4** (amendment, 2026-05-17) — Phase 7 T7 docs sweep. No schema or code changes. §4.6 amended to record the realized `out/social/queue/` path layout (was `data/social_queue/` in original spec; §2 boundary rule mandates `out/social/`), the §11 detect-only cron architecture (detect → email digest → human-triggered on-demand drafting via admin console → second-click publish), the two-state-file separation (`emailed_dedupe_keys.json` vs `posted_dedupe_keys.json`), the realized module references, and the failure-handling posture. Applies the T1 §5.7 prose fix (CDA SME deferred from T1 to T7): "monthly state of cultural alignment roundup" → "monthly cross-domain categorical-structure roundup". `CLAUDE.md` §9 gains pitfall #16 (post-generation validator pattern) and #17 (no autonomous LLM calls in production paths). `docs/DATA_DICTIONARY.md` §13.5 updated to add `emailed_dedupe_keys.json` state file. See `docs/status/2026-05-17-phase7-architect-kickoff.md` §11.7 and `docs/status/2026-05-17-phase7-T1-cda-sme-verdict.md` §5.7.
 - **v0.7.3** (amendment, 2026-05-08) — No schema or code changes. §6.2 cost-tracking section replaced with cost-posture principle (no software-side spend gates); §3 repo-layout cleaned of `cost_report.py` reference (file was deleted 2026-05-01, tree never updated); §7 SUPERSEDED rows 2 and 24 annotated with `, reaffirmed 2026-05-08`. See `docs/status/2026-05-08-spend-cap-removal-architect-plan.md`.
 - **v0.7.2** (amendment, 2026-05-07) — No schema or code changes. Drops human grounding from v1 and deepens §1.5 framing. Adds §1.5.7 (exploratory framing — LSB does not test hypotheses), quoting philosophy doc `docs/status/2026-05-07-lsb-philosophy-and-framing.md` §2 and §9 verbatim. Rewrites §1.5.1 with the five-link corpus-lens chain from philosophy doc §4. Adds honest-tagline block at top of §1.5. Extends §1.5.4 forbidden-vocabulary table with two hypothesis-testing rows. Rewrites §1.5.5 to record the human-grounding removal decision with the "Trojan horse" rationale. Rewrites §4.2.5 to archival posture (~15 lines). Removes Phase 4c (human baseline acquisition); renumbers 4d → 4c (bootstrap validation). Removes R15 from §5.2. Edits Phase 6 and Phase 8 build-plan bullets. Updates §9 Glossary to mark Baseline kind, Researcher grounding, Grounding states (0/1/2/3), and GroundingRef entries as historical. Removes `docs/grounding_submission_template.md` and `.github/PULL_REQUEST_TEMPLATE/grounding_submission.md` from the repository layout tree. Adds `data/grounding/README.md` historical banner. Deletes `PHASE_4C_CANDIDATE_SOURCES.md`, `docs/grounding_submission_template.md`, and `.github/PULL_REQUEST_TEMPLATE/grounding_submission.md` from the repository. Gate chain: Architect plan + CDA SME PASS-WITH-NOTES (A1–A6 all applied). See `docs/status/2026-05-07-no-human-baseline-amendment-architect-plan.md`.
 - **v0.7.1** (patch, 2026-04-15) — Docs and operational alignment only, no schema or architecture changes. PR #2 (`6a21f69`) applied the F4–F8 docs/CI consistency pass: corrected VPS paths from `/home/lsb/lsb/` to `/opt/lsb-agent/`, renamed `GEMINI_API_KEY` to `GOOGLE_API_KEY` in discovery config and `.env.example`, regenerated the model registry. F1 VPS hardening completed outside git: dedicated `lsb` user created (uid 999), entire `/opt/lsb-agent/` tree chowned to `lsb:lsb`, `lsb-agent.service` updated to `User=lsb` with `ExecStart=/bin/false` (parked), root SSH login and password authentication disabled. Claude Code reinstalled under the `lsb` user at `/home/lsb/.local/bin/claude`. Companion docs (`HOSTING_AND_DEV_OPS.md`, `SECURITY_AND_HARDENING.md`) updated to reflect the new operational reality.
@@ -1180,39 +1181,151 @@ src/
 
 ### 4.6 Social publishing pipeline (`cdb_social`)
 
-The Claude Code agent described in the briefing. Runs on a cron (GitHub Actions is fine for v1).
+Implemented in Phase 7 (2026-05-17). Runs on a GitHub Actions daily cron.
 
-**Architecture:**
+**§4.6.1 Amendment note (v0.7.4, 2026-05-17)**
+
+The original §4.6 spec was amended by Phase 7 §11 (kickoff
+`docs/status/2026-05-17-phase7-architect-kickoff.md`) after Mark ratified
+a binding constraint: the pipeline must never invoke an LLM or publish to
+a platform without an explicit human action per event. Two binding rules
+apply to all future work on this pipeline:
+
+- **B-1:** No autonomous LLM calls anywhere in the social pipeline. Drafters
+  are invoked only from the admin console on Mark's explicit per-trigger click.
+  The cron path (`python -m cdb_social.cli detect`) runs detectors and emails
+  a digest but never calls an LLM. CI step `cdb-social-boundary` enforces this
+  mechanically: `BlueskyDrafter(` / `XDrafter(` / `LinkedInDrafter(` inside
+  `packages/cdb_social/cdb_social/cli.py` is rejected on any PR.
+
+- **B-2:** Publishing (the `atproto` Bluesky API call) requires a second
+  explicit click after approval. Approve-draft and publish-draft are two
+  separate human actions.
+
+The original spec also used `data/social_queue/pending/` as the queue path.
+The §2 boundary rule (line 385) mandates that `cdb_social` writes only to
+`out/social/`. The realized layout is `out/social/queue/{pending,approved,
+published,failed}/` and `out/social/state/`. This path-conflict resolution
+is the primary structural change from the original spec.
+
+**§4.6.2 Realized architecture (v0.7.4)**
 
 ```
-triggers.py       # detects "post-worthy" events
+[GitHub Actions cron, 14:00 UTC daily]
    │
    ▼
-drafters/         # one drafter per platform
-   ├── x.py       # thread format
-   ├── linkedin.py
-   └── bluesky.py
+cdb_social/triggers.py     # pure functions over apps/dashboard/public/data/
+   │  detect_new_model()
+   │  detect_new_domain()
+   │  detect_drift()        # disabled (enable=False) until multi-date data
+   │  detect_divergence()
+   │  detect_monthly_roundup()
+   ▼
+cdb_social/digest.py       # format triggers as email body
    │
    ▼
-queue.py          # writes drafts to data/social_queue/pending/
+cdb_social/email_sender.py # send via Gmail SMTP (smtplib; no LLM)
+   │  updates out/social/state/emailed_dedupe_keys.json
    │
    ▼
-[human review]    # Mark approves via a minimal review UI or a CLI
-   │
+[Mark reads digest email]
+   │  decides whether to act
    ▼
-publisher.py      # posts via platform APIs from data/social_queue/approved/
+cdb_social/admin_console/  # local Flask UI, 127.0.0.1:8000 (loopback only)
+   │  GET /triggers        # list detected triggers
+   │  POST /triggers/<key>/draft?platform=<platform>
+   │      └─→ cdb_social/drafters/{bluesky,x,linkedin}.py  ← ONLY LLM call site
+   │              └─→ post-generation validator (base.DrafterBase.validate_draft)
+   │                  raises DrafterRejectedException on failure
+   │              └─→ out/social/queue/pending/{draft_id}.json
+   ▼
+[Mark reviews draft in admin console]
+   │  POST /draft/<id>/approve  → out/social/queue/approved/
+   │  POST /draft/<id>/reject   → out/social/queue/failed/ + sidecar JSON
+   │  POST /draft/<id>/edit     → re-validate → approved/ or back to pending/
+   ▼
+[Mark clicks Publish — second click]
+   │  POST /draft/<id>/publish
+   │      └─→ cdb_social/publisher.py  (Bluesky via atproto; live)
+   │              X / LinkedIn raise PublisherNotEnabled
+   │          success → out/social/queue/published/{YYYY-MM}/{draft_id}.json
+   │          failure → out/social/queue/failed/{draft_id}.json + sidecar JSON
+   │          updates out/social/state/posted_dedupe_keys.json
+   ▼
+[Post live on Bluesky]
 ```
 
 **Triggers (implemented as pure functions over the results store):**
 1. New model added → "We added {model} to the benchmark. Here's where it sits."
 2. New domain analyzed → "We now measure how models categorize {domain}. First finding: ..."
-3. Drift event → fires when Procrustes distance between two versions of the same model family exceeds a threshold (start at 0.15, tune later).
-4. Divergence event → fires when the gap between the two most-different models on a domain hits a new high.
-5. Scheduled: monthly "state of cultural alignment" roundup.
+3. Drift event → fires when Procrustes distance between two versions of the same model family exceeds a threshold (start at 0.15, tune later). **Disabled (enable=False) until multi-date data exists.**
+4. Divergence event → fires when the max pairwise distance in a domain's similarity matrix hits a new high.
+5. Scheduled: monthly cross-domain categorical-structure roundup — a once-monthly digest post that surveys recent measurements across domains, models, and runs.
 
-**Drafting:** each drafter is a Claude Code subagent with a short system prompt specific to the platform. Input is a trigger event + the relevant `DomainResult`. Output is a JSON file containing: draft text, image filename (generated via the same export pipeline the dashboard uses), suggested posting time, confidence score.
+**On-disk layout:**
 
-**Human-in-the-loop:** the review step is non-negotiable. v1 can be as simple as `python scripts/social_review.py` showing drafts one at a time with y/n/edit. v2 can build a web UI if the volume justifies it.
+```
+out/social/
+  queue/
+    pending/          {draft_id}.json          — SocialDraft awaiting review
+    approved/         {draft_id}.json          — approved, awaiting publish click
+    published/
+      {YYYY-MM}/      {draft_id}.json          — SocialPostRecord (success)
+    failed/           {draft_id}.json          — SocialPostRecord (failure) + sidecar
+  state/
+    emailed_dedupe_keys.json   — triggers Mark has been told about (email sent)
+    posted_dedupe_keys.json    — triggers whose post is live on Bluesky
+    seen_models.json           — bootstrap state for detect_new_model
+    seen_domains.json          — bootstrap state for detect_new_domain
+    divergence_highs.json      — bootstrap baseline for detect_divergence
+    monthly_roundup.json       — last-fired month for the monthly trigger
+```
+
+The two state files `emailed_dedupe_keys.json` and `posted_dedupe_keys.json`
+are intentionally separate: "Mark was told about this trigger" and "this
+trigger produced a live Bluesky post" are distinct facts. A trigger may be
+in `emailed_dedupe_keys.json` (Mark received the digest) without being in
+`posted_dedupe_keys.json` (Mark chose not to act).
+
+**Module references:**
+- `cdb_social/triggers.py` — five trigger detector functions (pure, no LLM)
+- `cdb_social/digest.py` — formats `list[SocialTrigger]` as a readable email body
+- `cdb_social/email_sender.py` — sends via Gmail SMTP; reads `LSB_SMTP_USERNAME`, `LSB_SMTP_PASSWORD`, `LSB_DIGEST_RECIPIENT` from env
+- `cdb_social/drafters/base.py` — `DrafterBase` + `validate_draft()` post-generation validator; the four canonical `framing_checks` keys (`hypothesis_framing`, `cognition_attribution`, `bare_numeric_without_ci`, `register_boundary`) are defined here; `DrafterRejectedException` is raised on any failed check
+- `cdb_social/drafters/bluesky.py` — Bluesky drafter (live); Claude via Anthropic API; prompt caching per §6.2; prompt at `cdb_social/drafters/prompts/v1/bluesky.md`
+- `cdb_social/drafters/x.py`, `cdb_social/drafters/linkedin.py` — X and LinkedIn drafters (draft-only in Phase 7; no live publishing)
+- `cdb_social/queue.py` — atomic move helpers between queue states
+- `cdb_social/publisher.py` — Bluesky-live via `atproto`; X/LinkedIn raise `PublisherNotEnabled`
+- `cdb_social/admin_console/` — local Flask web UI; `app.py` + `routes.py` + `templates/` + `static/admin.css`; binds `127.0.0.1:8000` (loopback only, no auth needed)
+- `cdb_social/cli.py` — CLI entry point: `detect` (cron path), `review` (delegates to scripts/social_review.py), `publish` (drain approved → publisher), `status` (queue counts)
+
+**Post-generation validator:**
+The `validate_draft()` function in `cdb_social/drafters/base.py` is the R10
+enforcement gate for social posts. It is a *post-generation validator*, not a
+prompt-side suggestion. Drafts that fail any check raise `DrafterRejectedException`;
+they are never silently repaired. The four checks are: `hypothesis_framing`
+(no hypothesis-framing phrase), `cognition_attribution` (no forbidden word-stem),
+`bare_numeric_without_ci` (every numeric has an adjacent CI), `register_boundary`
+(no §1.5.4 rows 7-10 boundary phrases). See `CLAUDE.md` §9 pitfall #16.
+
+**Failure handling:**
+Failed publishes land in `out/social/queue/failed/` with a sidecar JSON
+recording the verbatim error. Transient failures are retried on the next
+admin-console publish click; terminal failures are left in `failed/` for
+operator inspection.
+
+**Human-in-the-loop (original spec preserved):** the review step is
+non-negotiable. v1 ships a local Flask admin console (`127.0.0.1:8000`)
+as the primary review UX; `scripts/social_review.py` is the fallback
+dev-tool CLI. See §11 of the kickoff doc for the full human-in-the-loop
+architecture rationale.
+
+**§4.6 original spec (historical):**
+The original spec (v0.7.1–v0.7.3) described an auto-drafting cron that
+ran `detect → draft → queue` autonomously, with the queue path at
+`data/social_queue/pending/`. Both the autonomy model and the path are
+superseded by the §11 amendment (2026-05-17). The original text is
+preserved in the kickoff doc §3 for audit-trail purposes.
 
 ---
 
