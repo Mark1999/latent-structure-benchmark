@@ -11,9 +11,10 @@ docs/DATA_DICTIONARY.md in the same PR.
 from __future__ import annotations
 
 from datetime import date, datetime
-from typing import Literal
+from enum import StrEnum
+from typing import Any, Literal
 
-from pydantic import BaseModel, model_validator
+from pydantic import BaseModel, Field, model_validator
 
 # ─────────────────────────────────────────────────────────────────────
 # Utility schemas
@@ -637,3 +638,175 @@ class DeclineInterview(BaseModel):
                 "(one must be set, the other must be None)"
             )
         return self
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Social publishing pipeline schemas (Phase 7 T1)
+# See ARCHITECTURE.md §4.6 and docs/DATA_DICTIONARY.md §13.
+# ──────────────────────────────────────────────────────────────────────
+
+class TriggerType(StrEnum):
+    """Enumeration of post-worthy event types detected by cdb_social.triggers."""
+    NEW_MODEL = "new_model"
+    NEW_DOMAIN = "new_domain"
+    DRIFT = "drift"
+    DIVERGENCE = "divergence"
+    MONTHLY_ROUNDUP = "monthly_roundup"
+
+
+class Platform(StrEnum):
+    """Social platform targets. BLUESKY has live publish support in Phase 7;
+    X and LINKEDIN are draft-only (see ARCHITECTURE.md §4.6 and Phase 7 §2)."""
+    BLUESKY = "bluesky"
+    X = "x"
+    LINKEDIN = "linkedin"
+
+
+class PublishStatus(StrEnum):
+    """Outcome of a publish attempt recorded in SocialPostRecord."""
+    PUBLISHED = "published"
+    FAILED = "failed"
+    DRY_RUN = "dry_run"
+    RETRY_PENDING = "retry_pending"
+
+
+class SocialTrigger(BaseModel):
+    """A post-worthy event detected over the published results store.
+
+    Detection is performed by pure functions in cdb_social.triggers; the
+    cron orchestrator decides whether to draft based on the dedupe_key
+    and the enable flags per trigger type.
+    """
+    trigger_type: TriggerType
+    detected_at: datetime
+    domain_slug: str | None = None
+    model_id: str | None = None
+    evidence: dict[str, Any] = Field(default_factory=dict, description=(
+        "Trigger-type-specific evidence payload. The expected shape of this "
+        "dict for each TriggerType value is documented in T2's "
+        "cdb_social/triggers.py module on the corresponding detect_* "
+        "function. The dict[str, Any] shape is the T1↔T2 type-system "
+        "contract, not a license for unstructured drift. T2's CDA SME gate "
+        "reviews the per-trigger-type evidence-payload schema. "
+        "Per CDA SME §5.6. "
+        "Minimum keys per TriggerType (defined at T2; listed here for "
+        "cross-reference): "
+        "NEW_MODEL → {'first_seen_in_domain': str}; "
+        "NEW_DOMAIN → {'domain_slug': str, 'n_models': int}; "
+        "DIVERGENCE → {'domain_slug': str, 'model_pair': [str, str], "
+        "'old_high': float, 'new_high': float, 'gap_delta': float}; "
+        "DRIFT → {'model_version_returned': str, 'procrustes_distance': "
+        "float, 'date_pair': [str, str]}; "
+        "MONTHLY_ROUNDUP → {'month': str (YYYY-MM)}."
+    ))
+    dedupe_key: str = Field(description=(
+        "Stable idempotency key for the trigger event. Construction: "
+        "SHA256(trigger_type + '|' + (domain_slug or '') + '|' + "
+        "(model_id or '') + '|' + canonical_json(evidence))[:16]. "
+        "The formula intentionally excludes drafter_version and "
+        "prompt_version. A drafter-prompt bump does not by itself justify "
+        "re-firing a posted trigger; if a re-fire is needed (e.g., to "
+        "re-publish under a new drafter), that is a manual operation — "
+        "the operator removes the entry from "
+        "out/social/state/posted_dedupe_keys.json and the next cron run "
+        "emits a fresh draft. "
+        "Per CDA SME §5.8 — re-firing the same event after a prompt bump "
+        "does NOT produce a new draft because dedupe_key is stable across "
+        "drafter_version and prompt_version bumps."
+    ))
+
+
+class SocialDraft(BaseModel):
+    """A platform-specific draft persisted in out/social/queue/pending/.
+
+    Produced by cdb_social.drafters; reviewed by Mark via the review CLI;
+    moved to queue/approved/ on approval and to queue/published/ or
+    queue/failed/ on publish.
+    """
+    draft_id: str = Field(description=(
+        "SHA256[:16] of (trigger.dedupe_key + platform + drafter_version "
+        "+ prompt_version). A prompt-version bump produces a NEW draft "
+        "for an already-seen trigger because draft_id incorporates "
+        "prompt_version even though trigger.dedupe_key does not."
+    ))
+    trigger: SocialTrigger
+    platform: Platform
+    text: str
+    text_history: list[str] = Field(default_factory=list, description=(
+        "Append-only history of prior text values when Mark edits via "
+        "the review CLI. The current text is in `text`; prior values are "
+        "appended here on each edit. Never overwritten."
+    ))
+    image_path: str | None = None
+    suggested_posting_time: datetime = Field(description=(
+        "Platform-specific operational hint for posting time based on "
+        "audience-engagement windows. Not a methodological signal about "
+        "the finding's readiness. The T5 reviewer may override or ignore. "
+        "T3 drafters compute this field per platform; the algorithm is "
+        "platform-marketing-internal and is not part of LSB's "
+        "methodological claims. Per CDA SME §5.5."
+    ))
+    drafter_self_rating: float = Field(default=0.0, ge=0.0, le=1.0, description=(
+        "Drafter's self-reported heuristic score for ordering the "
+        "human-review queue (T5's review CLI may sort by this field). "
+        "Not calibrated. Not used in any analysis. Not surfaced on the "
+        "public dashboard or in the open data bundle. Drafters that do "
+        "not produce a self-rating set this to 0.0. The score is not a "
+        "methodological signal about draft quality; it is an internal "
+        "drafter heuristic for operator convenience. Per CDA SME §5.4 — "
+        "renamed from confidence_score to defuse the calibration "
+        "implication."
+    ))
+    methodology_url: str = Field(description=(
+        "URL pattern for the methodology page link. Set to the article-"
+        "shell URL (cogstructurelab.com/{domain}) while Phase 6 T1+T2 "
+        "remain blocked; flip to /methodology once those land."
+    ))
+    dashboard_url: str
+    forbidden_terms_hit: list[str] = Field(default_factory=list, description=(
+        "Substrings from the §1.5.4 language-guardrails table "
+        "(ARCHITECTURE.md §1.5.4) that the drafter's output matched "
+        "during the T3 post-generation validation pass. A draft with any "
+        "matched terms must not be admitted to the queue; the "
+        "queue-acceptance precondition is forbidden_terms_hit == []. "
+        "The T5 review CLI and the T6 publisher both enforce this "
+        "precondition. Populated by T3's validate_draft(). "
+        "Per CDA SME §5.2. This field's persistence in the schema is a "
+        "forensic audit trail — if a draft somehow reaches the queue "
+        "with a non-empty list, that is a bug in the drafter validator "
+        "and the review CLI must surface it."
+    ))
+    framing_check_passed: bool = Field(default=False, description=(
+        "Single-boolean queue-acceptance signal for the §1.5 / §1.5.7 "
+        "framing checks. Default False; the T3 drafter sets to True only "
+        "after every per-check entry in framing_checks is True. The "
+        "queue-acceptance precondition is framing_check_passed == True "
+        "AND every value in framing_checks is True (the redundancy is "
+        "intentional: the bool is the fast-grep contract; the dict is "
+        "the forensic audit trail). Per CDA SME §5.3."
+    ))
+    framing_checks: dict[str, bool] = Field(default_factory=dict, description=(
+        "Per-check audit trail keyed by framing-check name (e.g., "
+        "'hypothesis_framing', 'cognition_attribution', "
+        "'bare_numeric_without_ci'). Each value is True if that check "
+        "passed. The T3 drafter populates this dict; T5 reviewers and "
+        "post-mortem analyses consume it. The exact set of check names "
+        "is defined by T3. Per CDA SME §5.3."
+    ))
+    drafter_version: str
+    prompt_version: str
+    created_at: datetime
+
+
+class SocialPostRecord(BaseModel):
+    """The publish outcome for a SocialDraft.
+
+    Persisted in out/social/queue/published/{YYYY-MM}/ on success or
+    out/social/queue/failed/ on failure.
+    """
+    draft_id: str
+    published_at: datetime
+    platform_post_id: str | None = None
+    platform_post_url: str | None = None
+    publish_status: PublishStatus
+    error_message: str | None = None

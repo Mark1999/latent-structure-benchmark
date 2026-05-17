@@ -54,6 +54,11 @@ docs/references/
 # Host-local operator notes (VPS-specific; intentionally never committed)
 HARDWARE.md
 
+# Social publishing pipeline runtime directories (queue and state are
+# operator-local runtime artifacts; only out/social/README.md is tracked)
+out/social/queue/
+out/social/state/
+
 # OS
 .DS_Store
 Thumbs.db

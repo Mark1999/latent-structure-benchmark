@@ -1,6 +1,7 @@
 """Unit tests for cdb_core schemas — construct minimal instances, verify JSON round-trip.
 
 See PHASE_0_TASKS.md P0-T3 acceptance criteria.
+Phase 7 T1 social pipeline schema tests appended at end of file.
 """
 
 from datetime import date, datetime
@@ -19,7 +20,13 @@ from cdb_core.schemas import (
     ModelRef,
     PileSort,
     PileSortRecord,
+    Platform,
+    PublishStatus,
     RawResponse,
+    SocialDraft,
+    SocialPostRecord,
+    SocialTrigger,
+    TriggerType,
 )
 
 # ── Fixtures ──
@@ -648,3 +655,252 @@ def test_informant_record_with_nonzero_thoughts_token_count_round_trips():
     assert restored.freelist.thoughts_token_count == 128
     assert restored.pile_sort.thoughts_token_count == 256
     assert restored.interview.thoughts_token_count == 64
+
+
+# ── Phase 7 T1: Social pipeline schema round-trip tests ──
+
+
+def _social_trigger(
+    trigger_type: TriggerType = TriggerType.NEW_MODEL,
+    domain_slug: str | None = "family",
+    model_id: str | None = "claude-opus-4-6",
+) -> SocialTrigger:
+    """Return a minimal valid SocialTrigger."""
+    return SocialTrigger(
+        trigger_type=trigger_type,
+        detected_at=datetime(2026, 5, 17, 14, 0, 0),
+        domain_slug=domain_slug,
+        model_id=model_id,
+        evidence={"first_seen_in_domain": "family"},
+        dedupe_key="abcd1234efgh5678",
+    )
+
+
+def _social_draft(trigger: SocialTrigger | None = None) -> SocialDraft:
+    """Return a minimal valid SocialDraft."""
+    if trigger is None:
+        trigger = _social_trigger()
+    return SocialDraft(
+        draft_id="draft0123456789ab",
+        trigger=trigger,
+        platform=Platform.BLUESKY,
+        text="A new model was added to the family domain.",
+        suggested_posting_time=datetime(2026, 5, 18, 14, 0, 0),
+        methodology_url="cogstructurelab.com/family",
+        dashboard_url="cogstructurelab.com/family",
+        drafter_version="v1",
+        prompt_version="v1",
+        created_at=datetime(2026, 5, 17, 14, 1, 0),
+        framing_check_passed=True,
+        framing_checks={"no_cognition_attribution": True, "bare_numeric_without_ci": True},
+    )
+
+
+def test_social_trigger_round_trip():
+    """SocialTrigger survives JSON round-trip."""
+    obj = _social_trigger()
+    json_str = obj.model_dump_json()
+    restored = SocialTrigger.model_validate_json(json_str)
+    assert restored == obj
+    assert restored.trigger_type == TriggerType.NEW_MODEL
+    assert restored.dedupe_key == "abcd1234efgh5678"
+
+
+def test_social_trigger_monthly_roundup_round_trip():
+    """MONTHLY_ROUNDUP trigger (no domain/model) survives round-trip."""
+    obj = SocialTrigger(
+        trigger_type=TriggerType.MONTHLY_ROUNDUP,
+        detected_at=datetime(2026, 5, 1, 0, 0, 0),
+        domain_slug=None,
+        model_id=None,
+        evidence={"month": "2026-05"},
+        dedupe_key="monthly00abcd1234",
+    )
+    json_str = obj.model_dump_json()
+    restored = SocialTrigger.model_validate_json(json_str)
+    assert restored == obj
+    assert restored.domain_slug is None
+    assert restored.model_id is None
+
+
+def test_social_trigger_divergence_round_trip():
+    """DIVERGENCE trigger evidence payload survives round-trip."""
+    obj = SocialTrigger(
+        trigger_type=TriggerType.DIVERGENCE,
+        detected_at=datetime(2026, 5, 17, 9, 0, 0),
+        domain_slug="family",
+        model_id=None,
+        evidence={
+            "domain_slug": "family",
+            "model_pair": ["claude-opus-4-6", "gpt-4o"],
+            "old_high": 0.72,
+            "new_high": 0.81,
+            "gap_delta": 0.09,
+        },
+        dedupe_key="diverge0012345678",
+    )
+    json_str = obj.model_dump_json()
+    restored = SocialTrigger.model_validate_json(json_str)
+    assert restored == obj
+    assert restored.evidence["gap_delta"] == 0.09
+
+
+def test_social_draft_round_trip():
+    """SocialDraft survives JSON round-trip."""
+    obj = _social_draft()
+    json_str = obj.model_dump_json()
+    restored = SocialDraft.model_validate_json(json_str)
+    assert restored == obj
+    assert restored.platform == Platform.BLUESKY
+
+
+def test_social_draft_drafter_self_rating_default():
+    """drafter_self_rating defaults to 0.0 (renamed from confidence_score, CDA SME §5.4)."""
+    obj = _social_draft()
+    assert obj.drafter_self_rating == 0.0
+
+
+def test_social_draft_forbidden_terms_hit_default():
+    """forbidden_terms_hit defaults to [] (CDA SME §5.2)."""
+    obj = _social_draft()
+    assert obj.forbidden_terms_hit == []
+
+
+def test_social_draft_text_history_default():
+    """text_history defaults to []."""
+    obj = _social_draft()
+    assert obj.text_history == []
+
+
+def test_social_draft_framing_checks_default():
+    """framing_checks defaults to {} when not supplied (CDA SME §5.3)."""
+    obj = SocialDraft(
+        draft_id="draft0123456789ab",
+        trigger=_social_trigger(),
+        platform=Platform.BLUESKY,
+        text="Minimal draft.",
+        suggested_posting_time=datetime(2026, 5, 18, 14, 0, 0),
+        methodology_url="cogstructurelab.com/family",
+        dashboard_url="cogstructurelab.com/family",
+        drafter_version="v1",
+        prompt_version="v1",
+        created_at=datetime(2026, 5, 17, 14, 1, 0),
+        framing_check_passed=False,
+    )
+    assert obj.framing_checks == {}
+
+
+def test_social_draft_framing_check_passed_default_false():
+    """framing_check_passed defaults to False (queue-entry gate, CDA SME §5.3)."""
+    obj = SocialDraft(
+        draft_id="draft0123456789cd",
+        trigger=_social_trigger(),
+        platform=Platform.BLUESKY,
+        text="Another draft.",
+        suggested_posting_time=datetime(2026, 5, 18, 14, 0, 0),
+        methodology_url="cogstructurelab.com/family",
+        dashboard_url="cogstructurelab.com/family",
+        drafter_version="v1",
+        prompt_version="v1",
+        created_at=datetime(2026, 5, 17, 14, 1, 0),
+    )
+    assert obj.framing_check_passed is False
+
+
+def test_social_draft_image_path_default_none():
+    """image_path defaults to None (Phase 7 is text-only)."""
+    obj = _social_draft()
+    assert obj.image_path is None
+
+
+def test_social_draft_drafter_self_rating_bounds():
+    """drafter_self_rating is bounded to [0.0, 1.0]."""
+    import pytest
+    from pydantic import ValidationError
+    with pytest.raises(ValidationError):
+        SocialDraft(
+            draft_id="bad_rating",
+            trigger=_social_trigger(),
+            platform=Platform.BLUESKY,
+            text="Bad.",
+            suggested_posting_time=datetime(2026, 5, 18, 14, 0, 0),
+            methodology_url="cogstructurelab.com/family",
+            dashboard_url="cogstructurelab.com/family",
+            drafter_version="v1",
+            prompt_version="v1",
+            created_at=datetime(2026, 5, 17, 14, 1, 0),
+            drafter_self_rating=1.5,
+        )
+
+
+def test_social_post_record_published_round_trip():
+    """SocialPostRecord (PUBLISHED) survives JSON round-trip."""
+    obj = SocialPostRecord(
+        draft_id="draft0123456789ab",
+        published_at=datetime(2026, 5, 18, 14, 5, 0),
+        platform_post_id="at://did:plc:abc123/app.bsky.feed.post/xyz",
+        platform_post_url="https://bsky.app/profile/handle/post/xyz",
+        publish_status=PublishStatus.PUBLISHED,
+        error_message=None,
+    )
+    json_str = obj.model_dump_json()
+    restored = SocialPostRecord.model_validate_json(json_str)
+    assert restored == obj
+    assert restored.publish_status == PublishStatus.PUBLISHED
+    assert restored.error_message is None
+
+
+def test_social_post_record_failed_round_trip():
+    """SocialPostRecord (FAILED) survives JSON round-trip."""
+    obj = SocialPostRecord(
+        draft_id="draft0123456789ab",
+        published_at=datetime(2026, 5, 18, 14, 5, 0),
+        platform_post_id=None,
+        platform_post_url=None,
+        publish_status=PublishStatus.FAILED,
+        error_message="HTTP 429: rate limit exceeded",
+    )
+    json_str = obj.model_dump_json()
+    restored = SocialPostRecord.model_validate_json(json_str)
+    assert restored == obj
+    assert restored.platform_post_id is None
+    assert restored.error_message == "HTTP 429: rate limit exceeded"
+
+
+def test_social_post_record_dry_run_round_trip():
+    """SocialPostRecord (DRY_RUN) survives JSON round-trip."""
+    obj = SocialPostRecord(
+        draft_id="draft0123456789ab",
+        published_at=datetime(2026, 5, 18, 14, 5, 0),
+        platform_post_id=None,
+        platform_post_url=None,
+        publish_status=PublishStatus.DRY_RUN,
+    )
+    json_str = obj.model_dump_json()
+    restored = SocialPostRecord.model_validate_json(json_str)
+    assert restored == obj
+    assert restored.publish_status == PublishStatus.DRY_RUN
+
+
+def test_trigger_type_enum_values():
+    """TriggerType enum values match expected strings."""
+    assert TriggerType.NEW_MODEL == "new_model"
+    assert TriggerType.NEW_DOMAIN == "new_domain"
+    assert TriggerType.DRIFT == "drift"
+    assert TriggerType.DIVERGENCE == "divergence"
+    assert TriggerType.MONTHLY_ROUNDUP == "monthly_roundup"
+
+
+def test_platform_enum_values():
+    """Platform enum values match expected strings."""
+    assert Platform.BLUESKY == "bluesky"
+    assert Platform.X == "x"
+    assert Platform.LINKEDIN == "linkedin"
+
+
+def test_publish_status_enum_values():
+    """PublishStatus enum values match expected strings."""
+    assert PublishStatus.PUBLISHED == "published"
+    assert PublishStatus.FAILED == "failed"
+    assert PublishStatus.DRY_RUN == "dry_run"
+    assert PublishStatus.RETRY_PENDING == "retry_pending"

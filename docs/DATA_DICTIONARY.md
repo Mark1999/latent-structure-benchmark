@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.14 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
+**Version:** v0.1.15 (aligned with `ARCHITECTURE.md` v0.7; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.15** (2026-05-17) — Phase 7 T1: Added §13 documenting the social publishing pipeline schemas and on-disk layout. Three new types in `cdb_core/schemas.py`: `SocialTrigger`, `SocialDraft`, `SocialPostRecord`. Three new enums: `TriggerType`, `Platform`, `PublishStatus`. New directory tree at `out/social/queue/{pending,approved,published,failed}/` and `out/social/state/` (gitignored; only `out/social/README.md` is tracked). CDA SME PASS-WITH-NOTES verdict applied: §5.2 (`forbidden_terms_hit` docstring contract), §5.3 (`framing_check_passed` + new `framing_checks: dict[str, bool]` sibling), §5.4 (renamed `confidence_score` → `drafter_self_rating: float = 0.0`), §5.5 (`suggested_posting_time` operational-only docstring), §5.6 (`evidence` dict docstring + T2 carry-forward), §5.8 (`dedupe_key` formula + exclusion of `drafter_version`/`prompt_version`). No changes to `InformantRecord`, `GroundingRef`, or any existing `cdb_core` schema. CDA SME verdict: `docs/status/2026-05-17-phase7-T1-cda-sme-verdict.md` (PASS-WITH-NOTES).
 - **v0.1.14** (2026-05-12) — Phase 6 T9: Added §12 documenting the published failures JSON shape emitted by `packages/cdb_publish/cdb_publish/failures.py` to `apps/dashboard/public/data/failures/{slug}.json`. New publish-layer schemas in `packages/cdb_publish/cdb_publish/schemas/failures.py` (`PublishedFailuresFile`, `PublishedFailureRecord`). New sanitization module `packages/cdb_publish/cdb_publish/sanitize.py`. `Manifest` schema gains `failures: dict[str, str]` field. `scripts/publish.py` gains three new CLI args for raw-data paths. No changes to `cdb_core/schemas.py`. CDA SME verdict: `docs/status/2026-05-12-phase6-T9-cda-sme-verdict.md` (PASS-WITH-NOTES; §5.1–§5.5 applied).
 - **v0.1.13** (2026-05-07) — Fix-forward metadata accuracy (sibling task between Phase 4b T2 and T3): `AdapterResult` gains `max_tokens_used: int = 4096` field; every adapter now sets this to the actual `max_tokens` value it sends to the API (4096 for Anthropic/HuggingFace/OpenAI-compat; 16384 for Google Gemini; `compute_effective_max_tokens(prompt, context_length)` for OpenRouter — typically 16384 for large-context models, ~13872 for phi-4). `runner.py` `_assemble_record()` now reads `freelist_result.max_tokens_used` instead of the hardcoded `4096` constant. Updated `InformantRecord.max_tokens` field description to add the editorial note documenting the historical inaccuracy in records collected before this commit. No schema changes to `InformantRecord` or `GroundingRef`; no new dependencies. Historical records in `informants.jsonl` are unchanged (append-only invariant preserved). Reviewer-T2 finding (commit `f7ca048`): `docs/status/2026-05-07-phase4b-t2-reviewer-verdict.md` note 1. Mark's Option A ruling: fix forward only, no backfill. Precedent: `memory/project_metadata_fix_forward_precedent.md`.
 - **v0.1.12** (2026-05-05) — T4 redo RD-2 (commit 1 scaffold): Added §11 documenting the `ConfabulationClassification` schema in `packages/cdb_analyze/cdb_analyze/confabulation_classification.py`. This is a derived-data schema for the 9 originally-Gemini cap-exhaustion decline-interview rows (Phase 4a.1); it lives in `cdb_analyze`, not `cdb_core`, and is not part of the open-data-bundle schema commitment. Architect plan: `docs/status/2026-05-05-t4-redo-architect-plan.md` §2 RD-2. CDA SME verdict: `docs/status/2026-05-05-t4-redo-cda-sme-verdict.md` (T1 wording rules, T2 enum naming applied). No changes to `InformantRecord`, `GroundingRef`, or any `cdb_core` schema.
@@ -1190,4 +1191,179 @@ The `framing_note` text:
 
 ---
 
-*End of `docs/DATA_DICTIONARY.md` v0.1.14. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
+---
+
+## 13. Social publishing pipeline schemas (Phase 7 T1)
+
+The social publishing pipeline (`cdb_social`) detects post-worthy events in the
+published results store, drafts platform-specific posts, and manages a
+human-review queue before publishing. Three Pydantic types and three enums are
+defined in `packages/cdb_core/cdb_core/schemas.py` as the shared data contract
+across the pipeline. The on-disk layout lives under `out/social/` (see
+`out/social/README.md` for directory conventions and file-naming rules).
+
+**Canonical source of truth for all field definitions:** `cdb_core/schemas.py`.
+This section documents the types, their on-disk paths, required fields, and
+methodology cross-references. It does not duplicate field docstrings verbatim;
+consult the schema source for the authoritative wording.
+
+**ARCHITECTURE.md cross-reference:** §4.6 (social publishing pipeline spec).
+**CDA SME verdict:** `docs/status/2026-05-17-phase7-T1-cda-sme-verdict.md`
+(PASS-WITH-NOTES; §5.2–§5.8 binding notes applied at T1).
+
+---
+
+### 13.1 Enums
+
+Three enums are defined alongside the social schemas:
+
+#### `TriggerType`
+
+Enumeration of post-worthy event types. Values:
+
+| Value | String | Semantics |
+|---|---|---|
+| `NEW_MODEL` | `"new_model"` | A model not previously seen in a domain's results has appeared |
+| `NEW_DOMAIN` | `"new_domain"` | A domain not previously in the published results has appeared |
+| `DRIFT` | `"drift"` | Procrustes distance across `model_version_returned` × `collection_date` exceeds threshold (0.15 placeholder; trigger disabled until multi-date data exists) |
+| `DIVERGENCE` | `"divergence"` | Maximum pairwise model distance in the similarity matrix set a new high for that domain |
+| `MONTHLY_ROUNDUP` | `"monthly_roundup"` | Scheduled once-monthly cross-domain categorical-structure digest |
+
+#### `Platform`
+
+Social platform targets. Values: `BLUESKY` (`"bluesky"`), `X` (`"x"`),
+`LINKEDIN` (`"linkedin"`). In Phase 7, Bluesky has live publish support;
+X and LinkedIn are draft-export-only (see ARCHITECTURE.md §4.6 and Phase 7 §2).
+
+#### `PublishStatus`
+
+Outcome of a publish attempt recorded in `SocialPostRecord`. Values:
+`PUBLISHED`, `FAILED`, `DRY_RUN`, `RETRY_PENDING`.
+
+---
+
+### 13.2 `SocialTrigger`
+
+**Pydantic class:** `cdb_core.schemas.SocialTrigger`
+**On-disk location:** embedded inside `SocialDraft` (not persisted independently)
+**Produced by:** pure functions in `cdb_social.triggers` (T2)
+
+#### Required fields
+
+| Field | Type | Semantics |
+|---|---|---|
+| `trigger_type` | `TriggerType` | Which event class fired |
+| `detected_at` | `datetime` | UTC timestamp of detection |
+| `domain_slug` | `str \| None` | Domain for domain-scoped triggers; `None` for `MONTHLY_ROUNDUP` |
+| `model_id` | `str \| None` | Model for model-scoped triggers; `None` for domain-level or monthly triggers |
+| `evidence` | `dict[str, Any]` | Trigger-type-specific payload (see §13.2.1 below) |
+| `dedupe_key` | `str` | Stable idempotency token (see §13.2.2 below) |
+
+#### 13.2.1 `evidence` payload
+
+The `evidence` dict is unstructured at T1 (`dict[str, Any]`) because each
+trigger type's evidence schema is decided in T2. Per CDA SME §5.6, the
+minimum keys per trigger type are:
+
+- `NEW_MODEL`: `{'first_seen_in_domain': str}`
+- `NEW_DOMAIN`: `{'domain_slug': str, 'n_models': int}`
+- `DIVERGENCE`: `{'domain_slug': str, 'model_pair': [str, str], 'old_high': float, 'new_high': float, 'gap_delta': float}`
+- `DRIFT`: `{'model_version_returned': str, 'procrustes_distance': float, 'date_pair': [str, str]}`
+- `MONTHLY_ROUNDUP`: `{'month': str}` (format: `YYYY-MM`)
+
+The per-trigger-type evidence schema is reviewed at T2's CDA SME gate.
+
+#### 13.2.2 `dedupe_key` construction
+
+```
+SHA256(trigger_type + "|" + (domain_slug or "") + "|" +
+       (model_id or "") + "|" + canonical_json(evidence))[:16]
+```
+
+`canonical_json` means JSON with sorted keys and no extraneous whitespace.
+The formula **excludes** `drafter_version` and `prompt_version` — per CDA SME
+§5.8, a drafter-prompt bump does not justify re-firing a posted trigger. Manual
+re-fire is possible by removing the key from `out/social/state/posted_dedupe_keys.json`.
+
+---
+
+### 13.3 `SocialDraft`
+
+**Pydantic class:** `cdb_core.schemas.SocialDraft`
+**On-disk location:** `out/social/queue/{state}/{draft_id}.json`
+where `{state}` is one of `pending`, `approved`. (After publish it becomes a `SocialPostRecord`.)
+**Produced by:** `cdb_social.drafters` (T3)
+
+#### Required fields
+
+| Field | Type | Default | Semantics |
+|---|---|---|---|
+| `draft_id` | `str` | — | SHA256[:16] of `(trigger.dedupe_key + platform + drafter_version + prompt_version)`. Incorporates `prompt_version` so a prompt-version bump produces a new draft even for an already-seen trigger. |
+| `trigger` | `SocialTrigger` | — | The event that produced this draft |
+| `platform` | `Platform` | — | Target platform |
+| `text` | `str` | — | Draft post text |
+| `text_history` | `list[str]` | `[]` | Prior text values appended on each edit via the review CLI; append-only |
+| `image_path` | `str \| None` | `None` | Path to a generated image; `None` for Phase 7 text-only posts |
+| `suggested_posting_time` | `datetime` | — | Operational hint for platform-audience engagement window (not a methodological signal; per CDA SME §5.5) |
+| `drafter_self_rating` | `float` | `0.0` | Drafter's self-reported heuristic for review-queue ordering. **Not calibrated. Not used in any analysis.** Range `[0.0, 1.0]`. Per CDA SME §5.4 (renamed from `confidence_score`). |
+| `methodology_url` | `str` | — | Configurable link to the methodology page; set to the per-domain article shell until Phase 6 T1+T2 land |
+| `dashboard_url` | `str` | — | URL to the relevant dashboard page |
+| `forbidden_terms_hit` | `list[str]` | `[]` | §1.5.4 forbidden phrases matched by the T3 post-generation validator. **Queue-acceptance precondition: must be `[]`.** Per CDA SME §5.2. |
+| `framing_check_passed` | `bool` | `False` | Composite pass/fail for §1.5 / §1.5.7 framing checks. **Queue-acceptance precondition: must be `True`.** Per CDA SME §5.3. |
+| `framing_checks` | `dict[str, bool]` | `{}` | Per-check audit trail keyed by check name (T3 defines keys). Forensic companion to `framing_check_passed`. Per CDA SME §5.3. |
+| `drafter_version` | `str` | — | Drafter implementation version string |
+| `prompt_version` | `str` | — | Prompt template version string (per CLAUDE.md §6 R7 prompt-versioning rule) |
+| `created_at` | `datetime` | — | UTC timestamp when the draft was created |
+
+#### Queue-acceptance contract
+
+A `SocialDraft` is admitted to `queue/pending/` only when **both** of these hold:
+1. `forbidden_terms_hit == []`
+2. `framing_check_passed == True` AND every value in `framing_checks` is `True`
+
+Both conditions are enforced by T3's `validate_draft()` function, by the T5
+review CLI, and by the T6 publisher.
+
+---
+
+### 13.4 `SocialPostRecord`
+
+**Pydantic class:** `cdb_core.schemas.SocialPostRecord`
+**On-disk location:**
+  - Success: `out/social/queue/published/{YYYY-MM}/{draft_id}.json`
+  - Failure: `out/social/queue/failed/{draft_id}.json`
+**Produced by:** `cdb_social.publisher` (T6)
+
+#### Required fields
+
+| Field | Type | Default | Semantics |
+|---|---|---|---|
+| `draft_id` | `str` | — | Matches the `SocialDraft.draft_id` that was published |
+| `published_at` | `datetime` | — | UTC timestamp of publish attempt |
+| `platform_post_id` | `str \| None` | `None` | Platform-returned post identifier; `None` on failure |
+| `platform_post_url` | `str \| None` | `None` | Permanent URL to the post on the platform; `None` on failure |
+| `publish_status` | `PublishStatus` | — | Outcome of the publish attempt |
+| `error_message` | `str \| None` | `None` | Verbatim error string on failure; `None` on success |
+
+---
+
+### 13.5 State files under `out/social/state/`
+
+The state files are plain JSON (not Pydantic models). Their schemas are
+documented on the corresponding `detect_*` functions in `cdb_social.triggers`
+(T2). The T2 CDA SME gate reviews these schemas.
+
+| File | Shape | Role |
+|---|---|---|
+| `seen_models.json` | `dict[str, list[str]]` — domain slug → list of model IDs | Bootstrap state for `detect_new_model` |
+| `seen_domains.json` | `list[str]` — domain slugs | Bootstrap state for `detect_new_domain` |
+| `divergence_highs.json` | `dict[str, float]` — domain slug → max pairwise distance | Bootstrap state for `detect_divergence` |
+| `monthly_roundup.json` | `{"last_fired": "YYYY-MM"}` | Last-fired month for the monthly trigger |
+| `posted_dedupe_keys.json` | `list[str]` — dedupe key strings | Trigger idempotency log; entries are never removed unless a manual re-fire is intended |
+
+First-run bootstrap: each `detect_*` function writes its initial state and
+emits zero triggers on the first run (no "we just started" false-positive posts).
+
+---
+
+*End of `docs/DATA_DICTIONARY.md` v0.1.15. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
