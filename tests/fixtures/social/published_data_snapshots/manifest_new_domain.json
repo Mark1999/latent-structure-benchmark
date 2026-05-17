@@ -1,0 +1,14 @@
+{
+  "description": "Manifest with a new domain 'kinship' added — triggers detect_new_domain.",
+  "domains": {
+    "family": {
+      "models": ["claude-opus-4-6", "gpt-4o"]
+    },
+    "food": {
+      "models": ["claude-opus-4-6", "gpt-4o"]
+    },
+    "kinship": {
+      "models": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"]
+    }
+  }
+}

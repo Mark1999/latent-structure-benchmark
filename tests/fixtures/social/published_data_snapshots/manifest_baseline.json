@@ -1,0 +1,11 @@
+{
+  "description": "Baseline manifest — used to seed bootstrap state and as the pre-change snapshot for detect_new_model / detect_new_domain tests.",
+  "domains": {
+    "family": {
+      "models": ["claude-opus-4-6", "gpt-4o"]
+    },
+    "food": {
+      "models": ["claude-opus-4-6", "gpt-4o"]
+    }
+  }
+}

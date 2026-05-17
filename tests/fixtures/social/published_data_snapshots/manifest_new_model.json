@@ -1,0 +1,11 @@
+{
+  "description": "Manifest with a new model added to 'family' domain — triggers detect_new_model for gemini-2-flash.",
+  "domains": {
+    "family": {
+      "models": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"]
+    },
+    "food": {
+      "models": ["claude-opus-4-6", "gpt-4o"]
+    }
+  }
+}

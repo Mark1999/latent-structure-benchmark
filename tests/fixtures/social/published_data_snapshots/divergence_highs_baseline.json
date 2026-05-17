@@ -1,0 +1,8 @@
+{
+  "description": "Baseline divergence_highs.json — used for below-delta, above-delta, and new-model-masquerade tests.",
+  "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+  "highs": {
+    "family": 0.10,
+    "food": 0.05
+  }
+}

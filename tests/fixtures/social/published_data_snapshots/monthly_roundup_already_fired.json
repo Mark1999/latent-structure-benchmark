@@ -1,0 +1,5 @@
+{
+  "description": "monthly_roundup.json — last_fired_month is May 2026 (already fired); a run in June 2026 returns [].",
+  "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+  "last_fired_month": "2026-05"
+}
