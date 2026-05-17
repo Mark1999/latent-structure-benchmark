@@ -1,15 +1,16 @@
-"""Unit tests for cdb_social/cli.py — Phase 7 T6.
+"""Unit tests for cdb_social/cli.py — Phase 7 T6 + T6a + §11 cleanup.
 
-No real API calls; all detectors, drafters, and publisher are monkeypatched.
+No real API calls; all detectors and publisher are monkeypatched.
 
 Test classes:
-  TestRunOnceSubcommand     — detector pipeline mocked; drafts land in pending/
-  TestRunOnceDriftDisabled  — enable_drift=False is passed to detect_drift
-  TestRunOnceDedupe         — triggers with known dedupe keys are skipped
-  TestPublishSubcommand     — drains approved/ → publisher → published/ or failed/
-  TestPublishDryRun         — --dry-run skips the real API
+  TestPublishSubcommand        — drains approved/ → publisher → published/ or failed/
+  TestPublishDryRun            — --dry-run skips the real API
   TestPublishTransientRetained — PublisherTransientError leaves draft in approved/
-  TestStatusSubcommand      — counts per queue state
+  TestStatusSubcommand         — counts per queue state
+
+The autonomous run-once subcommand and its tests were removed per §11.1
+binding B-1 (no autonomous LLM calls). Drafting is human-triggered only
+via the admin console.
 """
 
 from __future__ import annotations
@@ -17,8 +18,7 @@ from __future__ import annotations
 import json
 from datetime import UTC, datetime
 from pathlib import Path
-from typing import Any
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
 import pytest
 from cdb_core.schemas import (
@@ -131,233 +131,11 @@ def _set_env(
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# TestRunOnceSubcommand
+# Note: TestRunOnceSubcommand, TestRunOnceDriftDisabled, and TestRunOnceDedupe
+# were removed when the run-once subcommand was removed per §11.1 binding B-1
+# (no autonomous LLM calls in the social pipeline). Drafting is now
+# human-triggered only via the admin console.
 # ─────────────────────────────────────────────────────────────────────────────
-
-
-class TestRunOnceSubcommand:
-    """Detector pipeline mocked; accepted drafts land in pending/."""
-
-    def test_run_once_writes_draft_to_pending(
-        self,
-        queue_root: Path,
-        state_dir: Path,
-        data_dir: Path,
-        monkeypatch: pytest.MonkeyPatch,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """A single trigger produces one draft in pending/."""
-        trigger = _make_trigger(dedupe_key="uniquekey12345")
-        draft = _make_draft(draft_id="resultdraftid1")
-
-        mock_drafter = MagicMock()
-        mock_drafter.draft.return_value = draft
-
-        with (
-            patch("cdb_social.cli.detect_new_model", return_value=[trigger]),
-            patch("cdb_social.cli.detect_new_domain", return_value=[]),
-            patch("cdb_social.cli.detect_drift", return_value=[]),
-            patch("cdb_social.cli.detect_divergence", return_value=[]),
-            patch("cdb_social.cli.detect_monthly_roundup", return_value=[]),
-            patch("cdb_social.cli._get_drafter", return_value=mock_drafter),
-        ):
-            from cdb_social.cli import main
-            rc = main(["run-once"])
-
-        assert rc == 0
-        pending_files = list((queue_root / "pending").glob("*.json"))
-        assert len(pending_files) == 1
-        assert pending_files[0].name == "resultdraftid1.json"
-
-    def test_run_once_prints_summary(
-        self,
-        queue_root: Path,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """run-once prints trigger count, draft count, rejection count."""
-        trigger = _make_trigger(dedupe_key="key_for_summary")
-        draft = _make_draft()
-
-        mock_drafter = MagicMock()
-        mock_drafter.draft.return_value = draft
-
-        with (
-            patch("cdb_social.cli.detect_new_model", return_value=[trigger]),
-            patch("cdb_social.cli.detect_new_domain", return_value=[]),
-            patch("cdb_social.cli.detect_drift", return_value=[]),
-            patch("cdb_social.cli.detect_divergence", return_value=[]),
-            patch("cdb_social.cli.detect_monthly_roundup", return_value=[]),
-            patch("cdb_social.cli._get_drafter", return_value=mock_drafter),
-        ):
-            from cdb_social.cli import main
-            main(["run-once"])
-
-        out = capsys.readouterr().out
-        assert "triggers detected" in out
-        assert "drafts written" in out
-        assert "rejected" in out
-
-    def test_run_once_rejected_draft_logged_not_crashed(
-        self,
-        queue_root: Path,
-        state_dir: Path,
-    ) -> None:
-        """A DrafterRejectedException per-draft is logged; the run continues."""
-        from cdb_social.drafters.base import DrafterRejectedException  # noqa: PLC0415
-
-        trigger_ok = _make_trigger(dedupe_key="okkey111111111")
-        trigger_bad = _make_trigger(dedupe_key="badkey22222222")
-        draft_ok = _make_draft(draft_id="okdraftid12345")
-
-        # First trigger: drafter rejects; second trigger: drafter accepts
-        call_count = 0
-
-        def drafter_side_effect(trig: SocialTrigger, dr: Any) -> SocialDraft:
-            nonlocal call_count
-            call_count += 1
-            if call_count == 1:
-                raise DrafterRejectedException("worldview detected", draft_text="bad text")
-            return draft_ok
-
-        mock_drafter = MagicMock()
-        mock_drafter.draft.side_effect = drafter_side_effect
-
-        with (
-            patch("cdb_social.cli.detect_new_model", return_value=[trigger_bad, trigger_ok]),
-            patch("cdb_social.cli.detect_new_domain", return_value=[]),
-            patch("cdb_social.cli.detect_drift", return_value=[]),
-            patch("cdb_social.cli.detect_divergence", return_value=[]),
-            patch("cdb_social.cli.detect_monthly_roundup", return_value=[]),
-            patch("cdb_social.cli._get_drafter", return_value=mock_drafter),
-        ):
-            from cdb_social.cli import main
-            rc = main(["run-once"])
-
-        assert rc == 0  # did not crash
-        pending_files = list((queue_root / "pending").glob("*.json"))
-        assert len(pending_files) == 1
-
-    def test_run_once_zero_triggers_summary(
-        self,
-        capsys: pytest.CaptureFixture[str],
-    ) -> None:
-        """run-once with no triggers prints '0 triggers detected'."""
-        with (
-            patch("cdb_social.cli.detect_new_model", return_value=[]),
-            patch("cdb_social.cli.detect_new_domain", return_value=[]),
-            patch("cdb_social.cli.detect_drift", return_value=[]),
-            patch("cdb_social.cli.detect_divergence", return_value=[]),
-            patch("cdb_social.cli.detect_monthly_roundup", return_value=[]),
-        ):
-            from cdb_social.cli import main
-            rc = main(["run-once"])
-
-        assert rc == 0
-        out = capsys.readouterr().out
-        assert "0 triggers detected" in out
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TestRunOnceDriftDisabled
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-class TestRunOnceDriftDisabled:
-    """Drift trigger is always called with enable=False."""
-
-    def test_detect_drift_called_with_enable_false(self) -> None:
-        """detect_drift is always called with enable=False per kickoff §2 item 1."""
-        with (
-            patch("cdb_social.cli.detect_new_model", return_value=[]),
-            patch("cdb_social.cli.detect_new_domain", return_value=[]),
-            patch("cdb_social.cli.detect_drift", return_value=[]) as mock_drift,
-            patch("cdb_social.cli.detect_divergence", return_value=[]),
-            patch("cdb_social.cli.detect_monthly_roundup", return_value=[]),
-        ):
-            from cdb_social.cli import main
-            main(["run-once"])
-
-        # Verify detect_drift was called with enable=False
-        mock_drift.assert_called_once()
-        call_args = mock_drift.call_args
-        # enable is passed as a keyword arg
-        assert call_args.kwargs.get("enable") is False
-
-
-# ─────────────────────────────────────────────────────────────────────────────
-# TestRunOnceDedupe
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-class TestRunOnceDedupe:
-    """Triggers with dedupe_key already in posted_dedupe_keys.json are skipped."""
-
-    def test_known_dedupe_key_is_skipped(
-        self,
-        state_dir: Path,
-        queue_root: Path,
-    ) -> None:
-        """A trigger whose dedupe_key is in posted_dedupe_keys.json is not drafted."""
-        known_key = "alreadypostedkey"
-        # Write the dedupe state file with the known key
-        dedupe_path = state_dir / "posted_dedupe_keys.json"
-        dedupe_path.write_text(
-            json.dumps({"keys": [known_key]}),
-            encoding="utf-8",
-        )
-
-        trigger = _make_trigger(dedupe_key=known_key)
-        mock_drafter = MagicMock()
-
-        with (
-            patch("cdb_social.cli.detect_new_model", return_value=[trigger]),
-            patch("cdb_social.cli.detect_new_domain", return_value=[]),
-            patch("cdb_social.cli.detect_drift", return_value=[]),
-            patch("cdb_social.cli.detect_divergence", return_value=[]),
-            patch("cdb_social.cli.detect_monthly_roundup", return_value=[]),
-            patch("cdb_social.cli._get_drafter", return_value=mock_drafter),
-        ):
-            from cdb_social.cli import main
-            rc = main(["run-once"])
-
-        assert rc == 0
-        # Drafter should not have been called for the deduplicated trigger
-        mock_drafter.draft.assert_not_called()
-        # Pending queue should be empty
-        assert list((queue_root / "pending").glob("*.json")) == []
-
-    def test_new_trigger_not_in_dedupe_is_drafted(
-        self,
-        state_dir: Path,
-        queue_root: Path,
-    ) -> None:
-        """A trigger with a novel dedupe_key proceeds through the drafter."""
-        known_key = "alreadypostedkey"
-        new_key = "brandnewuniq1234"
-        dedupe_path = state_dir / "posted_dedupe_keys.json"
-        dedupe_path.write_text(
-            json.dumps({"keys": [known_key]}),
-            encoding="utf-8",
-        )
-
-        trigger = _make_trigger(dedupe_key=new_key)
-        draft = _make_draft(draft_id="newdraftfromnew")
-        mock_drafter = MagicMock()
-        mock_drafter.draft.return_value = draft
-
-        with (
-            patch("cdb_social.cli.detect_new_model", return_value=[trigger]),
-            patch("cdb_social.cli.detect_new_domain", return_value=[]),
-            patch("cdb_social.cli.detect_drift", return_value=[]),
-            patch("cdb_social.cli.detect_divergence", return_value=[]),
-            patch("cdb_social.cli.detect_monthly_roundup", return_value=[]),
-            patch("cdb_social.cli._get_drafter", return_value=mock_drafter),
-        ):
-            from cdb_social.cli import main
-            main(["run-once"])
-
-        pending = list((queue_root / "pending").glob("*.json"))
-        assert len(pending) == 1
 
 
 # ─────────────────────────────────────────────────────────────────────────────

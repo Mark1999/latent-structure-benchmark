@@ -1,11 +1,10 @@
-"""Social pipeline CLI — Phase 7 T6 + T6a.
+"""Social pipeline CLI — Phase 7 T6a.
 
 Entry point: ``python -m cdb_social.cli {subcommand}``
 
 Subcommands
 -----------
 detect     — run detectors → email digest (no drafters, no LLM calls)
-run-once   — detect triggers → draft → queue/pending/
 review     — delegates to scripts/social_review.py
 publish    — drain approved/ → publisher → published/{YYYY-MM}/ or failed/
 status     — counts per queue state
@@ -17,15 +16,13 @@ Ordering constraint (from triggers.py):
 Design invariants:
 - detect does NOT invoke drafters (§11.1 binding B-1: no autonomous LLM calls).
   It runs detectors, emails Mark, and updates emailed_dedupe_keys.json only.
-- run-once does NOT auto-publish. Mark's ``publish`` subcommand is the publish
-  trigger. The cron (Phase 7 T7) calls ``detect`` only.
+- Drafting is human-triggered ONLY via the admin console
+  (``python -m cdb_social.admin_console``). No CLI subcommand auto-drafts.
 - Drift trigger is explicitly disabled (enable=False) per kickoff §2 item 1.
-- DrafterRejectedException is caught per-draft; one bad draft does not kill
-  the run.
 - Credentials come from env only; never logged.
 
 See ARCHITECTURE.md §4.6 and docs/status/2026-05-17-phase7-architect-kickoff.md
-§11.5 (T6a: detection cron + email digest).
+§11 (human-in-the-loop architecture amendment).
 """
 
 from __future__ import annotations
@@ -40,7 +37,7 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
-from cdb_core.schemas import Platform, PublishStatus, SocialDraft, SocialPostRecord, SocialTrigger
+from cdb_core.schemas import PublishStatus, SocialDraft, SocialPostRecord, SocialTrigger
 
 from cdb_social import (
     detect_divergence,
@@ -50,8 +47,6 @@ from cdb_social import (
     detect_new_model,
 )
 from cdb_social.digest import format_digest
-from cdb_social.drafters.base import DrafterRejectedException
-from cdb_social.drafters.bluesky import BlueskyDrafter
 from cdb_social.email_sender import EmailConfigError, EmailSendError, send_digest
 from cdb_social.publisher import (
     PublisherNotEnabled,
@@ -59,7 +54,7 @@ from cdb_social.publisher import (
     PublisherTransientError,
     publish,
 )
-from cdb_social.queue import list_approved, load_draft, move, save_draft
+from cdb_social.queue import list_approved, load_draft, move
 
 logger = logging.getLogger(__name__)
 
@@ -410,216 +405,6 @@ def _compute_queue_counts(queue_root: Path) -> dict[str, int]:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
-# run-once subcommand
-# ─────────────────────────────────────────────────────────────────────────────
-
-
-def cmd_run_once(args: argparse.Namespace) -> int:
-    """Detect triggers → draft → queue/pending/.
-
-    Steps:
-    1. Load manifest.json and domain result files.
-    2. Run all detectors (drift explicitly disabled per kickoff §2 item 1).
-    3. Deduplicate against posted_dedupe_keys.json.
-    4. For each new trigger, invoke the drafter(s).
-    5. Write accepted drafts to pending/; log rejections.
-    6. Print summary unless --quiet.
-
-    Returns the exit code (0 on success).
-    """
-    queue_root = _queue_root()
-    state_dir = _state_dir()
-    data_dir = _data_dir()
-
-    # Step 1: load data
-    manifest = _load_manifest(data_dir)
-    domain_results = _load_domain_results(data_dir, manifest)
-
-    # Step 2: run detectors
-    # detect_new_model MUST run before detect_divergence (ordering constraint)
-    new_model_triggers: list[SocialTrigger] = []
-    try:
-        new_model_triggers = detect_new_model(manifest, state_dir)
-    except Exception as e:
-        logger.warning("detect_new_model failed: %s", e)
-
-    new_domain_triggers: list[SocialTrigger] = []
-    try:
-        new_domain_triggers = detect_new_domain(manifest, state_dir)
-    except Exception as e:
-        logger.warning("detect_new_domain failed: %s", e)
-
-    # Drift: explicitly disabled per kickoff §2 item 1
-    drift_triggers: list[SocialTrigger] = detect_drift(
-        domain_results, state_dir, enable=False
-    )
-
-    # Build new_models_this_run dict for divergence exclusion
-    new_models_this_run: dict[str, list[str]] = {}
-    for trig in new_model_triggers:
-        domain = trig.domain_slug or ""
-        model = trig.model_id or ""
-        if domain and model:
-            new_models_this_run.setdefault(domain, []).append(model)
-
-    divergence_triggers: list[SocialTrigger] = []
-    try:
-        divergence_triggers = detect_divergence(
-            domain_results, state_dir, new_models_this_run=new_models_this_run
-        )
-    except Exception as e:
-        logger.warning("detect_divergence failed: %s", e)
-
-    monthly_triggers: list[SocialTrigger] = []
-    try:
-        monthly_triggers = detect_monthly_roundup(state_dir, now=datetime.now(UTC))
-    except Exception as e:
-        logger.warning("detect_monthly_roundup failed: %s", e)
-
-    all_triggers: list[SocialTrigger] = (
-        new_model_triggers
-        + new_domain_triggers
-        + drift_triggers
-        + divergence_triggers
-        + monthly_triggers
-    )
-
-    # Step 3: deduplicate
-    posted_keys = _load_dedupe_keys(state_dir)
-    new_triggers = [t for t in all_triggers if t.dedupe_key not in posted_keys]
-    n_deduped = len(all_triggers) - len(new_triggers)
-    if n_deduped:
-        logger.info("Deduplicated %d already-posted trigger(s)", n_deduped)
-
-    # Step 4-5: draft and queue
-    # Determine which platforms to draft for
-    platforms_to_draft: list[Platform] = [Platform.BLUESKY]
-    if hasattr(args, "platform") and args.platform:
-        for p_str in args.platform.split(","):
-            p_str = p_str.strip().lower()
-            try:
-                extra = Platform(p_str)
-                if extra not in platforms_to_draft:
-                    platforms_to_draft.append(extra)
-            except ValueError:
-                logger.warning("Unknown platform flag value %r — ignored", p_str)
-
-    n_drafted = 0
-    n_rejected = 0
-
-    for trigger in new_triggers:
-        # Load relevant domain result (may be None for cross-domain triggers)
-        domain_result = None
-        if trigger.domain_slug:
-            for dr in domain_results:
-                if dr.domain_slug == trigger.domain_slug:
-                    domain_result = dr
-                    break
-
-        for platform in platforms_to_draft:
-            drafter = _get_drafter(platform)
-            if drafter is None:
-                logger.debug("No drafter configured for platform %r — skipping", platform)
-                continue
-
-            # Resolve effective domain result:
-            # - Use the trigger's matched domain result if available.
-            # - Fall back to the first available domain result for cross-domain
-            #   triggers (e.g. MONTHLY_ROUNDUP) or when no per-domain result
-            #   was found.
-            # - Pass None when domain_results is empty; the drafter's own
-            #   exception handling determines whether that is fatal.
-            if domain_result is not None:
-                effective_dr = domain_result
-            elif domain_results:
-                effective_dr = domain_results[0]
-            else:
-                logger.debug(
-                    "No domain results loaded — passing None to drafter for trigger %s",
-                    trigger.trigger_type,
-                )
-                effective_dr = None  # type: ignore[assignment]
-
-            try:
-                draft = drafter.draft(trigger, effective_dr)
-            except DrafterRejectedException as exc:
-                logger.warning(
-                    "Drafter rejected trigger %s (platform=%s): %s",
-                    trigger.dedupe_key,
-                    platform.value,
-                    exc,
-                )
-                n_rejected += 1
-                continue
-            except Exception as exc:
-                logger.warning(
-                    "Drafter raised unexpected error for trigger %s (platform=%s): %s",
-                    trigger.dedupe_key,
-                    platform.value,
-                    exc,
-                )
-                n_rejected += 1
-                continue
-
-            # Write to pending/
-            queue_root.mkdir(parents=True, exist_ok=True)
-            pending_dir = queue_root / "pending"
-            pending_dir.mkdir(parents=True, exist_ok=True)
-            draft_path = pending_dir / f"{draft.draft_id}.json"
-            save_draft(draft, draft_path)
-            logger.info(
-                "Draft written: %s (trigger=%s, platform=%s)",
-                draft.draft_id,
-                trigger.trigger_type,
-                platform.value,
-            )
-            n_drafted += 1
-
-    n_detected = len(all_triggers)
-    if not getattr(args, "quiet", False):
-        print(
-            f"run-once: {n_detected} triggers detected, "
-            f"{n_drafted} drafts written, "
-            f"{n_rejected} rejected"
-        )
-
-    return 0
-
-
-def _get_drafter(platform: Platform) -> Any:
-    """Return the configured drafter for the given platform.
-
-    For Phase 7 v1, only BlueskyDrafter is returned for BLUESKY.
-    X and LinkedIn drafters are available but not auto-invoked in run-once
-    by default (the --platform flag is the only way to request them).
-    """
-    if platform == Platform.BLUESKY:
-        try:
-            return BlueskyDrafter()
-        except Exception as e:
-            logger.warning("Failed to construct BlueskyDrafter: %s", e)
-            return None
-
-    if platform == Platform.X:
-        try:
-            from cdb_social.drafters.x import XDrafter  # noqa: PLC0415
-            return XDrafter()
-        except Exception as e:
-            logger.warning("Failed to construct XDrafter: %s", e)
-            return None
-
-    if platform == Platform.LINKEDIN:
-        try:
-            from cdb_social.drafters.linkedin import LinkedInDrafter  # noqa: PLC0415
-            return LinkedInDrafter()
-        except Exception as e:
-            logger.warning("Failed to construct LinkedInDrafter: %s", e)
-            return None
-
-    return None
-
-
-# ─────────────────────────────────────────────────────────────────────────────
 # review subcommand
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -893,28 +678,6 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
 
-    # ── run-once ──────────────────────────────────────────────────────────────
-    run_once_parser = subparsers.add_parser(
-        "run-once",
-        help="Detect triggers, draft posts, and queue them in pending/.",
-    )
-    run_once_parser.add_argument(
-        "--platform",
-        default="bluesky",
-        metavar="PLATFORMS",
-        help=(
-            "Comma-separated list of platforms to draft for "
-            "(default: bluesky). Additional platforms are draft-only "
-            "in Phase 7 v1 and will not be live-published."
-        ),
-    )
-    run_once_parser.add_argument(
-        "--quiet",
-        action="store_true",
-        default=False,
-        help="Suppress summary output.",
-    )
-
     # ── review ────────────────────────────────────────────────────────────────
     review_parser = subparsers.add_parser(
         "review",
@@ -984,8 +747,6 @@ def main(argv: list[str] | None = None) -> int:
     subcommand = args.subcommand
     if subcommand == "detect":
         return cmd_detect(args)
-    if subcommand == "run-once":
-        return cmd_run_once(args)
     if subcommand == "review":
         return cmd_review(args)
     if subcommand == "publish":
