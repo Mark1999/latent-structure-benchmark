@@ -459,4 +459,19 @@ This amendment is awaiting Mark's confirmation on §11.9 decisions before T6a Co
 
 *End of §11 amendment. Original §3 T6 and §3 T7 superseded; §10 ratifications still apply to §5/§7 decisions.*
 
+---
+
+## §12 Mark's §11 ratifications (2026-05-17)
+
+Mark approved four of the five §11.9 decisions verbatim. The fifth (§11.9.2 sender/recipient email addresses) was not specified; placeholder values in `.env.example` are acceptable — real values land in `.env` (gitignored) when Mark generates his Gmail app password.
+
+- **§11.9.1 Flask dependency:** APPROVED. `flask` added to `cdb_social/` pyproject extras at T6b.
+- **§11.9.2 Email addresses:** PLACEHOLDER in `.env.example`; Mark sets real values in `.env` post-T6a.
+- **§11.9.3 Cron time:** APPROVED 14:00 UTC (matches original kickoff).
+- **§11.9.4 Zero-trigger days:** APPROVED — no empty digests; idempotent silence on zero-trigger days.
+- **§11.9.5 Two clicks for publish:** CONFIRMED per the 2026-05-17 directive verbatim.
+
+T6a dispatch resumes. No CDA SME (mechanics only). Coder → Reviewer → Tester.
+
+
 
