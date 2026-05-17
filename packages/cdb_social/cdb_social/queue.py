@@ -174,6 +174,32 @@ def list_pending(queue_root: Path) -> list[Path]:
     return sorted(paths, key=_sort_key)
 
 
+def list_approved(queue_root: Path) -> list[Path]:
+    """Return paths to all approved drafts, sorted oldest-first by created_at.
+
+    Drafts that cannot be parsed are sorted to the end (by path name as
+    fallback) so the publish pass is never silently blocked by a malformed entry.
+    """
+    approved_dir = queue_root / "approved"
+    if not approved_dir.exists():
+        return []
+
+    paths = list(approved_dir.glob("*.json"))
+    if not paths:
+        return []
+
+    def _sort_key(p: Path) -> tuple[int, str]:
+        try:
+            data = json.loads(p.read_text(encoding="utf-8"))
+            raw = data.get("created_at", "")
+            dt = datetime.fromisoformat(raw) if raw else datetime.fromtimestamp(0, tz=UTC)
+            return (int(dt.timestamp() * 1_000_000), p.name)
+        except Exception:
+            return (int(datetime(9999, 12, 31, tzinfo=UTC).timestamp() * 1_000_000), p.name)
+
+    return sorted(paths, key=_sort_key)
+
+
 def load_draft(path: Path) -> SocialDraft:
     """Load and validate a SocialDraft from disk.
 

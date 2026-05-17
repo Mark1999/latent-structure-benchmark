@@ -102,3 +102,9 @@ ignore_missing_imports = true
 # full ops-extra install on every mypy run.
 module = "streamlit"
 ignore_missing_imports = true
+
+[[tool.mypy.overrides]]
+# atproto (Bluesky AT Protocol client) does not ship py.typed or type stubs.
+# Dependency ratified by Mark 2026-05-17 per CLAUDE.md §6 sign-off.
+module = "atproto"
+ignore_missing_imports = true

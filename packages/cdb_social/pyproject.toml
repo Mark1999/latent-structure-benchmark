@@ -3,4 +3,9 @@ name = "cdb-social"
 version = "0.1.0"
 description = "Social publishing pipeline for LSB"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+    # AT Protocol client for Bluesky live publishing (Phase 7 T6).
+    # Dependency ratified by Mark 2026-05-17 per CLAUDE.md §6 sign-off requirement.
+    # See docs/status/2026-05-17-phase7-architect-kickoff.md §10 (Mark ratifications).
+    "atproto>=0.0.46",
+]

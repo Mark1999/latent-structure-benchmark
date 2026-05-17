@@ -1,0 +1,9 @@
+{
+  "uri": "at://did:plc:abc123def456ghi789jkl012/app.bsky.feed.post/3jwvhsa5ocp2k",
+  "cid": "bafyreib2rxk3rybk3aobmv33cbt5hjqvfz7rnbzqnv4uiicr6g2kfgvea",
+  "commit": {
+    "cid": "bafyreib2rxk3rybk3aobmv33cbt5hjqvfz7rnbzqnv4uiicr6g2kfgvea",
+    "rev": "3jwvhsa5ocp2k"
+  },
+  "validationStatus": "valid"
+}
