@@ -67,6 +67,8 @@ License files at repo root: `LICENSE` (Apache 2.0), `LICENSE-DATA` (CC-BY-4.0), 
 
 ## Getting started
 
+v1 covers three domains — family, holidays, food — collected at four runs per (model, domain) cell across the model slate documented in `data/domains/v1/` and surfaced on the dashboard's manifest.
+
 LSB is built with [uv](https://docs.astral.sh/uv/) for Python and Vite for the dashboard. From a fresh clone:
 
 ```bash
