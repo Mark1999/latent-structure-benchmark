@@ -1,0 +1,4 @@
+GPT-5's output on family vocabulary clusters tightly:
+OCI = 2.4 (1.8, 3.1) across 12 runs.
+The model's responses concentrate on a small subset of family terms — a property of its corpus lens.
+details https://cogstructurelab.com/family
