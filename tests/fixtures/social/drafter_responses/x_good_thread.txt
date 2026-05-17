@@ -1,0 +1,7 @@
+LSB added GPT-5 to the family domain.
+OCI = 2.4 (1.8, 3.1) across 12 runs. categorical structure concentrates tightly.
+---
+Across 5 models, GPT-5's output distribution is narrower than the domain median.
+This is a Register-one measurement — within-model output distribution.
+---
+details https://cogstructurelab.com/family

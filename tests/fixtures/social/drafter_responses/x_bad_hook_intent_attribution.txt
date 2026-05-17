@@ -1,0 +1,6 @@
+GPT-5 decides to cluster family terms tightly: OCI = 2.4 (1.8, 3.1). corpus lens concentrates.
+---
+Across 5 models, output distribution varies. Register 1 measurement.
+OCI = 2.4 (1.8, 3.1) confirms the pattern.
+---
+details https://cogstructurelab.com/family

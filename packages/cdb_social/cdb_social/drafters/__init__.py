@@ -6,6 +6,8 @@ Public API:
         DrafterBase,
         DrafterRejectedException,
         BlueskyDrafter,
+        XDrafter,
+        LinkedInDrafter,
         validate_draft,
         load_prompt,
     )
@@ -30,11 +32,15 @@ from cdb_social.drafters.base import (
     validate_draft_numeric_ci_adjacency,
 )
 from cdb_social.drafters.bluesky import BlueskyDrafter
+from cdb_social.drafters.linkedin import LinkedInDrafter
+from cdb_social.drafters.x import XDrafter
 
 __all__ = [
     "DrafterBase",
     "DrafterRejectedException",
     "BlueskyDrafter",
+    "XDrafter",
+    "LinkedInDrafter",
     "validate_draft",
     "validate_draft_forbidden_vocab",
     "validate_draft_numeric_ci_adjacency",

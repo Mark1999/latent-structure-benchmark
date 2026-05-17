@@ -1,0 +1,7 @@
+I've been thinking about how AI models structure language differently, and the new LSB data confirms something interesting.
+
+LSB added GPT-5 to the family domain. OCI = 2.4 (1.8, 3.1) across 5 models.
+
+The corpus lens concentrates on a small subset of family terms. This is a Register 1 measurement.
+
+details https://cogstructurelab.com/family

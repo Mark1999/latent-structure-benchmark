@@ -1,0 +1,9 @@
+LSB added GPT-5 to the family domain across 5 models.
+
+The model's Output Concentration Index (OCI) on this domain is 2.4, 95% CI [1.8, 3.1]. OCI is a Register 1 measurement — it describes a single model's output distribution across repeated runs on one domain.
+
+GPT-5's output concentrates on a narrow subset of family-domain vocabulary. The categorical structure is tighter than the domain median, which LSB measures as a property of the corpus lens.
+
+This is one measurement from LSB's 2026 collection.
+
+details https://cogstructurelab.com/family

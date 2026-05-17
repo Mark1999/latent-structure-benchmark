@@ -1,0 +1,7 @@
+LSB added GPT-5 to the family domain across 5 models.
+
+The model's OCI on this domain is 2.4, 95% CI [1.8, 3.1]. I find this result notable because the concentration is tighter than average.
+
+The corpus lens concentrates on a small subset of family terms. This is a Register 1 measurement.
+
+details https://cogstructurelab.com/family

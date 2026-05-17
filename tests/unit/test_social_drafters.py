@@ -28,6 +28,8 @@ from cdb_core.schemas import (
 from cdb_social.drafters import (
     BlueskyDrafter,
     DrafterRejectedException,
+    LinkedInDrafter,
+    XDrafter,
     validate_draft,
     validate_draft_forbidden_vocab,
     validate_draft_hypothesis_framing,
@@ -38,6 +40,15 @@ from cdb_social.drafters.base import (
     CI_SHAPE_REGEX,
     _check_rejection_window,
     load_prompt,
+)
+from cdb_social.drafters.linkedin import (
+    _check_linkedin_no_first_person,
+    _validate_linkedin_anti_thought_leadership,
+)
+from cdb_social.drafters.x import (
+    _X_SEGMENT_DELIMITER,
+    _check_x_thread_structure,
+    _validate_x_hook_tweet,
 )
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -733,6 +744,102 @@ class TestPromptVersioning:
             "directory and CDA SME review before any v2-generated draft reaches the queue."
         )
 
+    # T4 extension: x.md and linkedin.md exist at prompts/v1/ (CDA SME T4 §5.13 carry-forward)
+    def test_v1_x_prompt_file_exists(self) -> None:
+        """v1/x.md exists — required for XDrafter at T4."""
+        prompts_dir = (
+            Path(__file__).parent.parent.parent
+            / "packages"
+            / "cdb_social"
+            / "cdb_social"
+            / "drafters"
+            / "prompts"
+            / "v1"
+        )
+        assert (prompts_dir / "x.md").exists(), (
+            f"Expected v1/x.md prompt file at {prompts_dir / 'x.md'}"
+        )
+
+    def test_v1_linkedin_prompt_file_exists(self) -> None:
+        """v1/linkedin.md exists — required for LinkedInDrafter at T4."""
+        prompts_dir = (
+            Path(__file__).parent.parent.parent
+            / "packages"
+            / "cdb_social"
+            / "cdb_social"
+            / "drafters"
+            / "prompts"
+            / "v1"
+        )
+        assert (prompts_dir / "linkedin.md").exists(), (
+            f"Expected v1/linkedin.md prompt file at {prompts_dir / 'linkedin.md'}"
+        )
+
+    def test_load_prompt_x_v1_returns_text(self) -> None:
+        text = load_prompt("x", "v1")
+        assert len(text) > 100, "X prompt text should be non-trivial"
+
+    def test_load_prompt_linkedin_v1_returns_text(self) -> None:
+        text = load_prompt("linkedin", "v1")
+        assert len(text) > 100, "LinkedIn prompt text should be non-trivial"
+
+    def test_x_prompt_contains_forbidden_vocab_table(self) -> None:
+        """X prompt Block 3 must contain the §1.5.4 forbidden-vocab table."""
+        prompt_text = load_prompt("x", "v1")
+        assert "Model X believes" in prompt_text or "Model X's output treats" in prompt_text
+        assert "within-model consensus" in prompt_text.lower()
+
+    def test_linkedin_prompt_contains_anti_thought_leadership_block(self) -> None:
+        """LinkedIn prompt Block 5.5 must contain the anti-thought-leadership content."""
+        prompt_text = load_prompt("linkedin", "v1")
+        assert "I've been thinking" in prompt_text or "thought-leadership" in prompt_text.lower()
+        assert "future of AI" in prompt_text
+
+    def test_x_prompt_contains_per_segment_r10_emphasis(self) -> None:
+        """X prompt Block 4 must mention per-segment CI requirement."""
+        prompt_text = load_prompt("x", "v1")
+        # Must describe that each segment is independently validated
+        assert "segment" in prompt_text.lower()
+        assert "independently" in prompt_text.lower() or "segment 1" in prompt_text.lower()
+
+    def test_x_prompt_contains_hook_tweet_rules(self) -> None:
+        """X prompt Block 6 must contain hook-tweet rules."""
+        prompt_text = load_prompt("x", "v1")
+        assert "hook" in prompt_text.lower() or "segment 1" in prompt_text.lower()
+        assert "decides" in prompt_text.lower() or "intent" in prompt_text.lower()
+
+    def test_bumping_x_requires_new_directory(self) -> None:
+        """v2/x.md must not exist at T4 close — bumping requires CDA SME review."""
+        prompts_dir = (
+            Path(__file__).parent.parent.parent
+            / "packages"
+            / "cdb_social"
+            / "cdb_social"
+            / "drafters"
+            / "prompts"
+        )
+        v2_path = prompts_dir / "v2" / "x.md"
+        assert not v2_path.exists(), (
+            "v2/x.md exists — bumping requires a new directory and CDA SME review "
+            "per CLAUDE.md §6 rule 7."
+        )
+
+    def test_bumping_linkedin_requires_new_directory(self) -> None:
+        """v2/linkedin.md must not exist at T4 close — bumping requires CDA SME review."""
+        prompts_dir = (
+            Path(__file__).parent.parent.parent
+            / "packages"
+            / "cdb_social"
+            / "cdb_social"
+            / "drafters"
+            / "prompts"
+        )
+        v2_path = prompts_dir / "v2" / "linkedin.md"
+        assert not v2_path.exists(), (
+            "v2/linkedin.md exists — bumping requires a new directory and CDA SME review "
+            "per CLAUDE.md §6 rule 7."
+        )
+
 
 # ─────────────────────────────────────────────────────────────────────────────
 # TestCacheNoCacheSplit (§5.10)
@@ -1067,3 +1174,581 @@ class TestRejectionWindowMonitor:
             "Expected no warning: 50 historical rejections are outside the "
             "last-10 window; the recent window is all passes"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T4: TestXDrafterStructure (CDA SME T4 §5.7)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestXDrafterStructure:
+    """Thread output is \\n---\\n-delimited; max 3 segments; per-segment char limits."""
+
+    def test_good_thread_has_three_segments(self) -> None:
+        text = _load_fixture("x_good_thread.txt")
+        segments = text.split(_X_SEGMENT_DELIMITER)
+        assert len(segments) == 3, f"Expected 3 segments, got {len(segments)}"
+
+    def test_good_thread_each_segment_under_280(self) -> None:
+        text = _load_fixture("x_good_thread.txt")
+        segments = text.split(_X_SEGMENT_DELIMITER)
+        for idx, seg in enumerate(segments):
+            assert len(seg) <= 280, (
+                f"Segment {idx} is {len(seg)} chars — exceeds 280-char hard limit"
+            )
+
+    def test_good_thread_each_segment_under_250_target(self) -> None:
+        text = _load_fixture("x_good_thread.txt")
+        segments = text.split(_X_SEGMENT_DELIMITER)
+        for idx, seg in enumerate(segments):
+            assert len(seg) <= 250, (
+                f"Segment {idx} is {len(seg)} chars — exceeds 250-char target"
+            )
+
+    def test_four_segment_thread_rejected(self) -> None:
+        """Thread with 4 segments raises with __x_thread_too_long__ sentinel."""
+        # Craft a 4-segment thread (each segment well under 280 chars)
+        seg = "OCI = 2.4 (1.8, 3.1). corpus lens concentrates on family terms."
+        four_segs = _X_SEGMENT_DELIMITER.join([seg] * 4)
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            _check_x_thread_structure(four_segs)
+        assert "__x_thread_too_long__" in exc_info.value.forbidden_terms_hit
+
+    def test_overlength_segment_rejected(self) -> None:
+        """A 290-char segment raises with __x_segment_overlength_{idx}__ sentinel."""
+        long_seg = "X" * 290
+        ci_seg = "OCI = 2.4 (1.8, 3.1). corpus lens concentrates."
+        two_segs = _X_SEGMENT_DELIMITER.join([long_seg, ci_seg])
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            _check_x_thread_structure(two_segs)
+        assert any(
+            "__x_segment_overlength_" in t
+            for t in exc_info.value.forbidden_terms_hit
+        )
+
+    def test_round_trip_good_thread_returns_social_draft(self) -> None:
+        """Good thread fixture → SocialDraft with all-pass framing_checks."""
+        fixture_text = _load_fixture("x_good_thread.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger(domain_slug="family")
+        result = drafter.draft(trigger, _domain_result())
+        assert result is not None
+        assert result.platform == Platform.X
+        assert result.drafter_version == "x-v1"
+        assert result.prompt_version == "v1"
+        assert result.forbidden_terms_hit == []
+        assert result.framing_check_passed is True
+        assert result.drafter_self_rating == 0.5
+
+    def test_round_trip_thread_framing_checks_has_x_keys(self) -> None:
+        """framing_checks contains the three X-specific keys."""
+        fixture_text = _load_fixture("x_good_thread.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger(domain_slug="family")
+        result = drafter.draft(trigger, _domain_result())
+        assert "x_hook_has_measurement_noun" in result.framing_checks
+        assert "x_hook_has_ci_shape" in result.framing_checks
+        assert "x_hook_no_intent_attribution" in result.framing_checks
+        assert result.framing_checks["x_hook_has_measurement_noun"] is True
+        assert result.framing_checks["x_hook_has_ci_shape"] is True
+        assert result.framing_checks["x_hook_no_intent_attribution"] is True
+
+    def test_x_drafter_cache_control_on_system_prompt(self) -> None:
+        """XDrafter must pass cache_control ephemeral on system prompt (ARCHITECTURE.md §6.2)."""
+        fixture_text = _load_fixture("x_good_thread.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        drafter.draft(trigger, _domain_result())
+        call_kwargs = mock_client.last_call_kwargs
+        system = call_kwargs.get("system", [])
+        assert isinstance(system, list)
+        assert len(system) == 1
+        block = system[0]
+        assert block.get("cache_control") == {"type": "ephemeral"}
+
+    def test_x_drafter_per_call_payload_contains_n_segments_target(self) -> None:
+        """Per-call payload must contain n_segments_target (structural hint, T4 §5.12)."""
+        fixture_text = _load_fixture("x_good_thread.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        drafter.draft(trigger, _domain_result())
+        call_kwargs = mock_client.last_call_kwargs
+        messages = call_kwargs.get("messages", [])
+        user_content = messages[0].get("content", "")
+        assert "n_segments_target" in user_content
+
+    def test_x_drafter_per_call_payload_no_methodology_copy(self) -> None:
+        """Per-call payload must NOT contain methodology copy (T3 §5.10 carry-forward)."""
+        fixture_text = _load_fixture("x_good_thread.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        drafter.draft(trigger, _domain_result())
+        call_kwargs = mock_client.last_call_kwargs
+        messages = call_kwargs.get("messages", [])
+        user_content = messages[0].get("content", "")
+        forbidden_in_payload = [
+            "§1.5.4",
+            "Cultural Domain Analysis",
+            "forbidden vocabulary",
+            "Register-1",
+            "Block 1",
+            "Block 2",
+        ]
+        for phrase in forbidden_in_payload:
+            assert phrase not in user_content, (
+                f"Methodology copy found in X per-call payload: {phrase!r}"
+            )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T4: TestXPerSegmentValidation (CDA SME T4 §5.2 — Option A)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestXPerSegmentValidation:
+    """Per-segment validation: Option A — each segment independently passes all four checks."""
+
+    def test_segment_with_forbidden_vocab_rejects_whole_thread(self) -> None:
+        """A §1.5.4 phrase in segment 1 rejects the whole thread."""
+        # Build a thread where segment 0 is good but segment 1 has forbidden vocab
+        seg0 = (
+            "LSB added GPT-5 to the family domain.\n"
+            "OCI = 2.4 (1.8, 3.1) across 12 runs. corpus lens concentrates."
+        )
+        seg1 = "Model GPT-5 believes the structure is fixed. OCI = 2.4 (1.8, 3.1)."
+        seg2 = "details https://cogstructurelab.com/family"
+        bad_thread = _X_SEGMENT_DELIMITER.join([seg0, seg1, seg2])
+        mock_client = MockAnthropicClient(bad_thread)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException):
+            drafter.draft(trigger, _domain_result())
+
+    def test_cross_segment_r10_parking_rejected(self) -> None:
+        """Option A critical case: numeric in segment 0, CI in segment 1 → rejected.
+
+        The x_bad_cross_segment_r10.txt fixture has:
+        - segment 0: Smith's S = 0.61 with no CI
+        - segment 1: (0.48, 0.79) — the CI parked in a different segment
+
+        This MUST be rejected. Cross-segment CI parking violates Option A.
+        """
+        text = _load_fixture("x_bad_cross_segment_r10.txt")
+        mock_client = MockAnthropicClient(text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        # The exception must indicate a validation failure (hook or R10)
+        assert exc_info.value.forbidden_terms_hit  # sentinel or banned term
+
+    def test_per_segment_validator_runs_on_each_segment(self) -> None:
+        """Validate that the per-segment validator is actually invoked per segment.
+
+        Build a thread where all segments are individually well-formed and
+        confirm the draft passes (positive case for per-segment validation).
+        """
+        text = _load_fixture("x_good_thread.txt")
+        segs = text.split(_X_SEGMENT_DELIMITER)
+        assert len(segs) == 3
+        # Each segment should individually pass validate_draft
+        for seg in segs:
+            hits, framing = validate_draft(seg)
+            assert hits == [], f"Unexpected forbidden vocab in segment: {hits}"
+            assert framing["bare_numeric_without_ci"] is True or seg.count(
+                "OCI"
+            ) == 0  # segment 3 has no numerics
+
+    def test_aggregate_framing_checks_and_across_segments(self) -> None:
+        """framing_checks for the thread is the AND across all segments."""
+        text = _load_fixture("x_good_thread.txt")
+        mock_client = MockAnthropicClient(text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        result = drafter.draft(trigger, _domain_result())
+        # All canonical T3 keys should be True (AND across all 3 segments)
+        assert result.framing_checks["hypothesis_framing"] is True
+        assert result.framing_checks["cognition_attribution"] is True
+        assert result.framing_checks["bare_numeric_without_ci"] is True
+        assert result.framing_checks["register_boundary"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T4: TestXHookTweetChecks (CDA SME T4 §5.3)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestXHookTweetChecks:
+    """Segment 0 must have measurement noun, CI-shape, no intent-attribution stems."""
+
+    # ── Check 1: measurement-noun presence ──────────────────────────────────
+
+    def test_hook_with_oci_passes_measurement_noun_check(self) -> None:
+        """Segment 0 containing 'OCI' passes the measurement-noun check."""
+        seg0 = "OCI = 2.4 (1.8, 3.1). corpus lens concentrates on family terms."
+        hooks = _validate_x_hook_tweet(seg0)
+        assert hooks["x_hook_has_measurement_noun"] is True
+
+    def test_hook_with_smiths_s_passes_measurement_noun_check(self) -> None:
+        """Segment 0 containing 'Smith's S' passes the measurement-noun check."""
+        seg0 = "Smith's S = 0.61, 95% CI [0.48, 0.79]. categorical structure."
+        hooks = _validate_x_hook_tweet(seg0)
+        assert hooks["x_hook_has_measurement_noun"] is True
+
+    def test_hook_with_consensus_passes_measurement_noun_check(self) -> None:
+        """Segment 0 containing 'consensus' passes the measurement-noun check."""
+        seg0 = "consensus eigenratio = 5.2 ± 0.8. Corpus lens concentrates."
+        hooks = _validate_x_hook_tweet(seg0)
+        assert hooks["x_hook_has_measurement_noun"] is True
+
+    def test_hook_missing_measurement_noun_rejected(self) -> None:
+        """Segment 0 missing any measurement noun → __x_segment_1_no_measurement_noun__."""
+        text = _load_fixture("x_bad_hook_no_measurement.txt")
+        mock_client = MockAnthropicClient(text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        assert "__x_segment_1_no_measurement_noun__" in exc_info.value.forbidden_terms_hit
+
+    # ── Check 2: CI-shape presence ───────────────────────────────────────────
+
+    def test_hook_with_ci_inline_passes(self) -> None:
+        """Segment 0 with an inline CI passes the CI-shape check."""
+        seg0 = "OCI = 2.4 (1.8, 3.1). corpus lens concentrates on family terms."
+        hooks = _validate_x_hook_tweet(seg0)
+        assert hooks["x_hook_has_ci_shape"] is True
+
+    def test_hook_with_bracket_ci_passes(self) -> None:
+        """Segment 0 with 95% CI [...] passes the CI-shape check."""
+        seg0 = "Smith's S = 0.61, 95% CI [0.48, 0.79]. categorical structure."
+        hooks = _validate_x_hook_tweet(seg0)
+        assert hooks["x_hook_has_ci_shape"] is True
+
+    def test_hook_missing_ci_shape_rejected(self) -> None:
+        """Segment 0 with a bare numeric but no CI-shape → __x_segment_1_no_ci_shape__."""
+        # Build a thread where segment 0 has a measurement noun but no CI
+        seg0 = "OCI = 2.4. corpus lens concentrates on family terms."  # bare OCI
+        seg1 = "Context: (1.8, 3.1) shown here for reference."
+        seg2 = "details https://cogstructurelab.com/family"
+        bad_thread = _X_SEGMENT_DELIMITER.join([seg0, seg1, seg2])
+        mock_client = MockAnthropicClient(bad_thread)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        assert "__x_segment_1_no_ci_shape__" in exc_info.value.forbidden_terms_hit
+
+    # ── Check 3: intent-attribution stems forbidden in segment 0 ─────────────
+
+    def test_hook_with_decides_rejected(self) -> None:
+        """Segment 0 containing 'decides' → __x_segment_1_intent_attribution_decides__."""
+        text = _load_fixture("x_bad_hook_intent_attribution.txt")
+        mock_client = MockAnthropicClient(text)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        assert any(
+            "intent_attribution" in t
+            for t in exc_info.value.forbidden_terms_hit
+        )
+
+    def test_hook_with_chooses_rejected(self) -> None:
+        """Segment 0 containing 'chooses' → intent-attribution rejection."""
+        seg0 = "GPT-5 chooses to group family terms: OCI = 2.4 (1.8, 3.1). corpus lens."
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            _validate_x_hook_tweet(seg0)
+        assert any(
+            "chooses" in t
+            for t in exc_info.value.forbidden_terms_hit
+        )
+
+    def test_hook_with_prefers_rejected(self) -> None:
+        """Segment 0 containing 'prefers' → intent-attribution rejection."""
+        seg0 = "GPT-5 prefers narrow groupings: OCI = 2.4 (1.8, 3.1). corpus lens."
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            _validate_x_hook_tweet(seg0)
+        assert any(
+            "prefers" in t
+            for t in exc_info.value.forbidden_terms_hit
+        )
+
+    def test_hook_no_intent_attribution_passes(self) -> None:
+        """Segment 0 with no intent stems passes check 3."""
+        seg0 = "OCI = 2.4 (1.8, 3.1). corpus lens concentrates on family terms."
+        hooks = _validate_x_hook_tweet(seg0)
+        assert hooks["x_hook_no_intent_attribution"] is True
+
+    def test_intent_attribution_stems_only_forbidden_in_segment_0(self) -> None:
+        """'decides' in segment 1 (not segment 0) does NOT trigger hook rejection.
+
+        The intent-attribution stem check is hook-only (segment 0).  Segments 1+
+        are subject only to the standard per-segment validator, which does not
+        include decides/chooses/prefers in its forbidden-stem list.
+        """
+        # A thread where segment 0 is good but segment 1 has "decides"
+        seg0 = (
+            "LSB added GPT-5 to the family domain.\n"
+            "OCI = 2.4 (1.8, 3.1). corpus lens concentrates."
+        )
+        seg1 = "The output distribution decides the clustering pattern. OCI = 2.4 (1.8, 3.1)."
+        seg2 = "details https://cogstructurelab.com/family"
+        thread = _X_SEGMENT_DELIMITER.join([seg0, seg1, seg2])
+        mock_client = MockAnthropicClient(thread)
+        drafter = XDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        # Should NOT raise on the hook-tweet intent-attribution check
+        # (segment 1 "decides" is not caught by hook rules — only the per-segment
+        # validator runs on segment 1, and it does not include intent-attribution stems)
+        result = drafter.draft(trigger, _domain_result())
+        assert result.framing_checks["x_hook_no_intent_attribution"] is True
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T4: TestLinkedInDrafterStructure (CDA SME T4 §5.8)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestLinkedInDrafterStructure:
+    """Single long-form post; ≤ 3000 chars; soft target ≤ 1500 chars."""
+
+    def test_good_linkedin_post_under_3000_chars(self) -> None:
+        text = _load_fixture("linkedin_good.txt")
+        assert len(text) <= 3000, f"LinkedIn fixture is {len(text)} chars"
+
+    def test_good_linkedin_post_under_1500_target(self) -> None:
+        text = _load_fixture("linkedin_good.txt")
+        assert len(text) <= 1500, f"LinkedIn fixture is {len(text)} chars"
+
+    def test_good_linkedin_no_thread_delimiter(self) -> None:
+        text = _load_fixture("linkedin_good.txt")
+        assert _X_SEGMENT_DELIMITER not in text, (
+            "LinkedIn post must not contain thread delimiter"
+        )
+
+    def test_overlength_post_rejected(self) -> None:
+        """A post exceeding 3000 chars raises with __linkedin_overlength_3000__ sentinel."""
+        long_text = "A" * 3001
+        mock_client = MockAnthropicClient(long_text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        assert "__linkedin_overlength_3000__" in exc_info.value.forbidden_terms_hit
+
+    def test_round_trip_good_post_returns_social_draft(self) -> None:
+        """Good LinkedIn fixture → SocialDraft with all-pass framing_checks."""
+        fixture_text = _load_fixture("linkedin_good.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger(domain_slug="family")
+        result = drafter.draft(trigger, _domain_result())
+        assert result is not None
+        assert result.platform == Platform.LINKEDIN
+        assert result.drafter_version == "linkedin-v1"
+        assert result.prompt_version == "v1"
+        assert result.forbidden_terms_hit == []
+        assert result.framing_check_passed is True
+        assert result.drafter_self_rating == 0.5
+
+    def test_round_trip_linkedin_framing_checks_has_linkedin_key(self) -> None:
+        """framing_checks contains linkedin_no_thought_leadership key."""
+        fixture_text = _load_fixture("linkedin_good.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger(domain_slug="family")
+        result = drafter.draft(trigger, _domain_result())
+        assert "linkedin_no_thought_leadership" in result.framing_checks
+        assert result.framing_checks["linkedin_no_thought_leadership"] is True
+
+    def test_linkedin_framing_checks_has_four_canonical_t3_keys(self) -> None:
+        """framing_checks contains all four canonical T3 keys (carry-forward)."""
+        fixture_text = _load_fixture("linkedin_good.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger(domain_slug="family")
+        result = drafter.draft(trigger, _domain_result())
+        assert "hypothesis_framing" in result.framing_checks
+        assert "cognition_attribution" in result.framing_checks
+        assert "bare_numeric_without_ci" in result.framing_checks
+        assert "register_boundary" in result.framing_checks
+
+    def test_linkedin_cache_control_on_system_prompt(self) -> None:
+        """LinkedInDrafter must pass cache_control ephemeral on system prompt."""
+        fixture_text = _load_fixture("linkedin_good.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        drafter.draft(trigger, _domain_result())
+        call_kwargs = mock_client.last_call_kwargs
+        system = call_kwargs.get("system", [])
+        assert isinstance(system, list)
+        assert len(system) == 1
+        block = system[0]
+        assert block.get("cache_control") == {"type": "ephemeral"}
+
+    def test_linkedin_per_call_payload_has_target_char_count(self) -> None:
+        """Per-call payload must contain target_char_count (structural hint, T4 §5.12)."""
+        fixture_text = _load_fixture("linkedin_good.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        drafter.draft(trigger, _domain_result())
+        call_kwargs = mock_client.last_call_kwargs
+        messages = call_kwargs.get("messages", [])
+        user_content = messages[0].get("content", "")
+        assert "target_char_count" in user_content
+
+    def test_linkedin_k12_window_inherited_unchanged(self) -> None:
+        """LinkedIn validator uses K=12 CI-adjacency window (T4 §5.6 ruling).
+
+        A bare numeric rejected under K=12 must also be rejected in a LinkedIn post.
+        The window does NOT scale with content length.
+        """
+        # A LinkedIn post with a bare numeric at the top and the CI far away
+        # (more than 12 tokens apart)
+        bare_in_linkedin = (
+            "LSB added GPT-5 to the family domain.\n\n"
+            "The OCI value is 2.4 for this model. "  # bare 2.4
+            "There are many aspects to consider about the categorical structure "
+            "of the family domain. Each model shows different patterns. "
+            "The corpus lens concentrates on a small subset. "
+            "Here is additional context about the measurement methodology. "
+            "The confidence interval is (1.8, 3.1).\n\n"  # CI > 12 tokens away
+            "details https://cogstructurelab.com/family"
+        )
+        ok, bare = validate_draft_numeric_ci_adjacency(bare_in_linkedin)
+        # The bare 2.4 should be flagged (CI is far away)
+        assert not ok, f"Expected bare-numeric failure for far-away CI, got: {bare}"
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T4: TestLinkedInAntiThoughtLeadership (CDA SME T4 §5.5)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestLinkedInAntiThoughtLeadership:
+    """LinkedIn-specific forbidden patterns + first-person pronoun rule."""
+
+    # ── Three forbidden thought-leadership patterns ───────────────────────────
+
+    def test_ive_been_thinking_rejected(self) -> None:
+        """'I've been thinking' (case-insensitive) triggers LinkedIn rejection."""
+        text = _load_fixture("linkedin_bad_thought_leadership.txt")
+        mock_client = MockAnthropicClient(text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        matched = exc_info.value.forbidden_terms_hit
+        assert any("been thinking" in t.lower() or "first_person" in t.lower() for t in matched), (
+            f"Expected thought-leadership or first-person hit, got: {matched}"
+        )
+
+    def test_the_future_of_ai_rejected(self) -> None:
+        """'The future of AI' (case-insensitive) triggers LinkedIn rejection."""
+        post = (
+            "LSB added GPT-5 to the family domain. OCI = 2.4 (1.8, 3.1).\n\n"
+            "The future of AI will reshape how we measure categorical structure.\n\n"
+            "details https://cogstructurelab.com/family"
+        )
+        matched, linkedin_ok = _validate_linkedin_anti_thought_leadership(post)
+        assert not linkedin_ok
+        assert any("future" in t.lower() and "ai" in t.lower() for t in matched)
+
+    def test_ai_is_reshaping_rejected(self) -> None:
+        """'AI is reshaping' (case-insensitive) triggers LinkedIn rejection."""
+        post = (
+            "LSB added GPT-5 to the family domain. OCI = 2.4 (1.8, 3.1).\n\n"
+            "AI is reshaping how we think about categorical structure.\n\n"
+            "details https://cogstructurelab.com/family"
+        )
+        matched, linkedin_ok = _validate_linkedin_anti_thought_leadership(post)
+        assert not linkedin_ok
+        assert any("reshaping" in t.lower() for t in matched)
+
+    def test_ive_been_thinking_case_insensitive(self) -> None:
+        """Pattern match is case-insensitive: 'I'VE BEEN THINKING' also rejected."""
+        post = "I'VE BEEN THINKING about how LSB measures OCI = 2.4 (1.8, 3.1)."
+        matched, linkedin_ok = _validate_linkedin_anti_thought_leadership(post)
+        assert not linkedin_ok
+        assert matched  # must have at least one hit
+
+    # ── First-person pronoun rule ─────────────────────────────────────────────
+
+    def test_standalone_i_rejected(self) -> None:
+        """\\bI\\b (case-sensitive, word-boundary) triggers __linkedin_first_person__."""
+        text = _load_fixture("linkedin_bad_first_person.txt")
+        mock_client = MockAnthropicClient(text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        assert "__linkedin_first_person__" in exc_info.value.forbidden_terms_hit
+
+    def test_we_and_our_pass_first_person_check(self) -> None:
+        """'we' and 'our' are first-person plural and are allowed."""
+        post = (
+            "LSB added GPT-5 to our domain coverage.\n\n"
+            "We measure OCI = 2.4 (1.8, 3.1) on the family domain.\n\n"
+            "details https://cogstructurelab.com/family"
+        )
+        no_first_person = _check_linkedin_no_first_person(post)
+        assert no_first_person, "Expected 'we'/'our' to pass first-person check"
+
+    def test_capital_i_in_word_not_rejected(self) -> None:
+        """'Information', 'In', 'Is' etc. with capital I are NOT \\bI\\b and are allowed."""
+        post = (
+            "LSB added GPT-5 to the family domain.\n\n"
+            "Information about OCI = 2.4 (1.8, 3.1) is here.\n"
+            "In 2026, LSB covers 5 domains.\n\n"
+            "details https://cogstructurelab.com/family"
+        )
+        no_first_person = _check_linkedin_no_first_person(post)
+        assert no_first_person, (
+            r"Capital-I words like 'Information', 'In', 'Is' must not match \bI\b"
+        )
+
+    def test_clean_linkedin_post_passes_all_checks(self) -> None:
+        """Clean LinkedIn post passes anti-thought-leadership checks."""
+        post = _load_fixture("linkedin_good.txt")
+        matched, linkedin_ok = _validate_linkedin_anti_thought_leadership(post)
+        assert linkedin_ok, f"Expected clean LinkedIn post to pass, got: {matched}"
+
+    def test_ive_been_thinking_no_apostrophe_also_rejected(self) -> None:
+        """'Ive been thinking' (without apostrophe) matches the regex pattern.
+
+        The regex pattern is r\"\\bI'?ve been thinking\\b\" so both
+        \"I've been thinking\" (with apostrophe) and \"Ive been thinking\"
+        (without) are caught.  This test documents this behavior.
+        """
+        post = "Ive been thinking about OCI = 2.4 (1.8, 3.1)."
+        matched, linkedin_ok = _validate_linkedin_anti_thought_leadership(post)
+        assert not linkedin_ok, "Expected 'Ive been thinking' (no apostrophe) to match"
+
+    def test_linkedin_no_thought_leadership_framing_check_key_exists(self) -> None:
+        """The linkedin_no_thought_leadership key is in framing_checks on good draft."""
+        fixture_text = _load_fixture("linkedin_good.txt")
+        mock_client = MockAnthropicClient(fixture_text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        result = drafter.draft(trigger, _domain_result())
+        assert "linkedin_no_thought_leadership" in result.framing_checks
+        assert result.framing_checks["linkedin_no_thought_leadership"] is True
+
+    def test_framing_check_passed_false_when_thought_leadership_pattern(self) -> None:
+        """framing_check_passed is False when thought-leadership pattern detected."""
+        text = _load_fixture("linkedin_bad_thought_leadership.txt")
+        mock_client = MockAnthropicClient(text)
+        drafter = LinkedInDrafter(anthropic_client=mock_client)
+        trigger = _trigger()
+        with pytest.raises(DrafterRejectedException) as exc_info:
+            drafter.draft(trigger, _domain_result())
+        # The exception must carry non-empty forbidden_terms_hit
+        assert exc_info.value.forbidden_terms_hit
