@@ -1,9 +1,10 @@
-"""Social pipeline CLI — Phase 7 T6.
+"""Social pipeline CLI — Phase 7 T6 + T6a.
 
 Entry point: ``python -m cdb_social.cli {subcommand}``
 
 Subcommands
 -----------
+detect     — run detectors → email digest (no drafters, no LLM calls)
 run-once   — detect triggers → draft → queue/pending/
 review     — delegates to scripts/social_review.py
 publish    — drain approved/ → publisher → published/{YYYY-MM}/ or failed/
@@ -14,14 +15,17 @@ Ordering constraint (from triggers.py):
     new-model exclusion list is available.
 
 Design invariants:
+- detect does NOT invoke drafters (§11.1 binding B-1: no autonomous LLM calls).
+  It runs detectors, emails Mark, and updates emailed_dedupe_keys.json only.
 - run-once does NOT auto-publish. Mark's ``publish`` subcommand is the publish
-  trigger. The cron (Phase 7 T7) calls ``run-once`` only.
+  trigger. The cron (Phase 7 T7) calls ``detect`` only.
 - Drift trigger is explicitly disabled (enable=False) per kickoff §2 item 1.
 - DrafterRejectedException is caught per-draft; one bad draft does not kill
   the run.
 - Credentials come from env only; never logged.
 
-See ARCHITECTURE.md §4.6 and docs/status/2026-05-17-phase7-architect-kickoff.md §3 T6.
+See ARCHITECTURE.md §4.6 and docs/status/2026-05-17-phase7-architect-kickoff.md
+§11.5 (T6a: detection cron + email digest).
 """
 
 from __future__ import annotations
@@ -45,8 +49,10 @@ from cdb_social import (
     detect_new_domain,
     detect_new_model,
 )
+from cdb_social.digest import format_digest
 from cdb_social.drafters.base import DrafterRejectedException
 from cdb_social.drafters.bluesky import BlueskyDrafter
+from cdb_social.email_sender import EmailConfigError, EmailSendError, send_digest
 from cdb_social.publisher import (
     PublisherNotEnabled,
     PublisherTerminalError,
@@ -191,6 +197,216 @@ def _append_retry_record(state_dir: Path, draft: SocialDraft, error_msg: str) ->
             f.write(json.dumps(record, ensure_ascii=False) + "\n")
     except OSError as e:
         logger.warning("Failed to write publish retry log: %s", e)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Emailed-dedupe helpers (separate from posted_dedupe_keys — §11.5)
+# ─────────────────────────────────────────────────────────────────────────────
+# "Mark was told" ≠ "Mark posted."  emailed_dedupe_keys.json tracks email
+# digests; posted_dedupe_keys.json tracks Bluesky/platform posts.
+
+
+def _load_emailed_dedupe_keys(state_dir: Path) -> set[str]:
+    """Load emailed_dedupe_keys.json as a set of key strings.
+
+    Returns an empty set if the file is absent (first run).
+    """
+    path = state_dir / "emailed_dedupe_keys.json"
+    if not path.exists():
+        return set()
+    try:
+        data = json.loads(path.read_text(encoding="utf-8"))
+        return set(data.get("keys", []))
+    except (json.JSONDecodeError, OSError):
+        return set()
+
+
+def _save_emailed_dedupe_keys(state_dir: Path, keys: set[str]) -> None:
+    """Atomically write emailed_dedupe_keys.json.
+
+    Uses tempfile.mkstemp + os.replace for atomic write (no partial writes
+    on interrupt — same pattern as triggers.py _atomic_write_json).
+    """
+    import contextlib  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+    path = state_dir / "emailed_dedupe_keys.json"
+    payload = json.dumps({"keys": sorted(keys)}, indent=2, ensure_ascii=True)
+    fd, tmp = tempfile.mkstemp(dir=state_dir, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+        os.replace(tmp, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# detect subcommand (Phase 7 T6a)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def cmd_detect(args: argparse.Namespace) -> int:
+    """Run detectors → filter → email digest if new triggers exist.
+
+    Per §11.1 binding B-1: NO drafters are invoked here.  No Anthropic API
+    calls.  This subcommand's job is: detect events, format a digest, send it.
+
+    Steps:
+    1. Load manifest.json and domain result files.
+    2. Run all detectors (drift disabled per kickoff §2 item 1).
+    3. Load emailed_dedupe_keys.json; filter to triggers not already emailed.
+    4. If no new triggers: print "No new triggers since last digest." and exit 0.
+    5. Compute queue counts.
+    6. Format digest via cdb_social.digest.format_digest.
+    7. If --dry-run: print to stdout, return 0.
+    8. Otherwise: send email via cdb_social.email_sender.send_digest.
+    9. On success: atomically append dedupe_keys to emailed_dedupe_keys.json.
+    10. Return 0.
+
+    Returns the exit code (0 on success).
+    """
+    state_dir = _state_dir()
+    data_dir = _data_dir()
+    queue_root = _queue_root()
+    dry_run: bool = getattr(args, "dry_run", False)
+
+    # Step 1: load data
+    manifest = _load_manifest(data_dir)
+    domain_results = _load_domain_results(data_dir, manifest)
+
+    # Step 2: run detectors
+    # detect_new_model MUST run before detect_divergence (ordering constraint)
+    new_model_triggers: list[SocialTrigger] = []
+    try:
+        new_model_triggers = detect_new_model(manifest, state_dir)
+    except Exception as e:
+        logger.warning("detect_new_model failed: %s", e)
+
+    new_domain_triggers: list[SocialTrigger] = []
+    try:
+        new_domain_triggers = detect_new_domain(manifest, state_dir)
+    except Exception as e:
+        logger.warning("detect_new_domain failed: %s", e)
+
+    # Drift: explicitly disabled per kickoff §2 item 1
+    drift_triggers: list[SocialTrigger] = detect_drift(
+        domain_results, state_dir, enable=False
+    )
+
+    # Build new_models_this_run dict for divergence exclusion
+    new_models_this_run: dict[str, list[str]] = {}
+    for trig in new_model_triggers:
+        domain = trig.domain_slug or ""
+        model = trig.model_id or ""
+        if domain and model:
+            new_models_this_run.setdefault(domain, []).append(model)
+
+    divergence_triggers: list[SocialTrigger] = []
+    try:
+        divergence_triggers = detect_divergence(
+            domain_results, state_dir, new_models_this_run=new_models_this_run
+        )
+    except Exception as e:
+        logger.warning("detect_divergence failed: %s", e)
+
+    monthly_triggers: list[SocialTrigger] = []
+    try:
+        monthly_triggers = detect_monthly_roundup(state_dir, now=datetime.now(UTC))
+    except Exception as e:
+        logger.warning("detect_monthly_roundup failed: %s", e)
+
+    all_triggers: list[SocialTrigger] = (
+        new_model_triggers
+        + new_domain_triggers
+        + drift_triggers
+        + divergence_triggers
+        + monthly_triggers
+    )
+
+    # Step 3: filter against emailed_dedupe_keys.json
+    emailed_keys = _load_emailed_dedupe_keys(state_dir)
+    new_triggers = [t for t in all_triggers if t.dedupe_key not in emailed_keys]
+
+    n_deduped = len(all_triggers) - len(new_triggers)
+    if n_deduped:
+        logger.info("Skipped %d already-emailed trigger(s)", n_deduped)
+
+    # Step 4: idempotent silence on zero-trigger days (§11.9.4)
+    if not new_triggers:
+        print("No new triggers since last digest.")
+        return 0
+
+    # Step 5: compute queue counts
+    queue_counts = _compute_queue_counts(queue_root)
+
+    # Step 6: format digest
+    now = datetime.now(UTC)
+    subject, body = format_digest(
+        new_triggers,
+        queue_counts=queue_counts,
+        digest_date=now,
+    )
+
+    # Step 7: dry-run path
+    if dry_run:
+        print(f"Subject: {subject}")
+        print()
+        print(body)
+        return 0
+
+    # Step 8: send email
+    try:
+        send_digest(subject, body)
+    except (EmailConfigError, EmailSendError) as exc:
+        logger.error("Failed to send digest email: %s", exc)
+        print(f"Error: failed to send email digest: {exc}", file=sys.stderr)
+        return 1
+
+    # Step 9: atomically persist the new dedupe keys
+    updated_keys = emailed_keys | {t.dedupe_key for t in new_triggers}
+    _save_emailed_dedupe_keys(state_dir, updated_keys)
+
+    n = len(new_triggers)
+    print(f"Digest sent: {n} new trigger(s) in email to {_recipient_hint()}.")
+
+    return 0
+
+
+def _recipient_hint() -> str:
+    """Return a loggable (non-sensitive) hint about the recipient."""
+    import os as _os  # noqa: PLC0415
+    recipient = _os.environ.get("LSB_DIGEST_RECIPIENT", "<LSB_DIGEST_RECIPIENT not set>")
+    # Redact the local part of the email for logging — show only the domain
+    if "@" in recipient:
+        domain = recipient.split("@", 1)[1]
+        return f"...@{domain}"
+    return "<recipient>"
+
+
+def _compute_queue_counts(queue_root: Path) -> dict[str, int]:
+    """Return counts for pending, approved, published (total), and failed."""
+    pending = _count_json_files(queue_root / "pending")
+    approved = _count_json_files(queue_root / "approved")
+    failed = _count_json_files(queue_root / "failed")
+
+    # Published: walk YYYY-MM subdirs and sum
+    published_root = queue_root / "published"
+    n_published = 0
+    if published_root.exists():
+        for subdir in published_root.iterdir():
+            if subdir.is_dir():
+                n_published += _count_json_files(subdir, exclude_suffix=".record.json")
+
+    return {
+        "pending": pending,
+        "approved": approved,
+        "published": n_published,
+        "failed": failed,
+    }
 
 
 # ─────────────────────────────────────────────────────────────────────────────
@@ -658,6 +874,25 @@ def build_parser() -> argparse.ArgumentParser:
 
     subparsers = parser.add_subparsers(dest="subcommand", required=True)
 
+    # ── detect (T6a) ──────────────────────────────────────────────────────────
+    detect_parser = subparsers.add_parser(
+        "detect",
+        help=(
+            "Run detectors, format email digest, send to LSB_DIGEST_RECIPIENT. "
+            "Does NOT invoke drafters or make any LLM API calls (§11.1 B-1)."
+        ),
+    )
+    detect_parser.add_argument(
+        "--dry-run",
+        dest="dry_run",
+        action="store_true",
+        default=False,
+        help=(
+            "Print digest to stdout without sending email or updating state. "
+            "Safe to run repeatedly without side effects."
+        ),
+    )
+
     # ── run-once ──────────────────────────────────────────────────────────────
     run_once_parser = subparsers.add_parser(
         "run-once",
@@ -747,6 +982,8 @@ def main(argv: list[str] | None = None) -> int:
     args = parser.parse_args(argv)
 
     subcommand = args.subcommand
+    if subcommand == "detect":
+        return cmd_detect(args)
     if subcommand == "run-once":
         return cmd_run_once(args)
     if subcommand == "review":
