@@ -255,3 +255,19 @@ Per Mark's `project_campaign_timing.md` memory, LSB tasks run in hours. Per-task
 ---
 
 *End of Phase 7 kickoff. Next action: ratify §5 schema additions; resolve the §7 open decisions; then auto-dispatch T1 to the CDA SME for methodology gate, followed by Coder.*
+
+---
+
+## §10 Mark's ratifications (2026-05-17)
+
+All Architect recommendations accepted as-stated.
+
+- **§5 schema additions:** ratified. The three new types (`SocialTrigger`, `SocialDraft`, `SocialPostRecord`) and three enums (`TriggerType`, `Platform`, `PublishStatus`) land in `cdb_core/schemas.py` at T1 with matching `docs/DATA_DICTIONARY.md` §13 update in the same PR.
+- **§7.1 Platform priority:** Bluesky-only live publish; X + LinkedIn draft-only.
+- **§7.2 Static chart export:** deferred to Phase 7.5; Phase 7 ships text-only posts with the dashboard URL.
+- **§7.3 Drift trigger:** code-only stub; cron passes `enable_drift=False` until multi-date data exists.
+- **§7.4 Drafter LLM:** Claude (Opus or Sonnet, per drafter instantiation), for Anthropic prompt-caching parity.
+- **§7.5 First post target:** wait for the first organic trigger; no hand-drafted "we're live" meta-announcement.
+
+Phase 7 dispatch resumes. T1 → CDA SME → Coder → Reviewer → Tester.
+
