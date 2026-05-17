@@ -1,0 +1,45 @@
+{% extends "base.html" %}
+{% block title %}LSB Admin Console — Triggers{% endblock %}
+{% block content %}
+<h1>Detected triggers</h1>
+
+<p>Triggers awaiting Mark's draft request. Click <strong>Draft via LLM</strong>
+to invoke the appropriate drafter (LLM API call). The drafter call happens only
+on explicit request — not autonomously.</p>
+
+{% if triggers %}
+<table>
+  <thead>
+    <tr>
+      <th>Type</th>
+      <th>Summary</th>
+      <th>Dedupe key</th>
+      <th>Detected</th>
+      <th>Draft via LLM</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for trigger in triggers %}
+    <tr>
+      <td><code>{{ trigger.trigger_type }}</code></td>
+      <td>{{ format_trigger_summary(trigger) }}</td>
+      <td><code>{{ trigger.dedupe_key }}</code></td>
+      <td>{{ trigger.detected_at.strftime('%Y-%m-%d %H:%M UTC') if trigger.detected_at else '—' }}</td>
+      <td>
+        {% for platform in platforms %}
+        <form method="GET" action="{{ url_for('admin.triggers_draft', dedupe_key=trigger.dedupe_key) }}" style="display:inline-block; margin:2px">
+          <input type="hidden" name="platform" value="{{ platform.value }}">
+          <button type="submit" class="btn-draft">Draft via LLM ({{ platform.value }})</button>
+        </form>
+        {% endfor %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No detected triggers awaiting draft request.</p>
+{% endif %}
+
+<p><a href="{{ url_for('admin.index') }}">&larr; Back to index</a></p>
+{% endblock %}

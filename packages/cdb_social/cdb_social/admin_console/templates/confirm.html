@@ -1,0 +1,37 @@
+{% extends "base.html" %}
+{% block title %}LSB Admin Console — Confirm: {{ action }}{% endblock %}
+{% block content %}
+<h1>{{ action }}</h1>
+
+<p>{{ confirm_message }}</p>
+
+{% if show_draft_text and draft %}
+<section>
+  <h2>Post text (sent verbatim)</h2>
+  <pre class="post-body">{{ draft.text }}</pre>
+  <dl>
+    <dt>methodology_url</dt>
+    <dd><a href="{{ draft.methodology_url }}" class="audit-url">{{ draft.methodology_url }}</a></dd>
+    <dt>dashboard_url</dt>
+    <dd><a href="{{ draft.dashboard_url }}" class="audit-url">{{ draft.dashboard_url }}</a></dd>
+  </dl>
+</section>
+{% endif %}
+
+{% if platform_not_enabled %}
+<p><em>Live publishing is not available for this platform. The button below is for acknowledgement only.</em></p>
+{% endif %}
+
+<form method="POST" action="{{ form_action }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  {% for key, value in extra_hidden.items() %}
+  <input type="hidden" name="{{ key }}" value="{{ value }}">
+  {% endfor %}
+  {% if not platform_not_enabled %}
+  <button type="submit" class="btn btn-confirm">{{ confirm_button }}</button>
+  {% else %}
+  <button type="submit" class="btn btn-confirm" disabled>{{ confirm_button }}</button>
+  {% endif %}
+  <a href="{{ back_url }}" class="btn">Cancel</a>
+</form>
+{% endblock %}

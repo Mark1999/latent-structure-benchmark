@@ -1,0 +1,72 @@
+{% extends "base.html" %}
+{% block title %}LSB Admin Console — Edit Draft {{ draft_id }}{% endblock %}
+{% block content %}
+<h1>Edit draft: <code>{{ draft_id }}</code></h1>
+
+{% if validation_failed %}
+<div class="validation-error">
+  <h2>Edit did not pass validator.</h2>
+  <p>The edited text contained the following issues. No state change was made.</p>
+
+  {% if failed_checks %}
+  <h3>Failed checks:</h3>
+  <dl>
+    {% for key, passed in failed_checks.items() %}
+    {% if not passed %}
+    <dt><code>{{ key }}</code></dt>
+    <dd><span class="framing-fail">&#10007; FAIL</span></dd>
+    {% endif %}
+    {% endfor %}
+  </dl>
+  {% endif %}
+
+  {% if forbidden_terms_hit %}
+  <h3>Forbidden vocabulary detected:</h3>
+  <ul>
+    {% for term in forbidden_terms_hit %}
+    <li><code>{{ term }}</code></li>
+    {% endfor %}
+  </ul>
+  {% endif %}
+
+  <p>Edit the text below and submit again, or discard the edit.</p>
+</div>
+{% endif %}
+
+<form method="POST" action="{{ form_action }}">
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+  <div>
+    <label for="text">Post text:</label><br>
+    <textarea id="text" name="text" rows="10" cols="80">{{ draft.text }}</textarea>
+  </div>
+  <div style="margin-top: 1em">
+    <button type="submit" name="action" value="save" class="btn">Save and re-validate</button>
+    <button type="submit" name="action" value="discard" class="btn">Discard edit</button>
+    <a href="{{ back_url }}" class="btn">Cancel</a>
+  </div>
+</form>
+
+<section>
+  <h2>Current validator results</h2>
+  <table class="framing-checks">
+    <thead>
+      <tr><th>Check</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      {% for key in ['hypothesis_framing', 'cognition_attribution', 'bare_numeric_without_ci', 'register_boundary'] %}
+      {% set result = draft.framing_checks.get(key) %}
+      <tr>
+        <td><code>{{ key }}</code></td>
+        <td>
+          {% if result %}
+          <span class="framing-pass">&#10003; PASS</span>
+          {% else %}
+          <span class="framing-fail">&#10007; FAIL</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endblock %}

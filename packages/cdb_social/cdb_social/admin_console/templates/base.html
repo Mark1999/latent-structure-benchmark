@@ -1,0 +1,27 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}LSB Admin Console{% endblock %}</title>
+<link rel="stylesheet" href="{{ url_for('static', filename='admin.css') }}">
+</head>
+<body>
+<nav>
+  <a href="{{ url_for('admin.index') }}">Index</a>
+  <span class="nav-sep">|</span>
+  <a href="{{ url_for('admin.triggers_list') }}">Triggers</a>
+  <span class="nav-sep">|</span>
+  <a href="{{ url_for('admin.queue_view', state='pending') }}">Pending</a>
+  <span class="nav-sep">|</span>
+  <a href="{{ url_for('admin.queue_view', state='approved') }}">Approved</a>
+  <span class="nav-sep">|</span>
+  <a href="{{ url_for('admin.queue_view', state='published') }}">Published</a>
+  <span class="nav-sep">|</span>
+  <a href="{{ url_for('admin.queue_view', state='failed') }}">Failed</a>
+</nav>
+<main>
+  {% block content %}{% endblock %}
+</main>
+</body>
+</html>

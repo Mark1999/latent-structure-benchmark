@@ -1,0 +1,113 @@
+{% extends "base.html" %}
+{% block title %}LSB Admin Console — Error{% endblock %}
+{% block content %}
+<h1>Error</h1>
+
+{% if error_category == 'drafter_rejected' %}
+{# §5.4 Sub-ruling A — DrafterRejectedException display #}
+<h2>Drafter call did not pass validator. No draft was created.</h2>
+
+{% if failed_checks %}
+<h3>Failed checks:</h3>
+<dl>
+  {% for key, info in failed_checks.items() %}
+  <dt><code>{{ key }}</code></dt>
+  <dd>
+    <span class="framing-fail">&#10007; FAIL</span>
+    {% if info.evidence %} &mdash; matched: <code>{{ info.evidence }}</code>{% endif %}
+  </dd>
+  {% endfor %}
+</dl>
+{% endif %}
+
+{% if forbidden_terms_hit %}
+<h3>Forbidden vocabulary detected:</h3>
+<ul>
+  {% for term in forbidden_terms_hit %}
+  <li><code>{{ term }}</code></li>
+  {% endfor %}
+</ul>
+{% endif %}
+
+<p>The drafter produced text containing the matched terms / patterns.
+This is a guardrail, not an operator error. To draft this trigger,
+re-click &ldquo;Draft via LLM&rdquo; &mdash; the LLM may produce a clean draft on
+retry. If retries persistently fail, the v1 system prompt may need
+a v2 bump (see CDA SME T3 §5.8).</p>
+
+{% elif error_category == 'anthropic_api' %}
+{# §5.4 Sub-ruling B — Anthropic API failure display #}
+<h2>Drafter call failed (Anthropic API error).</h2>
+
+<p>This is a transport-layer failure, not a guardrail rejection.
+The underlying error: <code>{{ error_tag }}</code>. The draft was not created.</p>
+
+<p>You can:</p>
+<ul>
+  <li>Click &ldquo;Draft via LLM&rdquo; again to retry.</li>
+  <li>Check Anthropic status if retries keep failing.</li>
+</ul>
+
+{% elif error_category == 'bluesky_failed' %}
+{# §5.4 Sub-ruling C — Bluesky publisher failure display #}
+<h2>Publish to Bluesky failed.</h2>
+
+<p>The draft was NOT posted. The draft remains in
+<code>queue/approved/</code> and can be retried.</p>
+
+<dl>
+  <dt>Failure category</dt><dd><code>{{ failure_category }}</code></dd>
+  <dt>Underlying error tag</dt><dd><code>{{ error_tag }}</code></dd>
+</dl>
+
+{% if failure_category == 'transient' %}
+<p>Transient failures (network, rate limit) can be retried by
+returning to the approved-draft page and clicking &ldquo;Publish to Bluesky&rdquo;
+again.</p>
+{% else %}
+<p>Terminal failures (auth, account suspension) need operator intervention
+&mdash; check the server log for the full traceback and resolve the underlying
+issue before retrying.</p>
+{% endif %}
+
+{% elif error_category == 'publisher_not_enabled' %}
+<h2>Publishing not enabled for {{ platform.value.upper() if platform else 'this platform' }}.</h2>
+<p>{{ error_message }}</p>
+<p>The draft text is available for manual posting in
+<code>out/social/queue/approved/{{ draft_id }}.json</code>.</p>
+
+{% elif error_category == 'edit_failed' %}
+{# §5.4 Sub-ruling D — edit-flow validator failure #}
+<h2>Edit did not pass validator.</h2>
+
+{% if failed_checks %}
+<h3>Failed checks:</h3>
+<dl>
+  {% for key, info in failed_checks.items() %}
+  <dt><code>{{ key }}</code></dt>
+  <dd><span class="framing-fail">&#10007; FAIL</span>
+    {% if info.evidence %} &mdash; {{ info.evidence }}{% endif %}</dd>
+  {% endfor %}
+</dl>
+{% endif %}
+
+<p>
+  <a href="{{ url_for('admin.draft_edit', draft_id=draft_id) }}" class="btn">Edit again</a>
+  <a href="{{ url_for('admin.draft_view', draft_id=draft_id) }}" class="btn">Discard edit</a>
+</p>
+
+{% else %}
+<p>An unexpected error occurred.</p>
+{% if error_message %}
+<p><code>{{ error_message }}</code></p>
+{% endif %}
+{% endif %}
+
+{% if retry_url %}
+<p><a href="{{ retry_url }}" class="btn">Draft via LLM (retry)</a></p>
+{% endif %}
+
+{% if back_url %}
+<p><a href="{{ back_url }}">&larr; Back</a></p>
+{% endif %}
+{% endblock %}

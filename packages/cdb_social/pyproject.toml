@@ -8,4 +8,8 @@ dependencies = [
     # Dependency ratified by Mark 2026-05-17 per CLAUDE.md §6 sign-off requirement.
     # See docs/status/2026-05-17-phase7-architect-kickoff.md §10 (Mark ratifications).
     "atproto>=0.0.46",
+    # Flask for the local admin console (Phase 7 T6b).
+    # Dependency approved by Mark §12 + §11.9.1 (2026-05-17).
+    # See docs/status/2026-05-17-phase7-architect-kickoff.md §12.
+    "flask>=3.0,<4.0",
 ]

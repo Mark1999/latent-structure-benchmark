@@ -1,0 +1,57 @@
+{% extends "base.html" %}
+{% block title %}LSB Admin Console — {{ state }} queue{% endblock %}
+{% block content %}
+<h1>Queue: {{ state }}</h1>
+
+<nav class="queue-nav">
+  {% for s in ['pending', 'approved', 'published', 'failed'] %}
+  <a href="{{ url_for('admin.queue_view', state=s) }}"
+     {% if s == state %}class="active"{% endif %}>
+    {{ s }} ({{ queue_counts.get(s, 0) }})
+  </a>
+  {% endfor %}
+</nav>
+
+{% if drafts %}
+<table>
+  <thead>
+    <tr>
+      <th>Draft ID</th>
+      <th>Platform</th>
+      <th>Trigger</th>
+      <th>Summary</th>
+      <th>Created</th>
+      <th>Drafter self-rating</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    {% for draft in drafts %}
+    <tr>
+      <td><a href="{{ url_for('admin.draft_view', draft_id=draft.draft_id) }}"><code>{{ draft.draft_id }}</code></a></td>
+      <td>{{ draft.platform.value }}</td>
+      <td><code>{{ draft.trigger.trigger_type }}</code></td>
+      <td>{{ format_trigger_summary(draft.trigger) }}</td>
+      <td>{{ draft.created_at.strftime('%Y-%m-%d %H:%M UTC') if draft.created_at else '—' }}</td>
+      <td>Drafter self-rating: {{ "%.2f"|format(draft.drafter_self_rating) }}</td>
+      <td>
+        <a href="{{ url_for('admin.draft_view', draft_id=draft.draft_id) }}">View</a>
+        {% if state == 'pending' %}
+        | <a href="{{ url_for('admin.draft_approve', draft_id=draft.draft_id) }}">Approve</a>
+        | <a href="{{ url_for('admin.draft_reject', draft_id=draft.draft_id) }}" class="action-destructive">Reject</a>
+        | <a href="{{ url_for('admin.draft_edit', draft_id=draft.draft_id) }}">Edit</a>
+        {% elif state == 'approved' %}
+        | <a href="{{ url_for('admin.draft_publish', draft_id=draft.draft_id) }}" class="action-destructive">Publish</a>
+        | <a href="{{ url_for('admin.draft_edit', draft_id=draft.draft_id) }}">Edit</a>
+        {% endif %}
+      </td>
+    </tr>
+    {% endfor %}
+  </tbody>
+</table>
+{% else %}
+<p>No drafts in the <strong>{{ state }}</strong> queue.</p>
+{% endif %}
+
+<p><a href="{{ url_for('admin.index') }}">&larr; Back to index</a></p>
+{% endblock %}

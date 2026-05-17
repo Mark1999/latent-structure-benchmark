@@ -1,0 +1,106 @@
+{% extends "base.html" %}
+{% block title %}LSB Admin Console — Draft {{ draft.draft_id }}{% endblock %}
+{% block content %}
+<h1>Draft: <code>{{ draft.draft_id }}</code></h1>
+
+<p>State: <strong>{{ draft_state }}</strong>
+| Platform: <strong>{{ draft.platform.value }}</strong>
+| Path: <code>out/social/queue/{{ draft_state }}/{{ draft.draft_id }}.json</code>
+</p>
+
+<section>
+  <h2>Trigger context</h2>
+  <dl>
+    <dt>Type</dt><dd><code>{{ draft.trigger.trigger_type }}</code></dd>
+    <dt>Summary</dt><dd>{{ format_trigger_summary(draft.trigger) }}</dd>
+    <dt>Dedupe key</dt><dd><code>{{ draft.trigger.dedupe_key }}</code></dd>
+    <dt>Detected at</dt><dd>{{ draft.trigger.detected_at.strftime('%Y-%m-%d %H:%M UTC') if draft.trigger.detected_at else '—' }}</dd>
+  </dl>
+</section>
+
+<section>
+  <h2>Post text</h2>
+  <pre class="post-body">{{ draft.text }}</pre>
+  {% if draft.text_history %}
+  <details>
+    <summary>Text history ({{ draft.text_history | length }} prior version(s))</summary>
+    {% for historical_text in draft.text_history %}
+    <pre class="post-body history">{{ historical_text }}</pre>
+    {% endfor %}
+  </details>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Metadata</h2>
+  <dl>
+    <dt>Draft ID</dt><dd><code>{{ draft.draft_id }}</code></dd>
+    <dt>Drafter self-rating</dt><dd>{{ "%.2f"|format(draft.drafter_self_rating) }} <span class="field-note">(fixed at 0.5 for v1; not calibrated — see T3 §5.6)</span></dd>
+    <dt>Drafter version</dt><dd>{{ draft.drafter_version }}</dd>
+    <dt>Prompt version</dt><dd>{{ draft.prompt_version }}</dd>
+    <dt>Created at</dt><dd>{{ draft.created_at.strftime('%Y-%m-%d %H:%M UTC') if draft.created_at else '—' }}</dd>
+    <dt>Suggested posting time</dt><dd>{{ draft.suggested_posting_time.strftime('%Y-%m-%d %H:%M UTC') if draft.suggested_posting_time else '—' }}</dd>
+  </dl>
+</section>
+
+<section>
+  <h2>Metadata (audit panel)</h2>
+  <dl>
+    <dt>methodology_url</dt>
+    <dd><a href="{{ draft.methodology_url }}" class="audit-url">{{ draft.methodology_url }}</a></dd>
+    <dt>dashboard_url</dt>
+    <dd><a href="{{ draft.dashboard_url }}" class="audit-url">{{ draft.dashboard_url }}</a></dd>
+  </dl>
+</section>
+
+<section>
+  <h2>Validator results</h2>
+  <table class="framing-checks">
+    <thead>
+      <tr><th>Check</th><th>Result</th></tr>
+    </thead>
+    <tbody>
+      {% for key in ['hypothesis_framing', 'cognition_attribution', 'bare_numeric_without_ci', 'register_boundary'] %}
+      {% set result = draft.framing_checks.get(key) %}
+      <tr>
+        <td><code>{{ key }}</code></td>
+        <td>
+          {% if result %}
+          <span class="framing-pass">&#10003; PASS</span>
+          {% else %}
+          <span class="framing-fail">&#10007; FAIL</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if draft.forbidden_terms_hit %}
+  <p class="bug-note">[BUG] Forbidden terms hit: {{ draft.forbidden_terms_hit | join(', ') }}</p>
+  {% else %}
+  <p>forbidden_terms_hit: []</p>
+  {% endif %}
+
+  <p>framing_check_passed: <strong>{{ draft.framing_check_passed }}</strong></p>
+</section>
+
+<section>
+  <h2>Actions</h2>
+  {% if draft_state == 'pending' %}
+  <a href="{{ url_for('admin.draft_approve', draft_id=draft.draft_id) }}" class="btn">Approve</a>
+  <a href="{{ url_for('admin.draft_reject', draft_id=draft.draft_id) }}" class="btn btn-destructive">Reject</a>
+  <a href="{{ url_for('admin.draft_edit', draft_id=draft.draft_id) }}" class="btn">Edit</a>
+  {% elif draft_state == 'approved' %}
+  {% if draft.platform.value == 'bluesky' %}
+  <a href="{{ url_for('admin.draft_publish', draft_id=draft.draft_id) }}" class="btn btn-destructive">Publish to Bluesky</a>
+  {% else %}
+  <button class="btn" disabled>Publishing not enabled for {{ draft.platform.value.upper() }}</button>
+  <a href="{{ url_for('admin.draft_view', draft_id=draft.draft_id) }}" class="btn" download="{{ draft.draft_id }}.txt">Download draft text</a>
+  {% endif %}
+  <a href="{{ url_for('admin.draft_edit', draft_id=draft.draft_id) }}" class="btn">Edit</a>
+  {% endif %}
+</section>
+
+<p><a href="{{ url_for('admin.queue_view', state=draft_state) }}">&larr; Back to {{ draft_state }} queue</a></p>
+{% endblock %}

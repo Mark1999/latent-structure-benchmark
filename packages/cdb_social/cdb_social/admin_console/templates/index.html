@@ -1,0 +1,56 @@
+{% extends "base.html" %}
+{% block title %}LSB Admin Console — Index{% endblock %}
+{% block content %}
+<h1>LSB Admin Console</h1>
+
+<section>
+  <h2>Queue status</h2>
+  <table>
+    <thead>
+      <tr><th>State</th><th>Count</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><a href="{{ url_for('admin.queue_view', state='pending') }}">pending</a></td><td>{{ queue_counts.get('pending', 0) }}</td></tr>
+      <tr><td><a href="{{ url_for('admin.queue_view', state='approved') }}">approved</a></td><td>{{ queue_counts.get('approved', 0) }}</td></tr>
+      <tr><td><a href="{{ url_for('admin.queue_view', state='published') }}">published</a></td><td>{{ queue_counts.get('published', 0) }}</td></tr>
+      <tr><td><a href="{{ url_for('admin.queue_view', state='failed') }}">failed</a></td><td>{{ queue_counts.get('failed', 0) }}</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Detected triggers awaiting draft request</h2>
+  {% if triggers %}
+  <p>{{ triggers | length }} trigger(s) detected. Click <strong>Draft via LLM</strong> to invoke the drafter.</p>
+  <table>
+    <thead>
+      <tr>
+        <th>Type</th>
+        <th>Summary</th>
+        <th>Detected</th>
+        <th>Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for trigger in triggers %}
+      <tr>
+        <td><code>{{ trigger.trigger_type }}</code></td>
+        <td>{{ format_trigger_summary(trigger) }}</td>
+        <td>{{ trigger.detected_at.strftime('%Y-%m-%d %H:%M UTC') if trigger.detected_at else '—' }}</td>
+        <td>
+          {% for platform in platforms %}
+          <form method="GET" action="{{ url_for('admin.triggers_draft', dedupe_key=trigger.dedupe_key) }}" style="display:inline">
+            <input type="hidden" name="platform" value="{{ platform.value }}">
+            <button type="submit" class="btn-draft">Draft via LLM ({{ platform.value }})</button>
+          </form>
+          {% endfor %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No detected triggers awaiting draft request.</p>
+  {% endif %}
+</section>
+{% endblock %}
