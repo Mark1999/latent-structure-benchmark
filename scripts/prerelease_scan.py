@@ -140,6 +140,18 @@ INTERNAL_PATH_ALLOWLIST: list[str] = [
     "docs/INCIDENTS/",
     "HOSTING_AND_DEV_OPS.md",
     "HARDWARE.md",
+    # Phase 8 T5 remediation: legitimate audit-trail and operator-internal
+    # surfaces that necessarily reference VPS hostnames or local paths in
+    # context. These are not "leaks" — they're historical records or
+    # internal-tool documentation.
+    "docs/status/",  # entire verdict-and-plan audit trail
+    "ARCHITECTURE.md",  # changelog entries referencing lsb-agent-02 decommission
+    # operator-internal Streamlit dashboard (loopback-only at runtime per kickoff §2 item 8)
+    "apps/ops_dashboard/",
+    # documents the sanitization regex's path patterns (descriptive, not a leak)
+    "docs/DATA_DICTIONARY.md",
+    "tests/",  # test fixtures exercising the path-redaction pipeline
+    "scripts/prerelease_scan.py",  # this scanner literally enumerates the patterns it scans for
 ]
 
 

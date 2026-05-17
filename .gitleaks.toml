@@ -34,4 +34,10 @@ tags = ["webhook", "slack"]
 paths = [
     '''.env\.example''',
     '''tests/fixtures/''',
+    # Test fixtures that exercise the publish-layer redaction pipeline
+    # legitimately contain Slack-webhook-shaped and key-shaped strings; the
+    # tests assert that sanitize_for_publication() redacts them. These are
+    # not real credentials.
+    '''tests/cdb_publish/test_failures\.py''',
+    '''tests/cdb_publish/test_failures_gap_fill\.py''',
 ]
