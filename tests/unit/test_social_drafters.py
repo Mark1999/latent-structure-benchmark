@@ -36,6 +36,7 @@ from cdb_social.drafters import (
 from cdb_social.drafters.base import (
     _HYPOTHESIS_FRAMING_PATTERNS,
     CI_SHAPE_REGEX,
+    _check_rejection_window,
     load_prompt,
 )
 
@@ -472,15 +473,28 @@ class TestValidatorHypothesisFraming:
 class TestFramingChecksDict:
     """§5.11 — All four framing_checks keys populated; framing_check_passed is AND."""
 
+    def test_exact_four_keys_present_on_clean_text(self) -> None:
+        """Exact canonical four-key set per CDA SME §5.11."""
+        _, framing_checks = validate_draft(
+            "GPT-5's output clusters tightly: OCI = 2.4 (1.8, 3.1). "
+            "Corpus lens concentrates on family terms."
+        )
+        assert set(framing_checks.keys()) == {
+            "hypothesis_framing",
+            "cognition_attribution",
+            "bare_numeric_without_ci",
+            "register_boundary",
+        }
+
     def test_all_four_keys_present_on_clean_text(self) -> None:
         _, framing_checks = validate_draft(
             "GPT-5's output clusters tightly: OCI = 2.4 (1.8, 3.1). "
             "Corpus lens concentrates on family terms."
         )
-        assert "no_cognition_attribution" in framing_checks
-        assert "no_value_attribution" in framing_checks
-        assert "no_hypothesis_framing" in framing_checks
-        assert "numeric_has_adjacent_ci" in framing_checks
+        assert "hypothesis_framing" in framing_checks
+        assert "cognition_attribution" in framing_checks
+        assert "bare_numeric_without_ci" in framing_checks
+        assert "register_boundary" in framing_checks
 
     def test_all_true_on_clean_text(self) -> None:
         _, framing_checks = validate_draft(
@@ -493,25 +507,70 @@ class TestFramingChecksDict:
         _, framing_checks = validate_draft(
             "The model believes it, OCI = 2.4 (1.8, 3.1). Corpus lens."
         )
-        assert framing_checks["no_cognition_attribution"] is False
-
-    def test_value_attribution_false_on_phrase_hit(self) -> None:
-        _, framing_checks = validate_draft(
-            "Model GPT-5 believes the structure. OCI = 2.4 (1.8, 3.1). Corpus lens."
-        )
-        assert framing_checks["no_value_attribution"] is False
+        assert framing_checks["cognition_attribution"] is False
 
     def test_hypothesis_framing_false_on_phrase_hit(self) -> None:
         _, framing_checks = validate_draft(
             "Our results show high consensus. OCI = 2.4 (1.8, 3.1)."
         )
-        assert framing_checks["no_hypothesis_framing"] is False
+        assert framing_checks["hypothesis_framing"] is False
 
-    def test_numeric_has_adjacent_ci_false_on_bare_numeric(self) -> None:
+    def test_bare_numeric_without_ci_false_on_bare_numeric(self) -> None:
         _, framing_checks = validate_draft(
             "Smith's S is 0.61. Corpus lens concentrates here."
         )
-        assert framing_checks["numeric_has_adjacent_ci"] is False
+        assert framing_checks["bare_numeric_without_ci"] is False
+
+    def test_register_boundary_detects_row_7(self) -> None:
+        """§1.5.4 row 7 'within-model consensus' sets register_boundary=False."""
+        _, framing_checks = validate_draft(
+            "Within-model consensus is high. OCI = 2.4 (1.8, 3.1). Corpus lens."
+        )
+        assert framing_checks["register_boundary"] is False
+
+    def test_register_boundary_detects_row_8(self) -> None:
+        """§1.5.4 row 8 'within-model cultural consensus' sets register_boundary=False."""
+        _, framing_checks = validate_draft(
+            "Within-model cultural consensus drives this. OCI = 2.4 (1.8, 3.1)."
+        )
+        assert framing_checks["register_boundary"] is False
+
+    def test_register_boundary_detects_row_9(self) -> None:
+        """§1.5.4 row 9 'within-model eigenratio' sets register_boundary=False."""
+        _, framing_checks = validate_draft(
+            "The within-model eigenratio is 2.4 (1.8, 3.1). Corpus lens."
+        )
+        assert framing_checks["register_boundary"] is False
+
+    def test_register_boundary_detects_row_10(self) -> None:
+        """§1.5.4 row 10 'within-model CCM' sets register_boundary=False."""
+        _, framing_checks = validate_draft(
+            "Within-model CCM shows structure. OCI = 2.4 (1.8, 3.1). Corpus lens."
+        )
+        assert framing_checks["register_boundary"] is False
+
+    def test_register_boundary_does_not_match_row_1_phrases(self) -> None:
+        """Rows 1-6 phrases do NOT set register_boundary=False.
+
+        'Model X believes...' is a row-1 forbidden phrase that populates
+        forbidden_terms_hit and sets cognition_attribution=False (via stem
+        hit on 'believes'), but must NOT affect register_boundary.
+        Rows 1-6 and rows 7-10 are distinct check surfaces.
+        """
+        _, framing_checks = validate_draft(
+            # Row 1 phrase — forbidden, but NOT a register-boundary phrase
+            "Model GPT-5 believes the structure. OCI = 2.4 (1.8, 3.1). Corpus lens."
+        )
+        # register_boundary must remain True — only rows 7-10 affect it
+        assert framing_checks["register_boundary"] is True
+        # cognition_attribution must be False due to the 'believes' stem hit
+        assert framing_checks["cognition_attribution"] is False
+
+    def test_register_boundary_true_on_clean_text(self) -> None:
+        _, framing_checks = validate_draft(
+            "OCI = 2.4 (1.8, 3.1). The corpus lens concentrates on family terms."
+        )
+        assert framing_checks["register_boundary"] is True
 
     def test_framing_check_passed_is_and_of_all(self) -> None:
         """framing_check_passed = AND(framing_checks.values()) AND forbidden_terms==[].
@@ -896,3 +955,115 @@ class TestDrafterRejectedException:
             trigger = _trigger()
             with pytest.raises(DrafterRejectedException):
                 drafter.draft(trigger, _domain_result())
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestRejectionWindowMonitor (§5.8)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestRejectionWindowMonitor:
+    """§5.8 — Sliding-window monitor reads last 10 *total attempts* from
+    drafter_audit.jsonl and fires when ≥ 2 are rejections."""
+
+    def _write_audit_records(
+        self,
+        audit_path: Path,
+        outcomes: list[str],
+    ) -> None:
+        """Write audit records with the given outcomes to audit_path."""
+        import json
+
+        audit_path.parent.mkdir(parents=True, exist_ok=True)
+        with audit_path.open("w", encoding="utf-8") as f:
+            for outcome in outcomes:
+                record = {
+                    "timestamp": "2026-05-17T00:00:00+00:00",
+                    "platform": "bluesky",
+                    "drafter_version": "bluesky-v1",
+                    "prompt_version": "v1",
+                    "outcome": outcome,
+                }
+                f.write(json.dumps(record) + "\n")
+
+    def test_window_fires_when_2_of_10_are_rejections(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """2 rejections in 10 attempts → monitor logs the warning."""
+        import logging
+
+        audit_path = tmp_path / "drafter_audit.jsonl"
+        # 8 passes + 2 rejects = 2/10 rejection rate
+        outcomes = ["pass"] * 8 + ["reject", "reject"]
+        self._write_audit_records(audit_path, outcomes)
+
+        with caplog.at_level(logging.WARNING, logger="cdb_social.drafters.base"):
+            _check_rejection_window(audit_path)
+
+        assert any(
+            "DRAFTER_REJECTION_WINDOW" in record.message
+            for record in caplog.records
+        ), "Expected DRAFTER_REJECTION_WINDOW warning when 2/10 are rejections"
+
+    def test_window_silent_when_1_of_10_is_rejection(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """1 rejection in 10 attempts → monitor does NOT log."""
+        import logging
+
+        audit_path = tmp_path / "drafter_audit.jsonl"
+        # 9 passes + 1 reject = 1/10 rejection rate
+        outcomes = ["pass"] * 9 + ["reject"]
+        self._write_audit_records(audit_path, outcomes)
+
+        with caplog.at_level(logging.WARNING, logger="cdb_social.drafters.base"):
+            _check_rejection_window(audit_path)
+
+        assert not any(
+            "DRAFTER_REJECTION_WINDOW" in record.message
+            for record in caplog.records
+        ), "Expected no warning when only 1/10 are rejections"
+
+    def test_window_silent_when_no_recent_rejections(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """100 passes → monitor does NOT log."""
+        import logging
+
+        audit_path = tmp_path / "drafter_audit.jsonl"
+        outcomes = ["pass"] * 100
+        self._write_audit_records(audit_path, outcomes)
+
+        with caplog.at_level(logging.WARNING, logger="cdb_social.drafters.base"):
+            _check_rejection_window(audit_path)
+
+        assert not any(
+            "DRAFTER_REJECTION_WINDOW" in record.message
+            for record in caplog.records
+        ), "Expected no warning when all 100 are passes"
+
+    def test_window_only_looks_at_last_10(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """50 historical rejections followed by 10 passes → monitor does NOT log.
+
+        The window is the last 10 *total* attempts.  Historical rejections
+        outside that window must not trigger the warning.
+        """
+        import logging
+
+        audit_path = tmp_path / "drafter_audit.jsonl"
+        # 50 old rejections (outside window) + 10 recent passes (the window)
+        outcomes = ["reject"] * 50 + ["pass"] * 10
+        self._write_audit_records(audit_path, outcomes)
+
+        with caplog.at_level(logging.WARNING, logger="cdb_social.drafters.base"):
+            _check_rejection_window(audit_path)
+
+        assert not any(
+            "DRAFTER_REJECTION_WINDOW" in record.message
+            for record in caplog.records
+        ), (
+            "Expected no warning: 50 historical rejections are outside the "
+            "last-10 window; the recent window is all passes"
+        )

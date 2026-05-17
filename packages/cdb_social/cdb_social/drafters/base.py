@@ -16,13 +16,20 @@ Three sub-checks per CDA SME §5.1–§5.3:
 
 3. **§5.3 Hypothesis-framing scan** — closed list of 14 phrases.
 
-The ``framing_checks`` dict carries four binding keys per §5.11 / §5.18:
-- ``no_cognition_attribution``  — from §5.1 word-stem scan
-- ``no_value_attribution``      — from §5.1 phrase scan
-- ``no_hypothesis_framing``     — from §5.3
-- ``numeric_has_adjacent_ci``   — from §5.2
+The ``framing_checks`` dict carries four binding keys per CDA SME §5.11:
+- ``hypothesis_framing``       — True if no hypothesis-framing phrase found (§5.3)
+- ``cognition_attribution``    — True if no forbidden word-stem hit (§5.1)
+- ``bare_numeric_without_ci``  — True if every numeric has an adjacent CI (§5.2)
+- ``register_boundary``        — True if no §1.5.4 rows 7-10 boundary phrases found
 
-``framing_check_passed`` is the AND of all values.
+``framing_check_passed`` is the AND of ``forbidden_terms_hit == []`` and all
+four ``framing_checks`` values being True.
+
+Audit logging (§5.8):
+- Every draft attempt (pass or reject) is appended to
+  ``out/social/state/drafter_audit.jsonl`` with ``outcome: "pass"|"reject"``.
+- The sliding-window monitor reads the last 10 entries and warns when ≥ 2 are
+  rejections.
 
 Prompt versioning: ``load_prompt(platform, version)`` is explicit — the
 version string is passed in, not auto-discovered, so test fixtures stay stable.
@@ -65,6 +72,16 @@ _FORBIDDEN_PHRASE_PATTERNS: list[re.Pattern[str]] = [
     # Row 6: "What the model understands"
     re.compile(r"\bwhat the model understands\b", re.IGNORECASE),
     # Rows 7–10: Register-boundary phrases
+    re.compile(r"\bwithin-model consensus\b", re.IGNORECASE),
+    re.compile(r"\bwithin-model cultural consensus\b", re.IGNORECASE),
+    re.compile(r"\bwithin-model eigenratio\b", re.IGNORECASE),
+    re.compile(r"\bwithin-model CCM\b", re.IGNORECASE),
+]
+
+# §1.5.4 rows 7-10 register-boundary phrases only — used for the
+# ``register_boundary`` framing_check key.  Narrower scope than
+# _FORBIDDEN_PHRASE_PATTERNS; rows 1-6 are captured only in forbidden_terms_hit.
+_REGISTER_BOUNDARY_PATTERNS: list[re.Pattern[str]] = [
     re.compile(r"\bwithin-model consensus\b", re.IGNORECASE),
     re.compile(r"\bwithin-model cultural consensus\b", re.IGNORECASE),
     re.compile(r"\bwithin-model eigenratio\b", re.IGNORECASE),
@@ -299,33 +316,40 @@ def validate_draft_hypothesis_framing(text: str) -> list[str]:
 def validate_draft(text: str) -> tuple[list[str], dict[str, bool]]:
     """Post-generation validator.  Returns (forbidden_terms_hit, framing_checks).
 
-    The four framing_checks keys (§5.11 / §5.18):
-    - ``no_cognition_attribution`` — True iff no forbidden stem matched
-    - ``no_value_attribution``     — True iff no forbidden phrase matched
-    - ``no_hypothesis_framing``    — True iff no hypothesis-framing phrase matched
-    - ``numeric_has_adjacent_ci``  — True iff every non-exempt numeric has CI
+    The four canonical framing_checks keys per CDA SME §5.11:
+    - ``hypothesis_framing``      — True iff no hypothesis-framing phrase matched (§5.3)
+    - ``cognition_attribution``   — True iff no forbidden word-stem matched (§5.1)
+    - ``bare_numeric_without_ci`` — True iff every non-exempt numeric has a CI (§5.2)
+    - ``register_boundary``       — True iff no §1.5.4 rows 7-10 boundary phrase matched
 
-    ``framing_checks`` values are True when the check PASSES.  The combined
-    ``framing_check_passed`` flag is the AND of all values AND
-    forbidden_terms_hit == [].
+    All four values are True when the check PASSES.  The combined
+    ``framing_check_passed`` flag is the AND of ``forbidden_terms_hit == []``
+    and all four ``framing_checks`` values being True.
+
+    Note: phrase hits from rows 1-6 still populate ``forbidden_terms_hit`` via
+    §5.1 scan; they do NOT feed ``register_boundary`` (rows 7-10 only).
     """
-    # §5.1 — forbidden vocab
+    # §5.1 — forbidden vocab (all phrase rows 1-10 + stems)
     forbidden_hits = validate_draft_forbidden_vocab(text)
-    # Separate phrase hits from stem hits for granular framing_checks.
-    phrase_hits = [h for h in forbidden_hits if _is_phrase_hit(h)]
+    # Stem hits: single-word matches from _FORBIDDEN_STEM_PATTERNS
     stem_hits = [h for h in forbidden_hits if not _is_phrase_hit(h)]
 
     # §5.2 — numeric+CI adjacency
-    ci_ok, bare_numerics = validate_draft_numeric_ci_adjacency(text)
+    ci_ok, _bare_numerics = validate_draft_numeric_ci_adjacency(text)
 
     # §5.3 — hypothesis framing
     hyp_hits = validate_draft_hypothesis_framing(text)
 
+    # register_boundary: only rows 7-10 of §1.5.4 — narrower than the full phrase scan
+    register_boundary_ok = not any(
+        pat.search(text) for pat in _REGISTER_BOUNDARY_PATTERNS
+    )
+
     framing_checks: dict[str, bool] = {
-        "no_cognition_attribution": len(stem_hits) == 0,
-        "no_value_attribution": len(phrase_hits) == 0,
-        "no_hypothesis_framing": len(hyp_hits) == 0,
-        "numeric_has_adjacent_ci": ci_ok,
+        "hypothesis_framing": len(hyp_hits) == 0,
+        "cognition_attribution": len(stem_hits) == 0,
+        "bare_numeric_without_ci": ci_ok,
+        "register_boundary": register_boundary_ok,
     }
 
     return forbidden_hits, framing_checks
@@ -473,11 +497,11 @@ class DrafterBase(ABC):
                 f"forbidden vocab: {forbidden_hits}"
             )
 
-        if not framing_checks.get("numeric_has_adjacent_ci", True):
+        if not framing_checks.get("bare_numeric_without_ci", True):
             _, bare_numerics = validate_draft_numeric_ci_adjacency(raw_text)
             rejection_reasons.append(f"bare numerics without CI: {bare_numerics}")
 
-        if not framing_checks.get("no_hypothesis_framing", True):
+        if not framing_checks.get("hypothesis_framing", True):
             hyp_hits = validate_draft_hypothesis_framing(raw_text)
             rejection_reasons.append(f"hypothesis framing: {hyp_hits}")
 
@@ -495,6 +519,9 @@ class DrafterBase(ABC):
             )
             self._log_rejection(trigger, exc)
             raise exc
+
+        # Audit the successful draft (§5.8 unified audit log)
+        self._log_audit_pass(trigger)
 
         domain_slug = trigger.domain_slug
         return SocialDraft(
@@ -533,6 +560,32 @@ class DrafterBase(ABC):
         """Return the platform character limit.  Subclasses override."""
         return 300
 
+    def _log_audit_pass(self, trigger: SocialTrigger) -> None:
+        """Append a pass record to the unified drafter audit log (§5.8).
+
+        Writes to ``out/social/state/drafter_audit.jsonl``.
+        Failure is logged at WARNING level and does NOT suppress the draft.
+        """
+        import json
+
+        state_dir = Path(os.environ.get("LSB_SOCIAL_STATE_DIR", "out/social/state"))
+        audit_path = state_dir / "drafter_audit.jsonl"
+
+        record: dict[str, Any] = {
+            "timestamp": datetime.now(UTC).isoformat(),
+            "platform": self.platform.value,
+            "drafter_version": self.drafter_version,
+            "prompt_version": self.prompt_version,
+            "outcome": "pass",
+        }
+
+        try:
+            state_dir.mkdir(parents=True, exist_ok=True)
+            with audit_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(record, ensure_ascii=False) + "\n")
+        except OSError as e:
+            logger.warning("Failed to write drafter audit log (pass): %s", e)
+
     def _log_rejection(
         self,
         trigger: SocialTrigger,
@@ -540,17 +593,36 @@ class DrafterBase(ABC):
     ) -> None:
         """Write a rejection record to the drafter audit log (§5.8).
 
-        Appends one JSONL record to ``out/social/state/drafter_rejections.jsonl``.
-        Failure to write the audit log is logged at WARNING level and does NOT
-        suppress the original exception.
+        Appends one JSONL record to both:
+        - ``out/social/state/drafter_audit.jsonl`` (unified attempt log;
+          source of truth for the sliding-window monitor)
+        - ``out/social/state/drafter_rejections.jsonl`` (detailed rejection log;
+          retained for forensic triage)
+
+        Failure to write is logged at WARNING level and does NOT suppress the
+        original exception.
         """
         import json
 
         state_dir = Path(os.environ.get("LSB_SOCIAL_STATE_DIR", "out/social/state"))
-        log_path = state_dir / "drafter_rejections.jsonl"
+        audit_path = state_dir / "drafter_audit.jsonl"
+        rejections_path = state_dir / "drafter_rejections.jsonl"
 
-        record: dict[str, Any] = {
-            "timestamp": datetime.now(UTC).isoformat(),
+        timestamp = datetime.now(UTC).isoformat()
+
+        audit_record: dict[str, Any] = {
+            "timestamp": timestamp,
+            "platform": self.platform.value,
+            "drafter_version": self.drafter_version,
+            "prompt_version": self.prompt_version,
+            "outcome": "reject",
+            "forbidden_terms_hit": exc.forbidden_terms_hit,
+            "hypothesis_patterns_hit": exc.hypothesis_patterns_hit,
+            "bare_numerics": exc.bare_numerics,
+        }
+
+        rejection_record: dict[str, Any] = {
+            "timestamp": timestamp,
             "trigger_id": trigger.dedupe_key,
             "platform": self.platform.value,
             "drafter_version": self.drafter_version,
@@ -563,30 +635,51 @@ class DrafterBase(ABC):
 
         try:
             state_dir.mkdir(parents=True, exist_ok=True)
-            with log_path.open("a", encoding="utf-8") as f:
-                f.write(json.dumps(record, ensure_ascii=False) + "\n")
-            # §5.8 sliding-window check: warn if ≥ 2 rejections in last 10 records.
-            _check_rejection_window(log_path)
+            with audit_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(audit_record, ensure_ascii=False) + "\n")
+            with rejections_path.open("a", encoding="utf-8") as f:
+                f.write(json.dumps(rejection_record, ensure_ascii=False) + "\n")
+            # §5.8 sliding-window check: warn if ≥ 2 rejections in last 10 attempts.
+            _check_rejection_window(audit_path)
         except OSError as e:
-            logger.warning("Failed to write drafter rejection log: %s", e)
+            logger.warning("Failed to write drafter audit log: %s", e)
 
 
-def _check_rejection_window(log_path: Path) -> None:
+def _check_rejection_window(audit_path: Path) -> None:
     """§5.8 — Sliding-window rejection monitor.
 
-    Reads the last 10 records from the rejection log and logs a WARNING if
-    there are ≥ 2 rejections.  Does NOT raise; does NOT suppress.  The
-    warning is the operator's signal to consider a v2 prompt bump per §5.8.
+    Reads the last 10 entries from ``drafter_audit.jsonl`` (the unified
+    attempt log — passes AND rejections) and logs a WARNING if ≥ 2 of those
+    entries have ``outcome: "reject"``.
+
+    The window is the last 10 *total attempts*, not the last 10 rejections.
+    This implements the CDA SME §5.8 binding semantic: "≥ 2 rejections within
+    any 10-draft window" where a draft is any drafting attempt.
+
+    Does NOT raise; does NOT suppress.  The warning is the operator's signal
+    to consider a v2 prompt bump per §5.8.
     """
+    import json as _json
+
     try:
-        lines = log_path.read_text(encoding="utf-8").strip().splitlines()
+        lines = audit_path.read_text(encoding="utf-8").strip().splitlines()
+        if not lines:
+            return
         window = lines[-10:]
-        n_rejections = len(window)
+        n_rejections = 0
+        for line in window:
+            try:
+                record = _json.loads(line)
+                if record.get("outcome") == "reject":
+                    n_rejections += 1
+            except (ValueError, KeyError):
+                pass
         if n_rejections >= 2:
             logger.warning(
-                "DRAFTER_REJECTION_WINDOW: %d rejections in last 10 drafts; "
-                "consider v2 prompt review per CDA SME §5.8",
+                "DRAFTER_REJECTION_WINDOW: %d/%d drafts rejected in the most "
+                "recent window — SME review for prompt v2 recommended",
                 n_rejections,
+                len(window),
             )
     except OSError:
-        pass  # log file may not be readable; silently ignore
+        pass  # audit log may not be readable; silently ignore
