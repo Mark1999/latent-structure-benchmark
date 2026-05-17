@@ -271,3 +271,192 @@ All Architect recommendations accepted as-stated.
 
 Phase 7 dispatch resumes. T1 → CDA SME → Coder → Reviewer → Tester.
 
+---
+
+## §11 Architectural amendment — 2026-05-17 (post-T5)
+
+**Status:** SUPERSEDES original §3 T6 and §3 T7. Original sections retained above as historical context.
+
+### §11.1 Rationale
+
+After T1–T5 closed (schemas, triggers, drafters, queue, CLI), Mark surfaced a binding architectural constraint that the original §1 success condition and §3 T6 cron-orchestrator design crossed:
+
+> "The system should NEVER autonomously draft and publish commentary on the website. The system also should never autonomously [run LLM free-list collection]. We need to make sure there is always a human in the loop."
+
+The original `python -m cdb_social.cli run-once` orchestrator was designed as: cron → detect triggers → invoke drafters (LLM calls) → queue. This auto-drafting was the autonomy Mark rejected. Drafter invocation is now a human action.
+
+Mark's preferred flow (verbatim from the 2026-05-17 directive):
+
+1. When the system detects a new model release (or any post-worthy event), it sends Mark an email notifying him of the detection.
+2. Mark, as the human in the loop, decides whether to act. He opens an administrator's console with a button to request a draft on a specific trigger.
+3. Mark reviews + approves the draft.
+4. **Publishing requires a second click.** Approval does not auto-publish.
+
+Two binding constraints emerge:
+
+**B-1.** No autonomous LLM calls anywhere in the social pipeline. This means: drafters are invoked only from the admin console on Mark's explicit request, never by the cron.
+
+**B-2.** Publishing (the second `atproto`/Bluesky API call) requires an explicit second click after approval. The Mark-approves-draft and Mark-publishes-draft are two separate human actions.
+
+The internal dev pipeline's autonomous test runs (`uv run pytest && uv run ruff check . && uv run mypy packages/` between Coder and Reviewer) are NOT in scope for B-1. Those are local mechanical checks on Coder output. B-1 applies only to LLM API calls (free-list collection + drafters).
+
+### §11.2 Decisions ratified 2026-05-17
+
+| Decision | Resolution |
+|---|---|
+| Email backend | **Gmail SMTP via app password.** Reliable, $0/mo, standard low-volume transactional path. `LSB_SMTP_USERNAME`, `LSB_SMTP_PASSWORD`, `LSB_DIGEST_RECIPIENT` live in `.env`. |
+| Admin console host | **Option C — local-only Flask web UI.** Binds `127.0.0.1:8000`, never internet-exposed, no auth needed (loopback is the auth), no TLS needed. Mark SSHes to the VPS (or runs locally), starts the console, clicks buttons. |
+| Email content shape | **Daily digest** of triggers detected since last digest. |
+| Publishing posture | **Second click required.** Approve and publish are distinct actions. |
+
+### §11.3 What's preserved from T1–T5 (no rework)
+
+All five completed tasks keep their existing code unchanged. The autonomy was in the orchestration layer (the now-superseded T6 cron + auto-draft), not in the building blocks.
+
+| Task | Status |
+|---|---|
+| T1 schemas (`SocialTrigger`, `SocialDraft`, `SocialPostRecord`) + queue layout | **Keep all.** No schema change in §11. |
+| T2 triggers (5 detectors) | **Keep all.** Detectors are read-only observers; they don't invoke LLMs. The §11 flow uses them unchanged. |
+| T3 drafter framework + Bluesky drafter + post-generation validator | **Keep all.** Drafters are now invoked from the admin console instead of from the cron. The validator gate is unchanged. |
+| T4 X + LinkedIn drafters | **Keep all.** Same. |
+| T5 queue + review CLI | **Keep all.** The CLI becomes a dev/fallback tool; the admin console is the primary UX. |
+
+### §11.4 What's superseded
+
+- **Original §3 T6** (publisher + cron CLI that auto-drafts): SUPERSEDED by §11.5 + §11.6 below.
+- **Original §3 T7** (cron + docs): REVISED. The cron now runs **detection only**, not auto-drafting. Doc-sweep work continues unchanged.
+
+### §11.5 New T6a — Daily detection cron + email digest
+
+**Goal:** A cron-driven task that runs detectors, formats detected triggers as a daily digest email, sends it to Mark, and **never invokes drafters**.
+
+**Scope (~3–4 Coder hours):**
+- New module `cdb_social/email_sender.py` — minimal SMTP sender via `smtplib`. Reads `LSB_SMTP_USERNAME`, `LSB_SMTP_PASSWORD`, `LSB_DIGEST_RECIPIENT` from env.
+- New module `cdb_social/digest.py` — formats a list of `SocialTrigger` objects as a readable email body using the §5.5 wording bindings from T5 CDA SME verdict (`max pairwise distance`, `Procrustes distance` + placeholder caveat, `monthly cross-domain categorical-structure roundup`).
+- New CLI subcommand `python -m cdb_social.cli detect` — runs the four detectors, computes new triggers (those not in `emailed_dedupe_keys.json`), sends digest, updates state.
+- New state file `out/social/state/emailed_dedupe_keys.json` — separate from `posted_dedupe_keys.json`. Tracks "I've already told Mark about this" distinct from "Mark posted it to Bluesky."
+- `.env.example` additions: `LSB_SMTP_USERNAME`, `LSB_SMTP_PASSWORD`, `LSB_DIGEST_RECIPIENT`.
+
+**Acceptance criteria:**
+- `python -m cdb_social.cli detect --dry-run` prints the email body to stdout, does NOT send.
+- `python -m cdb_social.cli detect` runs detectors, sends email if there are new triggers, updates `emailed_dedupe_keys.json`.
+- Drafters are NOT invoked. No Anthropic API calls made by this command (verifiable via static grep on the module).
+- Email contains: header line ("LSB daily digest YYYY-MM-DD"), per-trigger summary using T5 §5.5 binding wording, count of triggers in queue states (pending/approved/etc.), one-line instruction `"Run python -m cdb_social.admin_console on the VPS to act on these."`
+- Idempotent: re-running same day with no new triggers sends nothing (no empty digests).
+
+**Gates:**
+- **No CDA SME** (pure mechanics; the §5.5 wording from T5 is the methodology binding and the formatter reuses it verbatim).
+- **No UI/UX** (no public visual surface).
+- Reviewer enforces: no LLM imports in `cdb_social/email_sender.py` or `cdb_social/digest.py`; no real SMTP in tests (mock `smtplib.SMTP_SSL`).
+
+**Test plan:** Mocked `smtplib`; fixture-driven `SocialTrigger` lists; idempotency tests (re-run with same state → no email); dedupe-key tests; verbatim-wording tests (assert `"max pairwise distance"` and `"Procrustes distance"` appear in the digest body when relevant triggers fire).
+
+### §11.6 New T6b — Local admin console (Flask web UI)
+
+**Goal:** A local-only Flask web UI that lets Mark act on detected triggers and the queue. Drafting happens here on Mark's explicit per-trigger request; approving and publishing are two distinct button-clicks.
+
+**Scope (~6–8 Coder hours):**
+- New package `cdb_social/admin_console/`:
+  - `app.py` — Flask app definition. Configured with `app.run(host="127.0.0.1", port=8000)` — loopback bind is the security boundary.
+  - `routes.py` — view handlers.
+  - `templates/` — Jinja templates: `index.html`, `triggers.html`, `queue.html`, `draft.html`, `edit.html`, `confirm.html`.
+  - `static/admin.css` — minimal CSS for legibility only. No design polish per `feedback_ui_polish_scope.md` (operator-internal surface).
+- New CLI: `python -m cdb_social.admin_console` — entry point that starts the Flask dev server. Confirms loopback bind in startup log: `"Listening on 127.0.0.1:8000 (loopback only; no internet exposure)"`.
+- New dependency: **`flask`** (Mark approval requested in §11.9 below).
+
+**Routes:**
+
+| Method | Path | Behavior |
+|---|---|---|
+| GET | `/` | Index: list detected (un-drafted) triggers + queue counts. |
+| GET | `/triggers` | All detected triggers awaiting Mark's draft request. |
+| POST | `/triggers/<dedupe_key>/draft?platform=<platform>` | Invoke drafter on-demand → `SocialDraft` to `queue/pending/`. LLM call happens here, ONLY on this explicit POST. |
+| GET | `/queue/<state>` | View `pending`/`approved`/`published`/`failed` queue. |
+| GET | `/draft/<draft_id>` | Single-draft view with text, validator results, trigger context. |
+| POST | `/draft/<draft_id>/approve` | `pending` → `approved`. No publish. |
+| POST | `/draft/<draft_id>/reject` | `pending` → `failed` + sidecar JSON (5-code enum from T5 §5.6 + optional free-text). |
+| POST | `/draft/<draft_id>/edit` | Edit form → re-validate → `approved` if passes, `pending` if fails (text_history appended per T5 §5.7). |
+| POST | `/draft/<draft_id>/publish` | `approved` → `published` (calls `atproto` for Bluesky; X/LinkedIn raise `PublisherNotEnabled` per kickoff §10). **This is the "second click."** |
+
+**Security posture:**
+- Bind 127.0.0.1 only. Verified at startup; refuses to start if `--host` flag attempts to override.
+- No authentication (loopback bind is the boundary).
+- CSRF tokens on all POST forms (Flask `secrets`-based, no `flask-wtf` dep).
+- Each form action confirmed in a `confirm.html` view before the destructive action (per "second click" posture — even approve and reject require an intermediate confirmation page).
+
+**Acceptance criteria:**
+- Running `python -m cdb_social.admin_console` starts a Flask server on `127.0.0.1:8000`.
+- Opening `http://localhost:8000/` displays the index page with detected triggers + queue counts.
+- Clicking "Request draft" on a trigger invokes the appropriate drafter (Bluesky/X/LinkedIn per the trigger's platform selection in the form), persists the `SocialDraft` to `queue/pending/`, redirects to the draft view.
+- "Approve" / "Reject" / "Edit" buttons work per the T5 review-CLI semantics, transposed to web form actions.
+- "Publish" button on an approved draft calls the Bluesky publisher and persists the `SocialPostRecord`. X/LinkedIn drafts show "Publishing not enabled for this platform" with a `Download draft text` link instead.
+- Forbidden vocabulary anywhere in the rendered HTML (outside the validator-feedback display contexts) is a FAIL.
+
+**Gates:**
+- **CDA SME required (light).** Same posture as T5 — operator-internal CLI/console, but display copy is methodology-adjacent (the trigger summaries, the framing_checks labels, the rejection reasons). CDA SME can reuse the T5 §5.5 bindings verbatim.
+- **UI/UX not required** (operator-internal per `feedback_ui_polish_scope.md`).
+- Reviewer enforces: loopback bind verified; no auth shortcuts; CSRF on POST; no forbidden vocab in rendered HTML.
+
+**Test plan:** Flask test client for route smoke tests; fixture-driven HTML rendering tests (assert the §5.5 binding wording appears in trigger summaries); CSRF token tests; loopback-bind security test (refuses to bind 0.0.0.0); end-to-end test for the request-draft → review → approve → publish flow with mocked Anthropic and mocked atproto.
+
+### §11.7 Revised T7 — GitHub Actions cron + docs
+
+**Goal:** GitHub Actions cron runs `python -m cdb_social.cli detect` daily. Documentation sweep.
+
+**Scope (~2–3 Coder hours, reduced from original):**
+- `.github/workflows/social-pipeline.yml` — daily cron at 14:00 UTC. Single step: `python -m cdb_social.cli detect`. **The cron does not publish, does not draft.**
+- CI boundary check (same as original): `.github/workflows/ci.yml` step `cdb-social-boundary` greps for `from cdb_analyze` or `import cdb_analyze` inside `packages/cdb_social/` and rejects on hit. Also greps for writes to `data/raw/` and `data/processed/`.
+- ARCHITECTURE.md bump to **v0.7.4**: §4.6 amended to reflect the §11 architecture (detect-cron + email-digest + on-demand-draft + second-click-publish + local admin console + Gmail SMTP backend). Also lands the §5.7 T1-deferred prose fix (the "state of cultural alignment roundup" → "monthly cross-domain categorical-structure roundup" amendment from T1 §5.7).
+- CLAUDE.md §9 pitfall #16: post-generation validator pattern for drafter forbidden-vocab compliance (same as original T7).
+- CLAUDE.md §9 pitfall #17 (NEW): **"Re-introducing autonomous LLM calls in production paths."** Names the §11.1 rationale; cites the T6 architectural amendment; states the binding rule (B-1 above) that no production path calls an LLM without explicit per-event human invocation.
+
+**Gates:** No CDA SME; no UI/UX. Reviewer + Tester only.
+
+### §11.8 Schema additions
+
+**None.** SocialTrigger, SocialDraft, SocialPostRecord all carry forward unchanged from T1. No `cdb_core/schemas.py` change required by §11.
+
+### §11.9 Open decisions for Mark — §11
+
+| # | Decision | Recommendation |
+|---|---|---|
+| §11.9.1 | New dependency: `flask` for the admin console (Mark approved `atproto` at the previous round; `flask` is the second new Phase 7 dep). | **Approve `flask`** (~1MB, ubiquitous, minimal dep tree, well-maintained). Alternative: build a stdlib-only `http.server`-based UI (uglier code, more maintenance, no gain). |
+| §11.9.2 | Sender email and recipient (`LSB_DIGEST_RECIPIENT`). | Likely Mark's existing Gmail. Confirm the exact addresses for `.env.example` documentation. |
+| §11.9.3 | Cron time of day. | Original kickoff said 14:00 UTC. Keep that (mid-day Helsinki / morning US East / afternoon US West). |
+| §11.9.4 | Daily digest threshold — should the cron send an email if zero new triggers? | **No.** Idempotent silence on zero-trigger days. Confirm. |
+| §11.9.5 | Admin console — should approving a draft also auto-publish, or strictly two clicks? | **Strictly two clicks** per the §11.1 directive verbatim. Confirm. |
+
+### §11.10 Estimated timing — revised
+
+| Task | Coder time | Gates |
+|---|---|---|
+| T6a — detection cron + email digest | 3–4 hours | Reviewer + Tester (no CDA SME, no UI/UX) |
+| T6b — local Flask admin console | 6–8 hours | CDA SME (light, copy methodology) + Reviewer + Tester |
+| T7 (revised) — cron yml + docs | 2–3 hours | Reviewer + Tester |
+| **Total Phase 7 remaining** | **~11–15 hours** | |
+
+Similar to the original estimate. The admin console (~+4h vs. simpler publisher CLI) is offset by the simpler detection-only cron (~-2h vs. the original auto-draft cron) and the deferred publishing complexity (no `atproto` retry logic, no failure-handling escalation logic — publishing is now one synchronous API call after a button press).
+
+### §11.11 Dispatch ordering — revised
+
+Original kickoff §4 strict-serial path was T1 → T2 → T3 → T6 → T7. After §11:
+
+```
+T1 ✓ → T2 ✓ → T3 ✓ → ┬─→ T4 ✓ (off-path, parallel with T5)
+                     ├─→ T5 ✓ (off-path, parallel with T4)
+                     └─→ T6a (detection + email)  ──→ T6b (admin console) ──→ T7 (cron yml + docs)
+```
+
+T6a and T6b are sequential because T6b depends on the digest-formatter code in T6a (both use the same per-trigger summary strings). T7 follows T6b.
+
+Alternative: T6a and T6b could be parallelized if the digest-formatter is split into its own utility module that both depend on. Architect recommendation: serial. Saves coordination overhead for ~4-hour savings.
+
+### §11.12 Pending Mark sign-off on §11
+
+This amendment is awaiting Mark's confirmation on §11.9 decisions before T6a Coder dispatch. The §11 architecture itself was authored under Mark's 2026-05-17 directive (verbatim), so the directional commitments do not need re-ratification.
+
+---
+
+*End of §11 amendment. Original §3 T6 and §3 T7 superseded; §10 ratifications still apply to §5/§7 decisions.*
+
+
