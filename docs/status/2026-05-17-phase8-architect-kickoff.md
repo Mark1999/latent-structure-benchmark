@@ -433,3 +433,23 @@ Phase 8 closes when:
 ---
 
 *End of Phase 8 kickoff. Next action: Mark resolves §5 decisions 1–8; orchestrator dispatches T1, T2, T3, T4 in parallel after answers land.*
+
+---
+
+## §12 Mark's §5 ratifications (2026-05-17)
+
+All eight Architect recommendations accepted as-stated.
+
+- **§5 Decision 1 (Methodology page):** APPROVED (b) — launch with placeholder "Methodology — coming soon (target: YYYY-MM-DD)".
+- **§5 Decision 2 (HF dataset timing):** APPROVED (a) — ship with public repo go-live.
+- **§5 Decision 3 (Zenodo DOI + tag):** APPROVED — single `v1.0.0` tag; DOI minted at or shortly after go-public.
+- **§5 Decision 4 (SECURITY.md contact):** APPROVED (b) — `security@cogstructurelab.com` via Cloudflare Email Routing → ProtonMail. SECURITY_AND_HARDENING.md §6.5 updated to match.
+- **§5 Decision 5 (Branch protection):** APPROVED (b) — soft: PR required from forks; Mark direct-pushes from local clone (preserves CLAUDE.md §8).
+- **§5 Decision 6 (Repo description + topics):** APPROVED — Architect drafts in §5 decision 6 of this kickoff used verbatim; Mark may edit at M10.
+- **§5 Decision 7 (Bluesky / X handle):** APPROVED (b) — Bluesky only in repo links.
+- **§5 Decision 8 (First post target):** APPROVED (a) — hand-drafted launch-day post via admin console.
+
+Phase 8 dispatch resumes. T1 + T3 + T4 dispatch in parallel (T1 Coder direct; T3 and T4 CDA SME first). T2 documentation update dispatches in parallel; Mark sets up Cloudflare Email Routing (M1) asynchronously and self-tests at his convenience.
+
+Mark-action parallelism: Mark may begin M1 (Cloudflare Email Routing), M3 (Gmail SMTP app password), M4 (Bluesky app password), M5+M6 (Cloudflare Pages production + DNS) at any time; these unblock T2 acceptance and T9 + T11.
+
