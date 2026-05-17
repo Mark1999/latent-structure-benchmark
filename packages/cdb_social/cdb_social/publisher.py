@@ -220,7 +220,7 @@ def publish(
     # Bluesky path
     if draft.platform == Platform.BLUESKY:
         if dry_run:
-            handle = os.environ.get("BLUESKY_HANDLE", "dry-run.bsky.social")
+            handle = os.environ.get("BLUESKY_HANDLE", "") or "dry-run.bsky.social"
             synthetic_url = (
                 f"https://bsky.app/profile/{handle}/post/dry-run-{draft.draft_id}"
             )
