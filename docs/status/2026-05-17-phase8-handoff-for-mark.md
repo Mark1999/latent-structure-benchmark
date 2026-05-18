@@ -99,19 +99,54 @@ These unblock multiple downstream Coder tasks. Estimated total time: **60–90 m
 
 ---
 
-#### M5 + M6 — Cloudflare Pages production + DNS for `cogstructurelab.com`
+#### M5 + M6 — Cloudflare deployment + DNS for `cogstructurelab.com`
 
-**Why:** Unblocks T9 (Cloudflare Pages production deployment).
+**Why:** Unblocks T9 (production deployment).
+
+**Reality check on the 2026 Cloudflare dashboard.** The old standalone "Pages" product UI has been fully subsumed into **Workers & Pages**. On this account the only "Create" entry point is **Workers & Pages → Create application**, which produces a *Worker* — there is no longer a separate "Pages" tab in the create flow. Workers now serve static assets natively via an `[assets]` binding in `wrangler.toml`, which is the path we use. The previous version of this section described a Pages-only flow that no longer exists in the UI.
+
+The dashboard already has a Worker named `latent-strucure-benchmark` (note the typo — missing a `t`). We have two options. The repo already contains `apps/dashboard/wrangler.toml` with the correctly-spelled name `latent-structure-benchmark`. **Pick one:**
+
+- **Option A (recommended) — recreate with the correct name.** Cleaner slug, only 2 extra clicks. Delete the typo'd Worker first (Workers & Pages → click the project → Settings → scroll to bottom → Delete). Then proceed with steps 2–6 below.
+- **Option B — keep the typo'd Worker.** Edit `apps/dashboard/wrangler.toml` and change `name = "latent-structure-benchmark"` to `name = "latent-strucure-benchmark"` (match the typo). Skip step 2; jump to step 3.
 
 **Steps:**
-1. Open Cloudflare dashboard → Pages → your LSB project.
-2. Settings → Custom domains → Add `cogstructurelab.com` (and `www.cogstructurelab.com` if you want).
-3. Cloudflare auto-adds the DNS records. Wait for SSL cert to provision (usually 1–5 min).
-4. Settings → General → set Production branch to `master` (or whatever the dashboard build branch is).
-5. **For `cogstructurelab.ai` (the secondary domain):** add a Page Rule or Bulk Redirect → `cogstructurelab.ai/*` → 301 → `https://cogstructurelab.com/$1`.
-6. Verify: `curl -I https://cogstructurelab.com/` should return 200 with HSTS / CSP headers. `curl -I https://cogstructurelab.ai/` should return 301.
 
-**Done when:** Both URLs respond correctly per the curl test.
+1. *(If you picked Option A and haven't deleted the typo'd Worker yet)* Delete it now.
+
+2. **Create the Worker via Git integration.**
+   - Workers & Pages → **Create application** (blue button, top-right).
+   - On the create screen → **Import a repository** (Git) → authorize GitHub if not already → pick your `lsb-agent` repo.
+   - Project name will auto-fill from `wrangler.toml` once the build config is set. If prompted manually, enter `latent-structure-benchmark`.
+   - Production branch: `master`.
+   - Click **Save and Deploy** (or "Continue"). The first build will likely succeed because `wrangler.toml` declares the assets directory.
+
+3. **Set the build configuration.** On the project page → **Settings** → **Build** → **Edit** (or, in your current screenshot, the right-side "Build configuration" panel). Fill in:
+   - **Build command:** `npm install && npm run build`
+   - **Deploy command:** `npx wrangler deploy` *(this is the default; leave it)*
+   - **Non-production branch deploy command:** `npx wrangler versions upload` *(default; leave it)*
+   - **Build watch paths:** leave blank
+   - **Path:** `apps/dashboard` *(this is the equivalent of the old "Root directory" — it tells Cloudflare which subdirectory of the repo to `cd` into before running the build/deploy commands. Critical: without this, the runner stays at repo root, finds no `package.json`, and fails with `ENOENT`.)*
+   - **Environment variables → Production:** add `NODE_VERSION` = `20`.
+
+4. **Trigger a fresh deployment.** On the Deployments tab → **Retry deployment** on the latest failed one, or push any commit to `master`. The build log should now show `npm run build` succeeding inside `/opt/buildhome/repo/apps/dashboard/` and `wrangler deploy` uploading the `dist/` directory as static assets.
+
+5. **Custom domains.** Once a deployment is green, in the project → **Custom domains** tab → **Set up a domain** → add `cogstructurelab.com`. Repeat for `www.cogstructurelab.com` if you want both. Cloudflare auto-adds the DNS records (assuming the `cogstructurelab.com` zone lives in the same Cloudflare account). Wait 1–5 min for the SSL cert to provision; the row will flip to "Active".
+
+6. **`cogstructurelab.ai` (secondary domain → 301 to `.com`).** Open the `cogstructurelab.ai` zone (sidebar → **Domains** → `cogstructurelab.ai`) → **Rules** → **Redirect Rules** → **Create rule**:
+   - Name: `ai-to-com-redirect`
+   - When incoming requests match: **Custom filter expression** → `(http.host eq "cogstructurelab.ai") or (http.host eq "www.cogstructurelab.ai")`
+   - Then: **Dynamic** redirect.
+     - Expression: `concat("https://cogstructurelab.com", http.request.uri.path)`
+     - Status code: `301`
+     - Preserve query string: ON
+   - Deploy.
+
+7. **Verify from your terminal:**
+   - `curl -I https://cogstructurelab.com/` → `HTTP/2 200` with HSTS / CSP headers.
+   - `curl -I https://cogstructurelab.ai/some/path` → `HTTP/2 301` with `location: https://cogstructurelab.com/some/path`.
+
+**Done when:** Both URLs respond correctly per the curl test, and the deployments tab shows at least one green production build.
 
 ---
 
