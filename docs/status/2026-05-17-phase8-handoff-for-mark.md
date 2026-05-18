@@ -8,6 +8,23 @@
 
 ---
 
+## Order amendment (2026-05-18)
+
+**The original sequence had M8/T8 (Zenodo) before M11/T11 (public flip). This is impossible:** Zenodo's GitHub OAuth integration requests `public_repo` scope, so it cannot see private repos in the linked-accounts list. The M8 prep step "find `Mark1999/latent-structure-benchmark`" literally won't show the repo while it's private.
+
+**New order — flip public first, then Zenodo:**
+1. Block 1 operational (M1, M3, M4, M5/M6, M7) — unchanged
+2. Coder tasks T6, T7, T9, T10 — dispatched while the repo is still private
+3. Re-run pre-release scan (must PASS, ≤24h before flip)
+4. **M10 + M11 + M12 — Public flip** (originally last; now happens here)
+5. **M8 prep + T8 — Zenodo** (originally before flip; now after, since repo is now visible)
+6. M9 — Tag `v1.0.0` → Zenodo auto-archives → DOI minted
+7. M13 — First social post (the actual launch moment)
+
+Why this works: the dramatic "launch moment" is the first Bluesky post (M13), not the GitHub flip. The repo can sit publicly visible with zero traffic in the gap between M11 and M13 — nobody is watching the repo URL until you announce it. The pre-release scan already passed (`ea8130d` + `cc50dca` re-confirmed), so the audit work that justifies the flip is done.
+
+---
+
 ## Where you left off
 
 **Phase 8 progress: 5 of 11 tasks closed.**
@@ -21,10 +38,10 @@
 | T5 pre-release scan | ✓ closed (FAIL → remediation → PASS, all 8 checks green) |
 | **T6 open data bundle build** | **next, blocked on M7 partial** |
 | T7 HuggingFace dataset + card | blocked on T6 |
-| T8 Zenodo DOI minting | blocked on T6 + M8 + M9 |
-| T9 Cloudflare Pages production | blocked on M5 + M6 |
+| T9 Cloudflare custom-domain production | blocked on M5 + M6 |
 | T10 methodology placeholder | unblocked |
-| T11 repo go-public (the flip) | gated by T5 scan green ≤24h old + everything else |
+| **T11 / M11 repo go-public** | gated by T5 scan green ≤24h old (now runs *before* T8 — see order amendment above) |
+| T8 Zenodo DOI minting | gated by T6 + M11 public flip (Zenodo needs public repo) |
 
 ---
 
@@ -165,16 +182,17 @@ The dashboard already has a Worker named `latent-strucure-benchmark` (note the t
 
 ---
 
-#### M8 prep — Zenodo account + GitHub link
+#### M8 prep — Zenodo account (account-only setup; GitHub link happens *after* the public flip)
 
-**Why:** T8 mints the v1.0.0 DOI via Zenodo's GitHub integration.
+**Why:** T8 mints the v1.0.0 DOI via Zenodo's GitHub integration. Zenodo's OAuth scope is `public_repo`, so the repo must be public before it appears in the linked-accounts list.
 
-**Steps:**
+**Steps now (pre-flip):**
 1. Sign up at https://zenodo.org if you don't have an account.
-2. Settings → Linked accounts → GitHub → connect your GitHub account.
-3. After connecting, Zenodo shows a list of your GitHub repos. Find `Mark1999/latent-structure-benchmark`. **Don't toggle it on yet** — you'll do that just before tagging `v1.0.0` at M9 (the "on" toggle starts archiving from the next release tag).
+2. *(Do NOT link GitHub yet — wait until after the public flip at M11. If you link now, the repo won't appear, and you'll just have to re-link later.)*
 
-**Done when:** Zenodo account exists, GitHub is linked, repo appears in the list.
+**Done when:** Zenodo account exists.
+
+**Steps after the public flip (M11):** see the post-flip section below.
 
 ---
 
@@ -194,19 +212,20 @@ What it does: writes the dataset card at `data/open_bundle/huggingface_dataset_c
 
 **Dispatch trigger:** "dispatch T7" (after T6 closed).
 
-#### T8 — Zenodo DOI minting (~30 min Coder + 30 min Mark)
+#### T8 — Zenodo DOI minting (~30 min Coder + 30 min Mark) — **runs AFTER M11 public flip**
 
-What it does: prepares the Zenodo metadata blurb (CDA SME-gated). You then:
-1. In Zenodo settings, flip the GitHub integration toggle ON for `Mark1999/latent-structure-benchmark`.
-2. On the VPS:
+What it does: prepares the Zenodo metadata blurb (CDA SME-gated). You then complete the post-flip Zenodo flow:
+1. Zenodo → Settings → **Linked accounts** → **GitHub** → connect your GitHub account (now that the repo is public, Zenodo can see it).
+2. Zenodo's GitHub page now lists `Mark1999/latent-structure-benchmark` → flip the integration toggle **ON** for this repo.
+3. On the VPS (or anywhere with `git` access to the repo):
    ```
    git tag v1.0.0
    git push origin v1.0.0
    ```
-3. Zenodo auto-archives within 5–10 minutes; DOI appears in your Zenodo dashboard.
-4. The Coder follow-up commits the resulting DOI into the README badge + HF dataset card + bundle README (replacing the `<TBD-T8>` placeholder).
+4. Zenodo auto-archives within 5–10 minutes; DOI appears in your Zenodo dashboard.
+5. The Coder follow-up commits the resulting DOI into the README badge + HF dataset card + bundle README (replacing the `<TBD-T8>` placeholder).
 
-**Dispatch trigger:** "dispatch T8" (after T6 closed, and after you've done M8 + M9 prep — i.e., GitHub integration toggle is ready to flip).
+**Dispatch trigger:** "dispatch T8" (after T6 closed AND after M11 public flip AND after you've linked GitHub in Zenodo settings).
 
 #### T9 — Cloudflare Pages production deployment verification (~30 min total)
 
@@ -289,15 +308,17 @@ If you want a pure launch-day post (not tied to a detector trigger), the cleanes
 |---|---|---|---|
 | **M1** | Cloudflare Email Routing for security@ | 15–30 min | T2 acceptance complete |
 | **M3** | Gmail SMTP app password + .env | 10 min | Phase 7 cron working |
-| **M4** | Bluesky app password + .env | 10 min | T11 first post |
-| **M5+M6** | Cloudflare Pages production + DNS | 30–60 min | T9, T11 |
+| **M4** | Bluesky app password + .env | 10 min | M13 first post |
+| **M5+M6** | Cloudflare custom domain + DNS | 30–60 min | T9, M11 |
 | **M7 prep** | Reserve HuggingFace dataset slug | 5–10 min | T7 |
-| **M8 prep** | Zenodo account + GitHub link | 5–10 min | T8 |
-| **24h before flip** | Re-run pre-release scan, must PASS | 5 min | T11 |
-| **M10 + M11 + M12** | GitHub settings + branch protection + flip | 15–30 min | Phase 8 closure |
-| **M13** | First social post (post-flip, anytime) | 30 min | Phase 8 deliverable |
+| **M8 prep (pre-flip part)** | Create Zenodo account (don't link GitHub yet) | 5 min | T8 |
+| **24h before flip** | Re-run pre-release scan, must PASS | 5 min | M11 |
+| **M10 + M11 + M12** | GitHub settings + branch protection + public flip | 15–30 min | T8 (Zenodo can now see repo) |
+| **M8 (post-flip)** | Link GitHub in Zenodo → repo now appears → toggle ON | 5 min | T8 dispatch |
+| **T8 + M9** | Dispatch T8 → tag v1.0.0 → Zenodo auto-archives DOI | 30 min | Phase 8 closure |
+| **M13** | First social post (Bluesky launch announcement) | 30 min | Phase 8 deliverable |
 
-**Recommended sequence:** Block 1 in parallel (M1 + M3 + M4 + M5/M6 + M7 prep + M8 prep). Then "dispatch T6" → T7 → T8 → T9 → T10 → run pre-release scan → T11 flip.
+**Recommended sequence (Path A, reordered 2026-05-18):** Block 1 in parallel (M1 + M3 + M4 + M5/M6 + M7 prep + Zenodo signup only). Then "dispatch T6" → T7 → T9 → T10 → re-run pre-release scan → **M10 + M11 + M12 public flip** → link Zenodo to GitHub → "dispatch T8" → tag v1.0.0 → DOI mints → M13 first social post.
 
 ---
 
