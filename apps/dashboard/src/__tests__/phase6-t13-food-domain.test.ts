@@ -57,7 +57,7 @@
  *   J. scripts/run_phase6_t13_food.py (AC18)
  *      G26. Driver source contains domain="food" scoping and does NOT reference
  *           "family" or "holidays" as collection targets
- *      G27. Driver source does NOT contain CDB_MAX_SPEND_USD or cost-cap language
+ *      G27. Driver source does NOT contain CDB_MAX_SPEND_USD or cost-cap language  // noqa: spend-gate-check
  *
  *   K. CDA SME / AC10 documentation invariants
  *      G28. AC10 verdict file exists and contains PASS-WITH-NOTES
@@ -705,19 +705,19 @@ describe("G26 — driver script scopes to food domain and does not reference fam
 });
 
 describe("G27 — driver script contains no cost-cap language (CLAUDE.md R14)", () => {
-  it("driver source does NOT contain CDB_MAX_SPEND_USD", () => {
+  it("driver source does NOT contain CDB_MAX_SPEND_USD", () => {  // noqa: spend-gate-check
     const src = readFileSync(DRIVER_PATH, "utf-8");
-    expect(src).not.toContain("CDB_MAX_SPEND_USD");
+    expect(src).not.toContain("CDB_MAX_SPEND_USD");  // noqa: spend-gate-check
   });
 
-  it("driver source does NOT contain MAX_SPEND_USD", () => {
+  it("driver source does NOT contain MAX_SPEND_USD", () => {  // noqa: spend-gate-check
     const src = readFileSync(DRIVER_PATH, "utf-8");
-    expect(src).not.toContain("MAX_SPEND_USD");
+    expect(src).not.toContain("MAX_SPEND_USD");  // noqa: spend-gate-check
   });
 
-  it("driver source does NOT contain 'cost_cap' or 'cost_limit'", () => {
+  it("driver source does NOT contain 'cost_cap' or 'cost_limit'", () => {  // noqa: spend-gate-check
     const src = readFileSync(DRIVER_PATH, "utf-8");
-    expect(src.toLowerCase()).not.toContain("cost_cap");
+    expect(src.toLowerCase()).not.toContain("cost_cap");  // noqa: spend-gate-check
     expect(src.toLowerCase()).not.toContain("cost_limit");
   });
 });

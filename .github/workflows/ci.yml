@@ -77,7 +77,8 @@ jobs:
           # the phrase "do not write" or "boundary" or similar documentation wording.
           # A simple grep-vE covers the known boundary-documentation patterns.
           HITS=$(grep -rnE "(data/raw|data/processed)" packages/cdb_social/cdb_social/ \
-            | grep -vE '^\s*#|do not write to|boundary|docstring|comment')
+            | grep -vE '^\s*#|do not write to|boundary|docstring|comment' \
+            || true)
           if [ -n "$HITS" ]; then
             echo "BOUNDARY VIOLATION: cdb_social writes to data/raw or data/processed (§2 boundary rule)"
             echo "$HITS"
