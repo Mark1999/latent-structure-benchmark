@@ -201,18 +201,26 @@ Open `https://github.com/Mark1999/latent-structure-benchmark/settings`.
 5. Click **Save** at the bottom of each section that has a save button.
 
 ---
+### C.2 — Light branch protection (revised for solo personal-repo + direct-to-master)
 
-### C.2 — GitHub Settings → Branches → Add rule
+> **Why revised:** the original C.2 added a "Require PR before merging" rule that conflicts with CLAUDE.md §8 (this project's default workflow is direct-to-master, no PR ceremony). On a solo personal repo, your existing implicit protections (only you can push, CI runs on every push, forks must PR through CI) already cover the threat model. The lightweight ruleset below adds two cheap wins (force-push protection + deletion protection) without breaking §8.
+>
+> **Skip this section entirely if you prefer.** Going to C.3 with no branch ruleset is defensible.
 
-1. Pattern: `master`
-2. **Require a pull request before merging:** ✅
-3. **Require status checks to pass before merging:** ✅
-   - Add: `lint-and-test`, `cdb-social-boundary`, `gitleaks`
-4. **Restrict who can push to matching branches:** ✅
-   - Allow list: `Mark1999`
-5. **Allow force pushes:** OFF
-6. **Do not allow bypassing the above settings:** OFF (you want to be able to override if needed)
-7. Click **Create** at the bottom.
+If you want the lightweight protections:
+
+1. GitHub Settings → **Rules** → **Rulesets** → **New branch ruleset**
+2. Name: `master-protections`
+3. **Target branches:** include `master`
+4. **Bypass list:** add yourself (`Mark1999`) with bypass mode "Always" — so your direct-to-master workflow keeps working
+5. **Rules** (check only these):
+   - ✅ **Restrict deletions**
+   - ✅ **Block force pushes**
+   - ✅ **Require status checks to pass** — add: `lint-and-test`, `cdb-social-boundary`, `gitleaks`. Note: these only apply to incoming PRs (you bypass via step 4).
+6. **Do NOT** enable "Require a pull request before merging" — would break direct-to-master.
+7. **Enforcement status:** Active
+8. Click **Create**.
+
 
 ---
 
