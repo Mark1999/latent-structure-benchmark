@@ -219,12 +219,17 @@ def test_build_bundle_dry_run_lists_files(capsys: pytest.CaptureFixture[str]) ->
 
 
 def test_collect_sources_includes_required_files() -> None:
-    """_collect_sources includes informants.jsonl and standard bundle files."""
+    """_collect_sources includes committed bundle files.
+
+    data/raw/informants.jsonl is intentionally excluded from this assertion
+    because data/raw/ is git-ignored — CI runs against a fresh checkout where
+    the file is absent, while the VPS has the live data. The
+    "silently-skip-missing-files" behavior is already covered by
+    test_build_manifest_excludes_missing_files.
+    """
     sources = _collect_sources(REPO_ROOT)
     internal_paths = {internal for _, internal in sources}
 
-    # These files must be present in the actual repo
-    assert f"{BUNDLE_ROOT}/informants.jsonl" in internal_paths
     assert f"{BUNDLE_ROOT}/build_db.py" in internal_paths
     assert f"{BUNDLE_ROOT}/DATA_DICTIONARY.md" in internal_paths
     assert f"{BUNDLE_ROOT}/README.md" in internal_paths
