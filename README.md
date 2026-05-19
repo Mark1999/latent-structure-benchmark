@@ -2,6 +2,8 @@
 
 **Cognitive Structure Lab — [cogstructurelab.com](https://cogstructurelab.com)**
 
+[![DOI](https://zenodo.org/badge/DOI/10.5281/zenodo.20293554.svg)](https://doi.org/10.5281/zenodo.20293554)
+
 *A categorical-structure map of how frontier LLMs organize everyday vocabulary, built with Cultural Domain Analysis. Open data, reproducible, model-to-model.*
 
 The **Latent Structure Benchmark (LSB)** applies Cultural Domain Analysis (CDA) elicitation protocols to large language models as if the models were informants. It surfaces the **corpus lens** — the categorical structure of a model's training corpus, refracted through training and alignment — by running the same free-list, pile-sort, and pile-interview protocols across many models on the same everyday domains (family terms, holidays, food). The result is a comparative map of how different models organize the same vocabulary, with verbatim prompts, verbatim responses, and reproducible analysis code published openly.
@@ -44,7 +46,7 @@ License files at repo root: `LICENSE` (Apache 2.0), `LICENSE-DATA` (CC-BY-4.0), 
 
 - **Dashboard:** [cogstructurelab.com](https://cogstructurelab.com)
 - **Methodology page:** [cogstructurelab.com/methodology](https://cogstructurelab.com/methodology) — full methodology page is in preparation; for the binding framing language (corpus lens, what LSB measures, what it does not), see [`ARCHITECTURE.md`](ARCHITECTURE.md) §1.5
-- **Open data bundle:** [HuggingFace](https://huggingface.co/datasets/AILLM1999/lsb) and DOI-minted on [Zenodo](https://zenodo.org/) (see Citation below)
+- **Open data bundle:** [HuggingFace](https://huggingface.co/datasets/AILLM1999/latent-structure-benchmark) and DOI-minted on [Zenodo](https://doi.org/10.5281/zenodo.20293554) (see Citation below)
 - **Architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **Data dictionary:** [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md)
 - **Design system:** [`DESIGN_SYSTEM.md`](DESIGN_SYSTEM.md)
@@ -73,7 +75,7 @@ LSB is built with [uv](https://docs.astral.sh/uv/) for Python and Vite for the d
 
 ```bash
 # Clone
-git clone https://github.com/AILLM1999/lsb.git
+git clone https://github.com/Mark1999/latent-structure-benchmark.git
 cd lsb
 
 # Install Python dependencies (uv handles the virtualenv)
@@ -114,14 +116,14 @@ If you use LSB in research, please cite:
 
 ```
 Cognitive Structure Lab. (2026). The Latent Structure Benchmark (LSB), v1.0.
-https://cogstructurelab.com (Zenodo DOI: 10.5281/zenodo.<TBD-T8>)
+https://cogstructurelab.com (Zenodo DOI: 10.5281/zenodo.20293554)
 ```
 
 The Zenodo DOI resolves to the v1.0 open data bundle and is the canonical citation target. The dashboard URL is the canonical reading target.
 
 ## Status
 
-LSB v1 is published. The dashboard at [cogstructurelab.com](https://cogstructurelab.com) covers three domains (family, holidays, food). The open data bundle is available on [HuggingFace](https://huggingface.co/datasets/AILLM1999/lsb) and is DOI-minted on [Zenodo](https://zenodo.org/) (DOI badge above).
+LSB v1 is published. The dashboard at [cogstructurelab.com](https://cogstructurelab.com) covers three domains (family, holidays, food). The open data bundle is available on [HuggingFace](https://huggingface.co/datasets/AILLM1999/latent-structure-benchmark) and is DOI-minted on [Zenodo](https://doi.org/10.5281/zenodo.20293554) (DOI badge above).
 
 The schema (`packages/cdb_core/schemas.py`) and the open data bundle format are version-stable; breaking changes become version bumps with migration notes in `docs/DATA_DICTIONARY.md`. Future collection campaigns add models, domains, and longitudinal snapshots; the v1 corpus is permanent.
 

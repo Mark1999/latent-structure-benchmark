@@ -59,10 +59,10 @@ full walkthrough and byte-equivalence verification steps.
 
 ```
 Dawson, M. (2026). Latent Structure Benchmark (LSB) Open Data Bundle v1.
-Zenodo. https://doi.org/<TBD-T8-DOI>
+Zenodo. https://doi.org/10.5281/zenodo.20293554
 ```
 
-(DOI assignment pending Zenodo deposit; this README will be updated in a
-follow-up release once the Zenodo record is published.)
+The Zenodo record at https://zenodo.org/records/20293554 archives this
+release and is the canonical citation target.
 
 Dashboard and methodology: [cogstructurelab.com](https://cogstructurelab.com)

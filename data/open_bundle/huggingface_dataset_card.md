@@ -82,10 +82,10 @@ The bundle artifact this card describes — `informants.jsonl`, `lsb.sqlite`, `b
 
 ```
 Dawson, M. (2026). Latent Structure Benchmark (LSB) Open Data Bundle v1.
-Zenodo. https://doi.org/<TBD-T8-DOI — replaced post-Zenodo-mint per Phase 8 task T8>
+Zenodo. https://doi.org/10.5281/zenodo.20293554
 ```
 
-(DOI assignment pending Zenodo deposit; the card will be updated once the Zenodo record is published.)
+The Zenodo record at https://zenodo.org/records/20293554 archives this release.
 
 Dashboard and methodology: [cogstructurelab.com](https://cogstructurelab.com)
 
