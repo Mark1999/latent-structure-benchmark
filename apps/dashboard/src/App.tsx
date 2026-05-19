@@ -26,6 +26,7 @@ import type { Domain } from "./components/DomainPicker";
 import { KeyFinding } from "./components/KeyFinding";
 import { DataExplorer } from "./components/DataExplorer";
 import { MethodologySummary } from "./components/MethodologySummary";
+import { MethodologyPagePlaceholder } from "./components/MethodologyPagePlaceholder";
 import { FailuresFindingsSection } from "./components/FailuresFindingsSection";
 import { InspectRoot } from "./components/InspectRoot";
 import "./styles/inspect.css";
@@ -39,6 +40,18 @@ type AppState = "loading" | "loaded" | "error";
 function isEmbedMode(): boolean {
   try {
     return new URLSearchParams(window.location.search).get("embed") === "true";
+  } catch {
+    return false;
+  }
+}
+
+/**
+ * Detect methodology page: pathname === "/methodology" renders MethodologyPagePlaceholder.
+ * Source: Phase 8 T10.2 plan; wrangler.toml SPA fallback routes /methodology → index.html.
+ */
+function isMethodologyPage(): boolean {
+  try {
+    return typeof window !== "undefined" && window.location.pathname === "/methodology";
   } catch {
     return false;
   }
@@ -124,6 +137,7 @@ export default function App() {
   const [domainResult, setDomainResult] = useState<DomainResultPublished | null>(null);
   const embedMode = isEmbedMode();
   const inspectSlug = isInspectMode();
+  const methodologyPage = isMethodologyPage();
 
   // T10: read URL domain on mount and set activeSlug if a valid ?domain= param exists.
   // Runs once at mount — after this, DomainPicker onSelect drives the value.
@@ -193,6 +207,13 @@ export default function App() {
       cancelled = true;
     };
   }, [appState, activeSlug]);
+
+  // Methodology page: render MethodologyPagePlaceholder at /methodology.
+  // SPA fallback in wrangler.toml means /methodology → index.html → App.tsx.
+  // Source: Phase 8 T10.2 plan.
+  if (methodologyPage) {
+    return <MethodologyPagePlaceholder />;
+  }
 
   // Inspect mode: render InspectRoot when ?inspect=<slug> is present.
   // Suppress all reader-mode chrome. The InspectRoot manages its own data fetching.
@@ -339,7 +360,7 @@ export default function App() {
           before FailuresFindingsSection. Wrapper at App.tsx level per F-T13-6. */}
       {!embedMode && (
         <div className="reveal-cascade-item">
-          <MethodologySummary methodologyPageUrl={null} />
+          <MethodologySummary methodologyPageUrl="/methodology" />
         </div>
       )}
 

@@ -95,15 +95,21 @@ export function Header() {
         </a>
 
         <nav className="site-header__nav" aria-label="Site navigation">
-          {NAV_LINKS.map((link) => (
-            <a
-              key={link.href}
-              href={link.href}
-              className="site-header__nav-link"
-            >
-              {link.label}
-            </a>
-          ))}
+          {NAV_LINKS.map((link) => {
+            const isActive =
+              typeof window !== "undefined" &&
+              window.location.pathname === link.href;
+            return (
+              <a
+                key={link.href}
+                href={link.href}
+                className="site-header__nav-link"
+                aria-current={isActive ? "page" : undefined}
+              >
+                {link.label}
+              </a>
+            );
+          })}
         </nav>
 
         <button
