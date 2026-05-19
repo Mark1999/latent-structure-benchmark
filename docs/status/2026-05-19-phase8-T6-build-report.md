@@ -132,18 +132,19 @@ b2 ls lsb-open-data
 
 ### Step 3 — Confirm public URL
 
-Per `HOSTING_AND_DEV_OPS.md` §7.1, the bundle URL pattern is:
+The bundle download URL depends on the B2 region of the account. Mark's account is in region **005** (confirmed 2026-05-19 via `b2 account authorize` response), so the URL is:
+
 ```
-https://f000.backblazeb2.com/file/lsb-open-data/lsb_open_bundle_v1.tar.gz
+https://f005.backblazeb2.com/file/lsb-open-data/lsb_open_bundle_v1.tar.gz
 ```
 
-This URL goes in the `DATA_DICTIONARY.md` §6 reproduce recipe once the bucket is confirmed public (post Phase 4 validation per `ARCHITECTURE.md` §6.7).
+This URL goes in the `DATA_DICTIONARY.md` §6 reproduce recipe and in the bundle README's citation block once the bucket is flipped to public (at M11 per the Path A reorder in `docs/status/2026-05-17-phase8-handoff-for-mark.md`).
 
 ### Notes
 
-- The bucket was `private` pre-validation. Flip to public after Phase 4 gates pass (post-T8 Zenodo DOI minting).
-- The expected SHA256 of the tarball is `7064b325a25f90d2555138e7d944b129e78cbc7e18eace663b058166a6cd5983`. Verify after upload with `b2 file info` or by downloading and running `sha256sum`.
-- The tarball is 1,550,226,039 bytes (~1.44 GiB). Upload time on a typical Linode link depends on bandwidth.
+- The bucket was `allPrivate` at creation. Flip to public at M11 (the GitHub repo public flip).
+- The expected SHA256 of the tarball is `7064b325a25f90d2555138e7d944b129e78cbc7e18eace663b058166a6cd5983`. Confirm locally with `sha256sum` before relying on the upload. B2's `file info` exposes `large_file_sha1` (not SHA256) for chunked uploads.
+- The tarball is 1,550,226,039 bytes (~1.44 GiB). Upload completed 2026-05-19 (~12 seconds on Linode uplink at ~130 MB/s).
 
 ---
 
