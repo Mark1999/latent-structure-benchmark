@@ -49,7 +49,7 @@ Two surgical edits committed pre-flip:
 
 1. **`docs/status/2026-04-30-phase4a1-t3c-resume-instructions.md`** — replaced 2 occurrences of `markdd2@gmail.com` with `Mark's personal email`. The references were in a historical reminder note (T3C resume instructions, April 30) about a scheduled Gmail-draft event. The PII was non-essential to the historical record.
 
-2. **`docs/status/2026-05-17-phase8-handoff-for-mark.md:83`** — replaced placeholder `your-email@whatever-domain.com` with `you@example.com`. The original was a configuration template placeholder, but `whatever-domain.com` triggered the pre-release scan's email-detector. Standard RFC 2606 placeholder (`example.com`) is safer.
+2. **`docs/status/2026-05-17-phase8-handoff-for-mark.md:83`** — replaced a non-`example.com` configuration placeholder with the RFC 2606 standard form `you@example.com`. The original used a non-reserved domain string that triggered the pre-release scan's email detector. Standard RFC 2606 placeholders (`example.com`) are scanner-safe.
 
 After both fixes, `scripts/prerelease_scan.py` exits PASS.
 
@@ -64,7 +64,7 @@ These are **not security blockers**, but they affect what's visible to anyone br
 **Options:**
 - **(a) Accept.** Standard for open-source projects. Most public repos carry the real maintainer email. Easy to opt out of mailing-list spam via GitHub settings (block `noreply` mode).
 - **(b) Rewrite history** to replace `markdd2@gmail.com` with `<noreply>` or a GitHub-noreply-style address. **This rewrites every commit SHA**, breaks the audit trail referenced by 50+ status docs, breaks any external clones or forks, and is generally **not recommended** for a research project where reproducibility matters.
-- **(c) Configure future commits only.** Run `git config user.email "noreply@cogstructurelab.com"` (or use GitHub's noreply form `XXXXXXX+Mark1999@users.noreply.github.com`). Past commits unchanged, but future commits use the noreply address.
+- **(c) Configure future commits only.** Run `git config user.email "noreply@cogstructurelab.com"` (or use GitHub's noreply-email form — see `github.com/settings/emails` for the exact value tied to your account). Past commits unchanged, but future commits use the noreply address.
 
 **Recommendation:** **(a) Accept**, or (c) if you want future commits anonymized. Don't (b) — the cost is high and the benefit is marginal (your Gmail address is already publicly associated with your GitHub username).
 
