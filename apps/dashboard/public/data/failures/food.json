@@ -1,0 +1,9 @@
+{
+  "domain_slug": "food",
+  "generated_at": "2026-05-15T20:33:25.591671+00:00",
+  "n_records": 0,
+  "n_failure_records": 0,
+  "n_decline_interview_records": 0,
+  "framing_note": "These records preserve verbatim outputs from collection sessions that did not produce a parseable primary-step response. Each record is a property of the LSB collection pipeline's output distribution, not a claim about the model's intent or state-of-mind. The `originating_outcome_class` field names the LSB-side detection rule (e.g., `refusal_string_match` describes a string-pattern match by the LSB pipeline, not a model decision to refuse). See the methodology page for the failures-as-findings framing.",
+  "records": []
+}
