@@ -24,7 +24,7 @@ Phase 4a.1 is at sub-task T3C commit 3. The 27 decline-interview records are sit
 
 **Cumulative Phase 4a + 4a.1 spend:** $5.16. T3C costs $0 (no API calls).
 
-**Scheduled reminder:** A one-time remote agent (`trig_01H8vdgyiLS7RXzV7K2ZCqbs`) fires at **2026-05-07T14:00:00Z** and creates a Gmail draft to `markdd2@gmail.com` if T3C commit 3 has not landed on `origin/master` by then. Manage at https://claude.ai/code/routines/trig_01H8vdgyiLS7RXzV7K2ZCqbs. The agent only sees `origin/master`, so the reminder will fire if Mark has classified locally but not pushed.
+**Scheduled reminder:** A one-time remote agent (`trig_01H8vdgyiLS7RXzV7K2ZCqbs`) fires at **2026-05-07T14:00:00Z** and creates a Gmail draft to `Mark's personal email` if T3C commit 3 has not landed on `origin/master` by then. Manage at https://claude.ai/code/routines/trig_01H8vdgyiLS7RXzV7K2ZCqbs. The agent only sees `origin/master`, so the reminder will fire if Mark has classified locally but not pushed.
 
 ---
 
@@ -221,7 +221,7 @@ git push
 
 If `git push` complains about unrelated stuff (because there are 19+ local commits ahead of `origin/master`), that's expected — those need to be pushed at some point anyway. If it fails for a real reason (auth, rejected push, etc.), ask Claude.
 
-If you do not push, the scheduled remote agent will fire 2026-05-07T14:00:00Z and email `markdd2@gmail.com` (Gmail draft, not sent — check your Drafts folder). The reminder is harmless if you've classified locally but not pushed; you can ignore it.
+If you do not push, the scheduled remote agent will fire 2026-05-07T14:00:00Z and email `Mark's personal email` (Gmail draft, not sent — check your Drafts folder). The reminder is harmless if you've classified locally but not pushed; you can ignore it.
 
 ---
 

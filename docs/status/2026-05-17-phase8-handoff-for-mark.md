@@ -80,7 +80,7 @@ These unblock multiple downstream Coder tasks. Estimated total time: **60–90 m
    ```
    LSB_SMTP_USERNAME=your-gmail@gmail.com
    LSB_SMTP_PASSWORD=the-16-char-app-password
-   LSB_DIGEST_RECIPIENT=your-email@whatever-domain.com
+   LSB_DIGEST_RECIPIENT=you@example.com
    ```
 5. Self-test from VPS:
    ```
