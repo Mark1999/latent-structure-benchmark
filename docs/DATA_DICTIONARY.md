@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.16 (aligned with `ARCHITECTURE.md` v0.7.4; see changelog for history)  
+**Version:** v0.1.17 (aligned with `ARCHITECTURE.md` v0.7.4; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.17** (2026-05-19) — Phase 8 T6: Added §14 documenting the open bundle tarball layout, MANIFEST.txt format, and `scripts/build_open_bundle.py` builder usage. Added §0 cross-link to §14. No schema changes. Architect plan: Phase 8 T6. CDA SME verdict: `docs/status/2026-05-19-phase8-T6.2-cda-sme-verdict.md` (PASS-WITH-NOTES; N1–N7 applied to `data/open_bundle/README.md`).
 - **v0.1.16** (2026-05-17) — Phase 7 T7 docs sweep: §13.5 updated to add `emailed_dedupe_keys.json` state file (introduced in T6a but not previously documented). The `framing_checks` field is confirmed to carry four canonical keys (`hypothesis_framing`, `cognition_attribution`, `bare_numeric_without_ci`, `register_boundary`) as defined in T3 CDA SME §5.11 and implemented in `cdb_social/drafters/base.py`. Note added to §13.3 queue-acceptance contract. No schema changes. See `ARCHITECTURE.md` v0.7.4 changelog.
 - **v0.1.15** (2026-05-17) — Phase 7 T1: Added §13 documenting the social publishing pipeline schemas and on-disk layout. Three new types in `cdb_core/schemas.py`: `SocialTrigger`, `SocialDraft`, `SocialPostRecord`. Three new enums: `TriggerType`, `Platform`, `PublishStatus`. New directory tree at `out/social/queue/{pending,approved,published,failed}/` and `out/social/state/` (gitignored; only `out/social/README.md` is tracked). CDA SME PASS-WITH-NOTES verdict applied: §5.2 (`forbidden_terms_hit` docstring contract), §5.3 (`framing_check_passed` + new `framing_checks: dict[str, bool]` sibling), §5.4 (renamed `confidence_score` → `drafter_self_rating: float = 0.0`), §5.5 (`suggested_posting_time` operational-only docstring), §5.6 (`evidence` dict docstring + T2 carry-forward), §5.8 (`dedupe_key` formula + exclusion of `drafter_version`/`prompt_version`). No changes to `InformantRecord`, `GroundingRef`, or any existing `cdb_core` schema. CDA SME verdict: `docs/status/2026-05-17-phase7-T1-cda-sme-verdict.md` (PASS-WITH-NOTES).
 - **v0.1.14** (2026-05-12) — Phase 6 T9: Added §12 documenting the published failures JSON shape emitted by `packages/cdb_publish/cdb_publish/failures.py` to `apps/dashboard/public/data/failures/{slug}.json`. New publish-layer schemas in `packages/cdb_publish/cdb_publish/schemas/failures.py` (`PublishedFailuresFile`, `PublishedFailureRecord`). New sanitization module `packages/cdb_publish/cdb_publish/sanitize.py`. `Manifest` schema gains `failures: dict[str, str]` field. `scripts/publish.py` gains three new CLI args for raw-data paths. No changes to `cdb_core/schemas.py`. CDA SME verdict: `docs/status/2026-05-12-phase6-T9-cda-sme-verdict.md` (PASS-WITH-NOTES; §5.1–§5.5 applied).
@@ -44,6 +45,8 @@ The bundle is hosted on Backblaze B2, mirrored to HuggingFace Datasets, and DOI-
 **License:** the bundle is dedicated to the public domain under CC0 1.0 Universal. You can do anything you want with it without attribution. Attribution is strongly encouraged via the Zenodo DOI for citation purposes, but not legally required.
 
 **Reproducibility guarantee:** any researcher with the bundle and a Python ≥ 3.11 environment can run `python build_db.py informants.jsonl lsb.sqlite` and produce a SQLite database byte-identical (modulo timestamps) to the one LSB itself uses internally. Combined with the prompt templates and the published code (Apache 2.0 on GitHub), every figure on the LSB dashboard can be reproduced from open inputs without any LSB-specific tooling beyond standard Python.
+
+**Open bundle structure:** for the full tarball layout, MANIFEST.txt format, and builder usage reference, see §14.
 
 ---
 
@@ -1395,4 +1398,70 @@ AND `framing_check_passed == True` AND all `framing_checks` values `True`.
 
 ---
 
-*End of `docs/DATA_DICTIONARY.md` v0.1.16. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
+## 14. Open bundle structure
+
+**Changelog:**
+- **v0.1.17** (2026-05-19) — Phase 8 T6: Added §14 documenting the tarball layout and manifest format produced by `scripts/build_open_bundle.py`. Cross-linked from §0. No schema changes.
+
+This section documents the physical layout of the `lsb_open_bundle_v1.tar.gz` distribution artifact. The tarball is produced by `scripts/build_open_bundle.py`, which wraps `scripts/build_db.py` and computes a SHA256 manifest.
+
+### 14.1 Tarball layout
+
+```
+lsb_open_bundle_v1/
+├── informants.jsonl              # canonical raw data (§1)
+├── failures.jsonl                # failed/incomplete sessions (§9)
+├── decline_interviews.jsonl      # decline follow-up elicitations (§10)
+├── lsb.sqlite                    # SQLite database built from the JSONL files
+├── build_db.py                   # build script; run to reconstruct lsb.sqlite
+├── DATA_DICTIONARY.md            # this document (snapshot at bundle build time)
+├── prompts/
+│   └── v1/
+│       ├── free_list.md          # CDA Step 1 prompt template
+│       ├── pile_sort.md          # CDA Step 2 prompt template
+│       └── pile_interview.md     # CDA Step 3 prompt template
+├── domains/
+│   └── v1/
+│       ├── family.yaml           # family domain definition
+│       ├── holidays.yaml         # holidays domain definition
+│       └── food.yaml             # food domain definition
+├── LICENSE-OPENBUNDLE            # CC0 1.0 Universal dedication
+└── MANIFEST.txt                  # SHA256 + bytes + path for every file above
+```
+
+### 14.2 MANIFEST.txt format
+
+One line per file, tab-separated: `SHA256_HEX\tBYTES\tINTERNAL_PATH`. Sorted by internal path. The manifest entry for MANIFEST.txt itself is not included (circular). Example line:
+
+```
+3a7f8c...  1291042  lsb_open_bundle_v1/informants.jsonl
+```
+
+### 14.3 Builder usage
+
+```bash
+# Build the tarball (writes to /tmp/ by default)
+python scripts/build_open_bundle.py
+
+# Specify output directory
+python scripts/build_open_bundle.py --output-dir /path/to/dir
+
+# Dry run — list what would be included without writing
+python scripts/build_open_bundle.py --dry-run
+
+# Verify an existing tarball against its embedded MANIFEST.txt
+python scripts/build_open_bundle.py --verify /path/to/lsb_open_bundle_v1.tar.gz
+```
+
+The builder is stdlib-only (`tarfile`, `hashlib`, `subprocess`, `argparse`, `pathlib`). No external dependencies. The `--verify` flag is the canonical integrity check: it extracts each file from the tarball and recomputes SHA256 against the embedded MANIFEST.txt.
+
+### 14.4 Binding constraints
+
+- The builder refuses any input path under `data/shakedown/` (same shakedown exclusion as `scripts/build_db.py`).
+- The tarball and `lsb.sqlite` are gitignored. Only `data/open_bundle/README.md` is tracked.
+- The bundle is uploaded to Backblaze B2 bucket `lsb-open-data` (see `HOSTING_AND_DEV_OPS.md` §7.1) by Mark via the B2 CLI. The builder does not perform uploads.
+- The Zenodo DOI is minted after Phase 4 validation gates pass (see `ARCHITECTURE.md` §6.7). Pre-validation bundles are hosted on B2 without a DOI.
+
+---
+
+*End of `docs/DATA_DICTIONARY.md` v0.1.17. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*

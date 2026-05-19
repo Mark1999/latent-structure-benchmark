@@ -31,10 +31,12 @@ data/shakedown/
 # the script.
 data/probes/
 
-# Open data bundle build artifact — produced by scripts/build_db.py from
-# the canonical data sources. ~600+ MB, not suitable for git. The .gitkeep
-# preserves the directory in the tree.
+# Open data bundle build artifacts — produced by scripts/build_open_bundle.py
+# and scripts/build_db.py from the canonical data sources. Not suitable for
+# git. The .gitkeep preserves the directory in the tree. data/open_bundle/README.md
+# IS tracked (source file committed as part of T6).
 data/open_bundle/*.sqlite
+data/open_bundle/*.tar.gz
 
 # Note: data/cost_reports/*.txt is NOT ignored (git-tracked per ARCHITECTURE.md §6.2)
 
