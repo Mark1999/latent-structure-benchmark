@@ -216,10 +216,14 @@ If you want the lightweight protections:
 5. **Rules** (check only these):
    - ✅ **Restrict deletions**
    - ✅ **Block force pushes**
-   - ✅ **Require status checks to pass** — add: `lint-and-test`, `cdb-social-boundary`, `gitleaks`. Note: these only apply to incoming PRs (you bypass via step 4).
+   - ✅ **Require status checks to pass**
+     - Search-by-name field → add `lint-and-test`, `cdb-social-boundary`, `gitleaks` (one at a time; each appears in a dropdown as you type)
+     - **Leave** "Require branches to be up to date before merging" **unchecked** (adds friction with no benefit here)
 6. **Do NOT** enable "Require a pull request before merging" — would break direct-to-master.
 7. **Enforcement status:** Active
 8. Click **Create**.
+
+> **Why your direct pushes still work:** the bypass list (step 4) makes the entire ruleset skip for you. Status-check enforcement only fires for anyone not on the bypass list — i.e., external contributors opening PRs from forks.
 
 
 ---
