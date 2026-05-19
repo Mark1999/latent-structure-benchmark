@@ -201,30 +201,12 @@ Open `https://github.com/Mark1999/latent-structure-benchmark/settings`.
 5. Click **Save** at the bottom of each section that has a save button.
 
 ---
-### C.2 — Light branch protection (revised for solo personal-repo + direct-to-master)
 
-> **Why revised:** the original C.2 added a "Require PR before merging" rule that conflicts with CLAUDE.md §8 (this project's default workflow is direct-to-master, no PR ceremony). On a solo personal repo, your existing implicit protections (only you can push, CI runs on every push, forks must PR through CI) already cover the threat model. The lightweight ruleset below adds two cheap wins (force-push protection + deletion protection) without breaking §8.
+### C.2 — Deferred to C.7 (post-flip)
+
+> **Why deferred:** GitHub's free tier gates branch protection rulesets behind repo visibility — they only become configurable once the repo is public. On a private personal repo, the **Rules → Rulesets** UI is either hidden or requires a paid plan.
 >
-> **Skip this section entirely if you prefer.** Going to C.3 with no branch ruleset is defensible.
-
-If you want the lightweight protections:
-
-1. GitHub Settings → **Rules** → **Rulesets** → **New branch ruleset**
-2. Name: `master-protections`
-3. **Target branches:** include `master`
-4. **Bypass list:** add yourself (`Mark1999`) with bypass mode "Always" — so your direct-to-master workflow keeps working
-5. **Rules** (check only these):
-   - ✅ **Restrict deletions**
-   - ✅ **Block force pushes**
-   - ✅ **Require status checks to pass**
-     - Search-by-name field → add `lint-and-test`, `cdb-social-boundary`, `gitleaks` (one at a time; each appears in a dropdown as you type)
-     - **Leave** "Require branches to be up to date before merging" **unchecked** (adds friction with no benefit here)
-6. **Do NOT** enable "Require a pull request before merging" — would break direct-to-master.
-7. **Enforcement status:** Active
-8. Click **Create**.
-
-> **Why your direct pushes still work:** the bypass list (step 4) makes the entire ruleset skip for you. Status-check enforcement only fires for anyone not on the bypass list — i.e., external contributors opening PRs from forks.
-
+> So branch protection is moved to **C.7 below**, after the public flip. Continue here with C.3.
 
 ---
 
@@ -275,6 +257,34 @@ From an incognito tab:
 **Tell Claude when done:** *"M11 flip complete, repo is public"*. Claude will then guide you through the rest.
 
 **If anything looks wrong:** tell Claude immediately. The repo can technically be flipped private again, but anyone who cloned in the first 60s already has the data — investigate quickly.
+
+---
+
+### C.7 — Light branch protection (now configurable, post-flip)
+
+> **Why here:** the Rulesets UI is only available on public repos (free tier). With C.5 complete, this is now configurable.
+>
+> **Skip this section entirely if you prefer.** Free-tier defaults (only you have push access, CI runs on every push, forks must PR) already cover the threat model. The ruleset below adds two cheap wins: force-push protection + deletion protection.
+
+If you want the lightweight protections:
+
+1. GitHub Settings → **Rules** → **Rulesets** → **New branch ruleset**
+2. Name: `master-protections`
+3. **Target branches:** include `master`
+4. **Bypass list:** add yourself (`Mark1999`) with bypass mode "Always" — so your direct-to-master workflow keeps working
+5. **Rules** (check only these):
+   - ✅ **Restrict deletions**
+   - ✅ **Block force pushes**
+   - ✅ **Require status checks to pass**
+     - Search-by-name field → add `lint-and-test`, `cdb-social-boundary`, `gitleaks` (one at a time; each appears in a dropdown as you type)
+     - **Leave** "Require branches to be up to date before merging" **unchecked**
+6. **Do NOT** enable "Require a pull request before merging" — would break direct-to-master.
+7. **Enforcement status:** Active
+8. Click **Create**.
+
+> **Why your direct pushes still work:** the bypass list (step 4) makes the entire ruleset skip for you. Status-check enforcement only fires for anyone not on the bypass list — i.e., external contributors opening PRs from forks.
+
+**Tell Claude when done:** *"C.7 ruleset set"* or *"C.7 skipped"*.
 
 ---
 
