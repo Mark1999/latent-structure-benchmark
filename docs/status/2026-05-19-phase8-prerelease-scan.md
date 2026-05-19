@@ -1,9 +1,9 @@
 # Pre-Release Scan Report
 
-**Run at:** 2026-05-19 16:35:44 UTC
+**Run at:** 2026-05-19 16:36:31 UTC
 **Run by:** `scripts/prerelease_scan.py`
-**Repository state:** `0e4aaea17edffa75fd3c5a994a5befe290f02d10`
-**Working tree:** dirty — 2 changed file(s)
+**Repository state:** `38957d9d33e8cd54efaa79072a219535ddb82046`
+**Working tree:** clean
 
 **Overall result:** PASS
 
