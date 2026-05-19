@@ -40,6 +40,7 @@ not in this bundle.
 | `prompts/v1/` | Verbatim prompt templates (free_list, pile_sort, pile_interview). CC0. |
 | `domains/v1/` | Domain YAML files (family, holidays, food). CC0. |
 | `MANIFEST.txt` | SHA256 digest, byte size, and path for every file in this bundle. |
+| `LICENSE-OPENBUNDLE` | CC0 1.0 Universal legal text. Governs all data files in this bundle. |
 
 ---
 
