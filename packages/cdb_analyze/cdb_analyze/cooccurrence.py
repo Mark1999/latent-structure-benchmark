@@ -6,6 +6,8 @@ in the same pile. Diagonal = 1.0. Symmetric.
 
 from __future__ import annotations
 
+from datetime import UTC, datetime
+
 from cdb_core import CooccurrenceMatrix, InformantRecord, ModelRef
 
 
@@ -122,4 +124,107 @@ def build_cooccurrence_matrix(
         model=model_ref,
         items=items,
         matrix=result_matrix,
+    )
+
+
+def build_pooled_cooccurrence_matrix(
+    records_by_model: dict[str, list[InformantRecord]],
+) -> CooccurrenceMatrix:
+    """Build a pooled cross-model co-occurrence matrix.
+
+    Implements the Register 2 equal-voice-per-model pooling strategy per
+    CDA SME M1 (2026-05-24-phase9a-cda-sme-verdict.md):
+
+      pooled[i][j] = (1/M) * sum_over_models( model_cooccurrence[i][j] )
+
+    where model_cooccurrence[i][j] is each model's per-model consensus
+    co-occurrence fraction and M is the number of models with at least
+    one valid run. Items absent from a model's vocabulary receive 0.0 for
+    all cells in that model's matrix — absence is evidence of non-co-
+    occurrence, not missing data. The denominator is always M, not the
+    number of models that produced both items.
+
+    Item set = sorted union of all items across all models' pile sorts.
+
+    Args:
+        records_by_model: Dict mapping model_id → list of InformantRecords
+            for that model. All records must share the same domain_slug.
+
+    Returns:
+        CooccurrenceMatrix with the pooled values and the sorted union
+        item list. The ``model`` field carries a synthetic ModelRef with
+        model_id="pooled" to distinguish from any single-model matrix.
+
+    Raises:
+        ValueError: If records_by_model is empty.
+    """
+    if not records_by_model:
+        raise ValueError("No records provided for pooled co-occurrence matrix")
+
+    # Build per-model consensus matrices
+    per_model_matrices: dict[str, CooccurrenceMatrix] = {}
+    for model_id, recs in records_by_model.items():
+        if recs:
+            per_model_matrices[model_id] = build_cooccurrence_matrix(recs)
+
+    if not per_model_matrices:
+        raise ValueError(
+            "No models with valid records for pooled co-occurrence matrix"
+        )
+
+    # Union item set across all models (sorted for determinism)
+    all_items: set[str] = set()
+    for mat in per_model_matrices.values():
+        all_items.update(mat.items)
+    items = sorted(all_items)
+    n_items = len(items)
+
+    M = len(per_model_matrices)
+
+    # Accumulate each model's contribution using the full union item set.
+    # Items absent from a model get 0.0 — they do not contribute to the
+    # numerator but they ARE counted in the denominator (always M).
+    pooled = [[0.0] * n_items for _ in range(n_items)]
+
+    for mat in per_model_matrices.values():
+        # Build a fast index from mat.items to its matrix row/col positions
+        local_idx = {item: i for i, item in enumerate(mat.items)}
+
+        for i_global, item_i in enumerate(items):
+            for j_global, item_j in enumerate(items):
+                i_local = local_idx.get(item_i)
+                j_local = local_idx.get(item_j)
+
+                if i_local is not None and j_local is not None:
+                    pooled[i_global][j_global] += mat.matrix[i_local][j_local]
+                # else: item absent from this model → contributes 0.0;
+                # no addition needed since pooled is already initialised to 0.0
+
+    # Divide by M to get the mean (denominator always M per M1)
+    for i in range(n_items):
+        for j in range(n_items):
+            pooled[i][j] /= M
+
+    # Construct a synthetic ModelRef to represent the pooled matrix
+    # Pull domain_slug from the first model's records
+    first_recs = next(iter(records_by_model.values()))
+    domain_slug = first_recs[0].domain_slug
+
+    pooled_model_ref = ModelRef(
+        provider="anthropic",
+        model_id="pooled",
+        family="pooled",
+        origin="us",
+        open_weights=False,
+        collection_method="anthropic_api",
+        quantization=None,
+        release_date=datetime.now(UTC).date(),
+        version_label="pooled",
+    )
+
+    return CooccurrenceMatrix(
+        domain_slug=domain_slug,
+        model=pooled_model_ref,
+        items=items,
+        matrix=pooled,
     )

@@ -26,16 +26,19 @@ from cdb_core import (
 )
 
 from cdb_analyze.bootstrap import bootstrap_mds_ellipses
-from cdb_analyze.cluster import cluster_models
+from cdb_analyze.cluster import cluster_models, cluster_terms
 from cdb_analyze.consensus import (
     classify_consensus,
     compute_centrality_scores,
     compute_consensus_free_list,
     compute_romney_eigenratio,
 )
-from cdb_analyze.cooccurrence import build_cooccurrence_matrix
+from cdb_analyze.cooccurrence import (
+    build_cooccurrence_matrix,
+    build_pooled_cooccurrence_matrix,
+)
 from cdb_analyze.gates import G1SplitResult, g1_stability_split
-from cdb_analyze.mds import compute_cross_model_similarity
+from cdb_analyze.mds import compute_cross_model_similarity, run_item_mds
 from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
 from cdb_analyze.sensitivity import (
     compute_between_model_salience_variance,
@@ -363,10 +366,86 @@ def run_pipeline(
 
     # 2. Co-occurrence matrices per model
     matrices: list[CooccurrenceMatrix] = []
+    model_matrices: dict[str, CooccurrenceMatrix] = {}
     for mid in model_ids:
         mat = build_cooccurrence_matrix(records_by_model[mid])
         matrices.append(mat)
+        model_matrices[mid] = mat
     logger.info("Built %d co-occurrence matrices", len(matrices))
+
+    # 2b. Pooled cross-model term co-occurrence matrix (Phase 9a T1).
+    # Equal-weight-per-model per CDA SME M1: compute each model's consensus
+    # matrix, then average with denominator always = M.
+    pooled_matrix = build_pooled_cooccurrence_matrix(records_by_model)
+    logger.info(
+        "Built pooled co-occurrence matrix: %d items", len(pooled_matrix.items),
+    )
+
+    # 2c. Pooled term MDS (Phase 9a T2).
+    # run_item_mds() already exists; wire the pooled matrix into it.
+    # Returns dict[item_name → (x, y)].
+    if len(pooled_matrix.items) >= 3:
+        pooled_item_coords = run_item_mds(pooled_matrix)
+        term_mds_items = pooled_matrix.items
+        # Serialise as dict[str, list[float]] per schema (list, not tuple)
+        term_mds_coordinates: dict[str, list[float]] = {
+            item: [float(x), float(y)]
+            for item, (x, y) in pooled_item_coords.items()
+        }
+        logger.info("Computed pooled term MDS for %d items", len(term_mds_items))
+    else:
+        term_mds_coordinates = {}
+        term_mds_items = pooled_matrix.items
+        logger.info(
+            "Pooled term MDS skipped (< 3 items: %d)", len(pooled_matrix.items),
+        )
+
+    # 2d. Per-model term MDS (Phase 9a T2 — populates mds_within_model).
+    # Store as list[dict] where each dict is {"item": str, "x": float, "y": float}.
+    # WithinModelResult.mds_within_model currently holds list[list[float]];
+    # per the task spec it is populated with list[dict] here.
+    # Implementation note: WithinModelResult is a Pydantic model with
+    # mds_within_model: list = []; we populate it post-construction via
+    # model_copy(update=...) to respect immutability.
+    per_model_mds: dict[str, list[dict]] = {}
+    for mid in model_ids:
+        mat = model_matrices[mid]
+        if len(mat.items) >= 3:
+            item_coords = run_item_mds(mat)
+            per_model_mds[mid] = [
+                {"item": item, "x": float(x), "y": float(y)}
+                for item, (x, y) in item_coords.items()
+            ]
+        else:
+            per_model_mds[mid] = []
+    logger.info("Computed per-model term MDS for %d models", len(per_model_mds))
+
+    # 2e. Term-level AHC (Phase 9a T3).
+    # Average linkage (UPGMA), distance = 1 - co-occurrence, per CDA SME M2/M3.
+    if len(pooled_matrix.items) >= 2:
+        term_cluster_result = cluster_terms(pooled_matrix)
+        # Serialise linkage matrix as nested list (each row is one merge step)
+        term_cluster_linkage: list[list[float]] = [
+            [float(v) for v in row]
+            for row in term_cluster_result.linkage_matrix
+        ]
+        term_cluster_assignments: dict[str, int] = {
+            item: label
+            for item, label in zip(
+                term_cluster_result.items, term_cluster_result.labels, strict=True
+            )
+        }
+        logger.info(
+            "Computed term AHC: %d items, %d clusters",
+            len(term_cluster_result.items),
+            term_cluster_result.n_clusters,
+        )
+    else:
+        term_cluster_linkage = []
+        term_cluster_assignments = {}
+        logger.info(
+            "Term AHC skipped (< 2 items: %d)", len(pooled_matrix.items),
+        )
 
     # 3. Cross-model similarity + MDS + bootstrap
     if len(model_ids) >= 2:
@@ -597,6 +676,17 @@ def run_pipeline(
         mid: ellipses[mid] for mid in model_ids
     }
 
+    # Populate mds_within_model on each WithinModelResult.
+    # Per F3 (CDA SME verdict): per-model item MDS is Register 1 output.
+    # WithinModelResult is a Pydantic model so we rebuild the list with
+    # updated objects via model_copy(update=...).
+    within_model_results_final = []
+    for wm in within_model_results:
+        mds_data = per_model_mds.get(wm.model_id, [])
+        if mds_data:
+            wm = wm.model_copy(update={"mds_within_model": mds_data})
+        within_model_results_final.append(wm)
+
     return DomainResult(
         domain_slug=domain_slug,
         analysis_version=analysis_version,
@@ -614,7 +704,7 @@ def run_pipeline(
         romney_small_n_warning=romney_small_n_warning,
         sutrop_csi=sutrop_by_model,
         salience_index_agreement=salience_agreement,
-        within_model_results=within_model_results,
+        within_model_results=within_model_results_final,
         g1_salience_stability=g1_salience_stability,
         g1_spatial_stability=g1_spatial_stability,
         g1_aggregate_stability=g1_aggregate_stability,
@@ -630,6 +720,10 @@ def run_pipeline(
         negative_centrality_models=negative_centrality_models,
         consensus_type=consensus_type,
         centroid_piles=centroid_piles,
+        term_mds_coordinates=term_mds_coordinates,
+        term_mds_items=term_mds_items,
+        term_cluster_linkage=term_cluster_linkage,
+        term_cluster_assignments=term_cluster_assignments,
     )
 
 

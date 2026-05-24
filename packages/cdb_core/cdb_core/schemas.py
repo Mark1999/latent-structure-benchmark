@@ -343,8 +343,15 @@ class WithinModelResult(BaseModel):
     centrality_scores_by_run: dict[str, float] = {}
     centroid_run_id: str | None = None   # informant_id of highest-centrality run
 
-    # Within-model MDS (Option B display assets)
-    mds_within_model: list[list[float]] = []  # (n_items, 2) item coordinates
+    # Within-model MDS (Option B display assets) — Register 1 output.
+    # Phase 9a T2 (2026-05-24): populated by pipeline.py as list[dict] where
+    # each dict is {"item": str, "x": float, "y": float}.
+    # The `Any` element type preserves backward compatibility with pre-Phase-9a
+    # records that may carry list[list[float]] from earlier pipeline versions.
+    # See docs/DATA_DICTIONARY.md §2.1 (mds_within_model field semantics) and
+    # CDA SME F3 (2026-05-24-phase9a-cda-sme-verdict.md): per-model item MDS
+    # is Register 1; the underestimates_uncertainty=True annotation applies.
+    mds_within_model: list[Any] = []  # list[{"item": str, "x": float, "y": float}]
 
 
 # ──────────────────────────────────────────────────────────────────────
@@ -442,6 +449,31 @@ class DomainResult(BaseModel):
     # Empty dict when the pipeline has not yet populated centroid pile data.
     # See CentroidPileData docstring and docs/DATA_DICTIONARY.md §2.3.
     centroid_piles: dict[str, CentroidPileData] = {}
+
+    # Term-level MDS (Phase 9a T1/T2).
+    # term_mds_coordinates: pooled cross-model term MDS, one (x, y) per term.
+    # term_mds_items: ordered item list (deterministic sort) used as the term
+    #   index for the pooled MDS — consumers should treat this as the canonical
+    #   item ordering for all term-level analyses in this DomainResult.
+    # Populated by pipeline.py after the pooled co-occurrence matrix is built
+    # via build_pooled_cooccurrence_matrix(). Empty dicts/lists on analysis
+    # versions that predate Phase 9a. See docs/DATA_DICTIONARY.md §2.4.
+    term_mds_coordinates: dict[str, list[float]] = {}   # item_name → [x, y]
+    term_mds_items: list[str] = []                       # ordered item list
+
+    # Term-level AHC (Phase 9a T3).
+    # term_cluster_linkage: scipy linkage matrix as nested list; shape (n-1, 4).
+    #   Columns: [child_idx_1, child_idx_2, merge_distance, cluster_size].
+    #   Average-linkage (UPGMA) per CDA SME M2 (2026-05-24-phase9a-cda-sme-verdict.md).
+    #   Row order matches scipy.cluster.hierarchy.linkage() output.
+    # term_cluster_assignments: item_name → integer cluster ID at the default cut.
+    # term_cluster_labels: one human-readable label per cluster (derived from
+    #   model pile labels via the T5 label aggregation pass — left empty by
+    #   pipeline.py; populated by the publish layer or T5 task).
+    # See docs/DATA_DICTIONARY.md §2.5.
+    term_cluster_linkage: list[list[float]] = []         # (n-1, 4) scipy linkage
+    term_cluster_assignments: dict[str, int] = {}        # item_name → cluster_id
+    term_cluster_labels: list[str] = []                  # one label per cluster
 
     # Output
     generated_lede: str

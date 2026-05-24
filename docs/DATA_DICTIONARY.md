@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.17 (aligned with `ARCHITECTURE.md` v0.7.4; see changelog for history)  
+**Version:** v0.1.19 (aligned with `ARCHITECTURE.md` v0.7.5; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.19** (2026-05-24) — Phase 9a T1/T2/T3: Added `build_pooled_cooccurrence_matrix()` to `cdb_analyze/cooccurrence.py` (§2.4 new). Added `cluster_terms()` to `cdb_analyze/cluster.py`. Added six new optional fields to `DomainResult` in `cdb_core/schemas.py` (§2 table updated): `term_mds_coordinates`, `term_mds_items`, `term_cluster_linkage`, `term_cluster_assignments`, `term_cluster_labels`. All additions are optional with empty-dict/list defaults — no breaking changes. Pooling strategy per CDA SME M1: equal-weight-per-model (mean of per-model consensus matrices), denominator always M, absence=0.0. AHC uses `method="average"` (UPGMA) per CDA SME M2; distance = `1 - cooccurrence` per CDA SME M3. `WithinModelResult.mds_within_model` now populated by pipeline with `list[dict]` of `{"item", "x", "y"}` entries (Register 1, per CDA SME F3). Architect sign-off: `docs/status/2026-05-24-phase9a-viz-gap-kickoff.md` T1/T2/T3 schema block. CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md` M1–M3, F3).
 - **v0.1.18** (2026-05-24) — Phase 9a T5-minimal: Added `CentroidPileData` Pydantic model to `cdb_core/schemas.py` (§2.3 new). Added `DomainResult.centroid_piles: dict[str, CentroidPileData] = {}` field (§2 table updated). Both additions are optional with empty-dict defaults — no breaking changes. `centroid_piles` is populated by `cdb_analyze/pipeline.py` `_build_centroid_piles()` using each model's centroid run (identified by `WithinModelResult.centroid_run_id`). Per-term pile stability computed per CDA SME ruling F5 (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`): set equality of co-occurring items, not pile index. Architect sign-off: `docs/status/2026-05-24-phase9a-viz-gap-kickoff.md` T9 schema block. CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md` F5).
 - **v0.1.17** (2026-05-19) — Phase 8 T6: Added §14 documenting the open bundle tarball layout, MANIFEST.txt format, and `scripts/build_open_bundle.py` builder usage. Added §0 cross-link to §14. No schema changes. Architect plan: Phase 8 T6. CDA SME verdict: `docs/status/2026-05-19-phase8-T6.2-cda-sme-verdict.md` (PASS-WITH-NOTES; N1–N7 applied to `data/open_bundle/README.md`).
 - **v0.1.16** (2026-05-17) — Phase 7 T7 docs sweep: §13.5 updated to add `emailed_dedupe_keys.json` state file (introduced in T6a but not previously documented). The `framing_checks` field is confirmed to carry four canonical keys (`hypothesis_framing`, `cognition_attribution`, `bare_numeric_without_ci`, `register_boundary`) as defined in T3 CDA SME §5.11 and implemented in `cdb_social/drafters/base.py`. Note added to §13.3 queue-acceptance contract. No schema changes. See `ARCHITECTURE.md` v0.7.4 changelog.
@@ -258,6 +259,11 @@ The `provider_request_id` is a *separate* audit path: it lets a researcher (or L
 | **`groundings`** | **`list[GroundingRef]`** | **Yes** | **Zero or more human baselines for this domain. Empty list = ungrounded domain (a normal first-class state).** See §3 for the `GroundingRef` schema. |
 | **`selected_baseline_id`** | **`str \| None`** | **Yes (may be `None`)** | **Which baseline the dashboard displays by default.** `None` when `groundings` is empty. The user can toggle to any baseline in the list via the dashboard UI. |
 | `centroid_piles` | `dict[str, CentroidPileData]` | No (default `{}`) | Per-model centroid pile structure for the PileComparison view. Keyed by `model_id`. Each entry holds the centroid run's pile groupings and labels, plus per-term pile-stability scores for R10 compliance. Empty when the pipeline has not yet populated this field. See §2.3 for the `CentroidPileData` sub-schema. Populated by `cdb_analyze/pipeline.py` `_build_centroid_piles()` using each model's centroid run identified by `WithinModelResult.centroid_run_id`. |
+| `term_mds_coordinates` | `dict[str, list[float]]` | No (default `{}`) | Pooled cross-model term MDS coordinates. Maps each item name to `[x, y]`. Register 2 output — uncertainty reflects between-model structural variance, not within-model run variance (per CDA SME F3). See §2.4 for the pooling algorithm. Empty when the domain has fewer than 3 items. |
+| `term_mds_items` | `list[str]` | No (default `[]`) | Canonical ordered item list for the pooled term MDS. Sorted deterministically (lexicographic). Consumers should use this list as the canonical item index for all term-level analyses in this `DomainResult`. |
+| `term_cluster_linkage` | `list[list[float]]` | No (default `[]`) | Scipy linkage matrix for the term-level AHC, serialized as nested list of shape (n_items−1) × 4. Column semantics (scipy linkage format): `[child_idx_1, child_idx_2, merge_distance, cluster_size]`. Indices 0 .. n_items−1 are original items (ordered per `term_mds_items`); indices n_items .. 2n_items−2 are synthesized cluster nodes. Average-linkage (UPGMA) per CDA SME M2. Reconstruct dendrogram with `scipy.cluster.hierarchy.dendrogram(Z)` where `Z = np.array(term_cluster_linkage)`. |
+| `term_cluster_assignments` | `dict[str, int]` | No (default `{}`) | Per-item cluster assignment at the default cut level (biggest-gap heuristic). Maps item name → integer cluster ID (1-indexed, from scipy `fcluster()`). Empty when the domain has fewer than 2 items. |
+| `term_cluster_labels` | `list[str]` | No (default `[]`) | One human-readable label per cluster (indices match cluster IDs in `term_cluster_assignments` after converting to 0-based). Populated by the T5 publish-layer label aggregation pass, not by `pipeline.py`. Empty in all results produced directly by the analysis pipeline without a separate label aggregation step. |
 | `generated_lede` | `str` | Yes | The pre-written one-sentence lede for this domain at this analysis version. Generated by the lede generator (`ARCHITECTURE.md` §4.2.3). |
 | `generated_at` | `datetime` (ISO 8601, UTC) | Yes | When this `DomainResult` was generated. |
 
@@ -280,7 +286,7 @@ One entry per model in `within_model_results`. Captures the model's **Output Con
 | `mds_procrustes_rmse` | `float \| None` | No | Within-model MDS Procrustes RMSE across runs. |
 | `centrality_scores_by_run` | `dict[str, float]` | No (default `{}`) | Per-run centrality loadings; used to pick the centroid run for the dashboard's Option B display. |
 | `centroid_run_id` | `str \| None` | No | `informant_id` of the run with the highest centrality score. The dashboard model-profile page renders this run's free list as the concrete Option B representation. |
-| `mds_within_model` | `list[list[float]]` | No (default `[]`) | Per-item (n_items × 2) coordinates in the within-model MDS — Register 1's "this model's map of the domain." |
+| `mds_within_model` | `list[dict]` | No (default `[]`) | Per-model term MDS — Register 1 output (per CDA SME F3, 2026-05-24-phase9a-cda-sme-verdict.md). Each entry is `{"item": str, "x": float, "y": float}`. Populated by `pipeline.py` using `run_item_mds()` on the per-model co-occurrence matrix. The `underestimates_uncertainty` annotation applies: per-model item positions reflect single-model output distribution only. Empty for models with fewer than 3 terms. |
 
 ### 2.2 Measure result types (added post-F1 SME review)
 
@@ -315,6 +321,32 @@ Reference shapes for the measure entries embedded in `DomainResult`:
 - If the centroid run ID is not found in the records list (e.g., the record was excluded by QA filtering), the model is omitted from `centroid_piles` entirely.
 
 **Dashboard use:** The PileComparison component (T9) uses `piles` and `labels` to render per-model pile structure side by side. `term_stability` drives the visual uncertainty indicator (opacity or asterisk) per the T9 acceptance criteria. Low-stability terms (e.g., below 0.5) are flagged as less structurally reliable, providing R10-compliant uncertainty display for a categorical (non-numeric) finding.
+
+### 2.4 Pooled cross-model term co-occurrence matrix (Phase 9a T1)
+
+The pooled matrix is an equal-weight-per-model average of all models' individual consensus co-occurrence matrices. It drives `term_mds_coordinates` and `term_cluster_linkage`.
+
+**Algorithm (CDA SME M1, binding):**
+
+1. For each model with at least one valid run, build a per-model consensus co-occurrence matrix using `build_cooccurrence_matrix()` from `cdb_analyze/cooccurrence.py`.
+2. Collect the union of all items across all models' pile sorts. Sort lexicographically for determinism.
+3. For items absent from a given model's vocabulary: their cells in that model's matrix are treated as 0.0 (evidence of absence, not missing data).
+4. Pooled value: `pooled[i][j] = (1/M) × sum_over_models(model_cooccurrence[i][j])` where M = number of models with at least one valid run. **The denominator is always M**, not the number of models that produced both items. This is the conservative choice: a model that never mentioned an item contributes to the denominator.
+
+**Register semantics:** The pooled matrix and its derived products (`term_mds_coordinates`, `term_cluster_linkage`, `term_cluster_assignments`) are Register 2 outputs. The underlying uncertainty question is: "how much does the position of this term depend on which models are in the pool?" — which is a between-model structural variance question. Per-model item MDS (`WithinModelResult.mds_within_model`) is Register 1.
+
+### 2.5 Term-level AHC (Phase 9a T3)
+
+`term_cluster_linkage` and `term_cluster_assignments` capture the agglomerative hierarchical clustering of domain terms using the pooled co-occurrence matrix as input.
+
+**Algorithm (CDA SME M2/M3, binding):**
+
+1. **Distance metric (M3):** `dissimilarity[i][j] = 1.0 − pooled_cooccurrence[i][j]`. Diagonal = 0.0. This is the same distance space as `run_item_mds()`, ensuring AHC cluster boundaries correspond to MDS spatial neighbourhoods.
+2. **Linkage method (M2):** Average linkage (UPGMA). `scipy.cluster.hierarchy.linkage(condensed, method="average")`. Not Ward — Ward's equal-cluster-size assumption does not hold for CDA pile-sort data, which routinely produces large "miscellaneous" clusters. See docstring in `cdb_analyze/cluster.py :: cluster_terms()`.
+3. **Citation:** Borgatti (1994) "Cultural domain analysis" and Spencer et al. (2016) both use average linkage for CDA pile-sort term clustering.
+4. **Cut level:** The biggest-gap heuristic (same as `cluster_models()`): find the index with the largest jump in merge distances in `Z[:, 2]`, set the cut threshold between that merge and the next.
+
+**Reproducibility:** Given the same `informants.jsonl`, `build_pooled_cooccurrence_matrix()` and `cluster_terms()` are fully deterministic (no random state). Researchers with the open data bundle can reproduce `term_cluster_linkage` exactly by running `scripts/run_analysis.py` (or re-running `pipeline.py` directly).
 
 ---
 
