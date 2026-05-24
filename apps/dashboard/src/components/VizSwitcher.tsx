@@ -8,6 +8,7 @@
  * Phase 6 T7: Free Lists tab is now active. #freelist is a valid URL fragment.
  * Phase 6 T5: Similarity tab is now active. #similarity is a valid URL fragment.
  * Drift remains disabled (Phase-6-T4 territory).
+ * Phase 9a T10: Centrality tab is now active. #centrality is a valid URL fragment.
  *
  * Accessibility — DESIGN_SYSTEM.md §12.3 binding (overrides T8 plan spec):
  *   - Container: role="tablist" with aria-label="Visualization view".
@@ -22,17 +23,18 @@
  *   - Keyboard: ArrowLeft / ArrowRight between tabs, Enter / Space to activate.
  *
  * URL state: clicking MDS Plot pushes #mds fragment; clicking Free Lists
- * pushes #freelist; clicking Similarity pushes #similarity. Drift does not
- * update the URL (disabled).
+ * pushes #freelist; clicking Similarity pushes #similarity; clicking Centrality
+ * pushes #centrality. Drift does not update the URL (disabled).
  *
  * Reference: docs/status/2026-05-12-phase6-T7-architect-plan.md §2.1
  *            docs/status/2026-05-12-phase6-T5-architect-plan.md §2
+ *            docs/status/2026-05-24-phase9a-viz-gap-kickoff.md T10
  */
 
 import { type KeyboardEvent } from "react";
 
-/** Active tab values — widened from "mds" | "freelist" to include "similarity" at Phase 6 T5. */
-export type ActiveVizTab = "mds" | "freelist" | "similarity";
+/** Active tab values — widened to include "centrality" at Phase 9a T10. */
+export type ActiveVizTab = "mds" | "freelist" | "similarity" | "centrality";
 
 export interface VizSwitcherProps {
   activeTab: ActiveVizTab;
@@ -41,7 +43,12 @@ export interface VizSwitcherProps {
 
 /** Type guard for activatable tab ids. */
 function isActivatableTab(id: string): id is ActiveVizTab {
-  return id === "mds" || id === "freelist" || id === "similarity";
+  return (
+    id === "mds" ||
+    id === "freelist" ||
+    id === "similarity" ||
+    id === "centrality"
+  );
 }
 
 /** Tab definition (internal). */
@@ -53,10 +60,11 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: "mds",        label: "MDS Plot",    active: true,  disabled: false },
-  { id: "freelist",   label: "Free Lists",  active: false, disabled: false },
-  { id: "similarity", label: "Similarity",  active: false, disabled: false },
-  { id: "drift",      label: "Drift",       active: false, disabled: true  },
+  { id: "mds",         label: "MDS Plot",    active: true,  disabled: false },
+  { id: "freelist",    label: "Free Lists",  active: false, disabled: false },
+  { id: "similarity",  label: "Similarity",  active: false, disabled: false },
+  { id: "centrality",  label: "Centrality",  active: false, disabled: false },
+  { id: "drift",       label: "Drift",       active: false, disabled: true  },
 ];
 
 /** Fragments that are still disabled (Phase-6-T4 territory). */
@@ -82,6 +90,9 @@ export function resolveFragmentOnMount(): ActiveVizTab {
     }
     if (raw === "similarity") {
       return "similarity";
+    }
+    if (raw === "centrality") {
+      return "centrality";
     }
     if (DISABLED_FRAGMENTS.has(raw)) {
       console.warn(

@@ -16,8 +16,8 @@
 export interface PermalinkState {
   domain: string;
   models: string[];
-  /** Phase 5: "mds". Phase 6 T7: widened to include "freelist". Phase 6 T5: widened to include "similarity". */
-  vizTab: "mds" | "freelist" | "similarity";
+  /** Phase 5: "mds". Phase 6 T7: "freelist". Phase 6 T5: "similarity". Phase 9a T10: "centrality". */
+  vizTab: "mds" | "freelist" | "similarity" | "centrality";
 }
 
 /**
@@ -54,9 +54,9 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     const searchPart = hashIndex >= 0 ? searchAndHash.slice(0, hashIndex) : searchAndHash;
     const hashPart = hashIndex >= 0 ? searchAndHash.slice(hashIndex + 1) : "";
 
-    // Validate viz tab — "mds", "freelist", and "similarity" are valid (Phase 5 + Phase 6 T7 + Phase 6 T5).
+    // Validate viz tab — "mds", "freelist", "similarity", and "centrality" are valid.
     const vizTab = hashPart.toLowerCase();
-    if (vizTab !== "mds" && vizTab !== "freelist" && vizTab !== "similarity" && vizTab !== "") return null;
+    if (vizTab !== "mds" && vizTab !== "freelist" && vizTab !== "similarity" && vizTab !== "centrality" && vizTab !== "") return null;
 
     const params = new URLSearchParams(searchPart);
     const domain = params.get("domain");
@@ -76,11 +76,12 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     const resolvedTab =
       vizTab === "freelist" ? "freelist"
       : vizTab === "similarity" ? "similarity"
+      : vizTab === "centrality" ? "centrality"
       : "mds";
     return {
       domain,
       models,
-      vizTab: resolvedTab as "mds" | "freelist" | "similarity",
+      vizTab: resolvedTab as "mds" | "freelist" | "similarity" | "centrality",
     };
   } catch {
     return null;

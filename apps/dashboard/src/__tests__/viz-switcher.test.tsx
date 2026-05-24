@@ -60,21 +60,22 @@ function getTabs(): NodeListOf<HTMLButtonElement> {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("VizSwitcher — tab count", () => {
-  it("renders exactly 4 tabs", () => {
+  it("renders exactly 5 tabs (Phase 9a T10 — Centrality added)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
-    expect(tabs.length).toBe(4);
+    expect(tabs.length).toBe(5);
   });
 });
 
 describe("VizSwitcher — tab labels", () => {
-  it("renders MDS Plot, Free Lists, Similarity, and Drift tabs", () => {
+  it("renders MDS Plot, Free Lists, Similarity, Centrality, and Drift tabs", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
     const labels = Array.from(tabs).map((t) => t.textContent?.trim());
     expect(labels).toContain("MDS Plot");
     expect(labels).toContain("Free Lists");
     expect(labels).toContain("Similarity");
+    expect(labels).toContain("Centrality");
     expect(labels).toContain("Drift");
   });
 });
@@ -404,12 +405,12 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("mds");
   });
 
-  // Phase 6 T5: tabs[2] is now Similarity (active). Use Drift (tabs[3]) for disabled test.
+  // Phase 9a T10: tabs[3] is now Centrality (active). Use Drift (tabs[4]) for disabled test.
   it("Enter on disabled tab (Drift) does NOT call onTabChange", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const driftTab = tabs[3];
+    const driftTab = tabs[4];
 
     act(() => {
       driftTab.focus();
@@ -454,12 +455,12 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("freelist");
   });
 
-  // Phase 6 T5: tabs[2] is now Similarity (active). Use Drift (tabs[3]) for disabled Space test.
+  // Phase 9a T10: tabs[3] is now Centrality (active). Use Drift (tabs[4]) for disabled Space test.
   it("Space on disabled tab (Drift) does NOT call onTabChange", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const driftTab = tabs[3];
+    const driftTab = tabs[4];
 
     act(() => {
       driftTab.focus();

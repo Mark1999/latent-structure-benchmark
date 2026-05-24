@@ -206,10 +206,10 @@ describe("DataExplorer — all sub-components render (AC 1)", () => {
     expect(container.querySelector(".mds-plot__legend")).not.toBeNull();
   });
 
-  it("VizSwitcher renders all 4 tabs", () => {
+  it("VizSwitcher renders all 5 tabs (Phase 9a T10 — Centrality added)", () => {
     renderExplorer({ domainResult: familyFixture });
     const tabs = container.querySelectorAll(".viz-switcher__tab");
-    expect(tabs).toHaveLength(4);
+    expect(tabs).toHaveLength(5);
   });
 
   it("ModelSelector renders checkbox rows for all 11 family models", () => {

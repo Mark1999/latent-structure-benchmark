@@ -105,6 +105,11 @@
   --color-ellipse-fill:    rgba(51, 96, 169, 0.08);   /* per-model: use model color at 8% opacity */
   --color-ellipse-stroke:  rgba(51, 96, 169, 0.25);   /* per-model: use model color at 25% opacity */
 
+  /* Tooltip — dark inverted variant (Phase 9a T10) */
+  --color-tooltip-dark-bg:      var(--color-text-primary);  /* reuses body-text color as bg */
+  --color-tooltip-dark-text:    var(--color-background);    /* white text on dark bg */
+  --color-tooltip-dark-divider: rgba(255, 255, 255, 0.15);  /* section divider */
+
   /* UI chrome */
   --color-text-primary:    #2c3e50;   /* body text */
   --color-text-secondary:  #7f8c8d;   /* secondary labels at 14px+ or bold — ~3.40:1; use --color-text-caption for 12px regular */

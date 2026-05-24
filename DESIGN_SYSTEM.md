@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.4.10  
+**Version:** v0.5.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.5.0** (Phase 9a T10, 2026-05-24) adds `CentralityChart.tsx`, `CentralityTable.tsx`, and `centrality-chart.css` to §11 Component Inventory. Introduces dark inverted tooltip token set (`--color-tooltip-dark-bg`, `--color-tooltip-dark-text`, `--color-tooltip-dark-divider`) in §1.2 for dense multi-line data tooltips. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T10-ui-ux-verdict.md`).
 - **v0.4.10** (T14 documentation sweep, 2026-05-16) extends §11 Component Inventory with ten Phase 6 components shipped in T0/T7/T8/T9/T10 that were not yet listed: `FailuresFindingsSection.tsx` (T10), `FailuresInspectView.tsx` (T0+T10), `FreeListColumn.tsx` (T7), `FreeListTable.tsx` (T8), `InspectRoot.tsx` (T0), `InspectSection.tsx` (T0), `InspectTable.tsx` (T0), `MdsTable.tsx` (T8), `ReadAsTableToggle.tsx` (T8), `SimilarityTable.tsx` (T8). `ScreenReaderSummary.tsx` already listed; not re-added (M1). `AccessibilityTableToggle.tsx` pending entry annotated as renamed to `ReadAsTableToggle.tsx` per T8 UI/UX verdict. Verification pass (AC7): all Phase 6 tokens confirmed present in §1.2 and `tokens.css` — no tokens missing. Verification pass (AC8): §2.3 domain nav confirmed `[Family] [Holidays] [Food] [Emotion *] [Justice *]`, no edit required. Internal-consistency verification: §12.8 vs. v0.4.9 CONSISTENT; §12.9 vs. v0.4.6 CONSISTENT; §8.1 vs. v0.4.7 CONSISTENT; §8.2 vs. v0.4.8 CONSISTENT. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-uiux-plan-verdict.md`). No new tokens. No new visual decisions.
 - **v0.4.9** (T6 plan-level UI/UX verdict, 2026-05-15) introduces the §1.2 sequential color scale token set (`--color-scale-seq-0` through `--color-scale-seq-4`) as a perceptually-graded OWID-style single-hue blue ramp (light gray-blue → deep navy). Mark's Posture B choice: replaces the T5 alpha-blend formula `rgba(44, 62, 80, similarity)` with a 5-stop discrete-binning model. SimilarityHeatmap.tsx is reworked: `cellBackground()` now maps similarity to one of five named hex stops via bin boundaries [0, 0.20, 0.40, 0.60, 0.80, 1.00]; `HEATMAP_TEXT_SWITCH_THRESHOLD` changes from 0.73 to 0.60 (dark text on stops 0–2, white text on stops 3–4, both arms ≥4.5:1 WCAG AA). §12.8 rewritten for the new palette with full WCAG AA contrast table. CI-crosses-null dashed-border treatment retained verbatim from T5 (T14 follow-up per CDA SME T5 §5.4). Stops 0–2 do not pass WCAG 3:1 standalone-swatch contrast on white; documented as compositional-only (used only as heatmap cell fills with adjacent cell borders and similarity text, not as standalone swatches). Token `--color-heatmap-cell-text-dark: #000000` retained (pure black required; `--color-text-primary` fails at stop 2 at 3.31:1). No diverging scale added. See `docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md`.
 - **v0.4.8** (T12 plan-level UI/UX verdict, 2026-05-15) extends §8 with §8.2 (Mobile bottom-drawer for ModelSelector — full specification). Adds `MobileModelSelectorDrawer.tsx`, `apps/dashboard/src/copy/mobile_model_drawer.ts`, and `apps/dashboard/src/styles/mobile-model-drawer.css` to §11 component inventory. Codifies: ARIA dialog pattern with focus trap (mirroring §8.1.1); half-sheet panel from bottom (max-height: 75vh, position: fixed bottom edge); semi-opaque backdrop scrim above panel; close button inside panel receives initial focus; live-update selection semantics (no Apply button); Esc + scrim-tap + close-button dismissal; scroll lock on open (body overflow hidden — key divergence from §8.1); inline DOM mount inside DataExplorer.tsx (position: fixed escapes stacking context); z-index: 200 (matching §8.1.14 hamburger, both surfaces cannot co-render at <768px); slide-up transition 200ms ease-out, gated by prefers-reduced-motion (instant when reduced-motion set); trigger button styling 48×48 px touch target, full-width at <768px; min-height: 44px on .model-selector__row inside drawer; stacked-below app.css rule superseded; confirmed a11y strings verbatim; no visible heading inside drawer (aria-label on dialog panel only); no Apply button (live update); no swipe gesture; no drag handle. No new tokens.
@@ -101,6 +102,14 @@ All visual decisions derive from these tokens. They are defined once in `apps/da
 /* Uncertainty */
 --color-ellipse-fill:    rgba(51, 96, 169, 0.08);   /* per-model, use model color at 8% opacity */
 --color-ellipse-stroke:  rgba(51, 96, 169, 0.25);   /* per-model, use model color at 25% opacity */
+
+/* Tooltip — dark inverted variant (Phase 9a T10, 2026-05-24) */
+/* Used by CentralityChart for dense multi-line tooltips where a light     */
+/* background would compete with the chart. White text on dark background  */
+/* exceeds WCAG AA 7:1. Divider separates tooltip sections.               */
+--color-tooltip-dark-bg:      var(--color-text-primary);  /* reuses body-text color as background */
+--color-tooltip-dark-text:    var(--color-background);    /* white text on dark bg */
+--color-tooltip-dark-divider: rgba(255, 255, 255, 0.15);  /* subtle section divider */
 
 /* UI chrome */
 --color-text-primary:    #2c3e50;   /* body text */
@@ -1504,6 +1513,11 @@ All components to be built, in implementation order:
 - `apps/dashboard/src/copy/mobile_model_drawer.ts` — four a11y strings/functions (`MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED`, `MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN`, `MOBILE_MODEL_DRAWER_PANEL_LABEL`, `MOBILE_MODEL_DRAWER_TRIGGER_TEXT(n)`).
 - `apps/dashboard/src/styles/mobile-model-drawer.css` — token-only styles for trigger, scrim, drawer panel, close button, touch-target floor rules, and mandatory `prefers-reduced-motion` block.
 
+**Phase 9a (visualization gap closure):**
+- `CentralityChart.tsx` — ranked horizontal bar chart of cultural centrality scores with error bars (T10). File: `apps/dashboard/src/components/CentralityChart.tsx`. Uses dark inverted tooltip (`--color-tooltip-dark-bg/text/divider`). Spec: UI/UX verdict `docs/status/2026-05-24-phase9a-T10-ui-ux-verdict.md`.
+- `CentralityTable.tsx` — read-as-table rendering for `CentralityChart` (T10). File: `apps/dashboard/src/components/CentralityTable.tsx`. Columns: Rank, Model, model_id, Centrality score, 95% CI lower/upper, Bootstrap N, Notes.
+- `apps/dashboard/src/styles/centrality-chart.css` — token-only styles for CentralityChart. Uses `--color-tooltip-dark-bg`, `--color-tooltip-dark-text`, `--color-tooltip-dark-divider`.
+
 **Methodology page (Phase 6, Mark writes prose):**
 - `MethodologyPage.tsx` — long-form article template
 - `CitationBlock.tsx` — formatted academic citation component
@@ -1813,6 +1827,6 @@ A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 no
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.4.10. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.5.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

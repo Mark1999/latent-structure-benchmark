@@ -1,0 +1,163 @@
+/*
+ * centrality-chart.css — Token-only CSS for CentralityChart.
+ *
+ * Phase 9a T10. No hardcoded colors, font sizes, or spacing values.
+ * All custom properties from tokens.css.
+ *
+ * Reference:
+ *   docs/status/2026-05-24-phase9a-viz-gap-kickoff.md
+ *   docs/status/2026-05-24-phase9a-cda-sme-verdict.md §8 (M8)
+ *   DESIGN_SYSTEM.md v0.5.0
+ */
+
+/* ── Root container ──────────────────────────────────────────────────────────── */
+
+.centrality-chart {
+  width: 100%;
+}
+
+/* ── SVG container ───────────────────────────────────────────────────────────── */
+
+.centrality-chart__svg-container {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
+/* ── SVG element ─────────────────────────────────────────────────────────────── */
+
+.centrality-chart__svg {
+  display: block;
+  /* Mobile: responsive width with viewBox */
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .centrality-chart__svg {
+    width: 100%;
+    height: auto;
+  }
+}
+
+/* ── Bar labels (model names on y-axis) ──────────────────────────────────────── */
+
+.centrality-chart__model-label {
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  fill: var(--color-text-primary);
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+/* ── Negative centrality note ────────────────────────────────────────────────── */
+
+.centrality-chart__negative-note {
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  fill: var(--color-text-caption);
+  font-style: italic;
+  text-anchor: end;
+  dominant-baseline: middle;
+}
+
+/* Mobile: truncate model names at <480px */
+@media (max-width: 480px) {
+  .centrality-chart__model-label {
+    font-size: var(--font-size-xs);
+  }
+}
+
+/* ── Score labels (to the right of bars) ────────────────────────────────────── */
+
+.centrality-chart__score-label {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  fill: var(--color-text-caption);
+  dominant-baseline: middle;
+}
+
+/* Suppress score labels on very narrow viewports */
+@media (max-width: 480px) {
+  .centrality-chart__score-label {
+    display: none;
+  }
+}
+
+/* ── X-axis label ────────────────────────────────────────────────────────────── */
+
+.centrality-chart__axis-label {
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  fill: var(--color-text-secondary);
+  text-anchor: middle;
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────────── */
+
+.centrality-chart__tooltip {
+  position: absolute;
+  background: var(--color-tooltip-dark-bg);
+  color: var(--color-tooltip-dark-text);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-body);
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  max-width: 280px;
+  line-height: var(--line-height-body);
+}
+
+.centrality-chart__tooltip-name {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-1);
+}
+
+.centrality-chart__tooltip-id {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  margin-bottom: var(--space-2);
+}
+
+.centrality-chart__tooltip-score {
+  margin-bottom: var(--space-1);
+}
+
+.centrality-chart__tooltip-ci {
+  margin-bottom: var(--space-1);
+}
+
+.centrality-chart__tooltip-n {
+  margin-bottom: var(--space-1);
+}
+
+.centrality-chart__tooltip-explanation {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-body);
+  border-top: 1px solid var(--color-tooltip-dark-divider);
+  padding-top: var(--space-2);
+}
+
+/* ── Caption ─────────────────────────────────────────────────────────────────── */
+
+.centrality-chart__caption {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  margin: var(--space-3) 0 0 0;
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────────── */
+
+.centrality-chart__empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  padding: var(--space-4) 0;
+  margin: 0;
+}

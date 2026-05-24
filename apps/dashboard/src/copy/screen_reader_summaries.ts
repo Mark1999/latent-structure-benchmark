@@ -7,6 +7,8 @@
 //   docs/status/2026-05-12-phase6-T8-cda-sme-verdict.md
 // UI/UX PASS-WITH-NOTES (U1, U2 applied):
 //   docs/status/2026-05-12-phase6-T8-uiux-plan-verdict.md
+// Phase 9a T10 additions (centralityScreenReaderSummary, CENTRALITY_TABLE_CAPTION):
+//   docs/status/2026-05-24-phase9a-cda-sme-verdict.md §8 (M8)
 //
 // §1.5.4 forbidden vocabulary: all LSB-authored strings in this file have been
 // scanned and are clean. Field names (model_id, csi, etc.) are exempt.
@@ -233,6 +235,71 @@ export function freeListScreenReaderSummary(
   const s2 = `Term counts range from ${min_terms} to ${max_terms} across the selected models; ${n_shared} ${n_shared === 1 ? "term appears" : "terms appear"} in every selected model's list.`;
 
   return `${s1} ${s2}`;
+}
+
+// ── CentralityTable caption (Phase 9a T10) ───────────────────────────────────
+
+/**
+ * CentralityTable caption template — CDA SME Decision 8 (M8) approved concepts.
+ * Includes domain consensus type when available.
+ * Do NOT paraphrase or alter without CDA SME re-approval.
+ */
+export function CENTRALITY_TABLE_CAPTION(
+  domainSlug: string,
+  consensusPhrase: string | null
+): string {
+  if (consensusPhrase !== null) {
+    return `Cultural centrality scores for models on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. Domain consensus: ${consensusPhrase}.`;
+  }
+  return `Cultural centrality scores for models on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern.`;
+}
+
+// ── Centrality ScreenReaderSummary (Phase 9a T10) ───────────────────────────
+
+/**
+ * Centrality ScreenReaderSummary — Phase 9a T10.
+ * Deterministic (derived from data only). No forbidden vocabulary.
+ *
+ * Sentence 1: model count + chart description (always).
+ * Sentence 2: highest/lowest model by centrality (always when n >= 1).
+ * Sentence 3: CI note — either "bootstrap CIs shown" or "(bootstrap CIs not yet computed)" (always).
+ *
+ * Does NOT use generated_lede (CDA SME S11 binding).
+ */
+export function centralityScreenReaderSummary(
+  domainResult: DomainResultPublished,
+  sortedIds: string[],
+  centralityScores: Record<string, number>,
+  hasCiData: boolean
+): string {
+  const n = sortedIds.length;
+
+  if (n === 0) {
+    return "(Select one or more models to see cultural centrality summary.)";
+  }
+
+  // Sentence 1 — model count + chart description
+  const s1 = `This chart ranks ${n} ${n === 1 ? "model" : "models"} by cultural centrality score on the ${domainResult.domain_slug} domain; higher scores indicate closer alignment with the group's dominant categorical pattern.`;
+
+  // Sentence 2 — highest and lowest model
+  const highestId = sortedIds[0]!;
+  const lowestId = sortedIds[sortedIds.length - 1]!;
+  const highestScore = (centralityScores[highestId] ?? 0).toFixed(3);
+  const lowestScore = (centralityScores[lowestId] ?? 0).toFixed(3);
+
+  let s2: string;
+  if (n === 1) {
+    s2 = `The selected model has a centrality score of ${highestScore}.`;
+  } else {
+    s2 = `${highestId} has the highest centrality at ${highestScore}; ${lowestId} has the lowest at ${lowestScore}.`;
+  }
+
+  // Sentence 3 — CI availability note
+  const s3 = hasCiData
+    ? "Bootstrap confidence intervals are shown as error bars on each bar."
+    : "(Bootstrap CIs not yet computed — bars show point estimates only.)";
+
+  return [s1, s2, s3].join(" ");
 }
 
 /**

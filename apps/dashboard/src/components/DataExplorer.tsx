@@ -55,6 +55,7 @@ import { VizSwitcher, resolveFragmentOnMount } from "./VizSwitcher";
 import type { ActiveVizTab } from "./VizSwitcher";
 import { FreeListCompare } from "./FreeListCompare";
 import { SimilarityHeatmap } from "./SimilarityHeatmap";
+import { CentralityChart } from "./CentralityChart";
 import { SourceAttribution } from "./SourceAttribution";
 import { DownloadBar } from "./DownloadBar";
 import { CiteModal } from "./CiteModal";
@@ -298,6 +299,16 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
           {activeVizTab === "similarity" && (
             <SimilarityHeatmap
               domainResult={domainResult}
+              selectedModels={selectedModels}
+            />
+          )}
+          {/* CentralityChart: rendered when Centrality tab is active (Phase 9a T10).
+              Ranked horizontal bar chart of cultural centrality scores.
+              modelColors and selectedModels follow §12.4 palette ownership. */}
+          {activeVizTab === "centrality" && (
+            <CentralityChart
+              domainResult={domainResult}
+              modelColors={modelColors}
               selectedModels={selectedModels}
             />
           )}
