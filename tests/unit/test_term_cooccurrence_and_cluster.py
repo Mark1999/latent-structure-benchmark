@@ -600,11 +600,19 @@ class TestPipelineTermFields:
             assert isinstance(cluster_id, int)
             assert cluster_id >= 1  # scipy fcluster uses 1-based labels
 
-    def test_term_cluster_labels_empty_by_default(self):
-        """term_cluster_labels is empty — filled by T5 label aggregation, not pipeline."""
+    def test_term_cluster_labels_populated_by_pipeline(self):
+        """term_cluster_labels is populated by run_pipeline() via T5 label aggregation.
+
+        Phase 9a T5 wired aggregate_cluster_labels() into the pipeline.
+        The labels list length must equal the number of distinct cluster IDs.
+        """
         records = self._two_model_records()
         result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
-        assert result.term_cluster_labels == []
+
+        n_clusters = len(set(result.term_cluster_assignments.values()))
+        assert len(result.term_cluster_labels) == n_clusters
+        for label in result.term_cluster_labels:
+            assert isinstance(label, str)
 
     def test_mds_within_model_populated_f3(self):
         """CDA SME F3: WithinModelResult.mds_within_model is populated (Register 1).

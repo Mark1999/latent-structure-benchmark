@@ -55,6 +55,124 @@ from cdb_analyze.two_level import run_within_model_analysis
 logger = logging.getLogger(__name__)
 
 
+def aggregate_cluster_labels(
+    cluster_assignments: dict[str, int],
+    centroid_piles: dict[str, CentroidPileData],
+    *,
+    jaccard_threshold: float = 0.3,
+) -> list[str]:
+    """Derive human-readable labels for AHC clusters from per-model pile labels.
+
+    Implements CDA SME M6 (2026-05-24-phase9a-cda-sme-verdict.md):
+      1. For each AHC cluster C, collect the set of items assigned to it.
+      2. For each model's centroid pile data, find the pile with highest Jaccard
+         overlap with C's item set. Jaccard = |intersection| / |union|.
+         Only piles with Jaccard >= jaccard_threshold count as a match.
+      3. Collect the labels from all matching piles across models.
+      4. Select the modal label (most frequent, case-normalised to lowercase for
+         comparison). Ties broken by shortest original label; further ties broken
+         by lexicographic order for determinism.
+      5. If all collected labels are unique (every label appears exactly once),
+         use the shortest label among the set (same tie-break logic).
+      6. If no model's pile exceeds the Jaccard threshold for a given cluster,
+         label it "Uncategorized".
+
+    Args:
+        cluster_assignments: Mapping of item_name → cluster_id (1-indexed,
+            as returned by scipy fcluster).
+        centroid_piles: Mapping of model_id → CentroidPileData.  Only models
+            that have a centroid pile entry are considered.  An empty dict
+            produces "Uncategorized" for every cluster.
+        jaccard_threshold: Minimum Jaccard overlap required for a model's pile
+            to count as a match for a cluster.  Default 0.3 per CDA SME M6.
+
+    Returns:
+        List of one label per cluster, indexed by (cluster_id - 1), i.e.
+        result[0] is the label for cluster_id=1, result[1] for cluster_id=2,
+        etc.  Sorted by ascending cluster_id.
+
+    Notes:
+        - No LLM calls.  All label selection is string matching and counting.
+        - Cluster labels are a convenience gloss for the dashboard visitor, not
+          a finding.  Imperfect labels are expected and acceptable (CDA SME A2).
+    """
+    if not cluster_assignments:
+        return []
+
+    # Group items by cluster_id
+    cluster_to_items: dict[int, set[str]] = {}
+    for item, cid in cluster_assignments.items():
+        cluster_to_items.setdefault(cid, set()).add(item)
+
+    # Process clusters in ascending ID order
+    sorted_cluster_ids = sorted(cluster_to_items.keys())
+    labels: list[str] = []
+
+    for cid in sorted_cluster_ids:
+        cluster_item_set = cluster_to_items[cid]
+        # Collect matching pile labels from each model
+        candidate_labels: list[str] = []
+
+        for _model_id, cpd in centroid_piles.items():
+            best_jaccard = 0.0
+            best_label: str | None = None
+
+            for pile, pile_label in zip(cpd.piles, cpd.labels, strict=False):
+                pile_set = set(pile)
+                # Jaccard = |intersection| / |union|
+                intersection = len(cluster_item_set & pile_set)
+                union = len(cluster_item_set | pile_set)
+                if union == 0:
+                    continue
+                j = intersection / union
+                if j > best_jaccard:
+                    best_jaccard = j
+                    best_label = pile_label
+
+            if best_jaccard >= jaccard_threshold and best_label is not None:
+                candidate_labels.append(best_label)
+
+        if not candidate_labels:
+            labels.append("Uncategorized")
+            continue
+
+        # Count by case-normalised label; track original form per normalised key
+        # so the label we return is the original (not lowercased).
+        # When multiple original forms normalise to the same key, keep the
+        # shortest one (further ties: lexicographic).
+        freq: dict[str, int] = {}
+        # canonical_form[normalised] = shortest original label for that key
+        canonical_form: dict[str, str] = {}
+        for lbl in candidate_labels:
+            key = lbl.lower().strip()
+            freq[key] = freq.get(key, 0) + 1
+            existing = canonical_form.get(key)
+            if existing is None or len(lbl) < len(existing) or (
+                len(lbl) == len(existing) and lbl < existing
+            ):
+                canonical_form[key] = lbl
+
+        max_freq = max(freq.values())
+        if max_freq > 1:
+            # Modal label exists — collect all keys with max frequency
+            modal_keys = [k for k, v in freq.items() if v == max_freq]
+            # Break ties by shortest original label, then lexicographic
+            best_key = min(
+                modal_keys,
+                key=lambda k: (len(canonical_form[k]), canonical_form[k]),
+            )
+            labels.append(canonical_form[best_key])
+        else:
+            # All labels unique — use shortest (ties broken lexicographically)
+            best_key = min(
+                freq.keys(),
+                key=lambda k: (len(canonical_form[k]), canonical_form[k]),
+            )
+            labels.append(canonical_form[best_key])
+
+    return labels
+
+
 def _is_finite_float(v: float) -> bool:
     """Return True iff v is a normal finite float (not NaN, not +inf)."""
     return not (np.isnan(v) or np.isinf(v))
@@ -451,6 +569,30 @@ def run_pipeline(
             "Term AHC skipped (< 2 items: %d)", len(pooled_matrix.items),
         )
 
+    # 2f-pre. T5 cluster label aggregation (Phase 9a T5).
+    # Uses the centroid_piles already built in step 1d and the AHC assignments
+    # from step 2e.  Must run after both are available.
+    # Per CDA SME M6: frequency-weighted modal label via Jaccard overlap (>= 0.3).
+    # "Uncategorized" when no pile exceeds the threshold.
+    # No LLM calls — pure string matching.
+    term_cluster_labels: list[str] = []
+    if term_cluster_assignments and centroid_piles:
+        term_cluster_labels = aggregate_cluster_labels(
+            term_cluster_assignments,
+            centroid_piles,
+        )
+        logger.info(
+            "Cluster label aggregation: %d clusters labeled",
+            len(term_cluster_labels),
+        )
+    else:
+        logger.info(
+            "Cluster label aggregation skipped "
+            "(no cluster_assignments=%d or no centroid_piles=%d)",
+            len(term_cluster_assignments),
+            len(centroid_piles),
+        )
+
     # 2f. Term-level bootstrap uncertainty (Phase 9a T4).
     # Per CDA SME M4 (2026-05-24-phase9a-cda-sme-verdict.md):
     #   Resampling unit = models (Register 2 informants). Uses pre-computed
@@ -794,6 +936,7 @@ def run_pipeline(
         term_mds_items=term_mds_items,
         term_cluster_linkage=term_cluster_linkage,
         term_cluster_assignments=term_cluster_assignments,
+        term_cluster_labels=term_cluster_labels,
         term_mds_uncertainty=term_mds_uncertainty,
         term_cluster_bp_values=term_cluster_bp_values,
     )
