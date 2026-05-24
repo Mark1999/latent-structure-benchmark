@@ -25,7 +25,11 @@ from cdb_core import (
     ModelRef,
 )
 
-from cdb_analyze.bootstrap import bootstrap_mds_ellipses
+from cdb_analyze.bootstrap import (
+    bootstrap_branch_stability,
+    bootstrap_mds_ellipses,
+    bootstrap_term_mds_ellipses,
+)
 from cdb_analyze.cluster import cluster_models, cluster_terms
 from cdb_analyze.consensus import (
     classify_consensus,
@@ -447,6 +451,72 @@ def run_pipeline(
             "Term AHC skipped (< 2 items: %d)", len(pooled_matrix.items),
         )
 
+    # 2f. Term-level bootstrap uncertainty (Phase 9a T4).
+    # Per CDA SME M4 (2026-05-24-phase9a-cda-sme-verdict.md):
+    #   Resampling unit = models (Register 2 informants). Uses pre-computed
+    #   per-model consensus matrices. B=200 per CDA SME F4.
+    #
+    # Per M4a: resulting CIs reflect between-model structural variance only.
+    # The methods page must state: "Term position confidence reflects agreement
+    # across models, not within-model sampling variance."
+    #
+    # Requires at least 3 items in the pooled matrix for MDS to be meaningful.
+    term_mds_uncertainty: dict = {}
+    term_cluster_bp_values: list[float] = []
+
+    if len(model_matrices) >= 1 and len(pooled_matrix.items) >= 3 and term_mds_coordinates:
+        # Build a typed reference_coordinates dict from the stored term_mds_coordinates
+        # (which are already computed above as dict[str, list[float]])
+        ref_coords_typed: dict[str, tuple[float, float]] = {
+            item: (float(xy[0]), float(xy[1]))
+            for item, xy in term_mds_coordinates.items()
+        }
+        try:
+            term_ellipses = bootstrap_term_mds_ellipses(
+                per_model_matrices=model_matrices,
+                reference_coordinates=ref_coords_typed,
+                reference_items=pooled_matrix.items,
+                n_bootstrap=200,
+                random_state=42,
+            )
+            # Serialize as dict[str, dict] for JSON round-trip via Pydantic Any field
+            term_mds_uncertainty = {
+                item: ellipse.model_dump()
+                for item, ellipse in term_ellipses.items()
+            }
+            logger.info(
+                "Term bootstrap ellipses: %d items, n_bootstrap=%d",
+                len(term_mds_uncertainty),
+                200,
+            )
+        except Exception:
+            logger.warning(
+                "Term bootstrap ellipses: failed, leaving empty.",
+                exc_info=True,
+            )
+
+        # Branch stability bootstrap (CDA SME M5): BP per internal node.
+        # Requires the AHC linkage computed in 2e.
+        if term_cluster_linkage:
+            try:
+                ref_linkage_arr = np.array(term_cluster_linkage, dtype=np.float64)
+                term_cluster_bp_values = bootstrap_branch_stability(
+                    per_model_matrices=model_matrices,
+                    reference_linkage=ref_linkage_arr,
+                    reference_items=pooled_matrix.items,
+                    n_bootstrap=200,
+                    random_state=42,
+                )
+                logger.info(
+                    "Term branch stability: %d internal nodes computed",
+                    len(term_cluster_bp_values),
+                )
+            except Exception:
+                logger.warning(
+                    "Term branch stability: failed, leaving empty.",
+                    exc_info=True,
+                )
+
     # 3. Cross-model similarity + MDS + bootstrap
     if len(model_ids) >= 2:
         coords, ellipses, sim_mean, sim_ci = bootstrap_mds_ellipses(
@@ -724,6 +794,8 @@ def run_pipeline(
         term_mds_items=term_mds_items,
         term_cluster_linkage=term_cluster_linkage,
         term_cluster_assignments=term_cluster_assignments,
+        term_mds_uncertainty=term_mds_uncertainty,
+        term_cluster_bp_values=term_cluster_bp_values,
     )
 
 

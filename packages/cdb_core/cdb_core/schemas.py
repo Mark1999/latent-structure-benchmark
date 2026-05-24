@@ -475,6 +475,26 @@ class DomainResult(BaseModel):
     term_cluster_assignments: dict[str, int] = {}        # item_name → cluster_id
     term_cluster_labels: list[str] = []                  # one label per cluster
 
+    # Term-level bootstrap uncertainty (Phase 9a T4).
+    # term_mds_uncertainty: per-term 95% confidence ellipses on the pooled term MDS.
+    #   Stored as dict[str, Any] to allow JSON round-trip via BootstrapEllipse fields.
+    #   Populated by bootstrap_term_mds_ellipses() in cdb_analyze/bootstrap.py.
+    #   Register 2 output — reflects between-model structural variance only.
+    #   Per CDA SME M4/M4a (2026-05-24-phase9a-cda-sme-verdict.md):
+    #     "Term position confidence reflects agreement across models, not
+    #     within-model sampling variance."
+    #   R10 compliance mechanism: the term MDS cannot ship without these ellipses.
+    # term_cluster_bp_values: bootstrap proportion (BP) per internal node in the
+    #   term AHC dendrogram. One float per row of term_cluster_linkage.
+    #   BP = fraction of bootstrap iterations in which the bipartition for that
+    #   internal node appears in the bootstrap dendrogram (CDA SME M5).
+    #   Dashboard labels as "bootstrap support (%)" not "AU p-value" (M5a).
+    #   Branches with BP < 0.70 render with dashed lines (display threshold only,
+    #   not a statistical gate).
+    # See docs/DATA_DICTIONARY.md §2.6.
+    term_mds_uncertainty: dict[str, Any] = {}            # item_name → BootstrapEllipse-like dict
+    term_cluster_bp_values: list[float] = []             # BP per internal node (linkage row order)
+
     # Output
     generated_lede: str
     generated_at: datetime

@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.20** (2026-05-24) — Phase 9a T4: Added `bootstrap_term_mds_ellipses()` and `bootstrap_branch_stability()` to `cdb_analyze/bootstrap.py`. Added two new optional fields to `DomainResult` in `cdb_core/schemas.py` (§2 table updated): `term_mds_uncertainty` (`dict[str, Any]`, item_name → BootstrapEllipse-like dict) and `term_cluster_bp_values` (`list[float]`, one bootstrap proportion per internal AHC node). Both are optional with empty-dict/list defaults — no breaking changes. Bootstrap resamples models with replacement (Register 2, B=200) per CDA SME M4; CIs reflect between-model structural variance only (M4a). Branch stability uses simple bootstrap proportion (BP), not multiscale AU, per CDA SME M5. Architect sign-off: `docs/status/2026-05-24-phase9a-viz-gap-kickoff.md` T4 schema block. CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md` M4, M4a, M5, M5a, F4).
 - **v0.1.19** (2026-05-24) — Phase 9a T1/T2/T3: Added `build_pooled_cooccurrence_matrix()` to `cdb_analyze/cooccurrence.py` (§2.4 new). Added `cluster_terms()` to `cdb_analyze/cluster.py`. Added six new optional fields to `DomainResult` in `cdb_core/schemas.py` (§2 table updated): `term_mds_coordinates`, `term_mds_items`, `term_cluster_linkage`, `term_cluster_assignments`, `term_cluster_labels`. All additions are optional with empty-dict/list defaults — no breaking changes. Pooling strategy per CDA SME M1: equal-weight-per-model (mean of per-model consensus matrices), denominator always M, absence=0.0. AHC uses `method="average"` (UPGMA) per CDA SME M2; distance = `1 - cooccurrence` per CDA SME M3. `WithinModelResult.mds_within_model` now populated by pipeline with `list[dict]` of `{"item", "x", "y"}` entries (Register 1, per CDA SME F3). Architect sign-off: `docs/status/2026-05-24-phase9a-viz-gap-kickoff.md` T1/T2/T3 schema block. CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md` M1–M3, F3).
 - **v0.1.18** (2026-05-24) — Phase 9a T5-minimal: Added `CentroidPileData` Pydantic model to `cdb_core/schemas.py` (§2.3 new). Added `DomainResult.centroid_piles: dict[str, CentroidPileData] = {}` field (§2 table updated). Both additions are optional with empty-dict defaults — no breaking changes. `centroid_piles` is populated by `cdb_analyze/pipeline.py` `_build_centroid_piles()` using each model's centroid run (identified by `WithinModelResult.centroid_run_id`). Per-term pile stability computed per CDA SME ruling F5 (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`): set equality of co-occurring items, not pile index. Architect sign-off: `docs/status/2026-05-24-phase9a-viz-gap-kickoff.md` T9 schema block. CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md` F5).
 - **v0.1.17** (2026-05-19) — Phase 8 T6: Added §14 documenting the open bundle tarball layout, MANIFEST.txt format, and `scripts/build_open_bundle.py` builder usage. Added §0 cross-link to §14. No schema changes. Architect plan: Phase 8 T6. CDA SME verdict: `docs/status/2026-05-19-phase8-T6.2-cda-sme-verdict.md` (PASS-WITH-NOTES; N1–N7 applied to `data/open_bundle/README.md`).
@@ -264,6 +265,8 @@ The `provider_request_id` is a *separate* audit path: it lets a researcher (or L
 | `term_cluster_linkage` | `list[list[float]]` | No (default `[]`) | Scipy linkage matrix for the term-level AHC, serialized as nested list of shape (n_items−1) × 4. Column semantics (scipy linkage format): `[child_idx_1, child_idx_2, merge_distance, cluster_size]`. Indices 0 .. n_items−1 are original items (ordered per `term_mds_items`); indices n_items .. 2n_items−2 are synthesized cluster nodes. Average-linkage (UPGMA) per CDA SME M2. Reconstruct dendrogram with `scipy.cluster.hierarchy.dendrogram(Z)` where `Z = np.array(term_cluster_linkage)`. |
 | `term_cluster_assignments` | `dict[str, int]` | No (default `{}`) | Per-item cluster assignment at the default cut level (biggest-gap heuristic). Maps item name → integer cluster ID (1-indexed, from scipy `fcluster()`). Empty when the domain has fewer than 2 items. |
 | `term_cluster_labels` | `list[str]` | No (default `[]`) | One human-readable label per cluster (indices match cluster IDs in `term_cluster_assignments` after converting to 0-based). Populated by the T5 publish-layer label aggregation pass, not by `pipeline.py`. Empty in all results produced directly by the analysis pipeline without a separate label aggregation step. |
+| `term_mds_uncertainty` | `dict[str, Any]` | No (default `{}`) | Per-term 95% bootstrap confidence ellipses on the pooled term MDS. Maps item name to a `BootstrapEllipse`-shaped dict (fields: `center`, `semi_major`, `semi_minor`, `rotation_rad`, `n_bootstrap`). Register 2 output — reflects between-model structural variance only, not within-model run variance (per CDA SME M4a). See §2.6. The R10 compliance mechanism for the term MDS: the term MDS cannot ship without these ellipses. |
+| `term_cluster_bp_values` | `list[float]` | No (default `[]`) | Bootstrap proportion (BP) values for the term AHC dendrogram, one per internal node in linkage row order. BP = fraction of bootstrap iterations in which the exact bipartition for that node appears in the bootstrap tree (CDA SME M5). Range `[0.0, 1.0]`. Dashboard displays as "bootstrap support (%)" not "AU p-value" (M5a). Branches below 0.70 (70%) are rendered with dashed lines — this is a display threshold, not a statistical gate. See §2.6. |
 | `generated_lede` | `str` | Yes | The pre-written one-sentence lede for this domain at this analysis version. Generated by the lede generator (`ARCHITECTURE.md` §4.2.3). |
 | `generated_at` | `datetime` (ISO 8601, UTC) | Yes | When this `DomainResult` was generated. |
 
@@ -347,6 +350,63 @@ The pooled matrix is an equal-weight-per-model average of all models' individual
 4. **Cut level:** The biggest-gap heuristic (same as `cluster_models()`): find the index with the largest jump in merge distances in `Z[:, 2]`, set the cut threshold between that merge and the next.
 
 **Reproducibility:** Given the same `informants.jsonl`, `build_pooled_cooccurrence_matrix()` and `cluster_terms()` are fully deterministic (no random state). Researchers with the open data bundle can reproduce `term_cluster_linkage` exactly by running `scripts/run_analysis.py` (or re-running `pipeline.py` directly).
+
+### 2.6 Term-level bootstrap uncertainty (Phase 9a T4)
+
+`term_mds_uncertainty` and `term_cluster_bp_values` are the R10 compliance outputs for the term-level visualizations: no term MDS point or dendrogram branch ships without an associated uncertainty indicator.
+
+**Register semantics:** Both fields are Register 2 outputs. The uncertainty question is "how much does the result depend on which models are included?" — between-model structural variance only. Within-model run-to-run variance is absorbed into each model's pre-computed consensus co-occurrence matrix before the bootstrap runs. Per CDA SME M4a, the methods page and any tooltip for these fields must state: "Term position confidence reflects agreement across models, not within-model sampling variance."
+
+#### `term_mds_uncertainty` — per-term 95% confidence ellipses
+
+Produced by `bootstrap_term_mds_ellipses()` in `cdb_analyze/bootstrap.py`.
+
+**Algorithm (CDA SME M4, binding):**
+
+1. Pre-compute per-model consensus co-occurrence matrices (from `build_cooccurrence_matrix()`, one per model).
+2. For each of B=200 iterations:
+   a. Draw M model IDs with replacement (where M = number of models).
+   b. Pool the resampled model matrices using the equal-weight-per-model formula (same as §2.4).
+   c. Run `run_item_mds()` on the resampled pooled matrix.
+   d. Procrustes-align the bootstrap item coordinates to the reference solution (from the full pooled MDS).
+   e. Record each item's aligned (x, y).
+3. For each item, fit a 95% confidence ellipse from the B coordinate samples using eigendecomposition of the coordinate covariance matrix. Same ellipse-fitting logic as the model-level `bootstrap_mds_ellipses()`.
+4. Items that appear in the bootstrap iteration's pooled matrix contribute their aligned coordinate. Items absent from a bootstrap iteration (because all resampled models lacked that item) are excluded from that iteration's coordinate recording.
+
+**B=200 is sufficient** for 95% CI estimation on ~25-item MDS per CDA SME F4 — the half-width converges to within 5% of the B=500 value by B=150 for 2D MDS with fewer than 50 points.
+
+**JSON shape:** Each value in `term_mds_uncertainty` is a `BootstrapEllipse` dict with fields:
+- `center`: `[float, float]` — mean (x, y) of the bootstrap coordinate distribution
+- `semi_major`: `float` — length of the ellipse's major axis (√(λ₁ × χ²₀.₉₅))
+- `semi_minor`: `float` — length of the minor axis (√(λ₂ × χ²₀.₉₅))
+- `rotation_rad`: `float` — rotation angle of the major axis in radians
+- `n_bootstrap`: `int` — number of bootstrap iterations that contributed coordinates for this item (may be less than B=200 if the item was absent from some iterations' pooled matrices)
+
+**Degenerate case:** If fewer than 2 bootstrap iterations contributed coordinates for an item, a zero-size ellipse is emitted at the reference position with `n_bootstrap` set to the actual count.
+
+#### `term_cluster_bp_values` — dendrogram branch bootstrap proportions
+
+Produced by `bootstrap_branch_stability()` in `cdb_analyze/bootstrap.py`.
+
+**Algorithm (CDA SME M5, binding):**
+
+1. For each of B=200 iterations:
+   a. Resample M model IDs with replacement (same resampling strategy as term MDS bootstrap).
+   b. Pool the resampled model matrices.
+   c. Compute the UPGMA linkage on the pooled distance matrix (distance = 1 − cooccurrence, same as §2.5).
+   d. Extract the set of bipartitions from the bootstrap dendrogram. Each internal node defines a bipartition; canonical form is the smaller of the two subtrees (to make comparison symmetric).
+   e. For each reference bipartition (from `term_cluster_linkage`), check if it appears in the bootstrap bipartition set.
+2. BP for node k = count(bootstrap iterations containing reference bipartition k) / B.
+
+**Interpretation:** BP = 0.85 means "85% of bootstrap resamples produced a dendrogram that contains this branch." BP = 0.50 means the branch is unstable.
+
+**Important:** BP is NOT an AU p-value (Shimodaira 2002). The multiscale bootstrap AU correction was considered and rejected because it requires n ≥ 100 observations for reliable calibration and LSB has M=11 models. The simple BP is interpretable, transparent, and conservative — appropriate for LSB's exploratory framing (per ARCHITECTURE.md §1.5.7). See CDA SME M5 ruling for the full rationale.
+
+**Display contract (M5a):** The dashboard labels this field as "bootstrap support (%)" in all copy, tooltips, and axis labels. The string "AU p-value" must not appear in any dashboard copy. Branches below 70% BP are rendered with dashed lines and reduced opacity (display threshold, not a statistical gate — UI/UX agent owns the visual treatment).
+
+**List ordering:** `term_cluster_bp_values[k]` corresponds to row k of `term_cluster_linkage`. Row 0 is the first merge step (the two closest items), row n_items−2 is the last merge step (the root). This matches scipy's linkage matrix row order.
+
+**Reproducibility:** `bootstrap_branch_stability()` is seeded with `random_state=42` by `pipeline.py`. Researchers with the open data bundle can reproduce `term_cluster_bp_values` by running the analysis pipeline with the same seed.
 
 ---
 
