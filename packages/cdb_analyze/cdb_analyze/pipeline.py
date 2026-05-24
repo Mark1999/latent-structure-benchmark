@@ -36,10 +36,12 @@ from cdb_analyze.consensus import (
     compute_centrality_scores,
     compute_consensus_free_list,
     compute_romney_eigenratio,
+    find_salience_elbow,
 )
 from cdb_analyze.cooccurrence import (
     build_cooccurrence_matrix,
     build_pooled_cooccurrence_matrix,
+    compute_cross_model_term_frequency,
 )
 from cdb_analyze.gates import G1SplitResult, g1_stability_split
 from cdb_analyze.mds import compute_cross_model_similarity, run_item_mds
@@ -495,10 +497,74 @@ def run_pipeline(
         model_matrices[mid] = mat
     logger.info("Built %d co-occurrence matrices", len(matrices))
 
+    # 2b-pre. Term-set truncation (Phase 9a term-truncation task).
+    # Reduces the pooled term set from the full union to the shared
+    # vocabulary that enters the pooled co-occurrence matrix.
+    #
+    # Per CDA SME T1/T2 (2026-05-24-phase9a-term-truncation-sme-ruling.md):
+    #   1. Compute cross-model term frequency (f_models per term), operating
+    #      on pile_sort.parsed_piles (not freelist.parsed_items).
+    #   2. Pre-filter: remove terms with f_models < 2 (hard floor — single-
+    #      model terms are definitionally not shared vocabulary).
+    #   3. Apply find_salience_elbow() with min_items=15, max_items=300 to
+    #      the frequency curve.
+    #   4. Pass the truncated item list to build_pooled_cooccurrence_matrix().
+    #
+    # Per CDA SME T4: per-model MDS (step 2d) is NOT truncated — each model's
+    # own matrix uses its full pile-sort vocabulary.
+    _TRUNCATION_MIN_ITEMS = 15
+    _TRUNCATION_MAX_ITEMS = 300
+    _TRUNCATION_MIN_MODEL_COUNT = 2
+
+    term_freq = compute_cross_model_term_frequency(records_by_model)
+    term_n_total = len(term_freq)
+
+    # Pre-filter: hard floor at f_models >= min_model_count
+    shared_terms = [(t, f) for t, f in term_freq if f >= _TRUNCATION_MIN_MODEL_COUNT]
+
+    # Apply elbow detection to the shared-terms frequency curve
+    if len(shared_terms) > 0:
+        elbow_index = find_salience_elbow(
+            [(t, float(f)) for t, f in shared_terms],
+            min_items=_TRUNCATION_MIN_ITEMS,
+            max_items=_TRUNCATION_MAX_ITEMS,
+        )
+    else:
+        elbow_index = 0
+
+    truncated_items = [t for t, _ in shared_terms[:elbow_index]]
+    term_n_after = len(truncated_items)
+
+    logger.info(
+        "Term truncation: %d total → %d terms "
+        "(f_models >= %d pre-filter, elbow at index %d)",
+        term_n_total,
+        term_n_after,
+        _TRUNCATION_MIN_MODEL_COUNT,
+        elbow_index,
+    )
+
+    # Record truncation metadata for the DomainResult
+    _truncation_method = "cross_model_frequency_elbow"
+    _truncation_params: dict = {
+        "min_items": _TRUNCATION_MIN_ITEMS,
+        "max_items": _TRUNCATION_MAX_ITEMS,
+        "min_model_count": _TRUNCATION_MIN_MODEL_COUNT,
+        "elbow_index": elbow_index,
+    }
+
+    # When truncated_items is empty (degenerate: no shared terms), pass
+    # item_subset=None to let build_pooled_cooccurrence_matrix() use its
+    # full-union fallback so downstream steps degrade gracefully.
+    pooled_item_subset: list[str] | None = truncated_items if truncated_items else None
+
     # 2b. Pooled cross-model term co-occurrence matrix (Phase 9a T1).
     # Equal-weight-per-model per CDA SME M1: compute each model's consensus
     # matrix, then average with denominator always = M.
-    pooled_matrix = build_pooled_cooccurrence_matrix(records_by_model)
+    # item_subset is the truncated list from the truncation step above.
+    pooled_matrix = build_pooled_cooccurrence_matrix(
+        records_by_model, item_subset=pooled_item_subset,
+    )
     logger.info(
         "Built pooled co-occurrence matrix: %d items", len(pooled_matrix.items),
     )
@@ -939,6 +1005,10 @@ def run_pipeline(
         term_cluster_labels=term_cluster_labels,
         term_mds_uncertainty=term_mds_uncertainty,
         term_cluster_bp_values=term_cluster_bp_values,
+        term_truncation_method=_truncation_method,
+        term_truncation_params=_truncation_params,
+        term_n_total_before_truncation=term_n_total,
+        term_n_after_truncation=term_n_after,
     )
 
 

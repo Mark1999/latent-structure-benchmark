@@ -428,3 +428,105 @@ def test_load_records_from_jsonl(tmp_path: Path):
     # Filter by domain
     loaded_other = load_records(jsonl, "holidays")
     assert len(loaded_other) == 0
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Term truncation metadata tests
+# ──────────────────────────────────────────────────────────────────────
+
+def test_pipeline_populates_truncation_metadata():
+    """run_pipeline populates the four term truncation metadata fields.
+
+    Per CDA SME T5 (2026-05-24-phase9a-term-truncation-sme-ruling.md):
+    DomainResult must carry metadata documenting the truncation for
+    reproducibility.
+    """
+    records = _synthetic_records()
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    # Method must be set
+    assert result.term_truncation_method == "cross_model_frequency_elbow"
+
+    # Params must contain the four expected keys
+    assert "min_items" in result.term_truncation_params
+    assert "max_items" in result.term_truncation_params
+    assert "min_model_count" in result.term_truncation_params
+    assert "elbow_index" in result.term_truncation_params
+    assert result.term_truncation_params["min_model_count"] == 2
+    assert result.term_truncation_params["min_items"] == 15
+    assert result.term_truncation_params["max_items"] == 300
+
+    # Counts must be non-negative
+    assert result.term_n_total_before_truncation >= 0
+    assert result.term_n_after_truncation >= 0
+
+    # After-truncation count must not exceed before-truncation count
+    assert result.term_n_after_truncation <= result.term_n_total_before_truncation
+
+
+def test_pipeline_truncation_n_after_matches_term_mds_items():
+    """term_n_after_truncation must equal len(term_mds_items).
+
+    This invariant ensures the metadata accurately reflects what entered
+    the pooled matrix.
+    """
+    records = _synthetic_records()
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    assert result.term_n_after_truncation == len(result.term_mds_items)
+
+
+def test_pipeline_truncation_all_shared_terms():
+    """When all terms appear in all models, no terms are dropped by the
+    f_models < 2 pre-filter — all terms remain for the elbow step.
+    """
+    items = ["mother", "father", "sister", "brother", "aunt", "uncle",
+             "grandmother", "grandfather", "cousin", "niece", "nephew",
+             "son", "daughter", "husband", "wife", "child"]
+    records = []
+    # Two models, same item vocabulary, 3 runs each — all terms have f_models=2
+    for i in range(3):
+        records.append(_make_record(
+            "model-a", i, items,
+            [["mother", "father"], ["sister", "brother"],
+             ["aunt", "uncle"], ["grandmother", "grandfather"],
+             ["cousin", "niece", "nephew"], ["son", "daughter"],
+             ["husband", "wife", "child"]],
+        ))
+    for i in range(3):
+        records.append(_make_record(
+            "model-b", i, items,
+            [["mother", "father"], ["sister", "brother"],
+             ["aunt", "uncle"], ["grandmother", "grandfather"],
+             ["cousin", "niece", "nephew"], ["son", "daughter"],
+             ["husband", "wife", "child"]],
+        ))
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    # All 16 terms appear in both models, so term_n_total_before_truncation = 16
+    assert result.term_n_total_before_truncation == len(items)
+    # No terms fail the f_models >= 2 filter since both models share all terms
+    # The elbow may or may not cut — but no terms are discarded at the pre-filter step.
+    # We cannot assert n_after == n_before (elbow may cut), but n_after must be >= 1.
+    assert result.term_n_after_truncation >= 1
+
+
+def test_pipeline_truncation_single_model_edge_case():
+    """Single-model pipeline: all terms have f_models=1, so all fail the
+    min_model_count=2 pre-filter. Pooled matrix falls back to item_subset=None
+    (full union), preserving graceful degradation.
+    """
+    items = ["mother", "father", "sister", "brother"]
+    records = [
+        _make_record("model-a", i, items, [["mother", "father"], ["sister", "brother"]])
+        for i in range(3)
+    ]
+    result = run_pipeline(records, analysis_version="test", n_bootstrap=10)
+
+    # All 4 terms have f_models=1, so shared_terms is empty → truncated_items=[]
+    # → item_subset=None → pooled matrix uses full union (4 items).
+    # term_n_total_before_truncation = 4 (all pile-sort terms)
+    assert result.term_n_total_before_truncation == len(items)
+    # Truncation metadata is still populated
+    assert result.term_truncation_method == "cross_model_frequency_elbow"
+    assert result.term_truncation_params["min_model_count"] == 2

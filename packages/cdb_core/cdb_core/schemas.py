@@ -495,6 +495,23 @@ class DomainResult(BaseModel):
     term_mds_uncertainty: dict[str, Any] = {}            # item_name → BootstrapEllipse-like dict
     term_cluster_bp_values: list[float] = []             # BP per internal node (linkage row order)
 
+    # Term-set truncation metadata (Phase 9a term-truncation task).
+    # Records the method, parameters, and pre/post item counts for the
+    # cross-model frequency elbow truncation step that runs upstream of
+    # build_pooled_cooccurrence_matrix(). Required for reproducibility:
+    # a different truncation produces a different pooled matrix and therefore
+    # different MDS, AHC, and bootstrap outputs.
+    # Per CDA SME T5 (2026-05-24-phase9a-term-truncation-sme-ruling.md):
+    # "The published DomainResult must carry metadata documenting the
+    # truncation. External researchers wishing to replicate the analysis
+    # with a different truncation can rebuild from informants.jsonl."
+    # Empty string / empty dict / zero values on pre-truncation analysis
+    # versions. All four fields default to falsy — no breaking changes.
+    term_truncation_method: str = ""      # e.g. "cross_model_frequency_elbow"
+    term_truncation_params: dict[str, Any] = {}  # min_items, max_items, min_model_count, elbow_idx
+    term_n_total_before_truncation: int = 0      # item count before any truncation
+    term_n_after_truncation: int = 0             # item count entering the pooled matrix
+
     # Output
     generated_lede: str
     generated_at: datetime

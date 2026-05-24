@@ -11,6 +11,50 @@ from datetime import UTC, datetime
 from cdb_core import CooccurrenceMatrix, InformantRecord, ModelRef
 
 
+def compute_cross_model_term_frequency(
+    records_by_model: dict[str, list[InformantRecord]],
+) -> list[tuple[str, int]]:
+    """Return (term, f_models) pairs sorted descending by f_models.
+
+    f_models = number of distinct models whose pile sorts include the term.
+    Operates on pile_sort.parsed_piles, NOT freelist.parsed_items.
+
+    A term that appears in 5 runs of the same model counts as f_models=1.
+    A term that appears once each in 8 different models counts as f_models=8.
+
+    Per CDA SME T1 (2026-05-24-phase9a-term-truncation-sme-ruling.md):
+    cross-model frequency is the correct unit for Register 2 analysis.
+    Terms are drawn from pile_sort.parsed_piles only — terms that appeared
+    in a free list but were not carried into a pile sort have no co-occurrence
+    data to contribute.
+
+    Args:
+        records_by_model: Dict mapping model_id → list of InformantRecords.
+
+    Returns:
+        List of (term, f_models) tuples sorted descending by f_models.
+        Ties in f_models are broken by ascending lexicographic order for
+        determinism.
+    """
+    term_model_sets: dict[str, set[str]] = {}
+
+    for model_id, recs in records_by_model.items():
+        for rec in recs:
+            for pile in rec.pile_sort.parsed_piles:
+                for term in pile:
+                    if term not in term_model_sets:
+                        term_model_sets[term] = set()
+                    term_model_sets[term].add(model_id)
+
+    result = [
+        (term, len(model_set))
+        for term, model_set in term_model_sets.items()
+    ]
+    # Sort descending by f_models; ties broken by ascending lexicographic order
+    result.sort(key=lambda x: (-x[1], x[0]))
+    return result
+
+
 def build_cooccurrence_matrix(
     records: list[InformantRecord],
 ) -> CooccurrenceMatrix:
@@ -129,6 +173,7 @@ def build_cooccurrence_matrix(
 
 def build_pooled_cooccurrence_matrix(
     records_by_model: dict[str, list[InformantRecord]],
+    item_subset: list[str] | None = None,
 ) -> CooccurrenceMatrix:
     """Build a pooled cross-model co-occurrence matrix.
 
@@ -144,16 +189,26 @@ def build_pooled_cooccurrence_matrix(
     occurrence, not missing data. The denominator is always M, not the
     number of models that produced both items.
 
-    Item set = sorted union of all items across all models' pile sorts.
+    Item set = sorted union of all items across all models' pile sorts,
+    or the provided item_subset (when given).
 
     Args:
         records_by_model: Dict mapping model_id → list of InformantRecords
             for that model. All records must share the same domain_slug.
+        item_subset: When provided, use this explicit list of items instead
+            of computing the full union across all models. The list is used
+            as-is (ordering preserved). Items in item_subset that are absent
+            from a model's per-model matrix receive 0.0 for all cells in
+            that model's contribution — identical to the full-union behaviour.
+            When None (default), the full union item set is computed as before
+            (backward-compatible). Per CDA SME T3
+            (2026-05-24-phase9a-term-truncation-sme-ruling.md).
 
     Returns:
-        CooccurrenceMatrix with the pooled values and the sorted union
-        item list. The ``model`` field carries a synthetic ModelRef with
-        model_id="pooled" to distinguish from any single-model matrix.
+        CooccurrenceMatrix with the pooled values and the item list (either
+        item_subset or the sorted union). The ``model`` field carries a
+        synthetic ModelRef with model_id="pooled" to distinguish from any
+        single-model matrix.
 
     Raises:
         ValueError: If records_by_model is empty.
@@ -172,11 +227,17 @@ def build_pooled_cooccurrence_matrix(
             "No models with valid records for pooled co-occurrence matrix"
         )
 
-    # Union item set across all models (sorted for determinism)
-    all_items: set[str] = set()
-    for mat in per_model_matrices.values():
-        all_items.update(mat.items)
-    items = sorted(all_items)
+    # Determine the item set.
+    # When item_subset is provided (term truncation path), use it directly.
+    # When None, compute the full sorted union across all models (backward-
+    # compatible behaviour preserved for testing and single-model callers).
+    if item_subset is not None:
+        items = list(item_subset)
+    else:
+        all_items: set[str] = set()
+        for mat in per_model_matrices.values():
+            all_items.update(mat.items)
+        items = sorted(all_items)
     n_items = len(items)
 
     M = len(per_model_matrices)
