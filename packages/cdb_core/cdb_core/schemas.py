@@ -260,6 +260,45 @@ class MantelPair(BaseModel):
     n_permutations: int
 
 
+class CentroidPileData(BaseModel):
+    """Per-model centroid pile structure published for the PileComparison view.
+
+    Captures the pile groupings and labels from the model's centroid run
+    (the run identified by WithinModelResult.centroid_run_id), plus a
+    per-term pile-stability metric computed across all of the model's runs.
+
+    Used by the T9 PileComparison frontend component (Phase 9a). Stored in
+    DomainResult.centroid_piles, keyed by model_id.
+
+    Field semantics:
+    - piles: the pile_sort.parsed_piles list from the centroid run. Each
+      inner list is one pile. Item order within a pile is not significant.
+    - labels: interview.parsed_pile_labels from the centroid run. One label
+      per pile, same ordering as piles. The model's free-text name for
+      each pile from the pile interview step (CDA Step 3).
+    - term_stability: per-term categorical-uncertainty proxy for R10
+      compliance. For each term, the fraction of the model's runs in which
+      the term co-occurs with the same set of other terms as in the centroid
+      run. "Same pile" is defined by set equality of co-occurring items, NOT
+      by pile index (pile ordering is arbitrary). Computed per CDA SME ruling
+      F5 (2026-05-24-phase9a-cda-sme-verdict.md): for each run, find the
+      pile containing the term, collect the OTHER items in that pile, and
+      compare to the centroid run's co-occurring set. Stability = fraction
+      of runs where those sets are equal.
+
+    Note: a model with only one run has term_stability = 1.0 for all terms
+    (vacuously stable — the single run IS the centroid run). The dashboard
+    R10 compliance uses this metric as a categorical-uncertainty indicator
+    (opacity or asterisk) per the T9 acceptance criteria.
+
+    See ARCHITECTURE.md §4.2.0 (three-register framework) and
+    docs/DATA_DICTIONARY.md §2.3 (CentroidPileData).
+    """
+    piles: list[list[str]]          # term groupings from centroid run
+    labels: list[str]               # one label per pile (from interview.parsed_pile_labels)
+    term_stability: dict[str, float] = {}  # item → fraction of runs in same pile as centroid
+
+
 class WithinModelResult(BaseModel):
     """Register 1 result block for one model on one domain.
 
@@ -396,6 +435,13 @@ class DomainResult(BaseModel):
     # Grounding
     groundings: list[GroundingRef] = []
     selected_baseline_id: str | None = None
+
+    # Per-model centroid pile structure for the PileComparison view (Phase 9a T9).
+    # Keyed by model_id. Each entry holds the centroid run's pile groupings and
+    # labels, plus per-term pile-stability scores for R10 compliance.
+    # Empty dict when the pipeline has not yet populated centroid pile data.
+    # See CentroidPileData docstring and docs/DATA_DICTIONARY.md §2.3.
+    centroid_piles: dict[str, CentroidPileData] = {}
 
     # Output
     generated_lede: str

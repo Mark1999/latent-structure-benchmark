@@ -16,6 +16,7 @@ import numpy as np
 from cdb_core import (
     ROMNEY_THRESHOLD_CLASSIC,
     ROMNEY_THRESHOLD_LSB,
+    CentroidPileData,
     ConsensusType,
     CooccurrenceMatrix,
     DomainResult,
@@ -171,6 +172,122 @@ def _model_ref_from_record(rec: InformantRecord) -> ModelRef:
     )
 
 
+def _build_centroid_piles(
+    records_by_model: dict[str, list[InformantRecord]],
+    within_model_results: list,
+) -> dict[str, CentroidPileData]:
+    """Compute per-model centroid pile data for the PileComparison view.
+
+    For each model:
+    a. Identify the centroid run via WithinModelResult.centroid_run_id.
+    b. Extract parsed_piles and parsed_pile_labels from that run.
+    c. Compute per-term pile stability per CDA SME ruling F5
+       (2026-05-24-phase9a-cda-sme-verdict.md):
+         - For each term in the centroid run, find the set of other terms it
+           co-occurs with in its centroid pile (the co-occurring set).
+         - For each of the model's other runs, check if the term appears in
+           a pile with the SAME set of co-occurring items (set equality, not
+           pile index).
+         - term_stability[term] = n_runs_same_pile / n_runs_total
+       A model with only one run gets term_stability = 1.0 for all terms
+       (the single run IS the centroid run — vacuously stable).
+
+    Args:
+        records_by_model: Model-keyed InformantRecord lists from group_by_model.
+        within_model_results: List of WithinModelResult from Register 1 analysis.
+
+    Returns:
+        dict[model_id, CentroidPileData]. Models without a centroid_run_id
+        (degenerate single-run or empty) are skipped; they do not appear in
+        the returned dict.
+    """
+    # Build a fast lookup: centroid_run_id → centroid InformantRecord
+    # Also build model_id → centroid_run_id from the WithinModelResult list.
+    centroid_run_id_by_model: dict[str, str] = {}
+    for wm in within_model_results:
+        if wm.centroid_run_id is not None:
+            centroid_run_id_by_model[wm.model_id] = wm.centroid_run_id
+
+    result: dict[str, CentroidPileData] = {}
+
+    for model_id, recs in records_by_model.items():
+        centroid_run_id = centroid_run_id_by_model.get(model_id)
+        if centroid_run_id is None:
+            # No centroid run identified (e.g. empty model or degenerate case).
+            logger.debug(
+                "Centroid pile: skipping model %s (no centroid_run_id)", model_id,
+            )
+            continue
+
+        # Find the centroid record in this model's list.
+        centroid_rec: InformantRecord | None = None
+        for rec in recs:
+            if rec.informant_id == centroid_run_id:
+                centroid_rec = rec
+                break
+
+        if centroid_rec is None:
+            # centroid_run_id points to a record not in the current list
+            # (e.g. qa_only filtering excluded it). Skip gracefully.
+            logger.warning(
+                "Centroid pile: centroid_run_id %s for model %s not found in "
+                "records list (%d records); skipping.",
+                centroid_run_id,
+                model_id,
+                len(recs),
+            )
+            continue
+
+        centroid_piles = centroid_rec.pile_sort.parsed_piles
+        centroid_labels = centroid_rec.interview.parsed_pile_labels
+
+        # Build a map: term → frozenset of co-occurring terms in the centroid run.
+        # "Co-occurring terms" = all OTHER terms in the same pile.
+        # Frozenset enables O(1) set-equality comparison across runs.
+        centroid_cooccurrence: dict[str, frozenset[str]] = {}
+        for pile in centroid_piles:
+            pile_set = frozenset(pile)
+            for term in pile:
+                # The co-occurring set for a term is the pile minus the term itself.
+                centroid_cooccurrence[term] = pile_set - {term}
+
+        n_runs = len(recs)
+
+        # For each term, count how many runs place it in a pile with the
+        # identical set of co-occurring terms as the centroid run.
+        term_same_pile_count: dict[str, int] = {
+            term: 0 for term in centroid_cooccurrence
+        }
+
+        for rec in recs:
+            # Build this run's term → co-occurring set map.
+            run_cooccurrence: dict[str, frozenset[str]] = {}
+            for pile in rec.pile_sort.parsed_piles:
+                pile_set = frozenset(pile)
+                for term in pile:
+                    run_cooccurrence[term] = pile_set - {term}
+
+            for term, centroid_coset in centroid_cooccurrence.items():
+                run_coset = run_cooccurrence.get(term)
+                if run_coset is not None and run_coset == centroid_coset:
+                    term_same_pile_count[term] += 1
+
+        # Stability = fraction of ALL runs (including the centroid run itself).
+        # The centroid run always matches itself, so stability is always >= 1/n_runs.
+        term_stability = {
+            term: count / n_runs
+            for term, count in term_same_pile_count.items()
+        }
+
+        result[model_id] = CentroidPileData(
+            piles=centroid_piles,
+            labels=centroid_labels,
+            term_stability=term_stability,
+        )
+
+    return result
+
+
 def run_pipeline(
     records: list[InformantRecord],
     *,
@@ -231,6 +348,17 @@ def run_pipeline(
         "Built Register 1 WithinModelResult for %d models; "
         "%d flagged deterministic_output",
         len(within_model_results), n_deterministic,
+    )
+
+    # 1d. Centroid pile data for the PileComparison view (Phase 9a T9).
+    # Uses within_model_results to locate the centroid run for each model,
+    # then extracts pile structure + labels + per-term stability from the raw
+    # InformantRecords. No LLM calls, no new dependencies — pure data access.
+    # CDA SME ruling F5: "same pile" is set equality of co-occurring items,
+    # not pile index. See _build_centroid_piles for the full implementation.
+    centroid_piles = _build_centroid_piles(records_by_model, within_model_results)
+    logger.info(
+        "Built centroid pile data for %d models", len(centroid_piles),
     )
 
     # 2. Co-occurrence matrices per model
@@ -501,6 +629,7 @@ def run_pipeline(
         negative_centrality_flag=negative_centrality_flag,
         negative_centrality_models=negative_centrality_models,
         consensus_type=consensus_type,
+        centroid_piles=centroid_piles,
     )
 
 

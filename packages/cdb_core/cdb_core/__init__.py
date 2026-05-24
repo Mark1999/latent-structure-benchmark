@@ -8,6 +8,7 @@ from cdb_core.schemas import (
     ROMNEY_THRESHOLD_CLASSIC,
     ROMNEY_THRESHOLD_LSB,
     BootstrapEllipse,
+    CentroidPileData,
     ConsensusType,
     CooccurrenceMatrix,
     DeclineInterview,
@@ -31,6 +32,7 @@ from cdb_core.schemas import (
 __all__ = [
     "run_id",
     "BootstrapEllipse",
+    "CentroidPileData",
     "ConsensusType",
     "CooccurrenceMatrix",
     "DeclineInterview",
