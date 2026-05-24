@@ -10,6 +10,10 @@
  * Drift remains disabled (Phase-6-T4 territory).
  * Phase 9a T10: Centrality tab is now active. #centrality is a valid URL fragment.
  * Phase 9a T9: Pile Structure tab is now active. #piles is a valid URL fragment.
+ * Phase 9a T6: Term Map tab is now active. #term-mds is a valid URL fragment.
+ * Phase 9a T7: Cluster Tree tab is now active. #cluster-tree is a valid URL fragment.
+ *   Final tab order per DESIGN_SYSTEM.md v0.5.2:
+ *   MDS Plot | Term Map | Cluster Tree | Free Lists | Similarity | Centrality | Pile Structure | Drift
  *
  * Accessibility — DESIGN_SYSTEM.md §12.3 binding (overrides T8 plan spec):
  *   - Container: role="tablist" with aria-label="Visualization view".
@@ -23,19 +27,24 @@
  *     weight — non-color indicator required by §12.3.
  *   - Keyboard: ArrowLeft / ArrowRight between tabs, Enter / Space to activate.
  *
- * URL state: clicking MDS Plot pushes #mds fragment; clicking Free Lists
+ * URL state: clicking MDS Plot pushes #mds fragment; clicking Term Map pushes
+ * #term-mds; clicking Cluster Tree pushes #cluster-tree; clicking Free Lists
  * pushes #freelist; clicking Similarity pushes #similarity; clicking Centrality
  * pushes #centrality. Drift does not update the URL (disabled).
  *
  * Reference: docs/status/2026-05-12-phase6-T7-architect-plan.md §2.1
  *            docs/status/2026-05-12-phase6-T5-architect-plan.md §2
  *            docs/status/2026-05-24-phase9a-viz-gap-kickoff.md T10
+ *            docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md
  */
 
 import { type KeyboardEvent } from "react";
 
-/** Active tab values — widened to include "centrality" at Phase 9a T10, "piles" at Phase 9a T9. */
-export type ActiveVizTab = "mds" | "freelist" | "similarity" | "centrality" | "piles";
+/**
+ * Active tab values — widened to include "centrality" at Phase 9a T10, "piles" at Phase 9a T9,
+ * "term-mds" at Phase 9a T6, and "cluster-tree" at Phase 9a T7.
+ */
+export type ActiveVizTab = "mds" | "term-mds" | "cluster-tree" | "freelist" | "similarity" | "centrality" | "piles";
 
 export interface VizSwitcherProps {
   activeTab: ActiveVizTab;
@@ -46,6 +55,8 @@ export interface VizSwitcherProps {
 function isActivatableTab(id: string): id is ActiveVizTab {
   return (
     id === "mds" ||
+    id === "term-mds" ||
+    id === "cluster-tree" ||
     id === "freelist" ||
     id === "similarity" ||
     id === "centrality" ||
@@ -61,13 +72,16 @@ interface TabDef {
   disabled: boolean;
 }
 
+/** Binding tab order per DESIGN_SYSTEM.md v0.5.2: MDS Plot | Term Map | Cluster Tree | Free Lists | Similarity | Centrality | Pile Structure | Drift */
 const TABS: TabDef[] = [
-  { id: "mds",         label: "MDS Plot",       active: true,  disabled: false },
-  { id: "freelist",    label: "Free Lists",     active: false, disabled: false },
-  { id: "similarity",  label: "Similarity",     active: false, disabled: false },
-  { id: "centrality",  label: "Centrality",     active: false, disabled: false },
-  { id: "piles",       label: "Pile Structure", active: false, disabled: false },
-  { id: "drift",       label: "Drift",          active: false, disabled: true  },
+  { id: "mds",          label: "MDS Plot",       active: true,  disabled: false },
+  { id: "term-mds",     label: "Term Map",       active: true,  disabled: false },
+  { id: "cluster-tree", label: "Cluster Tree",   active: true,  disabled: false },
+  { id: "freelist",     label: "Free Lists",     active: false, disabled: false },
+  { id: "similarity",   label: "Similarity",     active: false, disabled: false },
+  { id: "centrality",   label: "Centrality",     active: false, disabled: false },
+  { id: "piles",        label: "Pile Structure", active: false, disabled: false },
+  { id: "drift",        label: "Drift",          active: false, disabled: true  },
 ];
 
 /** Fragments that are still disabled (Phase-6-T4 territory). */
@@ -87,6 +101,12 @@ export function resolveFragmentOnMount(): ActiveVizTab {
     const raw = window.location.hash.replace(/^#/, "").toLowerCase();
     if (raw === "mds" || raw === "") {
       return "mds";
+    }
+    if (raw === "term-mds") {
+      return "term-mds";
+    }
+    if (raw === "cluster-tree") {
+      return "cluster-tree";
     }
     if (raw === "freelist") {
       return "freelist";

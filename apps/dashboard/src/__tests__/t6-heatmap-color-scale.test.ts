@@ -466,10 +466,10 @@ describe("G14 — tokens.css: --color-heatmap-cell-text-dark: #000000 retained (
 // E. DESIGN_SYSTEM.md v0.4.9 static scan
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("G15 — DESIGN_SYSTEM.md version header reads v0.5.0", () => {
+describe("G15 — DESIGN_SYSTEM.md version header reads v0.5.2", () => {
   it("version line matches /\\*\\*Version:\\*\\* v0\\.4\\.10/", () => {
-    // Phase 9a T9 bumped to v0.5.1 (added §12.10 PileComparison spec)
-    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.1/);
+    // Phase 9a T9 bumped to v0.5.2 (added §12.10 PileComparison spec)
+    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.2/);
   });
 });
 
@@ -557,10 +557,10 @@ describe("G20 — DESIGN_SYSTEM.md §12.8 retains CI-crosses-null dashed-border 
   });
 });
 
-describe("G21 — DESIGN_SYSTEM.md footer reads 'End of DESIGN_SYSTEM.md v0.5.0'", () => {
-  it("DESIGN_SYSTEM.md contains the v0.5.0 footer", () => {
-    // Phase 9a T9 bumped to v0.5.1
-    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.1");
+describe("G21 — DESIGN_SYSTEM.md footer reads 'End of DESIGN_SYSTEM.md v0.5.2'", () => {
+  it("DESIGN_SYSTEM.md contains the v0.5.2 footer", () => {
+    // Phase 9a T9 bumped to v0.5.2
+    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.2");
   });
 });
 

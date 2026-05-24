@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.5.1  
+**Version:** v0.5.2  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.5.2** (Phase 9a T6+T7, 2026-05-24) adds `TermMDSPlot.tsx`, `TermMDSTable.tsx`, `term-mds-plot.css`, `Dendrogram.tsx`, `DendrogramTable.tsx`, `dendrogram.css` to §11 Component Inventory. Introduces cluster color palette tokens (`--color-cluster-1` through `--color-cluster-8`) in §1.2. Extends `ActiveVizTab` to include `"term-mds"` and `"cluster-tree"`. VizSwitcher tab count: 6 → 8 (Term Map at index 1, Cluster Tree at index 2). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md`).
 - **v0.5.1** (Phase 9a T9, 2026-05-24) adds `PileComparison.tsx`, `PileComparisonTable.tsx`, and `pile-comparison.css` to §11 Component Inventory. Adds §12.10 PileComparison visual specification. Extends `ActiveVizTab` to include `"piles"` and `PermalinkState.vizTab` to include `"piles"`. VizSwitcher tab count: 5 → 6 (Pile Structure inserted at index 4). No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md`).
 - **v0.5.0** (Phase 9a T10, 2026-05-24) adds `CentralityChart.tsx`, `CentralityTable.tsx`, and `centrality-chart.css` to §11 Component Inventory. Introduces dark inverted tooltip token set (`--color-tooltip-dark-bg`, `--color-tooltip-dark-text`, `--color-tooltip-dark-divider`) in §1.2 for dense multi-line data tooltips. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T10-ui-ux-verdict.md`).
 - **v0.4.10** (T14 documentation sweep, 2026-05-16) extends §11 Component Inventory with ten Phase 6 components shipped in T0/T7/T8/T9/T10 that were not yet listed: `FailuresFindingsSection.tsx` (T10), `FailuresInspectView.tsx` (T0+T10), `FreeListColumn.tsx` (T7), `FreeListTable.tsx` (T8), `InspectRoot.tsx` (T0), `InspectSection.tsx` (T0), `InspectTable.tsx` (T0), `MdsTable.tsx` (T8), `ReadAsTableToggle.tsx` (T8), `SimilarityTable.tsx` (T8). `ScreenReaderSummary.tsx` already listed; not re-added (M1). `AccessibilityTableToggle.tsx` pending entry annotated as renamed to `ReadAsTableToggle.tsx` per T8 UI/UX verdict. Verification pass (AC7): all Phase 6 tokens confirmed present in §1.2 and `tokens.css` — no tokens missing. Verification pass (AC8): §2.3 domain nav confirmed `[Family] [Holidays] [Food] [Emotion *] [Justice *]`, no edit required. Internal-consistency verification: §12.8 vs. v0.4.9 CONSISTENT; §12.9 vs. v0.4.6 CONSISTENT; §8.1 vs. v0.4.7 CONSISTENT; §8.2 vs. v0.4.8 CONSISTENT. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-uiux-plan-verdict.md`). No new tokens. No new visual decisions.
@@ -103,6 +104,19 @@ All visual decisions derive from these tokens. They are defined once in `apps/da
 /* Uncertainty */
 --color-ellipse-fill:    rgba(51, 96, 169, 0.08);   /* per-model, use model color at 8% opacity */
 --color-ellipse-stroke:  rgba(51, 96, 169, 0.25);   /* per-model, use model color at 25% opacity */
+
+/* Cluster color palette — term-level cluster encoding (Phase 9a T6/T7, 2026-05-24) */
+/* Semantically distinct from model colors (--color-model-*). Never mix these      */
+/* two palettes in the same legend. All pass WCAG AA 3:1 on white. 8 slots;        */
+/* 9th+ clusters get --color-text-secondary with a numeric label.                  */
+--color-cluster-1: #e05c2e;   /* warm orange-red;  ~4.4:1 on white */
+--color-cluster-2: #2e7d4f;   /* forest green;     ~5.1:1 on white */
+--color-cluster-3: #b5590a;   /* dark amber;       ~4.2:1 on white */
+--color-cluster-4: #5c3298;   /* dark violet;      ~7.2:1 on white */
+--color-cluster-5: #1d6b8f;   /* steel blue;       ~5.0:1 on white */
+--color-cluster-6: #8f1d55;   /* dark rose;        ~5.7:1 on white */
+--color-cluster-7: #4a6e1a;   /* olive green;      ~5.4:1 on white */
+--color-cluster-8: #6b3a1f;   /* dark brown;       ~6.1:1 on white */
 
 /* Tooltip — dark inverted variant (Phase 9a T10, 2026-05-24) */
 /* Used by CentralityChart for dense multi-line tooltips where a light     */
@@ -1522,6 +1536,12 @@ All components to be built, in implementation order:
 - `PileComparisonTable.tsx` — read-as-table rendering for `PileComparison` (T9). File: `apps/dashboard/src/components/PileComparisonTable.tsx`. Columns: Model, Pile label, Term, Stability (%).
 - `apps/dashboard/src/styles/pile-comparison.css` — token-only styles for PileComparison. No new tokens.
 - `apps/dashboard/src/copy/pile_comparison.ts` — all visible UI strings for PileComparison (T9).
+- `TermMDSPlot.tsx` — term-level MDS scatter plot with cluster coloring, greedy label placement, hover ellipses, cluster region labels (T6). File: `apps/dashboard/src/components/TermMDSPlot.tsx`. Uses `--color-cluster-*` palette and dark inverted tooltips. Spec: UI/UX verdict `docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md`.
+- `TermMDSTable.tsx` — read-as-table rendering for `TermMDSPlot` (T6). Columns: Term, Cluster, MDS X, MDS Y, CI semi-major, CI semi-minor, CI rotation (deg), Bootstrap N.
+- `apps/dashboard/src/styles/term-mds-plot.css` — token-only styles for TermMDSPlot.
+- `Dendrogram.tsx` — left-to-right hierarchical clustering tree with BP annotations and cluster coloring (T7). File: `apps/dashboard/src/components/Dendrogram.tsx`. Uses `--color-cluster-*` palette, dashed branches below 70% BP. Spec: UI/UX verdict `docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md`.
+- `DendrogramTable.tsx` — read-as-table rendering for `Dendrogram` (T7). Columns: Cluster, Term, Subtree depth, Bootstrap support (%).
+- `apps/dashboard/src/styles/dendrogram.css` — token-only styles for Dendrogram.
 
 **Methodology page (Phase 6, Mark writes prose):**
 - `MethodologyPage.tsx` — long-form article template
@@ -1923,6 +1943,6 @@ Term stability:  [solid pill] ≥80% of runs    [dashed faint] 60–79%    [dash
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.5.1. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.5.2. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

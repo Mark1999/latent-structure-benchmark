@@ -60,19 +60,21 @@ function getTabs(): NodeListOf<HTMLButtonElement> {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("VizSwitcher — tab count", () => {
-  it("renders exactly 6 tabs (Phase 9a T9 — Pile Structure added)", () => {
+  it("renders exactly 8 tabs (Phase 9a T7 — Term Map + Cluster Tree added)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
-    expect(tabs.length).toBe(6);
+    expect(tabs.length).toBe(8);
   });
 });
 
 describe("VizSwitcher — tab labels", () => {
-  it("renders MDS Plot, Free Lists, Similarity, Centrality, Pile Structure, and Drift tabs", () => {
+  it("renders MDS Plot, Term Map, Cluster Tree, Free Lists, Similarity, Centrality, Pile Structure, and Drift tabs", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
     const labels = Array.from(tabs).map((t) => t.textContent?.trim());
     expect(labels).toContain("MDS Plot");
+    expect(labels).toContain("Term Map");
+    expect(labels).toContain("Cluster Tree");
     expect(labels).toContain("Free Lists");
     expect(labels).toContain("Similarity");
     expect(labels).toContain("Centrality");
@@ -342,11 +344,12 @@ describe("VizSwitcher — active tab visual indicator", () => {
 });
 
 describe("VizSwitcher — keyboard navigation", () => {
-  it("ArrowRight from MDS Plot moves focus to Free Lists", () => {
+  // Phase 9a T7: Term Map is at tabs[1] — ArrowRight from MDS goes to Term Map now.
+  it("ArrowRight from MDS Plot moves focus to Term Map (Phase 9a T7)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
     const mdsTab = tabs[0];
-    const freeListsTab = tabs[1];
+    const termMapTab = tabs[1];
 
     act(() => {
       mdsTab.focus();
@@ -355,18 +358,18 @@ describe("VizSwitcher — keyboard navigation", () => {
       );
     });
 
-    expect(document.activeElement).toBe(freeListsTab);
+    expect(document.activeElement).toBe(termMapTab);
   });
 
-  it("ArrowLeft from Free Lists moves focus back to MDS Plot", () => {
+  it("ArrowLeft from Term Map moves focus back to MDS Plot (Phase 9a T7)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
     const mdsTab = tabs[0];
-    const freeListsTab = tabs[1];
+    const termMapTab = tabs[1];
 
     act(() => {
-      freeListsTab.focus();
-      freeListsTab.dispatchEvent(
+      termMapTab.focus();
+      termMapTab.dispatchEvent(
         new KeyboardEvent("keydown", { key: "ArrowLeft", bubbles: true })
       );
     });
@@ -406,12 +409,12 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("mds");
   });
 
-  // Phase 9a T9: tabs[4] is now Pile Structure (active). Use Drift (tabs[5]) for disabled test.
+  // Phase 9a T7: tabs[6] is Pile Structure, tabs[7] is Drift (disabled).
   it("Enter on disabled tab (Drift) does NOT call onTabChange", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const driftTab = tabs[5];
+    const driftTab = tabs[7];
 
     act(() => {
       driftTab.focus();
@@ -424,11 +427,12 @@ describe("VizSwitcher — keyboard navigation", () => {
   });
 
   // Phase 6 T5: Enter on Similarity now calls onTabChange('similarity').
+  // Phase 9a T7: Similarity is at tabs[4] (MDS=0, Term Map=1, Cluster Tree=2, Free Lists=3, Similarity=4).
   it("Enter on Similarity tab calls onTabChange('similarity') (Phase 6 T5)", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const similarityTab = tabs[2];
+    const similarityTab = tabs[4];
 
     act(() => {
       similarityTab.focus();
@@ -440,11 +444,12 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("similarity");
   });
 
+  // Phase 9a T7: Free Lists is at tabs[3] (MDS=0, Term Map=1, Cluster Tree=2, Free Lists=3).
   it("Enter on Free Lists tab calls onTabChange('freelist') (Phase 6 T7)", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const freeListsTab = tabs[1];
+    const freeListsTab = tabs[3];
 
     act(() => {
       freeListsTab.focus();
@@ -456,12 +461,12 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("freelist");
   });
 
-  // Phase 9a T9: tabs[4] is now Pile Structure (active). Use Drift (tabs[5]) for disabled Space test.
+  // Phase 9a T7: Drift is at tabs[7].
   it("Space on disabled tab (Drift) does NOT call onTabChange", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const driftTab = tabs[5];
+    const driftTab = tabs[7];
 
     act(() => {
       driftTab.focus();

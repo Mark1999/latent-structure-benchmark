@@ -9,6 +9,8 @@
 //   docs/status/2026-05-12-phase6-T8-uiux-plan-verdict.md
 // Phase 9a T10 additions (centralityScreenReaderSummary, CENTRALITY_TABLE_CAPTION):
 //   docs/status/2026-05-24-phase9a-cda-sme-verdict.md §8 (M8)
+// Phase 9a T6 additions (termMdsScreenReaderSummary, TERM_MDS_TABLE_CAPTION):
+//   docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md
 //
 // §1.5.4 forbidden vocabulary: all LSB-authored strings in this file have been
 // scanned and are clean. Field names (model_id, csi, etc.) are exempt.
@@ -329,6 +331,43 @@ export function pileComparisonScreenReaderSummary(
   return `${s1} ${s2}`;
 }
 
+// ── TermMDS table caption (Phase 9a T6) ─────────────────────────────────────
+
+/**
+ * TermMDSTable caption template — Phase 9a T6.
+ * Do NOT paraphrase or alter without CDA SME re-approval.
+ */
+export function TERM_MDS_TABLE_CAPTION(domainSlug: string): string {
+  return `Term-level MDS coordinates and bootstrap uncertainty ellipse parameters for the ${domainSlug} domain. Each row shows one domain term's position in 2D MDS space and, where available, the 95% bootstrap confidence ellipse around that position. Rows showing — under CI columns have no bootstrap uncertainty estimate for that term.`;
+}
+
+// ── TermMDS ScreenReaderSummary (Phase 9a T6) ────────────────────────────────
+
+/**
+ * TermMDS ScreenReaderSummary — Phase 9a T6.
+ * Deterministic (derived from data only). No forbidden vocabulary.
+ *
+ * Sentence 1: term count + cluster count + what the scatter plot shows.
+ * Sentence 2: interaction instruction.
+ *
+ * Does NOT use generated_lede (CDA SME S11 binding).
+ */
+export function termMdsScreenReaderSummary(
+  domainSlug: string,
+  nTerms: number,
+  nClusters: number
+): string {
+  if (nTerms === 0) {
+    return `(Term MDS data is not available for the ${domainSlug} domain.)`;
+  }
+
+  const s1 = `This scatter plot places ${nTerms} ${nTerms === 1 ? "term" : "terms"} from the ${domainSlug} domain in 2D space according to how consistently models grouped them together; ${nClusters} ${nClusters === 1 ? "cluster is" : "clusters are"} shown, each in a distinct color.`;
+  const s2 =
+    "Hover or focus any point to see the term name, its cluster, and the bootstrap uncertainty ellipse around its position.";
+
+  return `${s1} ${s2}`;
+}
+
 /**
  * Similarity ScreenReaderSummary — CDA SME §2.3 binding output.
  * Up to 3 sentences. ≤ 3 sentence ceiling (CDA SME S10).
@@ -417,4 +456,39 @@ export function similarityScreenReaderSummary(
   // If n_dashed === 0 AND n_no_ci === 0, omit Sentence 3 entirely.
 
   return [s1, s2, s3].filter(Boolean).join(" ");
+}
+
+// ── Dendrogram ScreenReaderSummary (Phase 9a T7) ─────────────────────────────
+
+/**
+ * Dendrogram ScreenReaderSummary — Phase 9a T7.
+ * Deterministic (derived from data only). No forbidden vocabulary.
+ *
+ * Sentence 1: term count + cluster count + what the dendrogram shows (always).
+ * Sentence 2: unstable branch count, if any (conditional on nUnstableBranches > 0).
+ *
+ * Does NOT use generated_lede (CDA SME S11 binding).
+ * §1.5.4 vocabulary check: no forbidden terms; "cluster" / "group" are
+ * structural-analysis vocabulary, not psychological attribution.
+ */
+export function dendrogramScreenReaderSummary(
+  domainSlug: string,
+  nTerms: number,
+  nClusters: number,
+  nUnstableBranches: number
+): string {
+  if (nTerms === 0) {
+    return "(No hierarchical cluster data available for this domain.)";
+  }
+
+  // Sentence 1 — term count + cluster count + description
+  const s1 = `This chart shows a hierarchical tree of ${nTerms} ${nTerms === 1 ? "term" : "terms"} from the ${domainSlug} domain, organized into ${nClusters} ${nClusters === 1 ? "cluster" : "clusters"} based on how often they appear together in model pile sorts.`;
+
+  // Sentence 2 — unstable branches (conditional)
+  const s2 =
+    nUnstableBranches > 0
+      ? `${nUnstableBranches} ${nUnstableBranches === 1 ? "branch is" : "branches are"} shown dashed, indicating bootstrap support below 70% — those groupings are less stable across resampling and should be treated with caution.`
+      : null;
+
+  return [s1, s2].filter(Boolean).join(" ");
 }

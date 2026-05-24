@@ -1384,10 +1384,10 @@ describe("G34 — DataExplorer.tsx contains toggle pattern for M1 (§8.2.6 / M1)
 // G35 — DESIGN_SYSTEM.md version v0.4.8 (§8.2 update)
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("G35 — DESIGN_SYSTEM.md version v0.5.0 (current)", () => {
-  it("version line reads v0.5.0", () => {
-    // Phase 9a T9 bumped to v0.5.1 (added §12.10 PileComparison spec)
-    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.1/);
+describe("G35 — DESIGN_SYSTEM.md version v0.5.2 (current)", () => {
+  it("version line reads v0.5.2", () => {
+    // Phase 9a T9 bumped to v0.5.2 (added §12.10 PileComparison spec)
+    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.2/);
   });
 });
 
@@ -1444,10 +1444,10 @@ describe("G37 — DESIGN_SYSTEM.md §8.2.14 table contains all four confirmed st
 // G38 — DESIGN_SYSTEM.md footer reads "End of DESIGN_SYSTEM.md v0.4.8"
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("G38 — DESIGN_SYSTEM.md footer reads 'End of DESIGN_SYSTEM.md v0.5.0'", () => {
-  it("DESIGN_SYSTEM.md ends with the v0.5.0 footer", () => {
-    // Phase 9a T9 bumped to v0.5.1
-    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.1");
+describe("G38 — DESIGN_SYSTEM.md footer reads 'End of DESIGN_SYSTEM.md v0.5.2'", () => {
+  it("DESIGN_SYSTEM.md ends with the v0.5.2 footer", () => {
+    // Phase 9a T9 bumped to v0.5.2
+    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.2");
   });
 });
 

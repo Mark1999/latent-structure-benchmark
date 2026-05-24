@@ -849,10 +849,10 @@ describe("G24 — HamburgerGlyph SVG matches §8.1.2 binding spec", () => {
 // G25 — DESIGN_SYSTEM.md v0.4.7 static scan: §8.1 and §8.1.11 present
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("G25 — DESIGN_SYSTEM.md v0.5.0 static scan (§8.1 + §8.1.11 table)", () => {
-  it("version line reads v0.5.0", () => {
-    // Phase 9a T9 bumped to v0.5.1 (added §12.10 PileComparison spec)
-    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.1/);
+describe("G25 — DESIGN_SYSTEM.md v0.5.2 static scan (§8.1 + §8.1.11 table)", () => {
+  it("version line reads v0.5.2", () => {
+    // Phase 9a T9 bumped to v0.5.2 (added §12.10 PileComparison spec)
+    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.2/);
   });
 
   it("§8.1 section header is present", () => {

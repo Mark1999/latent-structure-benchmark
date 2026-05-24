@@ -452,9 +452,9 @@ describe("G4 — U2 CSS static scan: pressed-state border rules", () => {
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("G5 — DESIGN_SYSTEM.md v0.4.6 static scan", () => {
-  it("version line reads v0.5.0", () => {
-    // Phase 9a T9 bumped to v0.5.1 (added §12.10 PileComparison spec)
-    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.1/);
+  it("version line reads v0.5.2", () => {
+    // Phase 9a T9 bumped to v0.5.2 (added §12.10 PileComparison spec)
+    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.2/);
   });
 
   it("§12.9 section header exists", () => {
@@ -490,9 +490,9 @@ describe("G5 — DESIGN_SYSTEM.md v0.4.6 static scan", () => {
     expect(DESIGN_SYSTEM_MD).toContain("ReadAsTableToggle.tsx");
   });
 
-  it("footer is v0.5.0", () => {
-    // Phase 9a T9 bumped to v0.5.1
-    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.1");
+  it("footer is v0.5.2", () => {
+    // Phase 9a T9 bumped to v0.5.2
+    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.2");
   });
 
   it("v0.4.6 changelog entry exists with T8 description", () => {

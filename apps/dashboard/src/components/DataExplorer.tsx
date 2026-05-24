@@ -57,6 +57,8 @@ import { FreeListCompare } from "./FreeListCompare";
 import { SimilarityHeatmap } from "./SimilarityHeatmap";
 import { CentralityChart } from "./CentralityChart";
 import { PileComparison } from "./PileComparison";
+import { TermMDSPlot } from "./TermMDSPlot";
+import { Dendrogram } from "./Dendrogram";
 import { SourceAttribution } from "./SourceAttribution";
 import { DownloadBar } from "./DownloadBar";
 import { CiteModal } from "./CiteModal";
@@ -321,6 +323,25 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
             <PileComparison
               domainResult={domainResult}
               modelColors={modelColors}
+              selectedModels={selectedModels}
+            />
+          )}
+          {/* TermMDSPlot: rendered when Term Map tab is active (Phase 9a T6).
+              Term-level MDS scatter plot with cluster coloring and uncertainty ellipses.
+              Does not use modelColors (cluster palette used instead).
+              term_mds_coordinates may be absent; component handles gracefully. */}
+          {activeVizTab === "term-mds" && (
+            <TermMDSPlot
+              domainResult={domainResult}
+            />
+          )}
+          {/* Dendrogram: rendered when Cluster Tree tab is active (Phase 9a T7).
+              Left-to-right hierarchical clustering tree with bootstrap support annotations.
+              Does not use modelColors (cluster palette used instead).
+              term_cluster_linkage may be absent; component handles gracefully. */}
+          {activeVizTab === "cluster-tree" && (
+            <Dendrogram
+              domainResult={domainResult}
               selectedModels={selectedModels}
             />
           )}

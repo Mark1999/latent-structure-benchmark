@@ -16,8 +16,8 @@
 export interface PermalinkState {
   domain: string;
   models: string[];
-  /** Phase 5: "mds". Phase 6 T7: "freelist". Phase 6 T5: "similarity". Phase 9a T10: "centrality". Phase 9a T9: "piles". */
-  vizTab: "mds" | "freelist" | "similarity" | "centrality" | "piles";
+  /** Phase 5: "mds". Phase 6 T7: "freelist". Phase 6 T5: "similarity". Phase 9a T10: "centrality". Phase 9a T9: "piles". Phase 9a T6: "term-mds". Phase 9a T7: "cluster-tree". */
+  vizTab: "mds" | "term-mds" | "cluster-tree" | "freelist" | "similarity" | "centrality" | "piles";
 }
 
 /**
@@ -54,9 +54,9 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     const searchPart = hashIndex >= 0 ? searchAndHash.slice(0, hashIndex) : searchAndHash;
     const hashPart = hashIndex >= 0 ? searchAndHash.slice(hashIndex + 1) : "";
 
-    // Validate viz tab — "mds", "freelist", "similarity", "centrality", and "piles" are valid.
+    // Validate viz tab — "mds", "term-mds", "cluster-tree", "freelist", "similarity", "centrality", and "piles" are valid.
     const vizTab = hashPart.toLowerCase();
-    if (vizTab !== "mds" && vizTab !== "freelist" && vizTab !== "similarity" && vizTab !== "centrality" && vizTab !== "piles" && vizTab !== "") return null;
+    if (vizTab !== "mds" && vizTab !== "term-mds" && vizTab !== "cluster-tree" && vizTab !== "freelist" && vizTab !== "similarity" && vizTab !== "centrality" && vizTab !== "piles" && vizTab !== "") return null;
 
     const params = new URLSearchParams(searchPart);
     const domain = params.get("domain");
@@ -74,7 +74,9 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     if (models.length === 0) return null;
 
     const resolvedTab =
-      vizTab === "freelist" ? "freelist"
+      vizTab === "term-mds" ? "term-mds"
+      : vizTab === "cluster-tree" ? "cluster-tree"
+      : vizTab === "freelist" ? "freelist"
       : vizTab === "similarity" ? "similarity"
       : vizTab === "centrality" ? "centrality"
       : vizTab === "piles" ? "piles"
@@ -82,7 +84,7 @@ export function decodePermalink(searchAndHash: string): PermalinkState | null {
     return {
       domain,
       models,
-      vizTab: resolvedTab as "mds" | "freelist" | "similarity" | "centrality" | "piles",
+      vizTab: resolvedTab as "mds" | "term-mds" | "cluster-tree" | "freelist" | "similarity" | "centrality" | "piles",
     };
   } catch {
     return null;

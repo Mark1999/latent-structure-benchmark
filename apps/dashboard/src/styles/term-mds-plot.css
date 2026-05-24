@@ -1,0 +1,188 @@
+/*
+ * term-mds-plot.css — Token-only CSS for TermMDSPlot.
+ *
+ * Phase 9a T6. No hardcoded colors, font sizes, or spacing values.
+ * All custom properties from tokens.css.
+ *
+ * Reference:
+ *   docs/status/2026-05-24-phase9a-viz-gap-kickoff.md T6
+ *   docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md
+ *   DESIGN_SYSTEM.md v0.5.2 §11
+ */
+
+/* ── Root container ──────────────────────────────────────────────────────────── */
+
+.term-mds-plot {
+  width: 100%;
+}
+
+/* ── Description paragraph ───────────────────────────────────────────────────── */
+
+.term-mds-plot__description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  margin: 0 0 var(--space-3) 0;
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+}
+
+/* ── SVG container ───────────────────────────────────────────────────────────── */
+
+.term-mds-plot__svg-container {
+  position: relative;
+  width: 100%;
+  overflow: visible;
+}
+
+/* ── SVG element ─────────────────────────────────────────────────────────────── */
+
+.term-mds-plot__svg {
+  display: block;
+  max-width: 100%;
+}
+
+@media (max-width: 768px) {
+  .term-mds-plot__svg {
+    width: 100%;
+    height: auto;
+  }
+}
+
+/* ── Controls row (toggles) ──────────────────────────────────────────────────── */
+
+.term-mds-plot__controls {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+  align-items: center;
+}
+
+/* Hide controls and all labels on mobile (<768px) per spec */
+@media (max-width: 768px) {
+  .term-mds-plot__controls {
+    display: none;
+  }
+}
+
+/* ── Toggle checkbox controls ────────────────────────────────────────────────── */
+
+.term-mds-plot__toggle-label {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  cursor: pointer;
+  user-select: none;
+}
+
+.term-mds-plot__toggle-label input[type="checkbox"] {
+  cursor: pointer;
+  accent-color: var(--color-info);
+}
+
+/* ── Tooltip ─────────────────────────────────────────────────────────────────── */
+
+.term-mds-plot__tooltip {
+  position: absolute;
+  background: var(--color-tooltip-dark-bg);
+  color: var(--color-tooltip-dark-text);
+  padding: var(--space-2) var(--space-3);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-body);
+  z-index: 100;
+  box-shadow: var(--shadow-md);
+  pointer-events: none;
+  max-width: 280px;
+  line-height: var(--line-height-body);
+}
+
+.term-mds-plot__tooltip-term {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-sm);
+  margin-bottom: var(--space-1);
+}
+
+.term-mds-plot__tooltip-cluster {
+  margin-bottom: var(--space-2);
+  color: var(--color-tooltip-dark-text);
+}
+
+.term-mds-plot__tooltip-divider {
+  border: none;
+  border-top: 1px solid var(--color-tooltip-dark-divider);
+  margin: var(--space-2) 0;
+}
+
+.term-mds-plot__tooltip-ci-row {
+  margin-bottom: var(--space-1);
+}
+
+.term-mds-plot__tooltip-ci-label {
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-1);
+}
+
+.term-mds-plot__tooltip-note {
+  margin-top: var(--space-2);
+  color: var(--color-text-muted);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-body);
+  border-top: 1px solid var(--color-tooltip-dark-divider);
+  padding-top: var(--space-2);
+}
+
+/* ── Caption (stress value) ──────────────────────────────────────────────────── */
+
+.term-mds-plot__caption {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  margin: var(--space-3) 0 0 0;
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+}
+
+/* ── Legend row ──────────────────────────────────────────────────────────────── */
+
+.term-mds-plot__legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-3);
+  margin-top: var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  align-items: center;
+}
+
+.term-mds-plot__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.term-mds-plot__legend-dot {
+  display: inline-block;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Empty state ─────────────────────────────────────────────────────────────── */
+
+.term-mds-plot__empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  padding: var(--space-4) 0;
+  margin: 0;
+}
+
+/* ── Mobile: hide text labels on SVG ────────────────────────────────────────── */
+
+@media (max-width: 768px) {
+  .term-mds-plot__svg .term-mds-plot__term-label {
+    display: none;
+  }
+}

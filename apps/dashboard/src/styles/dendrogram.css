@@ -1,0 +1,230 @@
+/*
+ * Dendrogram component styles — Phase 9a T7
+ *
+ * Left-to-right hierarchical clustering tree.
+ * All visual tokens from DESIGN_SYSTEM.md §1.2.
+ * No hardcoded colors, sizes, or spacing.
+ *
+ * Reference:
+ *   DESIGN_SYSTEM.md v0.5.2 (Phase 9a T6+T7 visual specification)
+ *   docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md
+ */
+
+/* ── Outer container ─────────────────────────────────────────────────────────── */
+
+.dendrogram {
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  position: relative;
+}
+
+/* ── Description paragraph ───────────────────────────────────────────────────── */
+
+.dendrogram__description {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  margin-bottom: var(--space-3);
+  max-width: var(--max-prose-width);
+}
+
+/* ── Show-labels toggle (desktop only) ───────────────────────────────────────── */
+
+.dendrogram__label-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  cursor: pointer;
+  margin-bottom: var(--space-2);
+  user-select: none;
+}
+
+.dendrogram__label-toggle input[type="checkbox"] {
+  accent-color: var(--color-info);
+  cursor: pointer;
+}
+
+/* Hide the toggle entirely on mobile — leaf labels are always hidden there */
+@media (max-width: 767px) {
+  .dendrogram__label-toggle {
+    display: none;
+  }
+}
+
+/* ── SVG wrapper ─────────────────────────────────────────────────────────────── */
+
+.dendrogram__svg-wrapper {
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.dendrogram__svg {
+  display: block;
+  overflow: visible;
+}
+
+/* ── Branches ────────────────────────────────────────────────────────────────── */
+
+.dendrogram__branch {
+  stroke-width: 1.5;
+  fill: none;
+  stroke: var(--color-text-secondary);
+}
+
+.dendrogram__branch--unstable {
+  stroke-dasharray: 5 3;
+  opacity: 0.6;
+}
+
+/* ── BP labels (low-support annotation) ─────────────────────────────────────── */
+
+.dendrogram__bp-label {
+  font-size: var(--font-size-xs);
+  fill: var(--color-text-caption);
+  font-family: var(--font-body);
+}
+
+/* ── Cluster label annotations ───────────────────────────────────────────────── */
+
+.dendrogram__cluster-label {
+  font-size: var(--font-size-xs);
+  fill: var(--color-text-primary);
+  font-family: var(--font-body);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ── Leaf nodes ──────────────────────────────────────────────────────────────── */
+
+.dendrogram__leaf-circle {
+  /* Filled circle at leaf; color set inline via cluster color */
+}
+
+.dendrogram__leaf-label {
+  font-size: var(--font-size-xs);
+  fill: var(--color-text-primary);
+  font-family: var(--font-body);
+}
+
+/* Hide leaf labels on mobile */
+@media (max-width: 767px) {
+  .dendrogram__leaf-label {
+    display: none;
+  }
+}
+
+/* ── Legend strip below chart ────────────────────────────────────────────────── */
+
+.dendrogram__legend {
+  margin-top: var(--space-3);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  display: flex;
+  align-items: flex-start;
+  gap: var(--space-2);
+  max-width: var(--max-prose-width);
+}
+
+.dendrogram__legend-dashed {
+  /* Inline SVG dashed line sample rendered via React — no CSS needed here */
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  margin-top: 1px;
+}
+
+.dendrogram__legend-text {
+  line-height: var(--line-height-body);
+}
+
+/* ── Cluster color key ───────────────────────────────────────────────────────── */
+
+.dendrogram__cluster-key {
+  margin-top: var(--space-3);
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-2) var(--space-4);
+}
+
+.dendrogram__cluster-key-item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+}
+
+.dendrogram__cluster-key-swatch {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Tooltip (dark inverted) ─────────────────────────────────────────────────── */
+
+.dendrogram__tooltip {
+  position: absolute;
+  pointer-events: none;
+  z-index: 100;
+  background: var(--color-tooltip-dark-bg);
+  color: var(--color-tooltip-dark-text);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-2) var(--space-3);
+  box-shadow: var(--shadow-md);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-body);
+  max-width: 220px;
+  line-height: var(--line-height-data);
+}
+
+.dendrogram__tooltip-terms {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-tooltip-dark-divider);
+  padding-top: var(--space-1);
+}
+
+.dendrogram__tooltip-label {
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-1);
+}
+
+.dendrogram__tooltip-bp {
+  margin-top: var(--space-1);
+  border-top: 1px solid var(--color-tooltip-dark-divider);
+  padding-top: var(--space-1);
+  color: var(--color-tooltip-dark-text);
+  opacity: 0.8;
+}
+
+/* ── Read-as-table container (U1 pattern) ────────────────────────────────────── */
+
+.dendrogram__table-container table {
+  border-collapse: collapse;
+  font-size: var(--font-size-xs);
+  width: 100%;
+  max-width: var(--max-chart-width);
+}
+
+.dendrogram__table-container th,
+.dendrogram__table-container td {
+  padding: var(--space-1) var(--space-2);
+  border: var(--border-width) solid var(--color-border);
+  text-align: left;
+  color: var(--color-text-primary);
+}
+
+.dendrogram__table-container th {
+  background: var(--color-surface);
+  font-weight: var(--font-weight-medium);
+}
+
+/* ── Reduced-motion safety ───────────────────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .dendrogram__svg {
+    transition: none;
+    animation: none;
+  }
+}

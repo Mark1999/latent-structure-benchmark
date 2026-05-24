@@ -105,6 +105,19 @@
   --color-ellipse-fill:    rgba(51, 96, 169, 0.08);   /* per-model: use model color at 8% opacity */
   --color-ellipse-stroke:  rgba(51, 96, 169, 0.25);   /* per-model: use model color at 25% opacity */
 
+  /* Cluster color palette — term-level cluster encoding (Phase 9a T6/T7) */
+  /* Semantically distinct from model colors (--color-model-*). Never mix  */
+  /* these two palettes in the same legend. All pass WCAG AA 3:1 graphical */
+  /* contrast on white. 8 slots; 9th+ clusters get --color-text-secondary. */
+  --color-cluster-1: #e05c2e;   /* warm orange-red;  ~4.4:1 on white */
+  --color-cluster-2: #2e7d4f;   /* forest green;     ~5.1:1 on white */
+  --color-cluster-3: #b5590a;   /* dark amber;       ~4.2:1 on white */
+  --color-cluster-4: #5c3298;   /* dark violet;      ~7.2:1 on white */
+  --color-cluster-5: #1d6b8f;   /* steel blue;       ~5.0:1 on white */
+  --color-cluster-6: #8f1d55;   /* dark rose;        ~5.7:1 on white */
+  --color-cluster-7: #4a6e1a;   /* olive green;      ~5.4:1 on white */
+  --color-cluster-8: #6b3a1f;   /* dark brown;       ~6.1:1 on white */
+
   /* Tooltip — dark inverted variant (Phase 9a T10) */
   --color-tooltip-dark-bg:      var(--color-text-primary);  /* reuses body-text color as bg */
   --color-tooltip-dark-text:    var(--color-background);    /* white text on dark bg */

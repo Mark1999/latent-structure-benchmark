@@ -1012,16 +1012,16 @@ describe("Permalink — AC14: piles tab round-trips correctly", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// G40 — DESIGN_SYSTEM.md v0.5.1 static scan (Phase 9a T9: §12.10 PileComparison)
+// G40 — DESIGN_SYSTEM.md v0.5.2 static scan (Phase 9a T9: §12.10 PileComparison)
 // ══════════════════════════════════════════════════════════════════════════════
 
-describe("G40 — DESIGN_SYSTEM.md v0.5.1 static scan (§12.10 PileComparison)", () => {
-  it("version line reads v0.5.1", () => {
-    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.1/);
+describe("G40 — DESIGN_SYSTEM.md v0.5.2 static scan (§12.10 PileComparison)", () => {
+  it("version line reads v0.5.2", () => {
+    expect(DESIGN_SYSTEM_MD).toMatch(/\*\*Version:\*\* v0\.5\.2/);
   });
 
-  it("footer reads 'End of DESIGN_SYSTEM.md v0.5.1'", () => {
-    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.1");
+  it("footer reads 'End of DESIGN_SYSTEM.md v0.5.2'", () => {
+    expect(DESIGN_SYSTEM_MD).toContain("End of DESIGN_SYSTEM.md v0.5.2");
   });
 
   it("§12.10 section header exists", () => {
@@ -1048,7 +1048,7 @@ describe("G40 — DESIGN_SYSTEM.md v0.5.1 static scan (§12.10 PileComparison)",
     expect(DESIGN_SYSTEM_MD).toContain("pile-comparison.css");
   });
 
-  it("v0.5.1 changelog entry references T9", () => {
+  it("v0.5.2 changelog entry references T9", () => {
     expect(DESIGN_SYSTEM_MD).toContain("T9");
   });
 });

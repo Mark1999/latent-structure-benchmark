@@ -475,11 +475,11 @@ describe("CentralityChart — AC7: forbidden vocabulary check", () => {
 });
 
 // ══════════════════════════════════════════════════════════════════════════════
-// AC8 — VizSwitcher has 6 tabs including Centrality (Phase 9a T9 added Pile Structure)
+// AC8 — VizSwitcher has Centrality tab (Phase 9a T7 adds Term Map + Cluster Tree → 8 total)
 // ══════════════════════════════════════════════════════════════════════════════
 
 describe("VizSwitcher — AC8: Centrality tab added (Phase 9a T10)", () => {
-  it("renders 6 tabs including Centrality (Phase 9a T9 adds Pile Structure as 5th)", () => {
+  it("renders 8 tabs including Centrality (Phase 9a T7 adds Term Map + Cluster Tree)", () => {
     act(() => {
       root.render(
         createElement(VizSwitcher, {
@@ -489,7 +489,7 @@ describe("VizSwitcher — AC8: Centrality tab added (Phase 9a T10)", () => {
       );
     });
     const tabs = container.querySelectorAll<HTMLButtonElement>("button[role='tab']");
-    expect(tabs.length).toBe(6);
+    expect(tabs.length).toBe(8);
     const labels = Array.from(tabs).map((t) => t.textContent?.trim());
     expect(labels).toContain("Centrality");
   });

@@ -1,6 +1,7 @@
 /**
  * Dashboard analysis configuration constants.
  * Source of truth: DESIGN_SYSTEM.md §3.3.5 item 7 (OCI threshold) and §12.8 (similarity null).
+ * Phase 9a T7: DENDROGRAM_SUPPORT_THRESHOLD added per UI/UX verdict binding.
  *
  * These constants are imported by component code. The methodology page
  * reads the corresponding values from the published JSON manifest
@@ -8,6 +9,7 @@
  *
  * No component may reference 3.0 as a numeric literal for the OCI threshold.
  * No component may reference 0.5 as a numeric literal for the similarity null.
+ * No component may reference 0.70 as a numeric literal for the dendrogram BP threshold.
  * All threshold comparisons must import from this module.
  */
 
@@ -42,3 +44,16 @@ export const OCI_LOW_CONCENTRATION_THRESHOLD = 3.0;
  * Source: DESIGN_SYSTEM.md §2.3 (T5 plan), cdb_analyze/mds.py line 74.
  */
 export const SIMILARITY_NULL_VALUE = 0.5;
+
+/**
+ * Bootstrap proportion threshold for dendrogram branch stability annotation.
+ *
+ * Branches with BP >= DENDROGRAM_SUPPORT_THRESHOLD are rendered as solid lines
+ * with no numeric annotation. Branches with BP < DENDROGRAM_SUPPORT_THRESHOLD
+ * are rendered as dashed lines at 60% opacity with the BP value displayed
+ * left of the node (e.g., "58%").
+ *
+ * Source: DESIGN_SYSTEM.md v0.5.2 §12 (T7 visual spec), UI/UX verdict M5a binding.
+ * docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md
+ */
+export const DENDROGRAM_SUPPORT_THRESHOLD = 0.70;
