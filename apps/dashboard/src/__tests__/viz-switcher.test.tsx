@@ -60,15 +60,15 @@ function getTabs(): NodeListOf<HTMLButtonElement> {
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
 describe("VizSwitcher — tab count", () => {
-  it("renders exactly 5 tabs (Phase 9a T10 — Centrality added)", () => {
+  it("renders exactly 6 tabs (Phase 9a T9 — Pile Structure added)", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
-    expect(tabs.length).toBe(5);
+    expect(tabs.length).toBe(6);
   });
 });
 
 describe("VizSwitcher — tab labels", () => {
-  it("renders MDS Plot, Free Lists, Similarity, Centrality, and Drift tabs", () => {
+  it("renders MDS Plot, Free Lists, Similarity, Centrality, Pile Structure, and Drift tabs", () => {
     renderSwitcher({ activeTab: "mds", onTabChange: vi.fn() });
     const tabs = getTabs();
     const labels = Array.from(tabs).map((t) => t.textContent?.trim());
@@ -76,6 +76,7 @@ describe("VizSwitcher — tab labels", () => {
     expect(labels).toContain("Free Lists");
     expect(labels).toContain("Similarity");
     expect(labels).toContain("Centrality");
+    expect(labels).toContain("Pile Structure");
     expect(labels).toContain("Drift");
   });
 });
@@ -405,12 +406,12 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("mds");
   });
 
-  // Phase 9a T10: tabs[3] is now Centrality (active). Use Drift (tabs[4]) for disabled test.
+  // Phase 9a T9: tabs[4] is now Pile Structure (active). Use Drift (tabs[5]) for disabled test.
   it("Enter on disabled tab (Drift) does NOT call onTabChange", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const driftTab = tabs[4];
+    const driftTab = tabs[5];
 
     act(() => {
       driftTab.focus();
@@ -455,12 +456,12 @@ describe("VizSwitcher — keyboard navigation", () => {
     expect(onTabChange).toHaveBeenCalledWith("freelist");
   });
 
-  // Phase 9a T10: tabs[3] is now Centrality (active). Use Drift (tabs[4]) for disabled Space test.
+  // Phase 9a T9: tabs[4] is now Pile Structure (active). Use Drift (tabs[5]) for disabled Space test.
   it("Space on disabled tab (Drift) does NOT call onTabChange", () => {
     const onTabChange = vi.fn();
     renderSwitcher({ activeTab: "mds", onTabChange });
     const tabs = getTabs();
-    const driftTab = tabs[4];
+    const driftTab = tabs[5];
 
     act(() => {
       driftTab.focus();

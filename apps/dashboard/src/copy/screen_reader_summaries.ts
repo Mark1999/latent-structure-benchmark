@@ -302,6 +302,33 @@ export function centralityScreenReaderSummary(
   return [s1, s2, s3].join(" ");
 }
 
+// ── PileComparison ScreenReaderSummary (Phase 9a T9) ────────────────────────
+
+/**
+ * PileComparison ScreenReaderSummary — Phase 9a T9.
+ * Deterministic (derived from data only). No forbidden vocabulary.
+ *
+ * Sentence 1: model count + what the pile comparison shows (always).
+ * Sentence 2: how to navigate the interactive view (always).
+ *
+ * Does NOT use generated_lede (CDA SME S11 binding).
+ * CDA SME M7 binding: no model is ground truth; all models listed symmetrically.
+ */
+export function pileComparisonScreenReaderSummary(
+  domainSlug: string,
+  nModels: number
+): string {
+  if (nModels === 0) {
+    return "(Select one or more models to see pile structure summary.)";
+  }
+
+  const s1 = `This chart shows how ${nModels} ${nModels === 1 ? "model" : "models"} organizes ${domainSlug} vocabulary into groups, using pile-sort data from each model's most representative run.`;
+  const s2 =
+    "Each column is one model's groupings; each group card lists the terms placed together. Hover or focus any term to highlight where it appears across all columns.";
+
+  return `${s1} ${s2}`;
+}
+
 /**
  * Similarity ScreenReaderSummary — CDA SME §2.3 binding output.
  * Up to 3 sentences. ≤ 3 sentence ceiling (CDA SME S10).

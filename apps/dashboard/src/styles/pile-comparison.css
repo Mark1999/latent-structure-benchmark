@@ -1,0 +1,306 @@
+/*
+ * pile-comparison.css — Token-only CSS for PileComparison.
+ *
+ * Phase 9a T9. No hardcoded colors, font sizes, or spacing values.
+ * All custom properties from tokens.css.
+ *
+ * Reference:
+ *   docs/status/2026-05-24-phase9a-viz-gap-kickoff.md
+ *   docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md
+ *   DESIGN_SYSTEM.md v0.5.0
+ */
+
+/* ── Root container ──────────────────────────────────────────────────────────── */
+
+.pile-comparison {
+  width: 100%;
+}
+
+/* ── Description paragraph ───────────────────────────────────────────────────── */
+
+.pile-comparison__description {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin: 0 0 var(--space-3) 0;
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+}
+
+/* ── Mobile model-switcher pill row (visible at <1024px) ─────────────────────── */
+
+.pile-comparison__model-switcher {
+  display: none; /* hidden on desktop */
+  flex-wrap: wrap;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+@media (max-width: 1023px) {
+  .pile-comparison__model-switcher {
+    display: flex;
+  }
+}
+
+.pile-comparison__model-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+  min-height: 44px;
+  padding: var(--space-1) var(--space-3);
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  font-family: var(--font-body);
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-primary);
+  transition: none;
+}
+
+.pile-comparison__model-pill--active {
+  background: var(--color-info);
+  border-color: var(--color-info);
+  color: var(--color-background);
+}
+
+.pile-comparison__model-pill:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+.pile-comparison__model-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* ── Column grid (full layout at >=1024px) ───────────────────────────────────── */
+
+.pile-comparison__columns {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: var(--space-4);
+  align-items: start;
+}
+
+@media (max-width: 1023px) {
+  .pile-comparison__columns {
+    display: block;
+  }
+}
+
+/* ── Individual model column ─────────────────────────────────────────────────── */
+
+.pile-comparison__column {
+  min-width: 0; /* allow shrinking below content size in grid */
+}
+
+/* ── Column header: dot + model name ─────────────────────────────────────────── */
+
+.pile-comparison__column-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  margin-bottom: var(--space-3);
+  min-height: 24px;
+}
+
+.pile-comparison__column-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.pile-comparison__column-name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+/* ── Pile cards list ─────────────────────────────────────────────────────────── */
+
+.pile-comparison__pile-list {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ── Individual pile card ────────────────────────────────────────────────────── */
+
+.pile-comparison__pile-card {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-3);
+  transition: box-shadow 120ms ease;
+}
+
+.pile-comparison__pile-card--highlight {
+  box-shadow: var(--shadow-sm);
+}
+
+/* ── Pile label ──────────────────────────────────────────────────────────────── */
+
+.pile-comparison__pile-label {
+  display: block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.pile-comparison__pile-label--empty {
+  color: var(--color-text-muted);
+  font-style: italic;
+  font-weight: var(--font-weight-regular);
+}
+
+/* ── Term pills container ────────────────────────────────────────────────────── */
+
+.pile-comparison__terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1);
+}
+
+/* ── Term pills ──────────────────────────────────────────────────────────────── */
+
+.pile-comparison__pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 2px var(--space-2);
+  background: var(--color-background);
+  border: 1px solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-body);
+  color: var(--color-text-primary);
+  white-space: nowrap;
+  cursor: default;
+  position: relative;
+  transition: background 80ms ease, border-color 80ms ease;
+}
+
+/* Stability tier: 60–79% — dashed faint border */
+.pile-comparison__pill--stability-medium {
+  border: 1px dashed var(--color-border);
+}
+
+/* Stability tier: <60% — dashed medium border + caption text */
+.pile-comparison__pill--stability-low {
+  border: 1px dashed var(--color-text-secondary);
+  color: var(--color-text-caption);
+}
+
+/* Highlighted pill (cross-column hover) */
+.pile-comparison__pill--highlight {
+  background: var(--color-surface-hover);
+  border: 1px solid var(--color-text-secondary);
+}
+
+/* Highlighted pill for low-stability (preserve dashed on highlight) */
+.pile-comparison__pill--stability-low.pile-comparison__pill--highlight {
+  border: 1px dashed var(--color-text-secondary);
+}
+
+/* Focus ring on keyboard-accessible pills */
+.pile-comparison__pill:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* ── Absent-term placeholder pill (shown on hover only) ─────────────────────── */
+
+.pile-comparison__pill--absent {
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  background: transparent;
+  font-style: italic;
+  cursor: default;
+}
+
+/* ── Legend row ──────────────────────────────────────────────────────────────── */
+
+.pile-comparison__legend {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: var(--space-3);
+  margin-top: var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+}
+
+.pile-comparison__legend-label {
+  font-weight: var(--font-weight-medium);
+  margin-right: var(--space-1);
+}
+
+.pile-comparison__legend-item {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+.pile-comparison__legend-pill {
+  display: inline-flex;
+  align-items: center;
+  padding: 1px var(--space-2);
+  background: var(--color-background);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  font-family: var(--font-body);
+  color: var(--color-text-caption);
+  white-space: nowrap;
+}
+
+.pile-comparison__legend-pill--solid {
+  border: 1px solid var(--color-border);
+}
+
+.pile-comparison__legend-pill--dashed-medium {
+  border: 1px dashed var(--color-border);
+}
+
+.pile-comparison__legend-pill--dashed-low {
+  border: 1px dashed var(--color-text-secondary);
+  color: var(--color-text-caption);
+}
+
+/* ── Mobile responsive at <480px: truncate pile labels ──────────────────────── */
+/* Note: truncation to 28 chars is handled in JS (not CSS) per the spec.         */
+/* The CSS ensures overflow is handled gracefully for any remaining text.         */
+
+/* ── Empty states ────────────────────────────────────────────────────────────── */
+
+.pile-comparison__empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  padding: var(--space-4) 0;
+  margin: 0;
+}
+
+/* ── Reduced-motion: disable transitions ─────────────────────────────────────── */
+
+@media (prefers-reduced-motion: reduce) {
+  .pile-comparison__pile-card {
+    transition: none;
+  }
+  .pile-comparison__pill {
+    transition: none;
+  }
+  .pile-comparison__model-pill {
+    transition: none;
+  }
+}

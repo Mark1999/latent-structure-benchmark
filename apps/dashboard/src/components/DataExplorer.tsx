@@ -56,6 +56,7 @@ import type { ActiveVizTab } from "./VizSwitcher";
 import { FreeListCompare } from "./FreeListCompare";
 import { SimilarityHeatmap } from "./SimilarityHeatmap";
 import { CentralityChart } from "./CentralityChart";
+import { PileComparison } from "./PileComparison";
 import { SourceAttribution } from "./SourceAttribution";
 import { DownloadBar } from "./DownloadBar";
 import { CiteModal } from "./CiteModal";
@@ -307,6 +308,17 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
               modelColors and selectedModels follow §12.4 palette ownership. */}
           {activeVizTab === "centrality" && (
             <CentralityChart
+              domainResult={domainResult}
+              modelColors={modelColors}
+              selectedModels={selectedModels}
+            />
+          )}
+          {/* PileComparison: rendered when Pile Structure tab is active (Phase 9a T9).
+              Side-by-side pile structure comparison per §3 T9 visual spec.
+              modelColors and selectedModels follow §12.4 palette ownership.
+              centroid_piles may be absent in early published JSON; component handles gracefully. */}
+          {activeVizTab === "piles" && (
+            <PileComparison
               domainResult={domainResult}
               modelColors={modelColors}
               selectedModels={selectedModels}

@@ -9,6 +9,7 @@
  * Phase 6 T5: Similarity tab is now active. #similarity is a valid URL fragment.
  * Drift remains disabled (Phase-6-T4 territory).
  * Phase 9a T10: Centrality tab is now active. #centrality is a valid URL fragment.
+ * Phase 9a T9: Pile Structure tab is now active. #piles is a valid URL fragment.
  *
  * Accessibility — DESIGN_SYSTEM.md §12.3 binding (overrides T8 plan spec):
  *   - Container: role="tablist" with aria-label="Visualization view".
@@ -33,8 +34,8 @@
 
 import { type KeyboardEvent } from "react";
 
-/** Active tab values — widened to include "centrality" at Phase 9a T10. */
-export type ActiveVizTab = "mds" | "freelist" | "similarity" | "centrality";
+/** Active tab values — widened to include "centrality" at Phase 9a T10, "piles" at Phase 9a T9. */
+export type ActiveVizTab = "mds" | "freelist" | "similarity" | "centrality" | "piles";
 
 export interface VizSwitcherProps {
   activeTab: ActiveVizTab;
@@ -47,7 +48,8 @@ function isActivatableTab(id: string): id is ActiveVizTab {
     id === "mds" ||
     id === "freelist" ||
     id === "similarity" ||
-    id === "centrality"
+    id === "centrality" ||
+    id === "piles"
   );
 }
 
@@ -60,11 +62,12 @@ interface TabDef {
 }
 
 const TABS: TabDef[] = [
-  { id: "mds",         label: "MDS Plot",    active: true,  disabled: false },
-  { id: "freelist",    label: "Free Lists",  active: false, disabled: false },
-  { id: "similarity",  label: "Similarity",  active: false, disabled: false },
-  { id: "centrality",  label: "Centrality",  active: false, disabled: false },
-  { id: "drift",       label: "Drift",       active: false, disabled: true  },
+  { id: "mds",         label: "MDS Plot",       active: true,  disabled: false },
+  { id: "freelist",    label: "Free Lists",     active: false, disabled: false },
+  { id: "similarity",  label: "Similarity",     active: false, disabled: false },
+  { id: "centrality",  label: "Centrality",     active: false, disabled: false },
+  { id: "piles",       label: "Pile Structure", active: false, disabled: false },
+  { id: "drift",       label: "Drift",          active: false, disabled: true  },
 ];
 
 /** Fragments that are still disabled (Phase-6-T4 territory). */
@@ -93,6 +96,9 @@ export function resolveFragmentOnMount(): ActiveVizTab {
     }
     if (raw === "centrality") {
       return "centrality";
+    }
+    if (raw === "piles") {
+      return "piles";
     }
     if (DISABLED_FRAGMENTS.has(raw)) {
       console.warn(

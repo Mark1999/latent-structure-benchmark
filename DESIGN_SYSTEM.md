@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.5.0  
+**Version:** v0.5.1  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.5.1** (Phase 9a T9, 2026-05-24) adds `PileComparison.tsx`, `PileComparisonTable.tsx`, and `pile-comparison.css` to §11 Component Inventory. Adds §12.10 PileComparison visual specification. Extends `ActiveVizTab` to include `"piles"` and `PermalinkState.vizTab` to include `"piles"`. VizSwitcher tab count: 5 → 6 (Pile Structure inserted at index 4). No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md`).
 - **v0.5.0** (Phase 9a T10, 2026-05-24) adds `CentralityChart.tsx`, `CentralityTable.tsx`, and `centrality-chart.css` to §11 Component Inventory. Introduces dark inverted tooltip token set (`--color-tooltip-dark-bg`, `--color-tooltip-dark-text`, `--color-tooltip-dark-divider`) in §1.2 for dense multi-line data tooltips. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T10-ui-ux-verdict.md`).
 - **v0.4.10** (T14 documentation sweep, 2026-05-16) extends §11 Component Inventory with ten Phase 6 components shipped in T0/T7/T8/T9/T10 that were not yet listed: `FailuresFindingsSection.tsx` (T10), `FailuresInspectView.tsx` (T0+T10), `FreeListColumn.tsx` (T7), `FreeListTable.tsx` (T8), `InspectRoot.tsx` (T0), `InspectSection.tsx` (T0), `InspectTable.tsx` (T0), `MdsTable.tsx` (T8), `ReadAsTableToggle.tsx` (T8), `SimilarityTable.tsx` (T8). `ScreenReaderSummary.tsx` already listed; not re-added (M1). `AccessibilityTableToggle.tsx` pending entry annotated as renamed to `ReadAsTableToggle.tsx` per T8 UI/UX verdict. Verification pass (AC7): all Phase 6 tokens confirmed present in §1.2 and `tokens.css` — no tokens missing. Verification pass (AC8): §2.3 domain nav confirmed `[Family] [Holidays] [Food] [Emotion *] [Justice *]`, no edit required. Internal-consistency verification: §12.8 vs. v0.4.9 CONSISTENT; §12.9 vs. v0.4.6 CONSISTENT; §8.1 vs. v0.4.7 CONSISTENT; §8.2 vs. v0.4.8 CONSISTENT. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-16-phase6-T14-uiux-plan-verdict.md`). No new tokens. No new visual decisions.
 - **v0.4.9** (T6 plan-level UI/UX verdict, 2026-05-15) introduces the §1.2 sequential color scale token set (`--color-scale-seq-0` through `--color-scale-seq-4`) as a perceptually-graded OWID-style single-hue blue ramp (light gray-blue → deep navy). Mark's Posture B choice: replaces the T5 alpha-blend formula `rgba(44, 62, 80, similarity)` with a 5-stop discrete-binning model. SimilarityHeatmap.tsx is reworked: `cellBackground()` now maps similarity to one of five named hex stops via bin boundaries [0, 0.20, 0.40, 0.60, 0.80, 1.00]; `HEATMAP_TEXT_SWITCH_THRESHOLD` changes from 0.73 to 0.60 (dark text on stops 0–2, white text on stops 3–4, both arms ≥4.5:1 WCAG AA). §12.8 rewritten for the new palette with full WCAG AA contrast table. CI-crosses-null dashed-border treatment retained verbatim from T5 (T14 follow-up per CDA SME T5 §5.4). Stops 0–2 do not pass WCAG 3:1 standalone-swatch contrast on white; documented as compositional-only (used only as heatmap cell fills with adjacent cell borders and similarity text, not as standalone swatches). Token `--color-heatmap-cell-text-dark: #000000` retained (pure black required; `--color-text-primary` fails at stop 2 at 3.31:1). No diverging scale added. See `docs/status/2026-05-15-phase6-T6-uiux-plan-verdict.md`.
@@ -1517,6 +1518,10 @@ All components to be built, in implementation order:
 - `CentralityChart.tsx` — ranked horizontal bar chart of cultural centrality scores with error bars (T10). File: `apps/dashboard/src/components/CentralityChart.tsx`. Uses dark inverted tooltip (`--color-tooltip-dark-bg/text/divider`). Spec: UI/UX verdict `docs/status/2026-05-24-phase9a-T10-ui-ux-verdict.md`.
 - `CentralityTable.tsx` — read-as-table rendering for `CentralityChart` (T10). File: `apps/dashboard/src/components/CentralityTable.tsx`. Columns: Rank, Model, model_id, Centrality score, 95% CI lower/upper, Bootstrap N, Notes.
 - `apps/dashboard/src/styles/centrality-chart.css` — token-only styles for CentralityChart. Uses `--color-tooltip-dark-bg`, `--color-tooltip-dark-text`, `--color-tooltip-dark-divider`.
+- `PileComparison.tsx` — side-by-side pile structure comparison across models (T9). File: `apps/dashboard/src/components/PileComparison.tsx`. Cross-column hover highlight, stability tiers, mobile model-switcher. No new tokens. Spec: §12.10 and UI/UX verdict `docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md`.
+- `PileComparisonTable.tsx` — read-as-table rendering for `PileComparison` (T9). File: `apps/dashboard/src/components/PileComparisonTable.tsx`. Columns: Model, Pile label, Term, Stability (%).
+- `apps/dashboard/src/styles/pile-comparison.css` — token-only styles for PileComparison. No new tokens.
+- `apps/dashboard/src/copy/pile_comparison.ts` — all visible UI strings for PileComparison (T9).
 
 **Methodology page (Phase 6, Mark writes prose):**
 - `MethodologyPage.tsx` — long-form article template
@@ -1827,6 +1832,97 @@ A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 no
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.5.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+---
+
+### 12.10 PileComparison visual specification (v0.5.1 — T9, 2026-05-24)
+
+Phase 9a T9 adds `PileComparison.tsx`, which shows how different models partition domain terms into different categories with different labels. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`, Decision 7, M7); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md`).
+
+**CDA SME M7 binding (binding throughout this section):**
+- No model is ground truth. All columns visually equal (same width, font weight, hierarchy).
+- Divergence is a finding, not a failure.
+- No "agreement score" between models (use SimilarityHeatmap for that).
+- No Sankey/alluvial diagram (imports directionality framing, violates M7 symmetry).
+
+**Layout:**
+- Column grid: `minmax(220px, 1fr)` CSS grid, one column per selected model. `align-items: start`.
+- All columns equal width/weight.
+- At `≥1024px`: full column grid rendered.
+- At `<1024px`: single-column with model-switcher pill row (radio group). Grid collapses to `display: block`.
+- At `<480px`: pile labels truncated to 28 chars (handled in JS via `truncate()` helper). CSS ensures overflow graceful.
+
+**Column anatomy (top to bottom):**
+1. Column header: model color dot (8px circle) + model short name (font-weight-medium, truncated if needed).
+2. Pile cards: pile list sorted by pile size descending; alphabetical tiebreak on label.
+
+**Pile cards:**
+- Background: `--color-surface`, border: `1px solid var(--color-border)`, radius: `--border-radius-md`.
+- Padding: `--space-3`, gap between cards: `--space-3`.
+- Pile label at top: `--font-size-sm`, `--font-weight-medium`, truncated at 40 chars desktop / 28 chars `<480px`.
+- Empty label: "(no label)" in `--color-text-muted` italic.
+
+**Term pills:**
+- Background: `--color-background`, border: `1px solid var(--color-border)`, radius: `--border-radius-sm`.
+- Padding: `2px var(--space-2)`, font: `--font-size-xs`, `white-space: nowrap`.
+- Each pill: `tabindex="0"`, `role="button"` for keyboard accessibility.
+
+**Cross-column hover highlight (binding):**
+- Hover/focus a term pill → ALL instances of that term across ALL visible columns highlight simultaneously.
+- Highlight: pill background → `--color-surface-hover`, pill border → `1px solid var(--color-text-secondary)`, containing card → `box-shadow: var(--shadow-sm)`.
+- If term absent from another model: show dashed muted placeholder pill ON HOVER ONLY (not by default). CSS class: `.pile-comparison__pill--absent`. Tooltip: "This term was not produced by [model short name] in this domain."
+- Absent placeholder placed in the pile card of the first pile in that column (or at column root if no piles exist).
+
+**Term stability (R10 uncertainty) — dashed border tiers (binding per R10):**
+- `≥0.8`: default pill — solid border `1px solid var(--color-border)`.
+- `0.6 to <0.8`: CSS class `.pile-comparison__pill--stability-medium` — `1px dashed var(--color-border)`.
+- `<0.6`: CSS class `.pile-comparison__pill--stability-low` — `1px dashed var(--color-text-secondary)`, text color `--color-text-caption`.
+- Tooltip on ALL pills: "Placed here in [N]% of runs for [model short name]." Provided via `title` attribute and `aria-label`.
+- R10 compliance: no bare point-estimate placement without the stability tier class. The tier classes are the R10 display mechanism for pile uncertainty.
+
+**Legend row below grid (binding):**
+```
+Term stability:  [solid pill] ≥80% of runs    [dashed faint] 60–79%    [dashed medium] below 60%
+```
+- Font: `--font-size-xs`, color: `--color-text-caption`.
+- `aria-hidden="true"` (decorative legend; stability is also communicated via tooltip on each pill).
+
+**Mobile model-switcher (`<1024px`):**
+- Horizontal pill row above the single column.
+- Each pill: model color dot (8px) + short name, `min-height: 44px` (WCAG 2.5.5 touch target floor).
+- Container: `role="radiogroup"`, `aria-label="Select model to view"`.
+- Each pill: `role="radio"`, `aria-checked={boolean}`.
+- Active pill: `--color-info` background + `--color-background` text + dot color.
+- CSS class: `.pile-comparison__model-pill` (rest), `.pile-comparison__model-pill--active` (selected).
+
+**VizSwitcher tab:**
+- Label: "Pile Structure". Fragment: `#piles`. Active (not disabled).
+- Inserts after "Centrality" tab (index 4 in the 6-tab list: MDS Plot, Free Lists, Similarity, Centrality, Pile Structure, Drift).
+
+**Description paragraph (visible, above columns — binding per journalist test):**
+"How models organize [domain] vocabulary into categories: each column shows one model's groupings from its most representative run. Hover any term to see where it appears across models."
+
+**Empty states:**
+- Zero models selected: "Select one or more models to see how they structure [domain] terms."
+- No pile data: "Pile structure data is not available for the selected models in this domain."
+
+**ReadAsTableToggle table (`PileComparisonTable.tsx`):**
+- 4 columns: Model | Pile label | Term | Stability (%)
+- Sort: model order → pile index → term lexicographic.
+- Caption: "How models categorize [domain] terms: pile assignments from each model's centroid run. Stability indicates how often each placement appeared across runs."
+
+**Copy files:**
+- `apps/dashboard/src/copy/pile_comparison.ts` — all visible UI strings.
+- `apps/dashboard/src/copy/screen_reader_summaries.ts` → `pileComparisonScreenReaderSummary(domainSlug, nModels)` added.
+
+**Components added:**
+- `PileComparison.tsx` — main component.
+- `PileComparisonTable.tsx` — ReadAsTableToggle table.
+- `apps/dashboard/src/styles/pile-comparison.css` — token-only CSS.
+
+**No new tokens introduced.** All visual decisions use existing tokens from `tokens.css`.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.5.1. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
