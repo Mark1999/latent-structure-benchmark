@@ -591,17 +591,20 @@ describe("<section> aria-labelledby (T10 plan §2.3)", () => {
 // ── 14. App.tsx wires FailuresFindingsSection ─────────────────────────────────
 
 describe("App.tsx — FailuresFindingsSection integration", () => {
-  it("App.tsx imports FailuresFindingsSection", () => {
-    expect(APP_SRC).toContain("FailuresFindingsSection");
+  it("FailuresFindingsSection.tsx exists as a standalone component (Phase 9a: not rendered from App.tsx)", async () => {
+    // Phase 9a app-shell: explore page has no article sections. FailuresFindingsSection
+    // is still available as a component but is not imported/rendered from App.tsx.
+    // It can be used by the DataExplorer's free lists / failures viz tab.
+    const { FailuresFindingsSection } = await import(
+      "../components/FailuresFindingsSection"
+    );
+    expect(typeof FailuresFindingsSection).toBe("function");
   });
 
-  it("App.tsx renders FailuresFindingsSection with !embedMode guard", () => {
+  it("App.tsx renders DataExplorer with embedMode awareness (embed branch uses isEmbed={true})", () => {
+    // The embedMode guard is still relevant for the embed branch.
     expect(APP_SRC).toContain("embedMode");
-    // Presence of both implies the guard
-    const embedIdx = APP_SRC.indexOf("embedMode");
-    const sectionIdx = APP_SRC.indexOf("FailuresFindingsSection");
-    expect(sectionIdx).toBeGreaterThan(0);
-    expect(embedIdx).toBeGreaterThan(0);
+    expect(APP_SRC).toContain("isEmbed={true}");
   });
 });
 

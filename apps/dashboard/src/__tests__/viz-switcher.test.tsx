@@ -525,9 +525,9 @@ describe("VizSwitcher — Gap G2: resolveFragmentOnMount with real hash values (
     window.location.hash = "";
   });
 
-  it("returns 'mds' when hash is empty", () => {
+  it("returns 'term-mds' when hash is empty (app-shell layout default)", () => {
     window.location.hash = "";
-    expect(resolveFragmentOnMount()).toBe("mds");
+    expect(resolveFragmentOnMount()).toBe("term-mds");
   });
 
   it("returns 'mds' when hash is '#mds'", () => {
@@ -547,9 +547,9 @@ describe("VizSwitcher — Gap G2: resolveFragmentOnMount with real hash values (
     expect(resolveFragmentOnMount()).toBe("similarity");
   });
 
-  it("returns 'mds' when hash is '#drift' (still disabled)", () => {
+  it("returns 'term-mds' when hash is '#drift' (still disabled — falls back to default)", () => {
     window.location.hash = "#drift";
-    expect(resolveFragmentOnMount()).toBe("mds");
+    expect(resolveFragmentOnMount()).toBe("term-mds");
   });
 
   // #freelist is no longer a DISABLED_FRAGMENT — no warn emitted.

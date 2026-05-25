@@ -154,29 +154,33 @@ describe("AC5 — reader mode unchanged: App.tsx full-page branch still has pre-
    * components that form the reader view.
    */
 
-  it("App.tsx full-page branch still renders ArticleHeader", () => {
-    // The full-page branch is the final return in App(), after both early-return
-    // guards (inspectSlug + embedMode). It must still contain ArticleHeader.
-    expect(APP_SRC).toContain("<ArticleHeader");
-  });
-
-  it("App.tsx full-page branch still renders DataExplorer", () => {
+  it("App.tsx app-shell branch renders DataExplorer (Phase 9a: ArticleHeader removed from explore page)", () => {
+    // Phase 9a: the explore page is an app-shell. ArticleHeader is no longer rendered.
+    // DataExplorer remains the core content component.
     expect(APP_SRC).toContain("<DataExplorer");
   });
 
-  it("App.tsx full-page branch still renders MethodologySummary", () => {
-    expect(APP_SRC).toContain("<MethodologySummary");
+  it("App.tsx does NOT render ArticleHeader (Phase 9a: article sections removed from explore page)", () => {
+    // Phase 9a app-shell: ArticleHeader, MethodologySummary, and FailuresFindingsSection
+    // are no longer rendered from App.tsx on the explore page. The layout is now
+    // a full-viewport sidebar + content grid.
+    expect(APP_SRC).not.toContain("<ArticleHeader");
   });
 
-  it("App.tsx inspectSlug check appears BEFORE the full-page return", () => {
-    // The inspectSlug guard must be an early-return so the full-page branch
+  it("App.tsx does NOT render MethodologySummary (Phase 9a: article sections removed)", () => {
+    expect(APP_SRC).not.toContain("<MethodologySummary");
+  });
+
+  it("App.tsx inspectSlug check appears BEFORE the app-shell return", () => {
+    // The inspectSlug guard must be an early-return so the app-shell branch
     // is reached whenever inspect mode is inactive.
-    // Verify that 'inspectSlug !== null' appears before 'page-wrapper' in source.
+    // Verify that 'inspectSlug !== null' appears before the app-shell JSX root div
+    // ('className="app-shell"') in source.
     const inspectCheckIdx = APP_SRC.indexOf("inspectSlug !== null");
-    const pageWrapperIdx = APP_SRC.indexOf("page-wrapper");
+    const appShellIdx = APP_SRC.indexOf('className="app-shell"');
     expect(inspectCheckIdx).toBeGreaterThan(-1);
-    expect(pageWrapperIdx).toBeGreaterThan(-1);
-    expect(inspectCheckIdx).toBeLessThan(pageWrapperIdx);
+    expect(appShellIdx).toBeGreaterThan(-1);
+    expect(inspectCheckIdx).toBeLessThan(appShellIdx);
   });
 
   it("App.tsx inspectSlug check appears BEFORE embedMode early-return", () => {

@@ -203,40 +203,41 @@ describe("App.tsx — ARIA attributes in loading/error states (source verificati
 });
 
 // ──────────────────────────────────────────────────────────────
-// App.tsx — render order: Header before ArticleHeader before content before Footer
+// App.tsx — render order: Phase 9a app-shell layout
+// (Header/ArticleHeader/Footer article layout replaced by app-shell)
 // ──────────────────────────────────────────────────────────────
 describe("App.tsx — render order (source position verification)", () => {
   const appSrc = readSrc("App.tsx");
 
-  it("Header appears before ArticleHeader in source order", () => {
-    const headerPos = appSrc.indexOf("<Header");
-    const articleHeaderPos = appSrc.indexOf("<ArticleHeader");
-    expect(headerPos).toBeGreaterThan(-1);
-    expect(articleHeaderPos).toBeGreaterThan(-1);
-    expect(headerPos).toBeLessThan(articleHeaderPos);
+  it("app-nav bar appears before app-main in source order (Phase 9a app-shell layout)", () => {
+    // Phase 9a: App.tsx uses an app-shell layout. The nav bar (.app-nav) is above
+    // the main grid (.app-main) which contains sidebar + content.
+    const navPos = appSrc.indexOf("app-nav");
+    const mainPos = appSrc.indexOf("app-main");
+    expect(navPos).toBeGreaterThan(-1);
+    expect(mainPos).toBeGreaterThan(-1);
+    expect(navPos).toBeLessThan(mainPos);
   });
 
-  it("ArticleHeader appears before content area (loading placeholder div) in source order", () => {
-    const articleHeaderPos = appSrc.indexOf("<ArticleHeader");
-    // The loading placeholder div begins after ArticleHeader.
-    // We key on the content-placeholder class which appears in the content zone,
-    // not on the "loading" string (which also appears in the AppState type definition above).
+  it("app-sidebar appears before app-content in source order", () => {
+    const sidebarPos = appSrc.indexOf("app-sidebar");
+    const contentPos = appSrc.indexOf("app-content");
+    expect(sidebarPos).toBeGreaterThan(-1);
+    expect(contentPos).toBeGreaterThan(-1);
+    expect(sidebarPos).toBeLessThan(contentPos);
+  });
+
+  it("content-placeholder--loading appears after app-nav in source order", () => {
+    const navPos = appSrc.indexOf("app-nav");
     const contentPlaceholderPos = appSrc.indexOf("content-placeholder--loading");
-    expect(articleHeaderPos).toBeGreaterThan(-1);
+    expect(navPos).toBeGreaterThan(-1);
     expect(contentPlaceholderPos).toBeGreaterThan(-1);
-    expect(articleHeaderPos).toBeLessThan(contentPlaceholderPos);
+    expect(navPos).toBeLessThan(contentPlaceholderPos);
   });
 
-  it("Footer appears after content area in source order", () => {
-    const loadingStatePos = appSrc.indexOf('role="status"');
-    const footerPos = appSrc.indexOf("<Footer");
-    expect(loadingStatePos).toBeGreaterThan(-1);
-    expect(footerPos).toBeGreaterThan(-1);
-    expect(footerPos).toBeGreaterThan(loadingStatePos);
-  });
-
-  it("page-wrapper div wraps all four zones", () => {
-    expect(appSrc).toContain("page-wrapper");
+  it("app-shell div wraps all zones (replaces page-wrapper)", () => {
+    // Phase 9a: the app-shell div is the root container (no longer page-wrapper).
+    expect(appSrc).toContain("app-shell");
   });
 });
 

@@ -407,46 +407,39 @@ describe("App — embed mode (DESIGN_SYSTEM.md §12.5)", () => {
 
 // ── T13 additions: MethodologySummary embed-mode suppression ──────────────────
 //
-// Verifies that MethodologySummary is imported in App.tsx and is suppressed
-// in embed mode per DESIGN_SYSTEM.md §12.5 and §12.7 (v0.4.4, T13).
+// Phase 9a layout restructure removed MethodologySummary from the App-shell
+// explore page. The explore page is now a full-viewport app shell with no
+// article sections. MethodologySummary is available as a standalone component
+// but is no longer rendered from App.tsx. The assertions below have been
+// updated to reflect the post-Phase-9a architecture.
 
 describe("App — T13 MethodologySummary integration (source assertions)", () => {
-  it("App.tsx imports MethodologySummary", () => {
+  it("App.tsx does NOT import MethodologySummary (Phase 9a app-shell — explore page has no article sections)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).toContain("MethodologySummary");
-    expect(appSrc).toContain("from \"./components/MethodologySummary\"");
+    // Phase 9a: explore page is an app shell. MethodologySummary is not rendered there.
+    expect(appSrc).not.toContain("from \"./components/MethodologySummary\"");
   });
 
-  it("App.tsx renders MethodologySummary in non-embed mode (full-page branch)", () => {
+  it("App.tsx does NOT render MethodologySummary (Phase 9a app-shell layout)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    // Extract the full-page mode block (after "// Full-page mode").
-    const fullPageBlock = appSrc.slice(appSrc.indexOf("// Full-page mode"));
-    expect(fullPageBlock).toContain("<MethodologySummary");
+    expect(appSrc).not.toContain("<MethodologySummary");
   });
 
-  it("App.tsx suppresses MethodologySummary in embed mode (embed-root block does not contain it)", () => {
+  it("App.tsx embed-root block does not contain MethodologySummary (unchanged — never was there)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    // Extract the embed-root block: from "embed-root" to "// Full-page mode".
-    const embedRootBlock = appSrc.slice(
-      appSrc.indexOf("embed-root"),
-      appSrc.indexOf("// Full-page mode")
-    );
+    // Extract the embed-root block: from "embed-root" to "// App-shell layout".
+    const embedRootStart = appSrc.indexOf("embed-root");
+    const appShellStart = appSrc.indexOf("// ── App-shell layout");
+    const embedRootBlock = appSrc.slice(embedRootStart, appShellStart > 0 ? appShellStart : undefined);
     // MethodologySummary must NOT appear in the embed branch.
     expect(embedRootBlock).not.toContain("MethodologySummary");
   });
 
-  it("App.tsx wraps MethodologySummary in reveal-cascade-item div (F-T13-6 binding)", () => {
-    const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    // The wrapper must be at App.tsx level — not inside MethodologySummary.tsx.
-    // Verify the pattern: reveal-cascade-item div immediately around MethodologySummary.
-    expect(appSrc).toContain("reveal-cascade-item");
-    expect(appSrc).toContain("<MethodologySummary");
-    // The component itself must not contain reveal-cascade-item.
-    const methodSummarySrc = readFileSync(
-      resolve(__dirname, "../components/MethodologySummary.tsx"),
-      "utf-8"
-    );
-    expect(methodSummarySrc).not.toContain("reveal-cascade-item");
+  it("MethodologySummary.tsx exists as a standalone component (still importable)", async () => {
+    // MethodologySummary.tsx still exists; App.tsx just does not render it in the
+    // app-shell layout. Other consumers (e.g. /methodology page) can use it.
+    const { MethodologySummary } = await import("../components/MethodologySummary");
+    expect(typeof MethodologySummary).toBe("function");
   });
 
   it("MethodologySummary.tsx does not import anthropic/openai/LLM client (cdb_analyze boundary check adapted for dashboard)", () => {
@@ -482,21 +475,24 @@ describe("App — lede format regression (DESIGN_SYSTEM.md §3.8)", () => {
 // App.tsx into DataExplorer.tsx. The source assertions below are updated to
 // reflect the T9 migration. The functional logic is tested in data-explorer.test.tsx.
 
-describe("App — T7 selectedModels state (post-T9 source assertions)", () => {
-  it("App.tsx does NOT contain selectedModels state (moved to DataExplorer at T9)", () => {
+describe("App — T7 selectedModels state (post-Phase-9a-app-shell source assertions)", () => {
+  it("App.tsx contains selectedModels state (Phase 9a: lifted to App for app-shell sidebar↔content sharing)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    // T9 migration: selectedModels state is now in DataExplorer.tsx.
-    expect(appSrc).not.toContain("setSelectedModels");
+    // Phase 9a app-shell: App.tsx lifts selectedModels so the sidebar (ProviderModelTree)
+    // and content (DataExplorer) can share it via external controlled props.
+    expect(appSrc).toContain("setSelectedModels");
   });
 
-  it("App.tsx does NOT contain MODEL_PALETTE_SLOTS (moved to DataExplorer at T9)", () => {
+  it("App.tsx contains MODEL_PALETTE_SLOTS (Phase 9a: needed for SelectionBar chip colors)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).not.toContain("MODEL_PALETTE_SLOTS");
+    // App.tsx uses MODEL_PALETTE_SLOTS to compute modelColors for the SelectionBar chips.
+    expect(appSrc).toContain("MODEL_PALETTE_SLOTS");
   });
 
-  it("App.tsx does NOT contain modelColors useMemo (moved to DataExplorer at T9)", () => {
+  it("App.tsx contains modelColors useMemo (Phase 9a: needed for SelectionBar chip colors)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).not.toContain("modelColors = useMemo");
+    // modelColors useMemo is in App.tsx to supply colors to the SelectionBar.
+    expect(appSrc).toContain("modelColors = useMemo");
   });
 
   it("DataExplorer.tsx declares selectedModels state with sort+slice (source assertion)", () => {
@@ -610,13 +606,15 @@ describe("App — T8 VizSwitcher integration (post-T9 source assertions)", () =>
     expect(deSrc).toContain("onTabChange={handleVizTabChange}");
   });
 
-  it("App.tsx does NOT contain activeVizTab state (moved to DataExplorer at T9)", () => {
+  it("App.tsx contains activeVizTab state (Phase 9a: lifted to App for app-shell sidebar↔content sharing)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
-    expect(appSrc).not.toContain("setActiveVizTab");
+    // Phase 9a: activeVizTab is lifted to App.tsx and passed as externalActiveVizTab to DataExplorer.
+    expect(appSrc).toContain("setActiveVizTab");
   });
 
-  it("App.tsx does NOT contain handleVizTabChange (moved to DataExplorer at T9)", () => {
+  it("App.tsx does NOT contain handleVizTabChange (still in DataExplorer as internal handler)", () => {
     const appSrc = readFileSync(resolve(__dirname, "../App.tsx"), "utf-8");
+    // handleVizTabChange is DataExplorer's internal handler; App.tsx uses setActiveVizTab directly.
     expect(appSrc).not.toContain("handleVizTabChange");
   });
 
@@ -625,18 +623,19 @@ describe("App — T8 VizSwitcher integration (post-T9 source assertions)", () =>
     expect(typeof VizSwitcher).toBe("function");
   });
 
-  it("default activeVizTab resolves to 'mds' (resolveFragmentOnMount falls back to mds in node env)", async () => {
-    // DataExplorer.tsx uses useState<ActiveVizTab>(() => resolveFragmentOnMount())
-    // In the node test environment, window is not defined — the try/catch in
-    // resolveFragmentOnMount catches the ReferenceError and returns "mds".
+  it("default activeVizTab resolves to 'term-mds' (resolveFragmentOnMount falls back to term-mds — Phase 9a app-shell default)", async () => {
+    // Phase 9a: the default tab is Term Map (#term-mds), not MDS Plot (#mds).
+    // resolveFragmentOnMount() returns "term-mds" for empty hash or unknown hash.
+    // In the node test environment, window may not be defined — the try/catch in
+    // resolveFragmentOnMount catches the ReferenceError and returns "term-mds".
     const { resolveFragmentOnMount } = await import("../components/VizSwitcher");
     const result = resolveFragmentOnMount();
-    expect(result).toBe("mds");
+    expect(result).toBe("term-mds");
   });
 
-  it("resolveFragmentOnMount is a pure function that always returns 'mds' in Phase 5", async () => {
-    // Verify the function signature returns ActiveVizTab = "mds".
-    // The return type is constrained to "mds" only in Phase 5.
+  it("resolveFragmentOnMount is a pure function that returns 'term-mds' as default (Phase 9a app-shell)", async () => {
+    // Phase 9a: the default tab is Term Map. VizSwitcher.tsx returns "term-mds"
+    // for empty hash and as the fallback for unrecognised fragments.
     // Source assertion: the function is exported from VizSwitcher.tsx.
     const vizSwitcherSrc = readFileSync(
       resolve(__dirname, "../components/VizSwitcher.tsx"),
@@ -644,7 +643,7 @@ describe("App — T8 VizSwitcher integration (post-T9 source assertions)", () =>
     );
     expect(vizSwitcherSrc).toContain("resolveFragmentOnMount");
     expect(vizSwitcherSrc).toContain("ActiveVizTab");
-    expect(vizSwitcherSrc).toContain("return \"mds\"");
+    expect(vizSwitcherSrc).toContain("return \"term-mds\"");
   });
 
   it("VizSwitcher source: mds tab id present and DISABLED_FRAGMENTS set present (source assertion)", () => {

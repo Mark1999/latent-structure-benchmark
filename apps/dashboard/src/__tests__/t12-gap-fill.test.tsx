@@ -876,10 +876,16 @@ describe("App.tsx T12 gap-fill — DataExplorer receives isEmbed prop (source as
     expect(APP_SRC).toContain("isEmbed={true}");
   });
 
-  it("App.tsx full-page branch renders DataExplorer without isEmbed (not embed mode)", () => {
-    // In the full-page branch (line ~289): <DataExplorer domainResult={domainResult} />
-    // That call has no isEmbed prop. Verify via a direct literal match on the
-    // short self-closing form with no extra props.
-    expect(APP_SRC).toContain("<DataExplorer domainResult={domainResult} />");
+  it("App.tsx app-shell branch renders DataExplorer without isEmbed (not embed mode)", () => {
+    // Phase 9a: the full-page mode is now an app-shell. DataExplorer is rendered
+    // with external state props (externalSelectedModels, externalActiveVizTab, etc.)
+    // but without isEmbed. Verify the app-shell DataExplorer call contains domainResult
+    // but NOT isEmbed={true}.
+    const appShellStart = APP_SRC.indexOf("// ── App-shell layout");
+    expect(appShellStart).toBeGreaterThan(-1);
+    const appShellBlock = APP_SRC.slice(appShellStart);
+    expect(appShellBlock).toContain("<DataExplorer");
+    expect(appShellBlock).toContain("domainResult={domainResult}");
+    expect(appShellBlock).not.toContain("isEmbed={true}");
   });
 });

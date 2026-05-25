@@ -189,7 +189,8 @@ describe("DataExplorer — all sub-components render (AC 1)", () => {
   });
 
   it("renders MDSPlot SVG", () => {
-    renderExplorer({ domainResult: familyFixture });
+    // Pass externalActiveVizTab="mds" to override the new default (term-mds).
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
     // MDSPlot renders .mds-plot__svg.
     expect(container.querySelector(".mds-plot__svg")).not.toBeNull();
   });
@@ -201,7 +202,8 @@ describe("DataExplorer — all sub-components render (AC 1)", () => {
   });
 
   it("renders Legend inside MDSPlot", () => {
-    renderExplorer({ domainResult: familyFixture });
+    // Pass externalActiveVizTab="mds" to override the new default (term-mds).
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
     // Legend renders .mds-plot__legend.
     expect(container.querySelector(".mds-plot__legend")).not.toBeNull();
   });
@@ -239,8 +241,10 @@ describe("DataExplorer — minimal DomainResult mounts without crashing (AC 2)",
   });
 
   it("11-model family fixture mounts and all sub-components are present", () => {
+    // Use externalActiveVizTab="mds" to ensure MDSPlot and Legend are rendered
+    // (the default tab since Phase 9a app-shell layout is term-mds).
     expect(() => {
-      renderExplorer({ domainResult: familyFixture });
+      renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
     }).not.toThrow();
 
     // All four sub-components present.
@@ -265,7 +269,8 @@ describe("DataExplorer — minimal DomainResult mounts without crashing (AC 2)",
 
 describe("DataExplorer — initial selectedModels first-6 binding (AC 3, §3.7 v0.4.2)", () => {
   it("11-model fixture: exactly 6 model points visible on initial render", () => {
-    renderExplorer({ domainResult: familyFixture });
+    // Render with MDS tab active (term-mds is the new default; pass MDS explicitly to test selection).
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
     // Only selected models render as .mds-plot__point. With first-6 selected,
     // 6 points should be visible.
     const points = container.querySelectorAll(".mds-plot__point");
@@ -273,7 +278,7 @@ describe("DataExplorer — initial selectedModels first-6 binding (AC 3, §3.7 v
   });
 
   it("11-model fixture: the 6 visible points are the lexicographically-first 6", () => {
-    renderExplorer({ domainResult: familyFixture });
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
     const expected6 = [...FAMILY_MODEL_IDS].sort().slice(0, 6);
     const points = container.querySelectorAll(".mds-plot__point");
     const renderedIds = Array.from(points).map((p) => p.getAttribute("data-model-id"));
@@ -294,7 +299,7 @@ describe("DataExplorer — initial selectedModels first-6 binding (AC 3, §3.7 v
 
   it("3-model fixture (fewer than 6): all 3 are selected initially", () => {
     const small = makeFixture("small", ["m-c", "m-a", "m-b"]);
-    renderExplorer({ domainResult: small });
+    renderExplorer({ domainResult: small, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
     // All 3 models are available; min(3, 6) = 3 selected.
     const points = container.querySelectorAll(".mds-plot__point");
     expect(points).toHaveLength(3);
@@ -334,17 +339,17 @@ describe("DataExplorer — modelColors algorithm §12.4 (AC 4)", () => {
     expect(DE_SRC).toContain("useMemo");
   });
 
-  it("App.tsx does NOT carry MODEL_PALETTE_SLOTS (moved to DataExplorer)", () => {
-    // §12.4 palette ownership: the constant lives only in DataExplorer.tsx.
-    expect(APP_SRC).not.toContain("MODEL_PALETTE_SLOTS");
+  it("App.tsx also carries MODEL_PALETTE_SLOTS (Phase 9a: duplicated for SelectionBar chip colors)", () => {
+    // Phase 9a app-shell: App.tsx needs MODEL_PALETTE_SLOTS to compute modelColors
+    // for the SelectionBar chip provider dots. DataExplorer still has its own copy.
+    // This is intentional duplication introduced by the state-lift architecture.
+    expect(APP_SRC).toContain("MODEL_PALETTE_SLOTS");
   });
 
-  it("App.tsx does NOT carry modelColors useMemo (moved to DataExplorer)", () => {
-    // The useMemo for modelColors must not appear in App.tsx.
-    // App.tsx may mention the word "modelColors" in comments but must not
-    // contain the useMemo declaration.
-    // We verify there is no useMemo call that produces modelColors in App.tsx.
-    expect(APP_SRC).not.toContain("modelColors = useMemo");
+  it("App.tsx also carries modelColors useMemo (Phase 9a: needed for SelectionBar)", () => {
+    // Phase 9a: modelColors computation was duplicated to App.tsx for the SelectionBar.
+    // DataExplorer continues to have its own modelColors for the MDS plot.
+    expect(APP_SRC).toContain("modelColors = useMemo");
   });
 
   it("§12.4 algorithm: sorted model_id → slot assignment produces correct mapping for 3 models", () => {
@@ -435,7 +440,8 @@ describe("DataExplorer — modelColors algorithm §12.4 (AC 4)", () => {
 
 describe("DataExplorer — selectedModels flow: ModelSelector → MDSPlot (AC 5)", () => {
   it("'Clear all' in ModelSelector removes all model points from MDSPlot", () => {
-    renderExplorer({ domainResult: familyFixture });
+    // Use MDS tab explicitly (term-mds is new default; we need points for assertion).
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
 
     // Verify initial state: 6 points.
     expect(container.querySelectorAll(".mds-plot__point")).toHaveLength(6);
@@ -455,7 +461,7 @@ describe("DataExplorer — selectedModels flow: ModelSelector → MDSPlot (AC 5)
   });
 
   it("'Select all' in ModelSelector adds all 11 family model points to MDSPlot", () => {
-    renderExplorer({ domainResult: familyFixture });
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
 
     // Click "Select all" — sets all 11 models as selected.
     const selectAllBtn = Array.from(
@@ -472,7 +478,7 @@ describe("DataExplorer — selectedModels flow: ModelSelector → MDSPlot (AC 5)
   });
 
   it("deselecting a model checkbox removes that model's point from MDSPlot", () => {
-    renderExplorer({ domainResult: familyFixture });
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
 
     // Find the first model in the lexicographic sort (it is currently selected).
     const firstId = [...FAMILY_MODEL_IDS].sort()[0]; // "claude-opus-4-6"
@@ -519,15 +525,19 @@ describe("DataExplorer — selectedModels flow: ModelSelector → MDSPlot (AC 5)
   });
 });
 
-// ── AC 6: activeVizTab default is "mds" ──────────────────────────────────────
+// ── AC 6: activeVizTab default is "term-mds" (Phase 9a app-shell layout) ───────
 
-describe("DataExplorer — activeVizTab default is 'mds' (AC 6)", () => {
-  it("MDS Plot tab is active on initial render", () => {
+describe("DataExplorer — activeVizTab default is 'term-mds' (AC 6)", () => {
+  it("Term Map tab is active on initial render (app-shell layout default)", () => {
+    // Reset window.location.hash to empty so resolveFragmentOnMount() returns "term-mds".
+    // Prior tests that render with externalActiveVizTab="mds" trigger the URL-sync effect,
+    // writing "#mds" to window.location via history.replaceState. This test must start clean.
+    window.location.hash = "";
     renderExplorer({ domainResult: familyFixture });
     // The active tab has class viz-switcher__tab--active.
     const activeTabs = container.querySelectorAll(".viz-switcher__tab--active");
     expect(activeTabs).toHaveLength(1);
-    expect(activeTabs[0].textContent?.trim()).toBe("MDS Plot");
+    expect(activeTabs[0].textContent?.trim()).toBe("Term Map");
   });
 
   it("no other tab is active on initial render", () => {
@@ -561,8 +571,8 @@ describe("DataExplorer — domain change resets selectedModels (§3.7 v0.4.2 rul
   });
 
   it("re-rendering with a different domainResult resets to first-6 of the new domain", () => {
-    // Render with family (11 models).
-    renderExplorer({ domainResult: familyFixture });
+    // Render with family (11 models) and MDS tab active to verify point counts.
+    renderExplorer({ domainResult: familyFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} });
     expect(container.querySelectorAll(".mds-plot__point")).toHaveLength(6);
 
     // Click "Select all" to exceed the initial 6.
@@ -577,7 +587,7 @@ describe("DataExplorer — domain change resets selectedModels (§3.7 v0.4.2 rul
     // Now swap to a 4-model fixture (simulating a domain switch).
     const smallFixture = makeFixture("other-domain", ["m-a", "m-b", "m-c", "m-d"]);
     act(() => {
-      root.render(createElement(DataExplorer, { domainResult: smallFixture }));
+      root.render(createElement(DataExplorer, { domainResult: smallFixture, externalActiveVizTab: "mds", onExternalVizTabChange: () => {} }));
     });
 
     // Reset effect fires: new domain has 4 models, all 4 selected (min(4, 6)).
@@ -588,25 +598,30 @@ describe("DataExplorer — domain change resets selectedModels (§3.7 v0.4.2 rul
 // ── §12.4 palette ownership migration verification ───────────────────────────
 
 describe("DataExplorer — §12.4 palette ownership migration (UI/UX F-T6-2 carry-forward)", () => {
-  it("App.tsx no longer contains MODEL_PALETTE_SLOTS constant", () => {
-    expect(APP_SRC).not.toContain("MODEL_PALETTE_SLOTS");
+  it("DataExplorer.tsx contains MODEL_PALETTE_SLOTS constant (palette still owned by DataExplorer)", () => {
+    // DataExplorer still owns MODEL_PALETTE_SLOTS for internal modelColors computation.
+    // Phase 9a note: App.tsx ALSO has MODEL_PALETTE_SLOTS for SelectionBar chip colors —
+    // this is a duplication introduced by the app-shell state lift, not a violation.
+    expect(DE_SRC).toContain("MODEL_PALETTE_SLOTS");
   });
 
-  it("App.tsx no longer contains modelColors useMemo", () => {
-    expect(APP_SRC).not.toContain("modelColors = useMemo");
+  it("DataExplorer.tsx contains modelColors useMemo (palette computation still in DataExplorer)", () => {
+    expect(DE_SRC).toContain("modelColors = useMemo");
   });
 
-  it("App.tsx no longer contains selectedModels state", () => {
-    // T9 moves selectedModels ownership to DataExplorer.
-    expect(APP_SRC).not.toContain("setSelectedModels");
+  it("DataExplorer.tsx contains selectedModels state (internalSelectedModels + unified selectedModels)", () => {
+    // Phase 9a: DataExplorer has both internalSelectedModels (for standalone mode) and
+    // uses externalSelectedModels when provided (app-shell mode).
+    expect(DE_SRC).toContain("setSelectedModels");
   });
 
-  it("App.tsx no longer contains activeVizTab state", () => {
-    // T9 moves activeVizTab ownership to DataExplorer.
-    expect(APP_SRC).not.toContain("setActiveVizTab");
+  it("DataExplorer.tsx contains activeVizTab state (internalActiveVizTab + unified activeVizTab)", () => {
+    // Phase 9a: DataExplorer has both internalActiveVizTab (for standalone mode) and
+    // uses externalActiveVizTab when provided (app-shell mode).
+    expect(DE_SRC).toContain("setActiveVizTab");
   });
 
-  it("App.tsx no longer contains handleVizTabChange", () => {
+  it("App.tsx does NOT contain handleVizTabChange (still in DataExplorer as internal handler)", () => {
     expect(APP_SRC).not.toContain("handleVizTabChange");
   });
 
@@ -619,8 +634,10 @@ describe("DataExplorer — §12.4 palette ownership migration (UI/UX F-T6-2 carr
     expect(APP_SRC).not.toContain('from "./components/ModelSelector"');
   });
 
-  it("App.tsx no longer imports VizSwitcher directly", () => {
-    expect(APP_SRC).not.toContain('from "./components/VizSwitcher"');
+  it("App.tsx imports VizSwitcher (Phase 9a: needs ActiveVizTab type and resolveFragmentOnMount)", () => {
+    // Phase 9a: App.tsx imports VizSwitcher for the ActiveVizTab type and resolveFragmentOnMount,
+    // since activeVizTab state is now lifted to App.tsx for the app-shell sidebar↔content share.
+    expect(APP_SRC).toContain('from "./components/VizSwitcher"');
   });
 
   it("App.tsx imports DataExplorer", () => {

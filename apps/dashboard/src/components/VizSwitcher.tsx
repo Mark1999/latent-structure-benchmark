@@ -89,8 +89,8 @@ const DISABLED_FRAGMENTS = new Set(["drift"]);
 
 /**
  * Read the URL fragment on mount and reconcile with active tabs.
- * Returns "mds" or "freelist" as appropriate; falls back to "mds" for
- * unrecognised or disabled fragments (similarity, drift).
+ * Returns the appropriate ActiveVizTab; falls back to "term-mds" (the default
+ * tab since the Phase 9a app-shell layout) for unrecognised or disabled fragments.
  *
  * Exported for direct unit testing — the react-refresh mixed-export warning
  * below is intentional; this function is not a component.
@@ -99,10 +99,10 @@ const DISABLED_FRAGMENTS = new Set(["drift"]);
 export function resolveFragmentOnMount(): ActiveVizTab {
   try {
     const raw = window.location.hash.replace(/^#/, "").toLowerCase();
-    if (raw === "mds" || raw === "") {
+    if (raw === "mds") {
       return "mds";
     }
-    if (raw === "term-mds") {
+    if (raw === "term-mds" || raw === "") {
       return "term-mds";
     }
     if (raw === "cluster-tree") {
@@ -123,14 +123,14 @@ export function resolveFragmentOnMount(): ActiveVizTab {
     if (DISABLED_FRAGMENTS.has(raw)) {
       console.warn(
         `VizSwitcher: URL fragment "#${raw}" refers to a tab that is not active ` +
-          `in the current release. Treating as #mds.`
+          `in the current release. Treating as #term-mds.`
       );
-      return "mds";
+      return "term-mds";
     }
   } catch {
     // window.location unavailable in SSR / test environments.
   }
-  return "mds";
+  return "term-mds";
 }
 
 export function VizSwitcher({ activeTab, onTabChange }: VizSwitcherProps) {

@@ -732,6 +732,15 @@ a:focus-visible {
   }
 }
 
+/* App-shell mode: no-selector modifier hides the right column entirely */
+.explorer-layout--no-selector {
+  grid-template-columns: 1fr;
+  grid-template-areas: "viz";
+  padding: 0;
+  max-width: none;
+  margin: 0;
+}
+
 /* ===== ModelSelector — DESIGN_SYSTEM.md §3.7 ===== */
 /*
  * Control panel: checkbox per model, origin badge, weights indicator.

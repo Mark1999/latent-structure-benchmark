@@ -1,42 +1,64 @@
 /**
  * LSB Dashboard — App shell.
- * Source: DESIGN_SYSTEM.md §2, §12.1 (reveal cascade), §12.2 (loading state), §12.5 (embed mode)
+ *
+ * Phase 9a layout restructure: full-viewport app shell with 260px sidebar +
+ * content grid, replacing the article-scroll layout on the Explore page.
+ *
+ * Source: DESIGN_SYSTEM.md §2, §12.1 (reveal cascade), §12.2 (loading state),
+ *         §12.5 (embed mode), docs/slicer-prototype.html (layout reference)
  *
  * Page state machine: loading → loaded | error
  * Loads manifest at mount via fetchManifest(). Default domain: "family".
  * When activeSlug changes, fetches the new domain JSON via fetchDomain().
  * Detects ?embed=true and suppresses chrome per §12.5.
  *
- * T9: explorer-internal state (selectedModels, activeVizTab, modelColors) moved
- * to DataExplorer.tsx. App.tsx passes only `domainResult` to DataExplorer.
+ * App-shell layout (Explore page):
+ *   - 48px top nav bar (brand + nav tabs)
+ *   - 260px left sidebar (domain dropdown + ProviderModelTree)
+ *   - 1fr content area (VizSwitcher + selection bar + DataExplorer)
+ *   - No page scrolling (height: 100vh, overflow: hidden)
+ *
+ * App.tsx owns selectedModels and activeVizTab in app-shell mode so the
+ * sidebar (ProviderModelTree) and content (DataExplorer) can share state.
+ * These are passed as controlled props to DataExplorer.
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import "./styles/tokens.css";
 import "./styles/app.css";
+import "./styles/app-layout.css";
 
 import { fetchManifest, fetchDomain } from "./api/client";
 import type { Manifest, DomainResultPublished } from "./data/types";
 
-import { Header } from "./components/Header";
-import { ArticleHeader } from "./components/ArticleHeader";
-import { Footer } from "./components/Footer";
-import { DomainPicker } from "./components/DomainPicker";
 import type { Domain } from "./components/DomainPicker";
-import { KeyFinding } from "./components/KeyFinding";
 import { DataExplorer } from "./components/DataExplorer";
-import { MethodologySummary } from "./components/MethodologySummary";
+import { ProviderModelTree } from "./components/ProviderModelTree";
 import { MethodologyPagePlaceholder } from "./components/MethodologyPagePlaceholder";
-import { FailuresFindingsSection } from "./components/FailuresFindingsSection";
 import { InspectRoot } from "./components/InspectRoot";
+import type { ActiveVizTab } from "./components/VizSwitcher";
+import { resolveFragmentOnMount } from "./components/VizSwitcher";
+import { encodePermalink, decodePermalink } from "./lib/permalink";
 import "./styles/inspect.css";
 
-type AppState = "loading" | "loaded" | "error";
+// ── Model palette (§12.4) ────────────────────────────────────────────────────
 
-/**
- * Detect embed mode: ?embed=true suppresses page chrome.
- * Source: DESIGN_SYSTEM.md §12.5
- */
+const MODEL_PALETTE_SLOTS: string[] = [
+  "#3360a9", // --color-model-1
+  "#c0392b", // --color-model-2
+  "#e67e22", // --color-model-3
+  "#27ae60", // --color-model-4
+  "#8e44ad", // --color-model-5
+  "#16a085", // --color-model-6
+  "#d35400", // --color-model-7
+  "#1a5276", // --color-model-8
+  "#7d3c98", // --color-model-9
+  "#148f77", // --color-model-10
+  "#9a7d0a", // --color-model-11
+];
+
+// ── Mode detection helpers ────────────────────────────────────────────────────
+
 function isEmbedMode(): boolean {
   try {
     return new URLSearchParams(window.location.search).get("embed") === "true";
@@ -45,10 +67,6 @@ function isEmbedMode(): boolean {
   }
 }
 
-/**
- * Detect methodology page: pathname === "/methodology" renders MethodologyPagePlaceholder.
- * Source: Phase 8 T10.2 plan; wrangler.toml SPA fallback routes /methodology → index.html.
- */
 function isMethodologyPage(): boolean {
   try {
     return typeof window !== "undefined" && window.location.pathname === "/methodology";
@@ -57,12 +75,6 @@ function isMethodologyPage(): boolean {
   }
 }
 
-/**
- * Detect operator inspection mode: ?inspect=<slug> renders InspectRoot.
- * Returns the slug string when inspect mode is active, null otherwise.
- * Empty slug (?inspect=) returns null (treated as no inspect mode).
- * Source: Phase 6 T0 plan §2.1, §2.2.
- */
 function isInspectMode(): string | null {
   try {
     const slug = new URLSearchParams(window.location.search).get("inspect");
@@ -73,31 +85,18 @@ function isInspectMode(): string | null {
   }
 }
 
-/**
- * Convert a slug to title case for display labels.
- * e.g. "family" → "Family", "holidays" → "Holidays"
- */
+// ── Domain helpers ────────────────────────────────────────────────────────────
+
 function toTitleCase(slug: string): string {
   return slug.charAt(0).toUpperCase() + slug.slice(1);
 }
 
-/**
- * Phase-6 domains that are not yet in the manifest.
- * These render as disabled pills with "coming in a future update" affordance.
- * Per §12.3 binding: disabled pills are focusable, no internal phase numbering.
- * Per task spec §2.3: at least Food, Emotion, Justice are the known future domains.
- */
 const FUTURE_DOMAINS: Domain[] = [
   { slug: "food", label: "Food", available: false },
   { slug: "emotion", label: "Emotion", available: false },
   { slug: "justice", label: "Justice", available: false },
 ];
 
-/**
- * Build the domains list for DomainPicker from the manifest + future domains.
- * Available domains come from the manifest; future domains are appended as disabled.
- * Deduplicates: if a future domain slug appears in the manifest, it becomes available.
- */
 function buildDomainList(manifest: Manifest): Domain[] {
   const manifestSlugs = new Set(manifest.domains.map((d) => d.slug));
   const available: Domain[] = manifest.domains.map((d) => ({
@@ -105,17 +104,10 @@ function buildDomainList(manifest: Manifest): Domain[] {
     label: toTitleCase(d.slug),
     available: true,
   }));
-  const future: Domain[] = FUTURE_DOMAINS.filter(
-    (fd) => !manifestSlugs.has(fd.slug)
-  );
+  const future: Domain[] = FUTURE_DOMAINS.filter((fd) => !manifestSlugs.has(fd.slug));
   return [...available, ...future];
 }
 
-/**
- * Read the initial domain slug from the URL (?domain= param) if present.
- * Falls back to "family" if absent or unreadable.
- * T10: permalink restore — App.tsx reads ?domain= to set the initial activeSlug.
- */
 function readInitialDomainFromUrl(): string {
   try {
     const params = new URLSearchParams(window.location.search);
@@ -127,22 +119,63 @@ function readInitialDomainFromUrl(): string {
   return "family";
 }
 
+// ── URL state helpers ─────────────────────────────────────────────────────────
+
+function readSelectedModelsFromUrl(
+  currentDomain: string,
+  availableModelIds: Set<string>
+): string[] | null {
+  try {
+    const searchAndHash = window.location.search + window.location.hash;
+    const state = decodePermalink(searchAndHash);
+    if (state === null) return null;
+    if (state.domain !== currentDomain) return null;
+    const valid = state.models.filter((id) => availableModelIds.has(id));
+    if (valid.length === 0) return null;
+    return valid;
+  } catch {
+    return null;
+  }
+}
+
+function writePermalinkState(
+  domain: string,
+  models: string[],
+  vizTab: ActiveVizTab
+): void {
+  try {
+    const encoded = encodePermalink({ domain, models, vizTab });
+    window.history.replaceState(null, "", encoded);
+  } catch {
+    // history API unavailable in some test environments — ignore.
+  }
+}
+
+// ── App state type ────────────────────────────────────────────────────────────
+
+type AppState = "loading" | "loaded" | "error";
+
+// ── Component ─────────────────────────────────────────────────────────────────
+
 export default function App() {
   const [appState, setAppState] = useState<AppState>("loading");
   const [manifest, setManifest] = useState<Manifest | null>(null);
-  // T10: initial domain reads from URL ?domain= param; falls back to "family".
-  // The useState<string>("family") default is the canonical fallback used when
-  // no URL param is present (per T5 binding and app-state test assertions).
   const [activeSlug, setActiveSlug] = useState<string>("family");
   const [domainResult, setDomainResult] = useState<DomainResultPublished | null>(null);
+
+  // App-shell mode state: selected models and active viz tab.
+  // These are lifted here so the sidebar and content area share them.
+  const [selectedModels, setSelectedModels] = useState<string[]>([]);
+  const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>(
+    () => resolveFragmentOnMount()
+  );
+  const [openWeightsOnly, setOpenWeightsOnly] = useState(false);
+
   const embedMode = isEmbedMode();
   const inspectSlug = isInspectMode();
   const methodologyPage = isMethodologyPage();
 
-  // T10: read URL domain on mount and set activeSlug if a valid ?domain= param exists.
-  // Runs once at mount — after this, DomainPicker onSelect drives the value.
-  // set-state-in-effect: intentional — reading the URL once at mount to restore
-  // a permalink-provided domain is exactly the use case the React docs describe.
+  // Read URL domain on mount.
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
     const urlDomain = readInitialDomainFromUrl();
@@ -152,8 +185,7 @@ export default function App() {
   }, []);
   /* eslint-enable react-hooks/set-state-in-effect */
 
-  // Derived loading flag: result is absent or for a different domain than activeSlug.
-  // True while a domain fetch is in-flight or before first fetch completes.
+  // Derived loading flag
   const domainLoading =
     appState === "loaded" &&
     (domainResult === null || domainResult.domain_slug !== activeSlug);
@@ -161,91 +193,99 @@ export default function App() {
   // Load manifest at mount.
   useEffect(() => {
     let cancelled = false;
-
     fetchManifest()
       .then((m) => {
         if (!cancelled) {
           setManifest(m);
           setAppState("loaded");
-          // Default to first available domain if "family" not in manifest.
           if (m.domains.length > 0 && !m.domains.find((d) => d.slug === "family")) {
             setActiveSlug(m.domains[0].slug);
           }
         }
       })
       .catch(() => {
-        if (!cancelled) {
-          setAppState("error");
-        }
+        if (!cancelled) setAppState("error");
       });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, []);
 
-  // Fetch the active domain's JSON whenever manifest is loaded or activeSlug changes.
+  // Fetch domain JSON whenever manifest is loaded or activeSlug changes.
   useEffect(() => {
     if (appState !== "loaded") return;
-
     let cancelled = false;
-
     fetchDomain(activeSlug)
       .then((result) => {
         if (!cancelled) {
           setDomainResult(result);
-          // T9: selectedModels reset is now handled in DataExplorer.tsx via a
-          // useEffect on domainResult.domain_slug. App.tsx no longer owns that state.
         }
       })
       .catch(() => {
-        // Domain fetch failure is non-fatal: keep nav functional.
-        // domainLoading derived flag stays true but KeyFinding simply won't render.
+        // Non-fatal domain fetch failure.
       });
-
-    return () => {
-      cancelled = true;
-    };
+    return () => { cancelled = true; };
   }, [appState, activeSlug]);
 
-  // Methodology page: render MethodologyPagePlaceholder at /methodology.
-  // SPA fallback in wrangler.toml means /methodology → index.html → App.tsx.
-  // Source: Phase 8 T10.2 plan.
+  // Reset selectedModels to all-available when domain changes (app-shell mode: no max-6 limit).
+  /* eslint-disable react-hooks/set-state-in-effect */
+  useEffect(() => {
+    if (domainResult === null) return;
+    const rawCoords = domainResult.mds_coordinates as unknown as Record<string, [number, number]>;
+    const sortedIds = Object.keys(rawCoords).sort();
+    const availableSet = new Set(sortedIds);
+    // Attempt permalink restore on domain change.
+    const fromUrl = readSelectedModelsFromUrl(domainResult.domain_slug, availableSet);
+    if (fromUrl !== null) {
+      setSelectedModels(fromUrl);
+      return;
+    }
+    // App-shell default: all models selected (no MAX_SELECTED limit).
+    setSelectedModels(sortedIds);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domainResult?.domain_slug]);
+  /* eslint-enable react-hooks/set-state-in-effect */
+
+  // Sync URL whenever selectedModels or activeVizTab changes.
+  useEffect(() => {
+    if (!domainResult) return;
+    writePermalinkState(domainResult.domain_slug, selectedModels, activeVizTab);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [domainResult?.domain_slug, selectedModels, activeVizTab]);
+
+  // Build modelColors (§12.4 algorithm) — needed for selection chips.
+  const modelColors = useMemo((): Record<string, string> => {
+    if (!domainResult) return {};
+    const rawCoords = domainResult.mds_coordinates as unknown as Record<string, [number, number]>;
+    const sortedIds = [...Object.keys(rawCoords)].sort();
+    const colors: Record<string, string> = {};
+    sortedIds.forEach((id, i) => {
+      colors[id] = MODEL_PALETTE_SLOTS[i % MODEL_PALETTE_SLOTS.length];
+    });
+    return colors;
+  }, [domainResult]);
+
+  const domains: Domain[] = manifest !== null ? buildDomainList(manifest) : [];
+
+  // ── Special page modes ─────────────────────────────────────────────────────
+
   if (methodologyPage) {
     return <MethodologyPagePlaceholder />;
   }
 
-  // Inspect mode: render InspectRoot when ?inspect=<slug> is present.
-  // Suppress all reader-mode chrome. The InspectRoot manages its own data fetching.
-  // Source: Phase 6 T0 plan §2.1, §2.2.
   if (inspectSlug !== null) {
     return <InspectRoot mode={inspectSlug} manifest={manifest} />;
   }
 
-  // Embed mode: render only the DataExplorer per §12.5.
-  // No Header, Footer, ArticleHeader, KeyFinding, MethodologySummary.
+  // Embed mode: keep the existing article-style render.
   if (embedMode) {
     return (
       <div className="embed-root">
         {appState === "loading" && (
-          <p
-            style={{
-              color: "var(--color-text-muted)",
-              fontSize: "var(--font-size-base)",
-              padding: "var(--space-6)",
-            }}
-          >
+          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-base)", padding: "var(--space-6)" }}>
             Loading...
           </p>
         )}
         {appState === "error" && (
-          <p
-            style={{
-              color: "var(--color-text-secondary)",
-              fontSize: "var(--font-size-base)",
-              padding: "var(--space-6)",
-            }}
-          >
+          <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--font-size-base)", padding: "var(--space-6)" }}>
             Could not load data. Refresh the page or check your connection.
           </p>
         )}
@@ -253,13 +293,7 @@ export default function App() {
           <DataExplorer domainResult={domainResult} isEmbed={true} />
         )}
         {appState === "loaded" && domainLoading && (
-          <p
-            style={{
-              color: "var(--color-text-muted)",
-              fontSize: "var(--font-size-base)",
-              padding: "var(--space-6)",
-            }}
-          >
+          <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-base)", padding: "var(--space-6)" }}>
             Loading...
           </p>
         )}
@@ -267,43 +301,101 @@ export default function App() {
     );
   }
 
-  // Full-page mode: Header + content area + Footer.
-  // Content area state machine: loading → loaded | error
-  // Per DESIGN_SYSTEM.md §12.2: no spinner, no shimmer.
-  const domains: Domain[] = manifest !== null ? buildDomainList(manifest) : [];
+  // ── App-shell layout (Explore page) ───────────────────────────────────────
+
+  // Determine the current page for nav tab active state.
+  const currentPath = typeof window !== "undefined" ? window.location.pathname : "/";
 
   return (
-    <div className="page-wrapper">
-      {/* Reveal cascade — §12.1: 600ms total, 80ms stagger, ease-out, fires once */}
-      <div className="reveal-cascade-item">
-        <Header />
-      </div>
-
-      <main className="page-main">
-        <div className="reveal-cascade-item">
-          <ArticleHeader loading={appState === "loading"} />
+    <div className="app-shell">
+      {/* 48px top nav bar */}
+      <nav className="app-nav" aria-label="Site navigation">
+        <a href="/" className="app-nav__brand" aria-label="Cognitive Structure Lab — Home">
+          Cognitive Structure Lab <span className="app-nav__brand-sub">/ LSB</span>
+        </a>
+        <div className="app-nav__right" role="list">
+          <a
+            href="/"
+            className={`app-nav__tab${currentPath === "/" ? " app-nav__tab--active" : ""}`}
+            aria-current={currentPath === "/" ? "page" : undefined}
+            role="listitem"
+          >
+            Explore
+          </a>
+          <a
+            href="/methodology"
+            className={`app-nav__tab${currentPath === "/methodology" ? " app-nav__tab--active" : ""}`}
+            aria-current={currentPath === "/methodology" ? "page" : undefined}
+            role="listitem"
+          >
+            Methodology
+          </a>
+          <a
+            href="/data"
+            className={`app-nav__tab${currentPath === "/data" ? " app-nav__tab--active" : ""}`}
+            aria-current={currentPath === "/data" ? "page" : undefined}
+            role="listitem"
+          >
+            Data
+          </a>
         </div>
+      </nav>
 
-        {/* DomainPicker: shown once manifest is loaded, in the reveal cascade */}
-        {appState === "loaded" && domains.length > 0 && (
-          <div className="reveal-cascade-item">
-            <DomainPicker
+      {/* Main grid: sidebar + content */}
+      <div className="app-main">
+        {/* Left sidebar */}
+        <aside className="app-sidebar" aria-label="Domain and model controls">
+          {appState === "loading" && (
+            <div className="sidebar-domain">
+              <span className="sidebar-domain__label">Domain</span>
+              <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-xs)", padding: "var(--space-2)" }}>
+                Loading...
+              </p>
+            </div>
+          )}
+
+          {appState === "error" && (
+            <div className="sidebar-domain">
+              <p style={{ color: "var(--color-text-secondary)", fontSize: "var(--font-size-xs)", padding: "var(--space-2)" }}>
+                Could not load data.
+              </p>
+            </div>
+          )}
+
+          {appState === "loaded" && domainResult !== null && (
+            <ProviderModelTree
+              domainResult={domainResult}
+              selectedModels={selectedModels}
+              onSelectionChange={setSelectedModels}
+              modelColors={modelColors}
               domains={domains}
               activeSlug={activeSlug}
-              onSelect={setActiveSlug}
+              onDomainSelect={setActiveSlug}
+              openWeightsOnly={openWeightsOnly}
+              onOpenWeightsToggle={setOpenWeightsOnly}
             />
-          </div>
-        )}
+          )}
 
-        <div className="reveal-cascade-item">
+          {appState === "loaded" && domainLoading && (
+            <div className="sidebar-domain">
+              <span className="sidebar-domain__label">Domain</span>
+              <p style={{ color: "var(--color-text-muted)", fontSize: "var(--font-size-xs)", padding: "var(--space-2)" }}>
+                Loading...
+              </p>
+            </div>
+          )}
+        </aside>
+
+        {/* Content area */}
+        <div className="app-content">
           {appState === "loading" && (
             <div
               className="content-placeholder content-placeholder--loading"
               role="status"
               aria-live="polite"
               aria-label="Loading domain data"
+              style={{ margin: "var(--space-8)", fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}
             >
-              {/* Per §12.2: "Loading..." in --color-text-muted at --font-size-base */}
               Loading...
             </div>
           )}
@@ -313,74 +405,104 @@ export default function App() {
               className="content-placeholder content-placeholder--error"
               role="alert"
               aria-live="assertive"
+              style={{ margin: "var(--space-8)", fontSize: "var(--font-size-sm)", color: "var(--color-text-secondary)" }}
             >
-              {/* Per §12.2: error text in --color-text-secondary */}
               Could not load data. Refresh the page or check your connection.
             </div>
           )}
 
-          {appState === "loaded" && (
-            <div className="content-area">
-              {/* KeyFinding: shown when domain result is loaded */}
-              {domainResult !== null && !domainLoading && (
-                <div className="reveal-cascade-item">
-                  <KeyFinding generatedLede={domainResult.generated_lede} />
-                </div>
-              )}
+          {appState === "loaded" && !domainLoading && domainResult !== null && (
+            <>
+              {/* Selection summary bar */}
+              <SelectionBar
+                domainResult={domainResult}
+                selectedModels={selectedModels}
+                onRemoveModel={(id) => setSelectedModels(selectedModels.filter((m) => m !== id))}
+                modelColors={modelColors}
+              />
 
-              {/* DataExplorer: T9 — composes VizSwitcher + MDSPlot + ModelSelector + Legend.
-                  Manages all explorer-internal state (selectedModels, activeVizTab,
-                  modelColors). App.tsx passes only domainResult.
-                  reveal-cascade-item within cascade bounds per F-T5-1 carry-forward.
-                  §12.4 palette ownership lives in DataExplorer per UI/UX F-T6-2. */}
-              {domainResult !== null && !domainLoading && (
-                <div className="reveal-cascade-item">
-                  <DataExplorer domainResult={domainResult} />
-                </div>
-              )}
+              {/* DataExplorer in app-shell mode: pass external state */}
+              <div className="app-explorer-content">
+                <DataExplorer
+                  domainResult={domainResult}
+                  externalSelectedModels={selectedModels}
+                  onExternalSelectionChange={setSelectedModels}
+                  externalActiveVizTab={activeVizTab}
+                  onExternalVizTabChange={setActiveVizTab}
+                />
+              </div>
+            </>
+          )}
 
-              {/* Domain data loading state (per-domain fetch in progress) */}
-              {domainLoading && (
-                <div
-                  className="content-placeholder content-placeholder--loading"
-                  role="status"
-                  aria-live="polite"
-                  aria-label="Loading domain data"
-                >
-                  Loading...
-                </div>
-              )}
+          {appState === "loaded" && domainLoading && (
+            <div
+              className="content-placeholder content-placeholder--loading"
+              role="status"
+              aria-live="polite"
+              aria-label="Loading domain data"
+              style={{ margin: "var(--space-8)", fontSize: "var(--font-size-sm)", color: "var(--color-text-muted)" }}
+            >
+              Loading...
             </div>
           )}
         </div>
-      </main>
-
-      {/* MethodologySummary — T13: article-bottom method note per §12.7.
-          Suppressed in embed mode per §12.5. Cascade item after DataExplorer,
-          before FailuresFindingsSection. Wrapper at App.tsx level per F-T13-6. */}
-      {!embedMode && (
-        <div className="reveal-cascade-item">
-          <MethodologySummary methodologyPageUrl="/methodology" />
-        </div>
-      )}
-
-      {/* FailuresFindingsSection — T10: failures-as-findings UI surface.
-          Per ARCHITECTURE.md §1.5.6: first-class evidence, not a debug log.
-          Suppressed in embed mode per DESIGN_SYSTEM.md §12.5.
-          Cascade slot 6 (360ms) per T10 plan §2.2.
-          Wrapper at App.tsx level per §12.7 precedent.
-          H2 sibling of MethodologySummary's H2 (CDA SME §2.4 — failures are
-          parallel evidence, not subordinate methodology). */}
-      {!embedMode && appState === "loaded" && activeSlug.length > 0 && (
-        <div className="reveal-cascade-item">
-          <FailuresFindingsSection domainSlug={activeSlug} />
-        </div>
-      )}
-
-      {/* Footer — T10: moves to cascade slot 7 (360ms) per T10 plan §2.2. */}
-      <div className="reveal-cascade-item">
-        <Footer />
       </div>
+    </div>
+  );
+}
+
+// ── Selection summary bar ────────────────────────────────────────────────────
+
+interface SelectionBarProps {
+  domainResult: DomainResultPublished;
+  selectedModels: string[];
+  onRemoveModel: (id: string) => void;
+  modelColors: Record<string, string>;
+}
+
+import { modelShortName } from "./lib/modelShortName";
+
+// eslint-disable-next-line @typescript-eslint/no-unused-vars
+function SelectionBar({ domainResult: _domainResult, selectedModels, onRemoveModel, modelColors }: SelectionBarProps) {
+  const CHIP_LIMIT = 8;
+
+  if (selectedModels.length === 0) {
+    return (
+      <div className="selection-bar" role="status" aria-live="polite">
+        <span className="selection-bar__label">No models selected</span>
+      </div>
+    );
+  }
+
+  const visible = selectedModels.slice(0, CHIP_LIMIT);
+  const overflow = selectedModels.length - CHIP_LIMIT;
+
+  return (
+    <div className="selection-bar" role="status" aria-live="polite" aria-label={`${selectedModels.length} models selected`}>
+      <span className="selection-bar__label">Showing</span>
+      {visible.map((id) => (
+        <span key={id} className="selection-chip">
+          <span
+            className="selection-chip__dot"
+            style={{ backgroundColor: modelColors[id] ?? "#888" }}
+            aria-hidden="true"
+          />
+          {modelShortName(id)}
+          <button
+            type="button"
+            className="selection-chip__remove"
+            aria-label={`Remove ${modelShortName(id)}`}
+            onClick={() => onRemoveModel(id)}
+          >
+            ×
+          </button>
+        </span>
+      ))}
+      {overflow > 0 && (
+        <span className="selection-chip selection-chip--overflow">
+          +{overflow} more
+        </span>
+      )}
     </div>
   );
 }

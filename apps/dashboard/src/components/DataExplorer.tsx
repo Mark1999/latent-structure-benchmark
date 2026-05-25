@@ -78,6 +78,21 @@ export interface DataExplorerProps {
   domainResult: DomainResultPublished;
   /** In embed mode, DownloadBar hides Permalink and Embed buttons per §12.5. */
   isEmbed?: boolean;
+  /**
+   * Optional external selectedModels control (app-shell mode).
+   * When provided alongside onExternalSelectionChange, DataExplorer uses
+   * these instead of its internal selectedModels state — the sidebar owns
+   * selection in the app-shell layout.
+   */
+  externalSelectedModels?: string[];
+  onExternalSelectionChange?: (next: string[]) => void;
+  /**
+   * Optional external viz tab control (app-shell mode).
+   * When provided alongside onExternalVizTabChange, DataExplorer uses
+   * these instead of its internal activeVizTab state.
+   */
+  externalActiveVizTab?: ActiveVizTab;
+  onExternalVizTabChange?: (tab: ActiveVizTab) => void;
 }
 
 // ── Palette ───────────────────────────────────────────────────────────────────
@@ -159,14 +174,23 @@ function writePermalinkState(
  *
  * All explorer-internal state lives here. App.tsx provides only domainResult.
  */
-export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProps) {
+export function DataExplorer({
+  domainResult,
+  isEmbed = false,
+  externalSelectedModels,
+  onExternalSelectionChange,
+  externalActiveVizTab,
+  onExternalVizTabChange,
+}: DataExplorerProps) {
   /**
    * selectedModels: which model_ids are currently visible on the plot.
    * §3.7 v0.4.2 binding: initial value = first 6 by §12.4 lexicographic sort,
    * OR restored from URL permalink if domain matches and all model ids are valid.
    * Reset on domain change (domainResult identity changes when domain switches).
+   *
+   * In app-shell mode, externalSelectedModels is used instead (controlled by sidebar).
    */
-  const [selectedModels, setSelectedModels] = useState<string[]>(() => {
+  const [internalSelectedModels, setInternalSelectedModels] = useState<string[]>(() => {
     const rawCoords = domainResult.mds_coordinates as unknown as Record<string, [number, number]>;
     const sortedIds = Object.keys(rawCoords).sort();
     const availableSet = new Set(sortedIds);
@@ -177,14 +201,24 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
     return sortedIds.slice(0, 6);
   });
 
+  // Use external state when provided (app-shell mode), else internal state.
+  const selectedModels = externalSelectedModels ?? internalSelectedModels;
+  const setSelectedModels = onExternalSelectionChange ?? setInternalSelectedModels;
+
   /**
    * activeVizTab: which viz tab is active.
-   * Phase 5: only "mds" is activatable.
+   * Default is "term-mds" (app-shell layout default per Phase 9a layout task).
    * T9: uses resolveFragmentOnMount from VizSwitcher to read URL fragment on mount.
+   *
+   * In app-shell mode, externalActiveVizTab is used instead.
    */
-  const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>(
+  const [internalActiveVizTab, setInternalActiveVizTab] = useState<ActiveVizTab>(
     () => resolveFragmentOnMount()
   );
+
+  // Use external state when provided (app-shell mode), else internal state.
+  const activeVizTab = externalActiveVizTab ?? internalActiveVizTab;
+  const setActiveVizTab = onExternalVizTabChange ?? setInternalActiveVizTab;
 
   // T12: CiteModal / EmbedModal open state + trigger refs for focus-return.
   const [isCiteOpen, setIsCiteOpen] = useState(false);
@@ -211,12 +245,15 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
    */
   /* eslint-disable react-hooks/set-state-in-effect */
   useEffect(() => {
+    // Only run domain-change reset in internal state mode.
+    // In app-shell mode (externalSelectedModels provided), App.tsx owns the reset.
+    if (externalSelectedModels !== undefined) return;
     const rawCoords = domainResult.mds_coordinates as unknown as Record<string, [number, number]>;
     // Domain change: always reset to §3.7 v0.4.2 first-6 default.
     // The URL state is written by the writePermalinkState effect immediately after.
     // We do not re-read the URL here because the URL may still contain the
     // previous domain's model selection and would produce stale state.
-    setSelectedModels(Object.keys(rawCoords).sort().slice(0, 6));
+    setInternalSelectedModels(Object.keys(rawCoords).sort().slice(0, 6));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [domainResult.domain_slug]);
   /* eslint-enable react-hooks/set-state-in-effect */
@@ -240,8 +277,9 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
   }, [mobileSelectorOpen]);
 
   /**
-   * Handle VizSwitcher tab activation. Phase 5: only "mds" is activatable.
+   * Handle VizSwitcher tab activation.
    * URL update is handled by the effect above via the unified scheme.
+   * In app-shell mode, delegates to setActiveVizTab (which is onExternalVizTabChange).
    */
   function handleVizTabChange(tab: ActiveVizTab): void {
     setActiveVizTab(tab);
@@ -266,6 +304,10 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
     return colors;
   }, [domainResult]);
 
+  // In app-shell mode (externalSelectedModels provided), the sidebar owns selection.
+  // Hide the right-column ModelSelector and mobile drawer trigger.
+  const isAppShellMode = externalSelectedModels !== undefined;
+
   return (
     <div className="data-explorer">
       {/* VizSwitcher: tab bar at top of explorer per §3.1.
@@ -276,8 +318,9 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
       />
 
       {/* Explorer grid: MDSPlot left/center, ModelSelector right (desktop)
-          or below (mobile) per §3.1 layout and app.css .explorer-layout. */}
-      <div className="explorer-layout">
+          or below (mobile) per §3.1 layout and app.css .explorer-layout.
+          In app-shell mode the selector column is hidden (sidebar owns selection). */}
+      <div className={`explorer-layout${isAppShellMode ? " explorer-layout--no-selector" : ""}`}>
         <div className="explorer-layout__viz">
           {/* MDSPlot: rendered when MDS Plot tab is active. */}
           {activeVizTab === "mds" && (
@@ -346,38 +389,42 @@ export function DataExplorer({ domainResult, isEmbed = false }: DataExplorerProp
             />
           )}
         </div>
-        <div className="explorer-layout__selector">
-          {/* ModelSelector receives modelColors from DataExplorer — §12.4.
-              Hidden at <768px via CSS; drawer trigger shown instead. */}
-          <ModelSelector
-            domainResult={domainResult}
-            selectedModels={selectedModels}
-            onSelectionChange={setSelectedModels}
-            modelColors={modelColors}
-          />
-          {/* Mobile drawer trigger — visible at <768px only, hidden at ≥768px via CSS. */}
-          <button
-            ref={drawerTriggerRef}
-            type="button"
-            className="explorer-layout__mobile-selector-trigger"
-            aria-label={
-              mobileSelectorOpen
-                ? MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN
-                : MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED
-            }
-            aria-expanded={mobileSelectorOpen}
-            aria-controls="mobile-model-drawer-panel"
-            aria-haspopup="dialog"
-            onClick={() => setMobileSelectorOpen((prev) => !prev)}
-          >
-            {MOBILE_MODEL_DRAWER_TRIGGER_TEXT(selectedModels.length)}
-          </button>
-        </div>
+        {/* Right selector column: hidden in app-shell mode (sidebar owns selection). */}
+        {!isAppShellMode && (
+          <div className="explorer-layout__selector">
+            {/* ModelSelector receives modelColors from DataExplorer — §12.4.
+                Hidden at <768px via CSS; drawer trigger shown instead. */}
+            <ModelSelector
+              domainResult={domainResult}
+              selectedModels={selectedModels}
+              onSelectionChange={setSelectedModels}
+              modelColors={modelColors}
+            />
+            {/* Mobile drawer trigger — visible at <768px only, hidden at ≥768px via CSS. */}
+            <button
+              ref={drawerTriggerRef}
+              type="button"
+              className="explorer-layout__mobile-selector-trigger"
+              aria-label={
+                mobileSelectorOpen
+                  ? MOBILE_MODEL_DRAWER_TRIGGER_LABEL_OPEN
+                  : MOBILE_MODEL_DRAWER_TRIGGER_LABEL_CLOSED
+              }
+              aria-expanded={mobileSelectorOpen}
+              aria-controls="mobile-model-drawer-panel"
+              aria-haspopup="dialog"
+              onClick={() => setMobileSelectorOpen((prev) => !prev)}
+            >
+              {MOBILE_MODEL_DRAWER_TRIGGER_TEXT(selectedModels.length)}
+            </button>
+          </div>
+        )}
       </div>
 
       {/* Mobile model selector drawer — conditionally mounted, inline (not portal).
-          §8.2.12: position: fixed escapes stacking context without portal. */}
-      {mobileSelectorOpen && (
+          §8.2.12: position: fixed escapes stacking context without portal.
+          Not rendered in app-shell mode. */}
+      {!isAppShellMode && mobileSelectorOpen && (
         <MobileModelSelectorDrawer
           id="mobile-model-drawer-panel"
           onClose={() => setMobileSelectorOpen(false)}

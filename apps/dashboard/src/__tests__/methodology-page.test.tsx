@@ -267,7 +267,10 @@ describe("P7/P8 — isMethodologyPage() helper in App.tsx source", () => {
     expect(APP_TSX_SRC).toContain("return <MethodologyPagePlaceholder />");
   });
 
-  it("App.tsx passes methodologyPageUrl='/methodology' to MethodologySummary", () => {
-    expect(APP_TSX_SRC).toContain('methodologyPageUrl="/methodology"');
+  it("App.tsx does NOT pass methodologyPageUrl to MethodologySummary (Phase 9a: MethodologySummary not in App.tsx)", () => {
+    // Phase 9a app-shell: MethodologySummary is no longer rendered from App.tsx.
+    // The /methodology route is served via MethodologyPagePlaceholder instead.
+    // methodologyPageUrl prop usage is now in MethodologySummary.tsx itself if needed.
+    expect(APP_TSX_SRC).not.toContain('methodologyPageUrl="/methodology"');
   });
 });
