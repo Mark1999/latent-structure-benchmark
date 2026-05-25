@@ -1,0 +1,599 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LSB Typography Preview — Sans-Serif Stacks</title>
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=General+Sans:wght@300;400;500;600;700&family=Source+Sans+3:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=DM+Sans:opsz,wght@9..40,300;9..40,400;9..40,500;9..40,600;9..40,700&family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Instrument+Sans:wght@400;500;600;700&family=Lato:wght@300;400;700&family=JetBrains+Mono:wght@400;700&display=swap" rel="stylesheet">
+
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  body {
+    background: #f5f5f0;
+    padding: 40px 24px;
+    color: #2c3e50;
+  }
+
+  .page-title {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: #7f8c8d;
+    text-align: center;
+    margin-bottom: 12px;
+  }
+  .page-sub {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 14px;
+    color: #95a5a6;
+    text-align: center;
+    margin-bottom: 40px;
+    max-width: 600px;
+    margin-left: auto;
+    margin-right: auto;
+    line-height: 1.5;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 28px;
+    max-width: 1400px;
+    margin: 0 auto 40px;
+  }
+
+  @media (max-width: 900px) {
+    .grid { grid-template-columns: 1fr; }
+  }
+
+  .panel {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 36px 32px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.06), 0 6px 16px rgba(0,0,0,0.04);
+  }
+
+  .combo-label {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: #fff;
+    background: #2c3e50;
+    display: inline-block;
+    padding: 4px 10px;
+    border-radius: 3px;
+    margin-bottom: 4px;
+  }
+  .combo-sub {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 12px;
+    color: #95a5a6;
+    margin-bottom: 28px;
+    font-weight: 400;
+  }
+  .current .combo-label { background: #95a5a6; }
+
+  /* ── COMBO A: Plus Jakarta Sans (display) + Source Sans 3 (body) + IBM Plex Mono ── */
+  .combo-a .site-name {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #1a3a5c;
+    margin-bottom: 6px;
+  }
+  .combo-a .page-heading {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+  }
+  .combo-a .section-heading {
+    font-family: 'Plus Jakarta Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+    letter-spacing: -0.01em;
+  }
+  .combo-a .lede {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 17px;
+    line-height: 1.6;
+    color: #3a3a3a;
+    margin-bottom: 24px;
+    max-width: 560px;
+  }
+  .combo-a .lede strong { font-weight: 600; color: #1a1a1a; }
+  .combo-a .body-text {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #444;
+    margin-bottom: 20px;
+    max-width: 560px;
+  }
+  .combo-a .caption {
+    font-family: 'Source Sans 3', sans-serif;
+    font-size: 12px;
+    color: #7f8c8d;
+    line-height: 1.5;
+  }
+  .combo-a .stat-value { font-family: 'Plus Jakarta Sans', sans-serif; font-weight: 300; }
+  .combo-a .stat-label { font-family: 'Source Sans 3', sans-serif; font-weight: 600; }
+  .combo-a .data-mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-a .ci-bracket { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-a .data-table th { font-family: 'Source Sans 3', sans-serif; }
+  .combo-a .data-table .term-cell { font-family: 'Source Sans 3', sans-serif; }
+  .combo-a .data-table .num-cell { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-a .cluster-pill { font-family: 'Source Sans 3', sans-serif; }
+  .combo-a .tooltip-mock { font-family: 'Source Sans 3', sans-serif; }
+  .combo-a .tooltip-mock .mono { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+
+  /* ── COMBO B: DM Sans (display + body unified) + IBM Plex Mono ── */
+  .combo-b .site-name {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+    color: #1a3a5c;
+    margin-bottom: 6px;
+  }
+  .combo-b .page-heading {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+    letter-spacing: -0.015em;
+  }
+  .combo-b .section-heading {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+  }
+  .combo-b .lede {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    color: #3a3a3a;
+    margin-bottom: 24px;
+    max-width: 560px;
+  }
+  .combo-b .lede strong { font-weight: 600; color: #1a1a1a; }
+  .combo-b .body-text {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #444;
+    margin-bottom: 20px;
+    max-width: 560px;
+  }
+  .combo-b .caption {
+    font-family: 'DM Sans', sans-serif;
+    font-size: 12px;
+    color: #7f8c8d;
+    line-height: 1.5;
+  }
+  .combo-b .stat-value { font-family: 'DM Sans', sans-serif; font-weight: 300; }
+  .combo-b .stat-label { font-family: 'DM Sans', sans-serif; font-weight: 600; }
+  .combo-b .data-mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-b .ci-bracket { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-b .data-table th { font-family: 'DM Sans', sans-serif; }
+  .combo-b .data-table .term-cell { font-family: 'DM Sans', sans-serif; }
+  .combo-b .data-table .num-cell { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-b .cluster-pill { font-family: 'DM Sans', sans-serif; }
+  .combo-b .tooltip-mock { font-family: 'DM Sans', sans-serif; }
+  .combo-b .tooltip-mock .mono { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+
+  /* ── COMBO C: Instrument Sans (display) + General Sans (body) + IBM Plex Mono ── */
+  .combo-c .site-name {
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 13px;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: #1a3a5c;
+    margin-bottom: 6px;
+  }
+  .combo-c .page-heading {
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.2;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+    letter-spacing: -0.02em;
+  }
+  .combo-c .section-heading {
+    font-family: 'Instrument Sans', sans-serif;
+    font-size: 18px;
+    font-weight: 600;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+  }
+  .combo-c .lede {
+    font-family: 'General Sans', sans-serif;
+    font-size: 16px;
+    line-height: 1.65;
+    color: #3a3a3a;
+    margin-bottom: 24px;
+    max-width: 560px;
+  }
+  .combo-c .lede strong { font-weight: 600; color: #1a1a1a; }
+  .combo-c .body-text {
+    font-family: 'General Sans', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #444;
+    margin-bottom: 20px;
+    max-width: 560px;
+  }
+  .combo-c .caption {
+    font-family: 'General Sans', sans-serif;
+    font-size: 12px;
+    color: #7f8c8d;
+    line-height: 1.5;
+  }
+  .combo-c .stat-value { font-family: 'Instrument Sans', sans-serif; font-weight: 400; }
+  .combo-c .stat-label { font-family: 'General Sans', sans-serif; font-weight: 600; }
+  .combo-c .data-mono { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-c .ci-bracket { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-c .data-table th { font-family: 'General Sans', sans-serif; }
+  .combo-c .data-table .term-cell { font-family: 'General Sans', sans-serif; }
+  .combo-c .data-table .num-cell { font-family: 'IBM Plex Mono', monospace; font-size: 13px; }
+  .combo-c .cluster-pill { font-family: 'General Sans', sans-serif; }
+  .combo-c .tooltip-mock { font-family: 'General Sans', sans-serif; }
+  .combo-c .tooltip-mock .mono { font-family: 'IBM Plex Mono', monospace; font-size: 11px; }
+
+  /* ── CURRENT: Lato + JetBrains Mono ── */
+  .current .site-name {
+    font-family: 'Lato', sans-serif;
+    font-size: 14px;
+    font-weight: 700;
+    color: #1a3a5c;
+    margin-bottom: 6px;
+  }
+  .current .page-heading {
+    font-family: 'Lato', sans-serif;
+    font-size: 28px;
+    font-weight: 700;
+    line-height: 1.3;
+    color: #1a1a1a;
+    margin-bottom: 20px;
+  }
+  .current .section-heading {
+    font-family: 'Lato', sans-serif;
+    font-size: 18px;
+    font-weight: 700;
+    color: #1a1a1a;
+    margin-bottom: 12px;
+  }
+  .current .lede {
+    font-family: 'Lato', sans-serif;
+    font-size: 16px;
+    line-height: 1.7;
+    color: #3a3a3a;
+    margin-bottom: 24px;
+    max-width: 560px;
+  }
+  .current .lede strong { font-weight: 700; color: #1a1a1a; }
+  .current .body-text {
+    font-family: 'Lato', sans-serif;
+    font-size: 15px;
+    line-height: 1.7;
+    color: #444;
+    margin-bottom: 20px;
+    max-width: 560px;
+  }
+  .current .caption {
+    font-family: 'Lato', sans-serif;
+    font-size: 12px;
+    color: #7f8c8d;
+    line-height: 1.5;
+  }
+  .current .stat-value { font-family: 'Lato', sans-serif; font-weight: 300; }
+  .current .stat-label { font-family: 'Lato', sans-serif; font-weight: 700; }
+  .current .data-mono { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .current .ci-bracket { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .current .data-table th { font-family: 'Lato', sans-serif; }
+  .current .data-table .term-cell { font-family: 'Lato', sans-serif; }
+  .current .data-table .num-cell { font-family: 'JetBrains Mono', monospace; font-size: 12px; }
+  .current .cluster-pill { font-family: 'Lato', sans-serif; }
+  .current .tooltip-mock { font-family: 'Lato', sans-serif; }
+  .current .tooltip-mock .mono { font-family: 'JetBrains Mono', monospace; font-size: 11px; }
+
+  /* ── Shared elements ── */
+  .divider { height: 1px; background: #e8e8e4; margin: 24px 0; }
+
+  .data-table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: 16px;
+  }
+  .data-table th {
+    text-align: left;
+    padding: 8px 12px 8px 0;
+    border-bottom: 2px solid #dde1e7;
+    font-weight: 600;
+    font-size: 11px;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+  }
+  .data-table td {
+    padding: 6px 12px 6px 0;
+    border-bottom: 1px solid #f0f0ec;
+    font-size: 14px;
+  }
+  .data-table .term-cell { color: #1a1a1a; }
+  .data-table .num-cell { text-align: right; padding-right: 0; color: #2c3e50; }
+
+  .cluster-pills { display: flex; flex-wrap: wrap; gap: 6px; margin-bottom: 16px; }
+  .cluster-pill {
+    display: inline-flex; align-items: center; gap: 5px;
+    padding: 4px 10px; border-radius: 4px; font-size: 12px;
+    border: 1px solid #dde1e7; background: #f8f9fa;
+  }
+  .cluster-dot {
+    width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0;
+  }
+
+  .tooltip-mock {
+    background: #2c3e50;
+    color: #fff;
+    padding: 12px 16px;
+    border-radius: 6px;
+    display: inline-block;
+    max-width: 320px;
+    margin-bottom: 16px;
+    box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  }
+  .tooltip-mock .tt-title { font-weight: 600; font-size: 14px; margin-bottom: 4px; }
+  .tooltip-mock .tt-sub { font-size: 11px; opacity: 0.6; margin-bottom: 8px; }
+  .tooltip-mock .tt-line { font-size: 12px; line-height: 1.6; }
+  .tooltip-mock .tt-divider { height: 1px; background: rgba(255,255,255,0.15); margin: 8px 0; }
+  .tooltip-mock .tt-note { font-size: 11px; opacity: 0.5; line-height: 1.5; font-style: italic; }
+
+  .stat-row { display: flex; gap: 32px; margin-bottom: 20px; }
+  .stat-value {
+    font-size: 28px;
+    line-height: 1;
+    margin-bottom: 4px;
+  }
+  .stat-label {
+    font-size: 11px;
+    color: #7f8c8d;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+  }
+  .ci-bracket { color: #7f8c8d; font-weight: 400; }
+
+  .note-box {
+    background: #fafaf7;
+    border-left: 3px solid #dde1e7;
+    padding: 12px 16px;
+    margin-bottom: 20px;
+    font-size: 13px;
+    line-height: 1.6;
+    color: #666;
+  }
+  .combo-a .note-box { font-family: 'Source Sans 3', sans-serif; }
+  .combo-b .note-box { font-family: 'DM Sans', sans-serif; }
+  .combo-c .note-box { font-family: 'General Sans', sans-serif; }
+  .current .note-box { font-family: 'Lato', sans-serif; }
+</style>
+</head>
+<body>
+
+<div class="page-title">LSB Typography Preview &mdash; Sans-Serif Only</div>
+<div class="page-sub">Same dashboard content, four type stacks. Open at <code>localhost:8888/type-specimen-preview.html</code></div>
+
+<!-- ROW 1: Current vs Combo A -->
+<div class="grid">
+
+<div class="panel current">
+  <span class="combo-label">Current &mdash; Lato + JetBrains Mono</span>
+  <div class="combo-sub">Single font for everything. No hierarchy signal.</div>
+
+  <div class="site-name">Cognitive Structure Lab</div>
+  <h1 class="page-heading">Family Domain: How Models Organize Kinship Vocabulary</h1>
+  <p class="lede">Across 15 frontier models, family vocabulary is organized around a shared categorical structure (<strong>Smith's S = 0.81</strong>, 95% CI [0.65, 0.95]). The map below shows where each model sits relative to that consensus.</p>
+  <div class="stat-row">
+    <div class="stat-block"><div class="stat-value">0.81 <span class="ci-bracket">[0.65&ndash;0.95]</span></div><div class="stat-label">Smith's S</div></div>
+    <div class="stat-block"><div class="stat-value">15</div><div class="stat-label">Models</div></div>
+    <div class="stat-block"><div class="stat-value">100</div><div class="stat-label">Shared Terms</div></div>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Top Terms by Salience</h2>
+  <table class="data-table"><thead><tr><th>Term</th><th class="num-cell">CSI</th><th class="num-cell">Runs</th></tr></thead><tbody>
+    <tr><td class="term-cell">mother</td><td class="num-cell data-mono">0.600</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">father</td><td class="num-cell data-mono">0.375</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">son</td><td class="num-cell data-mono">0.188</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">daughter</td><td class="num-cell data-mono">0.176</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">brother</td><td class="num-cell data-mono">0.122</td><td class="num-cell data-mono">6/6</td></tr>
+  </tbody></table>
+  <div class="divider"></div>
+  <h2 class="section-heading">Cluster Labels</h2>
+  <div class="cluster-pills">
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#e05c2e"></span>Immediate Family</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#2e7d4f"></span>In-Law Relationships</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#5c3298"></span>Grandparents</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#1d6b8f"></span>Cousins</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#8f1d55"></span>Aunts &amp; Uncles</span>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Tooltip Preview</h2>
+  <div class="tooltip-mock">
+    <div class="tt-title">mother</div>
+    <div class="tt-sub">Immediate Family Members</div>
+    <div class="tt-line">Cultural centrality: <span class="mono">0.273</span></div>
+    <div class="tt-line">95% CI: <span class="mono">[0.21&ndash;0.34]</span></div>
+    <div class="tt-divider"></div>
+    <div class="tt-note">Uncertainty reflects agreement across models, not within-model sampling variance.</div>
+  </div>
+  <div class="divider"></div>
+  <div class="note-box">This method applies CDA elicitation protocols to LLMs as if the models were informants. The originating question is exploratory: what happens if you give a large language model a free-list and pile-sort?</div>
+  <p class="caption">Family domain &middot; 15 models &middot; Analysis v0.2 &middot; 493 informant records</p>
+</div>
+
+<div class="panel combo-a">
+  <span class="combo-label">A &mdash; Plus Jakarta Sans + Source Sans 3 + IBM Plex Mono</span>
+  <div class="combo-sub">Bold geometric display, readable UI body. Two-font hierarchy.</div>
+
+  <div class="site-name">Cognitive Structure Lab</div>
+  <h1 class="page-heading">Family Domain: How Models Organize Kinship Vocabulary</h1>
+  <p class="lede">Across 15 frontier models, family vocabulary is organized around a shared categorical structure (<strong>Smith's S = 0.81</strong>, 95% CI [0.65, 0.95]). The map below shows where each model sits relative to that consensus.</p>
+  <div class="stat-row">
+    <div class="stat-block"><div class="stat-value">0.81 <span class="ci-bracket">[0.65&ndash;0.95]</span></div><div class="stat-label">Smith's S</div></div>
+    <div class="stat-block"><div class="stat-value">15</div><div class="stat-label">Models</div></div>
+    <div class="stat-block"><div class="stat-value">100</div><div class="stat-label">Shared Terms</div></div>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Top Terms by Salience</h2>
+  <table class="data-table"><thead><tr><th>Term</th><th class="num-cell">CSI</th><th class="num-cell">Runs</th></tr></thead><tbody>
+    <tr><td class="term-cell">mother</td><td class="num-cell data-mono">0.600</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">father</td><td class="num-cell data-mono">0.375</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">son</td><td class="num-cell data-mono">0.188</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">daughter</td><td class="num-cell data-mono">0.176</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">brother</td><td class="num-cell data-mono">0.122</td><td class="num-cell data-mono">6/6</td></tr>
+  </tbody></table>
+  <div class="divider"></div>
+  <h2 class="section-heading">Cluster Labels</h2>
+  <div class="cluster-pills">
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#e05c2e"></span>Immediate Family</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#2e7d4f"></span>In-Law Relationships</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#5c3298"></span>Grandparents</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#1d6b8f"></span>Cousins</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#8f1d55"></span>Aunts &amp; Uncles</span>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Tooltip Preview</h2>
+  <div class="tooltip-mock">
+    <div class="tt-title">mother</div>
+    <div class="tt-sub">Immediate Family Members</div>
+    <div class="tt-line">Cultural centrality: <span class="mono">0.273</span></div>
+    <div class="tt-line">95% CI: <span class="mono">[0.21&ndash;0.34]</span></div>
+    <div class="tt-divider"></div>
+    <div class="tt-note">Uncertainty reflects agreement across models, not within-model sampling variance.</div>
+  </div>
+  <div class="divider"></div>
+  <div class="note-box">This method applies CDA elicitation protocols to LLMs as if the models were informants. The originating question is exploratory: what happens if you give a large language model a free-list and pile-sort?</div>
+  <p class="caption">Family domain &middot; 15 models &middot; Analysis v0.2 &middot; 493 informant records</p>
+</div>
+
+</div>
+
+<!-- ROW 2: Combo B vs Combo C -->
+<div class="grid">
+
+<div class="panel combo-b">
+  <span class="combo-label">B &mdash; DM Sans (unified) + IBM Plex Mono</span>
+  <div class="combo-sub">Clean geometric. Single sans for display + body. Simplest stack.</div>
+
+  <div class="site-name">Cognitive Structure Lab</div>
+  <h1 class="page-heading">Family Domain: How Models Organize Kinship Vocabulary</h1>
+  <p class="lede">Across 15 frontier models, family vocabulary is organized around a shared categorical structure (<strong>Smith's S = 0.81</strong>, 95% CI [0.65, 0.95]). The map below shows where each model sits relative to that consensus.</p>
+  <div class="stat-row">
+    <div class="stat-block"><div class="stat-value">0.81 <span class="ci-bracket">[0.65&ndash;0.95]</span></div><div class="stat-label">Smith's S</div></div>
+    <div class="stat-block"><div class="stat-value">15</div><div class="stat-label">Models</div></div>
+    <div class="stat-block"><div class="stat-value">100</div><div class="stat-label">Shared Terms</div></div>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Top Terms by Salience</h2>
+  <table class="data-table"><thead><tr><th>Term</th><th class="num-cell">CSI</th><th class="num-cell">Runs</th></tr></thead><tbody>
+    <tr><td class="term-cell">mother</td><td class="num-cell data-mono">0.600</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">father</td><td class="num-cell data-mono">0.375</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">son</td><td class="num-cell data-mono">0.188</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">daughter</td><td class="num-cell data-mono">0.176</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">brother</td><td class="num-cell data-mono">0.122</td><td class="num-cell data-mono">6/6</td></tr>
+  </tbody></table>
+  <div class="divider"></div>
+  <h2 class="section-heading">Cluster Labels</h2>
+  <div class="cluster-pills">
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#e05c2e"></span>Immediate Family</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#2e7d4f"></span>In-Law Relationships</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#5c3298"></span>Grandparents</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#1d6b8f"></span>Cousins</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#8f1d55"></span>Aunts &amp; Uncles</span>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Tooltip Preview</h2>
+  <div class="tooltip-mock">
+    <div class="tt-title">mother</div>
+    <div class="tt-sub">Immediate Family Members</div>
+    <div class="tt-line">Cultural centrality: <span class="mono">0.273</span></div>
+    <div class="tt-line">95% CI: <span class="mono">[0.21&ndash;0.34]</span></div>
+    <div class="tt-divider"></div>
+    <div class="tt-note">Uncertainty reflects agreement across models, not within-model sampling variance.</div>
+  </div>
+  <div class="divider"></div>
+  <div class="note-box">This method applies CDA elicitation protocols to LLMs as if the models were informants. The originating question is exploratory: what happens if you give a large language model a free-list and pile-sort?</div>
+  <p class="caption">Family domain &middot; 15 models &middot; Analysis v0.2 &middot; 493 informant records</p>
+</div>
+
+<div class="panel combo-c">
+  <span class="combo-label">C &mdash; Instrument Sans + General Sans + IBM Plex Mono</span>
+  <div class="combo-sub">Narrow display, wider body. Compact + confident. Two-font hierarchy.</div>
+
+  <div class="site-name">Cognitive Structure Lab</div>
+  <h1 class="page-heading">Family Domain: How Models Organize Kinship Vocabulary</h1>
+  <p class="lede">Across 15 frontier models, family vocabulary is organized around a shared categorical structure (<strong>Smith's S = 0.81</strong>, 95% CI [0.65, 0.95]). The map below shows where each model sits relative to that consensus.</p>
+  <div class="stat-row">
+    <div class="stat-block"><div class="stat-value">0.81 <span class="ci-bracket">[0.65&ndash;0.95]</span></div><div class="stat-label">Smith's S</div></div>
+    <div class="stat-block"><div class="stat-value">15</div><div class="stat-label">Models</div></div>
+    <div class="stat-block"><div class="stat-value">100</div><div class="stat-label">Shared Terms</div></div>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Top Terms by Salience</h2>
+  <table class="data-table"><thead><tr><th>Term</th><th class="num-cell">CSI</th><th class="num-cell">Runs</th></tr></thead><tbody>
+    <tr><td class="term-cell">mother</td><td class="num-cell data-mono">0.600</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">father</td><td class="num-cell data-mono">0.375</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">son</td><td class="num-cell data-mono">0.188</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">daughter</td><td class="num-cell data-mono">0.176</td><td class="num-cell data-mono">6/6</td></tr>
+    <tr><td class="term-cell">brother</td><td class="num-cell data-mono">0.122</td><td class="num-cell data-mono">6/6</td></tr>
+  </tbody></table>
+  <div class="divider"></div>
+  <h2 class="section-heading">Cluster Labels</h2>
+  <div class="cluster-pills">
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#e05c2e"></span>Immediate Family</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#2e7d4f"></span>In-Law Relationships</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#5c3298"></span>Grandparents</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#1d6b8f"></span>Cousins</span>
+    <span class="cluster-pill"><span class="cluster-dot" style="background:#8f1d55"></span>Aunts &amp; Uncles</span>
+  </div>
+  <div class="divider"></div>
+  <h2 class="section-heading">Tooltip Preview</h2>
+  <div class="tooltip-mock">
+    <div class="tt-title">mother</div>
+    <div class="tt-sub">Immediate Family Members</div>
+    <div class="tt-line">Cultural centrality: <span class="mono">0.273</span></div>
+    <div class="tt-line">95% CI: <span class="mono">[0.21&ndash;0.34]</span></div>
+    <div class="tt-divider"></div>
+    <div class="tt-note">Uncertainty reflects agreement across models, not within-model sampling variance.</div>
+  </div>
+  <div class="divider"></div>
+  <div class="note-box">This method applies CDA elicitation protocols to LLMs as if the models were informants. The originating question is exploratory: what happens if you give a large language model a free-list and pile-sort?</div>
+  <p class="caption">Family domain &middot; 15 models &middot; Analysis v0.2 &middot; 493 informant records</p>
+</div>
+
+</div>
+
+</body>
+</html>

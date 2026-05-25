@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LSB Prototype v3 — Real Data</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@300;400;500;600;700;800&family=Source+Sans+3:wght@300;400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{--fd:'Plus Jakarta Sans',sans-serif;--fb:'Source Sans 3',sans-serif;--fm:'IBM Plex Mono',monospace;
+--bg:#fafaf8;--sf:#fff;--bd:#e4e4df;--bdh:#c8c8c2;--tx:#1a1a1a;--tx2:#6b6b65;--txm:#a0a098;
+--ac:#1a3a5c;--acl:#e8eef4;--sel:#edf2f7;}
+*{margin:0;padding:0;box-sizing:border-box;}
+body{font-family:var(--fb);background:var(--bg);color:var(--tx);height:100vh;overflow:hidden;}
+
+/* Nav */
+.nav{display:flex;align-items:center;justify-content:space-between;padding:0 24px;height:48px;background:var(--sf);border-bottom:1px solid var(--bd);}
+.nav__brand{font-family:var(--fd);font-size:15px;font-weight:700;color:var(--ac);}
+.nav__brand span{font-weight:400;color:var(--tx2);}
+.nav__r{display:flex;align-items:center;height:100%;}
+.nav__tab{display:flex;align-items:center;padding:0 18px;height:100%;font-family:var(--fd);font-size:13px;font-weight:500;color:var(--tx2);border-bottom:2px solid transparent;cursor:pointer;}
+.nav__tab:hover{color:var(--tx);}
+.nav__tab--on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600;}
+.tip-btn{font-family:var(--fd);font-size:11px;padding:3px 8px;border-radius:4px;border:1px solid var(--bd);background:none;color:var(--txm);cursor:pointer;margin-left:14px;}
+
+/* Layout */
+.main{display:grid;grid-template-columns:260px 1fr;height:calc(100vh - 48px);}
+
+/* Panel */
+.panel{background:var(--sf);border-right:1px solid var(--bd);overflow-y:auto;font-size:12px;}
+.panel::-webkit-scrollbar{width:3px;}.panel::-webkit-scrollbar-thumb{background:var(--bd);border-radius:2px;}
+.dom-sec{padding:14px 14px 10px;border-bottom:1px solid var(--bd);background:#fcfcfa;}
+.dom-sec label{font-family:var(--fd);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--txm);display:block;margin-bottom:6px;}
+.dom-sel{width:100%;font-family:var(--fd);font-size:12px;font-weight:500;padding:6px 28px 6px 10px;border:1px solid var(--bd);border-radius:5px;background:var(--sf);appearance:none;cursor:pointer;background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16' fill='none' stroke='%236b6b65' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 8px center;}
+.sec{padding:0 14px;margin-bottom:2px;}
+.sec__h{font-family:var(--fd);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.08em;color:var(--txm);margin:10px 0 6px;display:flex;justify-content:space-between;}
+.sec__cnt{font-family:var(--fm);font-size:9px;}
+.sec__acts{display:flex;gap:8px;margin-bottom:6px;}
+.sec__act{font-size:10px;color:var(--ac);cursor:pointer;background:none;border:none;}
+.sec__act:hover{text-decoration:underline;}
+.divider{height:1px;background:var(--bd);margin:10px 14px;}
+
+/* Provider */
+.pg{margin:0 14px 3px;border:1px solid var(--bd);border-radius:5px;overflow:hidden;}
+.pg:hover{border-color:var(--bdh);}
+.pg--open{border-color:var(--bdh);}
+.pg__hd{display:flex;align-items:center;gap:6px;padding:6px 8px;cursor:pointer;user-select:none;}
+.pg__hd:hover{background:#f8f8f5;}
+.pg__chev{width:12px;height:12px;color:var(--txm);transition:transform .2s;flex-shrink:0;}
+.pg--open .pg__chev{transform:rotate(90deg);}
+.pg__dot{width:9px;height:9px;border-radius:50%;flex-shrink:0;}
+.pg__name{font-family:var(--fd);font-size:12px;font-weight:500;flex:1;}
+.pg__n{font-family:var(--fm);font-size:9px;color:var(--txm);}
+.pin{width:18px;height:18px;border:none;background:none;cursor:pointer;color:var(--txm);padding:0;display:flex;align-items:center;justify-content:center;border-radius:3px;flex-shrink:0;}
+.pin:hover{color:var(--ac);background:var(--acl);}
+.pin--on{color:var(--ac);}
+.pin svg{width:11px;height:11px;}
+.pg__ck{width:14px;height:14px;border:1.5px solid var(--bd);border-radius:3px;display:flex;align-items:center;justify-content:center;flex-shrink:0;cursor:pointer;}
+.pg__ck--on{background:var(--ac);border-color:var(--ac);}
+.pg__ck svg{width:9px;height:9px;}
+.ml{display:none;padding:0 8px 6px 28px;background:#fcfcfa;border-top:1px solid #f0f0ec;}
+.pg--open .ml{display:block;}
+.fl{font-family:var(--fd);font-size:9px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--txm);margin:6px 0 3px;}
+.mr{display:flex;align-items:center;gap:6px;padding:4px;border-radius:3px;cursor:pointer;}
+.mr:hover{background:var(--sel);}
+.mr--sel{background:var(--sel);}
+.mr__ck{width:12px;height:12px;border:1.5px solid var(--bd);border-radius:2px;display:flex;align-items:center;justify-content:center;flex-shrink:0;}
+.mr--sel .mr__ck{background:var(--ac);border-color:var(--ac);}
+.mr__ck svg{width:8px;height:8px;}
+.mr__name{font-family:var(--fb);font-size:11.5px;flex:1;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;}
+.mr__date{font-family:var(--fm);font-size:9px;color:var(--txm);}
+.mr__badge{font-family:var(--fd);font-size:8px;font-weight:600;padding:1px 4px;border-radius:2px;background:#e8f5e9;color:#2e7d32;}
+.tog-row{display:flex;align-items:center;justify-content:space-between;padding:4px 0;}
+.tog-label{font-size:11.5px;color:var(--tx2);}
+.tog{width:32px;height:18px;border-radius:9px;background:var(--bd);position:relative;cursor:pointer;}
+.tog--on{background:var(--ac);}
+.tog__th{width:14px;height:14px;border-radius:50%;background:#fff;position:absolute;top:2px;left:2px;transition:left .2s;box-shadow:0 1px 2px rgba(0,0,0,.15);}
+.tog--on .tog__th{left:16px;}
+
+/* Content */
+.content{display:flex;flex-direction:column;overflow:hidden;}
+.vtabs{display:flex;padding:0 20px;background:var(--sf);border-bottom:1px solid var(--bd);height:36px;flex-shrink:0;}
+.vt{display:flex;align-items:center;padding:0 14px;font-family:var(--fd);font-size:11px;font-weight:500;color:var(--txm);border-bottom:2px solid transparent;cursor:pointer;white-space:nowrap;}
+.vt:hover{color:var(--tx2);}
+.vt--on{color:var(--ac);border-bottom-color:var(--ac);font-weight:600;}
+.sbar{display:flex;align-items:center;gap:5px;padding:6px 20px;background:var(--sf);border-bottom:1px solid var(--bd);flex-shrink:0;flex-wrap:wrap;min-height:34px;}
+.sbar__l{font-family:var(--fd);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--txm);}
+.sc{display:inline-flex;align-items:center;gap:3px;font-family:var(--fb);font-size:10.5px;padding:2px 6px;border-radius:3px;background:var(--sel);color:var(--ac);}
+.sc__d{width:5px;height:5px;border-radius:50%;}
+.sc__x{font-size:9px;cursor:pointer;opacity:.4;margin-left:1px;}.sc__x:hover{opacity:1;}
+
+/* Chart */
+.chart{flex:1;padding:16px 20px;overflow:auto;display:flex;flex-direction:column;min-height:0;}
+.chart__lede{font-size:13px;line-height:1.55;color:var(--tx2);max-width:580px;margin-bottom:10px;}
+.chart__lede strong{font-weight:600;color:var(--tx);}
+.chart__wrap{flex:1;min-height:420px;position:relative;background:#fdfdfc;border:1px solid var(--bd);border-radius:6px;overflow:hidden;}
+.chart__wrap svg{display:block;}
+.mds-tip{position:absolute;background:#2c3e50;color:#fff;padding:10px 12px;border-radius:5px;font-size:11px;pointer-events:none;z-index:10;box-shadow:0 4px 12px rgba(0,0,0,.2);max-width:240px;display:none;line-height:1.5;}
+.mds-tip.vis{display:block;}
+.mds-tip b{font-family:var(--fd);font-size:12px;display:block;margin-bottom:1px;}
+.mds-tip .mono{font-family:var(--fm);font-size:10px;}
+.mds-tip .sub{opacity:.5;font-family:var(--fm);font-size:9px;margin-bottom:5px;}
+.mds-tip .sep{height:1px;background:rgba(255,255,255,.12);margin:5px 0;}
+.mds-tip .terms{opacity:.6;font-size:10px;}
+
+/* Timeline */
+.tl{padding:10px 20px 14px;background:var(--sf);border-top:1px solid var(--bd);flex-shrink:0;}
+.tl__hd{display:flex;align-items:center;gap:8px;margin-bottom:10px;}
+.tl__label{font-family:var(--fd);font-size:10px;font-weight:600;text-transform:uppercase;letter-spacing:.06em;color:var(--txm);}
+.tl__fam{font-family:var(--fd);font-size:12px;font-weight:600;color:var(--tx);display:flex;align-items:center;gap:5px;}
+.tl__fam-dot{width:7px;height:7px;border-radius:50%;}
+.tl__hint{font-family:var(--fb);font-size:10px;color:var(--txm);margin-left:auto;font-style:italic;}
+.tl__track{position:relative;height:44px;display:flex;align-items:center;margin:0 6px;}
+.tl__rail{position:absolute;left:0;right:0;height:3px;background:var(--bd);border-radius:2px;}
+.tl__fill{position:absolute;height:3px;border-radius:2px;}
+.tl__stop{position:absolute;top:50%;transform:translate(-50%,-50%);display:flex;flex-direction:column;align-items:center;cursor:pointer;z-index:2;}
+.tl__stop-d{width:14px;height:14px;border-radius:50%;background:var(--sf);border:2.5px solid var(--bd);transition:all .15s;}
+.tl__stop:hover .tl__stop-d{border-color:var(--ac);box-shadow:0 0 0 3px var(--acl);}
+.tl__stop--sel .tl__stop-d{background:var(--ac);border-color:var(--ac);box-shadow:0 0 0 3px var(--acl);}
+.tl__stop-n{position:absolute;top:-17px;font-family:var(--fd);font-size:10px;font-weight:500;color:var(--tx2);white-space:nowrap;}
+.tl__stop--sel .tl__stop-n{color:var(--ac);font-weight:600;}
+.tl__stop-dt{position:absolute;bottom:-15px;font-family:var(--fm);font-size:9px;color:var(--txm);white-space:nowrap;}
+/* Ghost */
+.tl__ghost{position:absolute;left:0;right:0;top:0;bottom:0;pointer-events:none;}
+.tl__ghost .tl__stop-d{width:9px;height:9px;opacity:.3;}
+.tl__ghost .tl__stop-n{font-size:8px;opacity:.3;top:-14px;}
+.tl__ghost .tl__stop-dt{font-size:7px;opacity:.2;bottom:-12px;}
+.tl__ghost .tl__fill{opacity:.12;}
+.tl__ghost-tag{position:absolute;right:0;top:-8px;font-family:var(--fd);font-size:8px;color:var(--txm);opacity:.5;display:flex;align-items:center;gap:3px;}
+.tl__ghost-tag span{width:5px;height:5px;border-radius:50%;opacity:.5;}
+.tl__ghost-tag .unpin{cursor:pointer;pointer-events:auto;opacity:.4;font-size:9px;}
+.tl__ghost-tag .unpin:hover{opacity:1;}
+</style>
+</head>
+<body>
+
+<nav class="nav">
+  <div class="nav__brand">Cognitive Structure Lab <span>/ LSB</span></div>
+  <div class="nav__r">
+    <a class="nav__tab nav__tab--on">Explore</a>
+    <a class="nav__tab">Methodology</a>
+    <a class="nav__tab">Data</a>
+    <button class="tip-btn" onclick="this.classList.toggle('tip-btn--on')">? Tooltips</button>
+  </div>
+</nav>
+
+<div class="main">
+  <aside class="panel">
+    <div class="dom-sec"><label>Domain</label>
+      <select class="dom-sel"><optgroup label="Everyday"><option selected>Family</option><option>Holidays</option><option>Food</option></optgroup>
+      <optgroup label="Professional (soon)" disabled><option disabled>Medical</option></optgroup></select>
+    </div>
+    <div class="sec" style="padding-top:10px">
+      <div class="sec__h">Providers &amp; Models <span class="sec__cnt" id="cnt">15 of 15</span></div>
+      <div class="sec__acts"><button class="sec__act" onclick="selAll()">Select all</button><button class="sec__act" onclick="selNone()">Clear</button></div>
+      <div id="tree"></div>
+    </div>
+    <div class="divider"></div>
+    <div class="sec">
+      <div class="sec__h">Filters</div>
+      <div class="tog-row"><span class="tog-label">Open weights only</span><div class="tog" onclick="this.classList.toggle('tog--on')"><div class="tog__th"></div></div></div>
+    </div>
+  </aside>
+
+  <div class="content">
+    <div class="vtabs">
+      <div class="vt" onclick="switchTab('mds',this)">MDS Plot</div>
+      <div class="vt vt--on" onclick="switchTab('terms',this)">Term Map</div>
+      <div class="vt">Cluster Tree</div>
+      <div class="vt">Free Lists</div>
+      <div class="vt">Similarity</div>
+      <div class="vt">Centrality</div>
+      <div class="vt">Pile Structure</div>
+    </div>
+    <div class="sbar" id="sbar"></div>
+    <div class="chart">
+      <p class="chart__lede">Across <strong>15 models</strong>, family vocabulary is organized around a shared categorical structure (<strong>Smith's S = 0.81</strong>, 95% CI [0.65, 0.95]).</p>
+      <div class="chart__wrap" id="wrap"><div class="mds-tip" id="tip"></div></div>
+    </div>
+    <div class="tl" id="tl">
+      <div class="tl__hd"><span class="tl__label">Version History</span><div class="tl__fam" id="tl-fam"></div><span class="tl__hint" id="tl-hint">Expand a provider to see its history</span></div>
+      <div class="tl__track" id="tl-track"></div>
+    </div>
+  </div>
+</div>
+
+<script src="prototype-data.js"></script>
+<script>
+const CHK = '<svg viewBox="0 0 12 12" fill="none" stroke="white" stroke-width="2"><path d="M2 6l3 3 5-5"/></svg>';
+const CHEV = '<svg class="pg__chev" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M6 4l4 4-4 4"/></svg>';
+const PIN_SVG = '<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M8 2v8M5 4l3-2 3 2M6 10h4M8 10v4"/></svg>';
+
+// Map provider from model data
+function providerOf(m) {
+  if (m.provider==='openrouter') return m.family==='gpt'?'openai':m.family==='llama'?'meta':m.family;
+  return m.provider;
+}
+const PROV = {anthropic:{n:'Anthropic',c:'#d97706'},openai:{n:'OpenAI',c:'#10a37f'},google:{n:'Google',c:'#4285f4'},
+  meta:{n:'Meta',c:'#0668e1'},xai:{n:'xAI',c:'#1d1d1f'},mistral:{n:'Mistral',c:'#f97316'},
+  deepseek:{n:'DeepSeek',c:'#0ea5e9'},microsoft:{n:'Microsoft',c:'#00a4ef'},phi:{n:'Microsoft',c:'#00a4ef'}};
+
+let sel = new Set(MODEL_DATA.map(m=>m.id));
+let pinned = null, activeProv = 'anthropic', activeTab = 'terms';
+let hoveredCluster = null; // for explode animation
+
+function getColor(m){ const p=providerOf(m); return (PROV[p]||{}).c||'#888'; }
+function shortDate(d){ if(!d)return''; const m=['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec']; const parts=d.split('-'); return m[parseInt(parts[1])-1]+" '"+parts[0].slice(2); }
+
+// Build tree
+function buildTree(){
+  const tree={};
+  MODEL_DATA.forEach(m=>{const p=providerOf(m);if(!tree[p])tree[p]={};if(!tree[p][m.family])tree[p][m.family]=[];tree[p][m.family].push(m);});
+  const el=document.getElementById('tree');
+  let h='';
+  ['anthropic','openai','google','meta','xai','mistral','deepseek','microsoft'].forEach(pid=>{
+    // find families for this provider
+    let families={};
+    MODEL_DATA.forEach(m=>{if(providerOf(m)===pid){if(!families[m.family])families[m.family]=[];families[m.family].push(m);}});
+    if(!Object.keys(families).length)return;
+    const pm=PROV[pid]||{n:pid,c:'#888'};
+    const n=Object.values(families).flat().length;
+    const exp=pid==='anthropic'?' pg--open':'';
+    h+=`<div class="pg${exp}" data-p="${pid}">
+      <div class="pg__hd" onclick="expand('${pid}')">
+        ${CHEV}<span class="pg__dot" style="background:${pm.c}"></span>
+        <span class="pg__name">${pm.n}</span><span class="pg__n">${n}</span>
+        <button class="pin" title="Pin for comparison" onclick="event.stopPropagation();togglePin('${pid}')" data-pin="${pid}">${PIN_SVG}</button>
+        <div class="pg__ck pg__ck--on" onclick="event.stopPropagation();toggleProv('${pid}')">${CHK}</div>
+      </div><div class="ml">`;
+    Object.entries(families).forEach(([fam,models])=>{
+      h+=`<div class="fl">${fam}</div>`;
+      models.forEach(m=>{
+        const s=sel.has(m.id)?' mr--sel':'';
+        const badge=m.open?'<span class="mr__badge">Open</span>':'';
+        h+=`<div class="mr${s}" data-m="${m.id}" onclick="togModel('${m.id}')">
+          <div class="mr__ck">${CHK}</div><span class="mr__name">${m.short}</span>${badge}<span class="mr__date">${shortDate(m.date)}</span></div>`;
+      });
+    });
+    h+='</div></div>';
+  });
+  el.innerHTML=h;
+}
+
+function expand(pid){document.querySelectorAll('.pg').forEach(g=>{if(g.dataset.p===pid)g.classList.toggle('pg--open');});activeProv=pid;renderTL();}
+function togModel(id){if(sel.has(id))sel.delete(id);else sel.add(id);updateAll();}
+function toggleProv(pid){const ms=MODEL_DATA.filter(m=>providerOf(m)===pid);const all=ms.every(m=>sel.has(m.id));ms.forEach(m=>{if(all)sel.delete(m.id);else sel.add(m.id);});updateAll();}
+function selAll(){MODEL_DATA.forEach(m=>sel.add(m.id));updateAll();}
+function selNone(){sel.clear();updateAll();}
+function togglePin(pid){pinned=pinned===pid?null:pid;document.querySelectorAll('.pin').forEach(b=>b.classList.toggle('pin--on',b.dataset.pin===pinned));renderTL();}
+
+function updateAll(){
+  document.querySelectorAll('.mr').forEach(r=>r.classList.toggle('mr--sel',sel.has(r.dataset.m)));
+  document.querySelectorAll('.pg').forEach(g=>{const pid=g.dataset.p;const ms=MODEL_DATA.filter(m=>providerOf(m)===pid);const n=ms.filter(m=>sel.has(m.id)).length;g.querySelector('.pg__ck').classList.toggle('pg__ck--on',n===ms.length);});
+  document.getElementById('cnt').textContent=sel.size+' of '+MODEL_DATA.length;
+  renderChart();renderSbar();
+}
+
+function renderSbar(){
+  const bar=document.getElementById('sbar');
+  const s=MODEL_DATA.filter(m=>sel.has(m.id));
+  if(!s.length){bar.innerHTML='<span class="sbar__l">No models selected</span>';return;}
+  let h='<span class="sbar__l">Showing</span>';
+  s.slice(0,6).forEach(m=>{h+=`<span class="sc"><span class="sc__d" style="background:${getColor(m)}"></span>${m.short}<span class="sc__x" onclick="togModel('${m.id}')">&times;</span></span>`;});
+  if(s.length>6)h+=`<span class="sc" style="background:#f0f0ec;color:var(--txm)">+${s.length-6} more</span>`;
+  bar.innerHTML=h;
+}
+
+function switchTab(tab,el){
+  activeTab=tab;
+  document.querySelectorAll('.vt').forEach(t=>t.classList.remove('vt--on'));
+  el.classList.add('vt--on');
+  renderChart();
+}
+
+// ── MDS / Term rendering ──
+function renderChart(){
+  if(activeTab==='mds') renderMDS();
+  else if(activeTab==='terms') renderTerms();
+}
+
+function renderMDS(){
+  const wrap=document.getElementById('wrap');
+  const rect=wrap.getBoundingClientRect();
+  const W=Math.max(rect.width,600), H=Math.max(rect.height,400);
+  const pad={t:24,r:24,b:36,l:40};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+  const vis=MODEL_DATA.filter(m=>sel.has(m.id));
+
+  if(!vis.length){wrap.innerHTML='<div class="mds-tip" id="tip"></div><svg width="'+W+'" height="'+H+'"><text x="'+W/2+'" y="'+H/2+'" text-anchor="middle" fill="#a0a098" font-family="var(--fd)" font-size="13">Select models to see the plot</text></svg>';return;}
+
+  // Compute range including ellipses
+  let xMin=Infinity,xMax=-Infinity,yMin=Infinity,yMax=-Infinity;
+  vis.forEach(m=>{
+    xMin=Math.min(xMin,m.x-m.smaj);xMax=Math.max(xMax,m.x+m.smaj);
+    yMin=Math.min(yMin,m.y-m.smin);yMax=Math.max(yMax,m.y+m.smin);
+  });
+  const xPad=(xMax-xMin)*0.08, yPad=(yMax-yMin)*0.08;
+  xMin-=xPad;xMax+=xPad;yMin-=yPad;yMax+=yPad;
+  const sx=v=>pad.l+(v-xMin)/(xMax-xMin)*pw;
+  const sy=v=>pad.t+(1-(v-yMin)/(yMax-yMin))*ph;
+
+  let svg=`<svg width="${W}" height="${H}">`;
+  // Grid
+  for(let i=0;i<=4;i++){const gy=pad.t+ph*i/4,gx=pad.l+pw*i/4;
+    svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+pw}" y2="${gy}" stroke="#eee" stroke-width=".5"/>`;
+    svg+=`<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t+ph}" stroke="#eee" stroke-width=".5"/>`;
+  }
+  svg+=`<text x="${pad.l+pw/2}" y="${H-4}" text-anchor="middle" font-family="var(--fb)" font-size="10" fill="#a0a098">MDS Dimension 1 — relative</text>`;
+  svg+=`<text x="${pad.l+pw}" y="${H-4}" text-anchor="end" font-family="var(--fm)" font-size="9" fill="#a0a098">Stress = 0.12</text>`;
+
+  // Ellipses
+  vis.forEach(m=>{
+    if(m.smaj>0){const cx=sx(m.x),cy=sy(m.y);
+      const rx=m.smaj/(xMax-xMin)*pw, ry=m.smin/(yMax-yMin)*ph;
+      const deg=-(m.rot*180/Math.PI);
+      svg+=`<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${getColor(m)}" stroke="${getColor(m)}" fill-opacity=".06" stroke-opacity=".18" stroke-width="1"/>`;
+    }
+  });
+  // Points + labels
+  vis.forEach(m=>{const cx=sx(m.x),cy=sy(m.y);const c=getColor(m);
+    svg+=`<circle cx="${cx}" cy="${cy}" r="6" fill="${c}" stroke="#fff" stroke-width="1.5" cursor="pointer" onmouseenter="showTip(event,'${m.id}')" onmouseleave="hideTip()"/>`;
+    svg+=`<text x="${cx+9}" y="${cy+4}" font-family="var(--fb)" font-size="12" fill="#4a4a4a" pointer-events="none">${m.short}</text>`;
+  });
+  svg+='</svg>';
+  wrap.innerHTML=svg+'<div class="mds-tip" id="tip"></div>';
+}
+
+function renderTerms(){
+  const wrap=document.getElementById('wrap');
+  const rect=wrap.getBoundingClientRect();
+  const W=Math.max(rect.width,600); const H=Math.max(rect.height,400);
+  const pad={t:30,r:80,b:40,l:50};
+  const pw=W-pad.l-pad.r, ph=H-pad.t-pad.b;
+
+  // Use array format: [term, x, y, cluster]
+  let xMin=Infinity,xMax=-Infinity,yMin=Infinity,yMax=-Infinity;
+  TERM_DATA.forEach(d=>{const x=d[1],y=d[2];xMin=Math.min(xMin,x);xMax=Math.max(xMax,x);yMin=Math.min(yMin,y);yMax=Math.max(yMax,y);});
+  const xP=(xMax-xMin)*.08, yP=(yMax-yMin)*.08;
+  xMin-=xP;xMax+=xP;yMin-=yP;yMax+=yP;
+  const sx=v=>pad.l+(v-xMin)/(xMax-xMin)*pw;
+  const sy=v=>pad.t+(1-(v-yMin)/(yMax-yMin))*ph;
+
+  // Group terms by cluster
+  const clusters={};
+  TERM_DATA.forEach((d,i)=>{const c=d[3];if(!clusters[c])clusters[c]=[];clusters[c].push({t:d[0],x:d[1],y:d[2],i:i});});
+
+  // Convex hull helper
+  function cross(O,A,B){return(A[0]-O[0])*(B[1]-O[1])-(A[1]-O[1])*(B[0]-O[0]);}
+  function hull(pts){
+    const s=pts.slice().sort((a,b)=>a[0]-b[0]||a[1]-b[1]);
+    if(s.length<=1)return s;
+    const lo=[];for(const p of s){while(lo.length>=2&&cross(lo[lo.length-2],lo[lo.length-1],p)<=0)lo.pop();lo.push(p);}
+    const up=[];for(const p of s.reverse()){while(up.length>=2&&cross(up[up.length-2],up[up.length-1],p)<=0)up.pop();up.push(p);}
+    return lo.slice(0,-1).concat(up.slice(0,-1));
+  }
+
+  // Pad hull outward from centroid
+  function padHull(h,cx,cy,pad){
+    return h.map(p=>{const dx=p[0]-cx,dy=p[1]-cy;const d=Math.sqrt(dx*dx+dy*dy)||1;return[p[0]+dx/d*pad,p[1]+dy/d*pad];});
+  }
+
+  // Compute explosion offsets for hovered cluster
+  function explodeOffsets(terms,cx,cy,strength){
+    return terms.map(t=>{
+      const dx=sx(t.x)-cx, dy=sy(t.y)-cy;
+      const dist=Math.sqrt(dx*dx+dy*dy)||1;
+      return {ox:dx/dist*strength, oy:dy/dist*strength};
+    });
+  }
+
+  let svg=`<svg width="${W}" height="${H}" id="term-svg">`;
+
+  // Light grid
+  for(let i=0;i<=4;i++){const gy=pad.t+ph*i/4,gx=pad.l+pw*i/4;
+    svg+=`<line x1="${pad.l}" y1="${gy}" x2="${pad.l+pw}" y2="${gy}" stroke="#f0f0ec" stroke-width=".5"/>`;
+    svg+=`<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t+ph}" stroke="#f0f0ec" stroke-width=".5"/>`;
+  }
+
+  // Draw convex hulls + cluster labels
+  Object.entries(clusters).forEach(([cid,terms])=>{
+    const col=CLUSTER_COLORS[cid%CLUSTER_COLORS.length];
+    const label=CLUSTER_LABELS[cid]||'Cluster '+cid;
+    const cx=terms.reduce((s,t)=>s+sx(t.x),0)/terms.length;
+    const cy=terms.reduce((s,t)=>s+sy(t.y),0)/terms.length;
+
+    if(terms.length>=2){
+      const pts=terms.map(t=>[sx(t.x),sy(t.y)]);
+      const h=hull(pts);
+      const padded=padHull(h,cx,cy,18);
+      const pathD=padded.map((p,i)=>(i===0?'M':'L')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ')+'Z';
+      svg+=`<path d="${pathD}" fill="${col}" fill-opacity=".07" stroke="${col}" stroke-opacity=".25" stroke-width="1.5" rx="8"
+        cursor="pointer" data-cluster="${cid}"
+        onmouseenter="hoverCluster(${cid})" onmouseleave="unhoverCluster()"/>`;
+    } else if(terms.length===1) {
+      svg+=`<circle cx="${sx(terms[0].x)}" cy="${sy(terms[0].y)}" r="20" fill="${col}" fill-opacity=".07" stroke="${col}" stroke-opacity=".2" stroke-width="1"
+        cursor="pointer" data-cluster="${cid}"
+        onmouseenter="hoverCluster(${cid})" onmouseleave="unhoverCluster()"/>`;
+    }
+
+    // Cluster label — positioned outside the hull
+    // Find the point in the hull farthest from center of the plot, place label there
+    let bestX=cx, bestY=cy;
+    if(terms.length>=2){
+      const plotCx=pad.l+pw/2, plotCy=pad.t+ph/2;
+      let maxDist=0;
+      terms.forEach(t=>{
+        const px=sx(t.x),py=sy(t.y);
+        const d=Math.sqrt((px-plotCx)**2+(py-plotCy)**2);
+        if(d>maxDist){maxDist=d;bestX=px;bestY=py;}
+      });
+      // Push label further outward from plot center
+      const dx=bestX-plotCx, dy=bestY-plotCy;
+      const dd=Math.sqrt(dx*dx+dy*dy)||1;
+      bestX+=dx/dd*28; bestY+=dy/dd*14;
+    }
+
+    if(terms.length>=3){
+      svg+=`<text x="${bestX}" y="${bestY}" text-anchor="middle" dominant-baseline="middle"
+        font-family="var(--fd)" font-size="13" font-weight="700" fill="${col}" opacity=".75"
+        pointer-events="none">${label}</text>`;
+    } else if(terms.length>=1){
+      svg+=`<text x="${bestX}" y="${bestY+14}" text-anchor="middle"
+        font-family="var(--fd)" font-size="10" font-weight="600" fill="${col}" opacity=".6"
+        pointer-events="none">${label}</text>`;
+    }
+  });
+
+  // Draw term dots — each has a data-cluster and data-idx for interaction
+  TERM_DATA.forEach((d,i)=>{
+    const px=sx(d[1]), py=sy(d[2]);
+    const col=CLUSTER_COLORS[d[3]%CLUSTER_COLORS.length];
+    svg+=`<circle class="term-dot" cx="${px}" cy="${py}" r="4" fill="${col}" stroke="#fff" stroke-width=".8"
+      data-cluster="${d[3]}" data-idx="${i}" data-ox="${px}" data-oy="${py}"
+      cursor="pointer"
+      onmouseenter="showTermTip(event,${i})" onmouseleave="hideTip()"/>`;
+  });
+
+  // Term labels — hidden by default, shown on cluster hover
+  TERM_DATA.forEach((d,i)=>{
+    const px=sx(d[1]), py=sy(d[2]);
+    svg+=`<text class="term-label" x="${px+7}" y="${py+3}" font-family="var(--fb)" font-size="10" fill="#444"
+      data-cluster="${d[3]}" data-idx="${i}" data-ox="${px+7}" data-oy="${py+3}"
+      pointer-events="none" opacity="0">${d[0]}</text>`;
+  });
+
+  svg+=`<text x="${pad.l+pw/2}" y="${H-6}" text-anchor="middle" font-family="var(--fb)" font-size="10" fill="#a0a098">100 shared terms across 15 models &middot; 19 clusters from pile-sort co-occurrence</text>`;
+  svg+='</svg>';
+  wrap.innerHTML=svg+'<div class="mds-tip" id="tip"></div>';
+}
+
+// Cluster hover-explode animation
+function hoverCluster(cid){
+  hoveredCluster=cid;
+  const svg=document.getElementById('term-svg');
+  if(!svg)return;
+
+  // Show labels for this cluster
+  svg.querySelectorAll('.term-label').forEach(el=>{
+    el.setAttribute('opacity', el.dataset.cluster==cid ? '1' : '0');
+  });
+
+  // Explode dots outward from cluster centroid
+  const dots=svg.querySelectorAll('.term-dot[data-cluster="'+cid+'"]');
+  const labels=svg.querySelectorAll('.term-label[data-cluster="'+cid+'"]');
+  if(dots.length<2)return;
+
+  // Compute centroid of this cluster in SVG coords
+  let cx=0,cy=0;
+  dots.forEach(d=>{cx+=parseFloat(d.dataset.ox);cy+=parseFloat(d.dataset.oy);});
+  cx/=dots.length;cy/=dots.length;
+
+  const strength=25; // pixels to spread
+  dots.forEach((d,i)=>{
+    const ox=parseFloat(d.dataset.ox),oy=parseFloat(d.dataset.oy);
+    const dx=ox-cx, dy=oy-cy;
+    const dist=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=ox+dx/dist*strength, ny=oy+dy/dist*strength;
+    d.style.transition='cx 0.25s ease-out, cy 0.25s ease-out';
+    d.setAttribute('cx',nx);d.setAttribute('cy',ny);
+    d.setAttribute('r','5');
+  });
+  labels.forEach((l,i)=>{
+    const ox=parseFloat(l.dataset.ox),oy=parseFloat(l.dataset.oy);
+    const dotOx=parseFloat(dots[i]?.dataset.ox||ox), dotOy=parseFloat(dots[i]?.dataset.oy||oy);
+    const dx=dotOx-cx, dy=dotOy-cy;
+    const dist=Math.sqrt(dx*dx+dy*dy)||1;
+    const nx=ox+dx/dist*strength, ny=oy+dy/dist*strength;
+    l.style.transition='x 0.25s ease-out, y 0.25s ease-out, opacity 0.2s';
+    l.setAttribute('x',nx);l.setAttribute('y',ny);
+  });
+
+  // Fade non-hovered clusters
+  svg.querySelectorAll('.term-dot').forEach(d=>{
+    if(d.dataset.cluster!=cid) d.style.opacity='0.15';
+  });
+  svg.querySelectorAll('path[data-cluster]').forEach(p=>{
+    if(p.dataset.cluster!=cid) p.style.opacity='0.08';
+  });
+}
+
+function unhoverCluster(){
+  hoveredCluster=null;
+  const svg=document.getElementById('term-svg');
+  if(!svg)return;
+
+  // Hide all labels
+  svg.querySelectorAll('.term-label').forEach(el=>el.setAttribute('opacity','0'));
+
+  // Reset dots to original positions
+  svg.querySelectorAll('.term-dot').forEach(d=>{
+    d.style.transition='cx 0.2s ease-in, cy 0.2s ease-in, opacity 0.2s';
+    d.setAttribute('cx',d.dataset.ox);d.setAttribute('cy',d.dataset.oy);
+    d.setAttribute('r','4');
+    d.style.opacity='1';
+  });
+
+  // Reset hulls
+  svg.querySelectorAll('path[data-cluster]').forEach(p=>{p.style.opacity='1';});
+}
+
+function showTip(e,id){
+  const m=MODEL_DATA.find(x=>x.id===id);if(!m)return;
+  const t=document.getElementById('tip');
+  t.innerHTML=`<b>${m.short}</b><div class="sub">${m.id}</div>
+    <div>Centrality: <span class="mono">${m.cent.toFixed(3)}</span></div>
+    <div>Position: <span class="mono">(${m.x.toFixed(3)}, ${m.y.toFixed(3)})</span></div>
+    <div class="sep"></div><div class="terms">Top terms: ${m.terms.join(', ')}</div>`;
+  t.classList.add('vis');
+  const r=document.getElementById('wrap').getBoundingClientRect();
+  t.style.left=(e.clientX-r.left+12)+'px';t.style.top=(e.clientY-r.top-8)+'px';
+}
+function showTermTip(e,idx){
+  const d=TERM_DATA[idx];if(!d)return;
+  const t=document.getElementById('tip');
+  const label=CLUSTER_LABELS[d[3]]||'Cluster '+d[3];
+  const col=CLUSTER_COLORS[d[3]%CLUSTER_COLORS.length];
+  t.innerHTML=`<b>${d[0]}</b><div class="sub" style="color:${col}">${label}</div>
+    <div>Position: <span class="mono">(${d[1].toFixed(3)}, ${d[2].toFixed(3)})</span></div>`;
+  t.classList.add('vis');
+  const r=document.getElementById('wrap').getBoundingClientRect();
+  t.style.left=(e.clientX-r.left+12)+'px';t.style.top=(e.clientY-r.top-8)+'px';
+}
+function hideTip(){document.getElementById('tip').classList.remove('vis');}
+
+// ── Timeline ──
+const TLD={
+  anthropic:{f:'Claude',c:'#d97706',v:[{n:'opus-4-5',d:"Mar '26",p:'20%'},{n:'opus-4-6',d:"Apr '26",p:'55%',s:1},{n:'sonnet-4-6',d:"Apr '26",p:'72%',s:1}]},
+  openai:{f:'GPT',c:'#10a37f',v:[{n:'5.2',d:"Jan '26",p:'8%'},{n:'5.4',d:"Apr '26",p:'55%',s:1},{n:'5.4-mini',d:"Apr '26",p:'72%',s:1}]},
+  google:{f:'Gemini',c:'#4285f4',v:[{n:'2.5-pro',d:"May '26",p:'60%',s:1},{n:'2.5-flash',d:"May '26",p:'82%',s:1}]},
+  meta:{f:'Llama',c:'#0668e1',v:[{n:'4-maverick',d:"Apr '26",p:'55%',s:1}]},
+  xai:{f:'Grok',c:'#1d1d1f',v:[{n:'4',d:"Apr '26",p:'55%',s:1},{n:'4.20',d:"May '26",p:'82%',s:1}]},
+  mistral:{f:'Mistral',c:'#f97316',v:[{n:'large-2512',d:"Apr '26",p:'55%',s:1},{n:'small-2603',d:"Apr '26",p:'72%',s:1}]},
+  deepseek:{f:'DeepSeek',c:'#0ea5e9',v:[{n:'v3.2',d:"Apr '26",p:'55%',s:1}]},
+  microsoft:{f:'Phi',c:'#00a4ef',v:[{n:'4',d:"Apr '26",p:'55%',s:1}]},
+};
+
+function renderTL(){
+  const d=TLD[activeProv];if(!d)return;
+  document.getElementById('tl-fam').innerHTML=`<span class="tl__fam-dot" style="background:${d.c}"></span>${d.f}`;
+  document.getElementById('tl-hint').textContent='';
+  const tr=document.getElementById('tl-track');let h='';
+
+  // Ghost
+  if(pinned&&pinned!==activeProv&&TLD[pinned]){
+    const g=TLD[pinned];
+    h+=`<div class="tl__ghost"><div class="tl__ghost-tag"><span style="background:${g.c}"></span>${g.f} (pinned)<span class="unpin" onclick="togglePin('${pinned}')">&times;</span></div>`;
+    h+=`<div class="tl__rail"><div class="tl__fill" style="left:${g.v[0].p};width:calc(${g.v[g.v.length-1].p} - ${g.v[0].p});background:${g.c};"></div></div>`;
+    g.v.forEach(v=>{h+=`<div class="tl__stop" style="left:${v.p};"><span class="tl__stop-n">${v.n}</span><div class="tl__stop-d" style="border-color:${g.c};background:transparent;"></div><span class="tl__stop-dt">${v.d}</span></div>`;});
+    h+='</div>';
+  }
+  // Primary
+  h+=`<div class="tl__rail"><div class="tl__fill" style="left:${d.v[0].p};width:calc(${d.v[d.v.length-1].p} - ${d.v[0].p});background:${d.c};opacity:.25;"></div></div>`;
+  d.v.forEach(v=>{
+    const s=v.s?' tl__stop--sel':'';
+    h+=`<div class="tl__stop${s}" style="left:${v.p};" onclick="this.classList.toggle('tl__stop--sel')"><span class="tl__stop-n">${v.n}</span><div class="tl__stop-d"></div><span class="tl__stop-dt">${v.d}</span></div>`;
+  });
+  tr.innerHTML=h;
+}
+
+// Init
+buildTree();renderSbar();renderTL();
+// Delay first render to allow layout to settle
+requestAnimationFrame(()=>{requestAnimationFrame(()=>{renderChart();});});
+window.addEventListener('resize',renderChart);
+</script>
+</body>
+</html>
