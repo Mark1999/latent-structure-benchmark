@@ -8,6 +8,15 @@
  *
  * Falls back to static termCoords/termClusters when cooccurrenceData is null.
  *
+ * Per-model pile label selector: a dropdown above the SVG lets the user
+ * choose which model's pile groupings are used to label the clusters. Dot
+ * colors still come from the computed AHC clusters. When "None" is selected
+ * no cluster labels are rendered.
+ *
+ * Stress display: Kruskal's stress-1 from the SMACOF solver is shown below
+ * the SVG when live MDS is active. For static coordinates, a placeholder
+ * note is shown instead.
+ *
  * Magnifying lens: when lensEnabled=true, a circular lens follows the mouse.
  * Terms inside the lens radius are displaced outward using a quadratic falloff
  * repulsion so overlapping labels spread apart and become readable.
@@ -25,6 +34,12 @@ export interface CooccurrenceData {
   models: Record<string, number[][]>;
 }
 
+/** Per-model pile structure as stored in centroid_piles in the domain JSON */
+export interface ModelPileData {
+  piles: string[][];
+  labels: string[];
+}
+
 // Cluster color palette from tokens.css / DESIGN_SYSTEM.md §1.2
 const CLUSTER_COLORS = [
   '#e05c2e', '#2e7d4f', '#b5590a', '#5c3298',
@@ -33,6 +48,52 @@ const CLUSTER_COLORS = [
 
 function getClusterColor(idx: number): string {
   return CLUSTER_COLORS[idx % CLUSTER_COLORS.length];
+}
+
+/**
+ * Convert a raw model_id to a short human-readable display name for the
+ * dropdown. Examples:
+ *   "claude-opus-4-6"              → "Claude Opus 4.6"
+ *   "openai/gpt-5.4"               → "GPT-5.4"
+ *   "google/gemini-2.5-pro"        → "Gemini 2.5 Pro"
+ *   "meta-llama/llama-4-maverick"  → "Llama 4 Maverick"
+ *   "mistralai/mistral-large-2512" → "Mistral Large 2512"
+ *   "x-ai/grok-4"                  → "Grok 4"
+ *   "deepseek/deepseek-v3.2"       → "DeepSeek V3.2"
+ *   "microsoft/phi-4"              → "Phi 4"
+ */
+function shortModelDisplayName(modelId: string): string {
+  // Strip provider prefix (everything up to and including the last '/')
+  const base = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
+
+  // Known prefix → brand capitalisations
+  const prefixMap: [string, string][] = [
+    ['claude-',     'Claude '],
+    ['gpt-',        'GPT-'],
+    ['gemini-',     'Gemini '],
+    ['llama-',      'Llama '],
+    ['mistral-',    'Mistral '],
+    ['grok-',       'Grok '],
+    ['deepseek-',   'DeepSeek '],
+    ['phi-',        'Phi '],
+  ];
+
+  for (const [prefix, brand] of prefixMap) {
+    if (base.startsWith(prefix)) {
+      const rest = base.slice(prefix.length);
+      // Capitalise each hyphen-separated word in the remainder
+      const formatted = rest
+        .split('-')
+        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
+        .join(' ');
+      // For GPT keep the dash: "GPT-5.4" not "GPT 5.4"
+      if (brand === 'GPT-') return `${brand}${formatted}`;
+      return `${brand}${formatted}`;
+    }
+  }
+
+  // Fallback: title-case the base name, replacing hyphens with spaces
+  return base.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
 interface TermEntry {
@@ -54,6 +115,8 @@ interface TermMapProps {
   /** Pre-computed static cluster assignments — used when cooccurrenceData is not available */
   termClusters: Record<string, number>;
   clusterLabels: string[];
+  /** Per-model pile data from centroid_piles in the domain JSON */
+  centroidPiles?: Record<string, ModelPileData>;
   /** Dynamic co-occurrence data for browser-side MDS recomputation */
   cooccurrenceData?: CooccurrenceData | null;
   /** Set of currently selected model IDs — triggers MDS recompute when changed */
@@ -66,12 +129,42 @@ export function TermMap({
   termCoords,
   termClusters,
   clusterLabels,
+  centroidPiles,
   cooccurrenceData,
   selectedModelIds,
   lensEnabled = false,
 }: TermMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string>('');
+
+  // ── Per-model pile label selector state ──────────────────────────────────
+  // Sorted list of model keys available for pile label selection
+  const pileModelKeys = useMemo(
+    () => (centroidPiles ? Object.keys(centroidPiles).sort() : []),
+    [centroidPiles]
+  );
+  // userLabelChoice tracks the user's explicit selection; null means "None".
+  // We use an explicit sentinel '__default__' to mean "user hasn't picked yet;
+  // fall back to the first model key from centroidPiles."
+  const [userLabelChoice, setUserLabelChoice] = useState<string | null | '__default__'>('__default__');
+
+  // Derive the effective label model: when the user hasn't explicitly chosen,
+  // or when the previously chosen model is no longer present (domain switch),
+  // fall back to the first available key.
+  const selectedLabelModel: string | null = useMemo(() => {
+    if (userLabelChoice === '__default__') {
+      return pileModelKeys[0] ?? null;
+    }
+    // If user chose null (None), honour that
+    if (userLabelChoice === null) return null;
+    // If user chose a specific model that still exists, use it;
+    // otherwise fall back to the first key (handles domain switches)
+    if (centroidPiles && userLabelChoice in centroidPiles) return userLabelChoice;
+    return pileModelKeys[0] ?? null;
+  }, [userLabelChoice, pileModelKeys, centroidPiles]);
+
+  // ── SMACOF stress display state ───────────────────────────────────────────
+  const [liveStress, setLiveStress] = useState<number | null>(null);
 
   // ── Dynamic MDS state ─────────────────────────────────────────────────────
   // liveCoords: the current (post-Procrustes) coordinate map used for rendering
@@ -120,7 +213,7 @@ export function TermMap({
 
       // Warm-start from previous solution for smoother visual evolution
       const warmStart = prevCoordsRef.current ?? undefined;
-      const { coordinates } = smacof(distances, 2, 200, 1e-6, warmStart);
+      const { coordinates, stress } = smacof(distances, 2, 200, 1e-6, warmStart);
 
       // Procrustes-align to the reference (all-models) solution
       const aligned = refCoordsRef.current
@@ -143,6 +236,7 @@ export function TermMap({
 
       setLiveCoords(coordMap);
       setLiveClusters(clusterMap);
+      setLiveStress(stress);
     }, 0);
 
     return () => clearTimeout(handle);
@@ -189,7 +283,7 @@ export function TermMap({
     const sx = (v: number) => pad.l + ((v - xMin) / (xMax - xMin)) * pw;
     const sy = (v: number) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * ph;
 
-    // Group by cluster
+    // Group by AHC cluster (for dot color — always computed)
     const clusters: Record<number, TermEntry[]> = {};
     terms.forEach((t) => {
       if (!clusters[t.cluster]) clusters[t.cluster] = [];
@@ -210,39 +304,105 @@ export function TermMap({
     const plotCx = pad.l + pw / 2;
     const plotCy = pad.t + ph / 2;
 
-    // Draw cluster labels (no hulls — they produce ugly slivers for small clusters)
-    Object.entries(clusters).forEach(([cidStr, clusterTerms]) => {
-      const cid = parseInt(cidStr, 10);
-      const col = getClusterColor(cid);
-      const label = clusterLabels[cid] || `Cluster ${cid + 1}`;
-      const cx = clusterTerms.reduce((s, t) => s + sx(t.x), 0) / clusterTerms.length;
-      const cy = clusterTerms.reduce((s, t) => s + sy(t.y), 0) / clusterTerms.length;
+    // ── Cluster label rendering ────────────────────────────────────────────
+    // If a model is selected in the dropdown, use that model's pile labels.
+    // Otherwise (selectedLabelModel === null), no labels are rendered.
+    if (selectedLabelModel && centroidPiles && centroidPiles[selectedLabelModel]) {
+      const modelPiles = centroidPiles[selectedLabelModel];
 
-      // Position label at the cluster's farthest point from plot center, pushed outward
-      let bestX = cx, bestY = cy;
-      if (clusterTerms.length >= 2) {
-        let maxDist = 0;
-        clusterTerms.forEach((t) => {
-          const px = sx(t.x), py = sy(t.y);
-          const d = Math.sqrt((px - plotCx) ** 2 + (py - plotCy) ** 2);
-          if (d > maxDist) { maxDist = d; bestX = px; bestY = py; }
-        });
-        const dx = bestX - plotCx, dy = bestY - plotCy;
-        const dd = Math.sqrt(dx * dx + dy * dy) || 1;
-        bestX += (dx / dd) * 28;
-        bestY += (dy / dd) * 14;
-      }
+      // Build term → pile label map for the selected model
+      const termToPileLabel: Record<string, string> = {};
+      modelPiles.piles.forEach((pile, i) => {
+        const label = modelPiles.labels[i] || `Pile ${i + 1}`;
+        pile.forEach((term) => { termToPileLabel[term] = label; });
+      });
 
-      if (clusterTerms.length >= 3) {
-        svgParts.push(
-          `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="13" font-weight="700" fill="${col}" opacity=".75" pointer-events="none">${escapeXml(label)}</text>`
+      // Group terms (from current coords) by their pile label
+      const labelGroups: Record<string, TermEntry[]> = {};
+      terms.forEach((t) => {
+        const label = termToPileLabel[t.term];
+        if (label) {
+          if (!labelGroups[label]) labelGroups[label] = [];
+          labelGroups[label].push(t);
+        }
+      });
+
+      // For each group, compute centroid in SVG space and render label
+      Object.entries(labelGroups).forEach(([label, groupTerms]) => {
+        if (groupTerms.length < 1) return;
+
+        const cx = groupTerms.reduce((s, t) => s + sx(t.x), 0) / groupTerms.length;
+        const cy = groupTerms.reduce((s, t) => s + sy(t.y), 0) / groupTerms.length;
+
+        // Position label at the term farthest from plot center, pushed outward
+        let bestX = cx, bestY = cy;
+        if (groupTerms.length >= 2) {
+          let maxDist = 0;
+          groupTerms.forEach((t) => {
+            const px = sx(t.x), py = sy(t.y);
+            const d = Math.sqrt((px - plotCx) ** 2 + (py - plotCy) ** 2);
+            if (d > maxDist) { maxDist = d; bestX = px; bestY = py; }
+          });
+          const dx = bestX - plotCx, dy = bestY - plotCy;
+          const dd = Math.sqrt(dx * dx + dy * dy) || 1;
+          bestX += (dx / dd) * 28;
+          bestY += (dy / dd) * 14;
+        }
+
+        // Use the AHC cluster color of the most common cluster in this group
+        const clusterCounts: Record<number, number> = {};
+        groupTerms.forEach((t) => { clusterCounts[t.cluster] = (clusterCounts[t.cluster] || 0) + 1; });
+        const dominantCluster = parseInt(
+          Object.entries(clusterCounts).sort((a, b) => b[1] - a[1])[0][0],
+          10
         );
-      } else if (clusterTerms.length >= 1) {
-        svgParts.push(
-          `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="10" font-weight="600" fill="${col}" opacity=".6" pointer-events="none">${escapeXml(label)}</text>`
-        );
-      }
-    });
+        const col = getClusterColor(dominantCluster);
+
+        if (groupTerms.length >= 3) {
+          svgParts.push(
+            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="13" font-weight="700" fill="${col}" opacity=".75" pointer-events="none">${escapeXml(label)}</text>`
+          );
+        } else {
+          svgParts.push(
+            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="10" font-weight="600" fill="${col}" opacity=".6" pointer-events="none">${escapeXml(label)}</text>`
+          );
+        }
+      });
+    } else if (!centroidPiles && selectedLabelModel !== null) {
+      // Fallback: no centroidPiles available — use aggregate clusterLabels
+      Object.entries(clusters).forEach(([cidStr, clusterTerms]) => {
+        const cid = parseInt(cidStr, 10);
+        const col = getClusterColor(cid);
+        const label = clusterLabels[cid] || `Cluster ${cid + 1}`;
+        const cx = clusterTerms.reduce((s, t) => s + sx(t.x), 0) / clusterTerms.length;
+        const cy = clusterTerms.reduce((s, t) => s + sy(t.y), 0) / clusterTerms.length;
+
+        let bestX = cx, bestY = cy;
+        if (clusterTerms.length >= 2) {
+          let maxDist = 0;
+          clusterTerms.forEach((t) => {
+            const px = sx(t.x), py = sy(t.y);
+            const d = Math.sqrt((px - plotCx) ** 2 + (py - plotCy) ** 2);
+            if (d > maxDist) { maxDist = d; bestX = px; bestY = py; }
+          });
+          const dx = bestX - plotCx, dy = bestY - plotCy;
+          const dd = Math.sqrt(dx * dx + dy * dy) || 1;
+          bestX += (dx / dd) * 28;
+          bestY += (dy / dd) * 14;
+        }
+
+        if (clusterTerms.length >= 3) {
+          svgParts.push(
+            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="13" font-weight="700" fill="${col}" opacity=".75" pointer-events="none">${escapeXml(label)}</text>`
+          );
+        } else if (clusterTerms.length >= 1) {
+          svgParts.push(
+            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="10" font-weight="600" fill="${col}" opacity=".6" pointer-events="none">${escapeXml(label)}</text>`
+          );
+        }
+      });
+    }
+    // If selectedLabelModel === null: no cluster label text rendered (user chose "None")
 
     // Term dots — store original coords as data attributes for hover animation
     terms.forEach((t, i) => {
@@ -277,7 +437,7 @@ export function TermMap({
 
     svgParts.push('</svg>');
     setSvgContent(svgParts.join(''));
-  }, [terms, clusterLabels, liveCoords, selectedModelIds]);
+  }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds]);
 
   // Re-render on resize or term/coord change
   useEffect(() => {
@@ -463,16 +623,51 @@ export function TermMap({
   }
 
   return (
-    <div
-      ref={wrapRef}
-      className="chart-wrap"
-      role="img"
-      aria-label="Term map visualization showing clusters of related terms"
-    >
+    <div className="term-map-container">
+      {/* Chart controls row: pile label model selector */}
+      <div className="term-map-controls">
+        <label className="term-map-controls__label" htmlFor="pile-label-select">
+          Pile labels from:
+        </label>
+        <select
+          id="pile-label-select"
+          className="term-map-controls__select"
+          value={selectedLabelModel ?? '__none__'}
+          onChange={(e) => {
+            const v = e.target.value;
+            setUserLabelChoice(v === '__none__' ? null : v);
+          }}
+          aria-label="Choose which model's pile labels to display on the term map"
+        >
+          {pileModelKeys.map((key) => (
+            <option key={key} value={key}>
+              {shortModelDisplayName(key)}
+            </option>
+          ))}
+          <option value="__none__">None</option>
+        </select>
+      </div>
+
+      {/* SVG term map */}
       <div
-        style={{ width: '100%', height: '100%' }}
-        dangerouslySetInnerHTML={{ __html: svgContent }}
-      />
+        ref={wrapRef}
+        className="chart-wrap"
+        role="img"
+        aria-label="Term map visualization showing clusters of related terms"
+        style={{ flex: '1' }}
+      >
+        <div
+          style={{ width: '100%', height: '100%' }}
+          dangerouslySetInnerHTML={{ __html: svgContent }}
+        />
+      </div>
+
+      {/* Stress annotation — always visible */}
+      <div className="term-map-stress" aria-label="MDS goodness-of-fit statistic">
+        {liveCoords !== null && liveStress !== null
+          ? `Kruskal's stress: ${liveStress.toFixed(3)} · Lower = better fit`
+          : 'Stress: computed at analysis time'}
+      </div>
     </div>
   );
 }

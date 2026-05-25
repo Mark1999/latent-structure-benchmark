@@ -4,7 +4,7 @@
 
 import { VizTabs, type ActiveVizTab } from './VizTabs';
 import { SelectionBar } from './SelectionBar';
-import { TermMap, type CooccurrenceData } from './TermMap';
+import { TermMap, type CooccurrenceData, type ModelPileData } from './TermMap';
 import { MDSPlot } from './MDSPlot';
 import { Timeline } from './Timeline';
 import type { DomainResultPublished, PublishedModel } from '../data/types';
@@ -14,6 +14,7 @@ interface DomainExtended extends DomainResultPublished {
   term_mds_coordinates?: Record<string, [number, number]>;
   term_cluster_assignments?: Record<string, number>;
   term_cluster_labels?: string[];
+  centroid_piles?: Record<string, ModelPileData>;
 }
 
 // Provider display color map
@@ -142,6 +143,7 @@ export function ContentArea({
                 termCoords={domain.term_mds_coordinates}
                 termClusters={domain.term_cluster_assignments ?? {}}
                 clusterLabels={domain.term_cluster_labels ?? []}
+                centroidPiles={domain.centroid_piles}
                 cooccurrenceData={cooccurrenceData}
                 selectedModelIds={selectedModelIds}
                 lensEnabled={lensEnabled}
