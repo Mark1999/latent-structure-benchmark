@@ -4,7 +4,7 @@
 
 import { VizTabs, type ActiveVizTab } from './VizTabs';
 import { SelectionBar } from './SelectionBar';
-import { TermMap } from './TermMap';
+import { TermMap, type CooccurrenceData } from './TermMap';
 import { MDSPlot } from './MDSPlot';
 import { Timeline } from './Timeline';
 import type { DomainResultPublished, PublishedModel } from '../data/types';
@@ -63,6 +63,8 @@ interface ContentAreaProps {
   activeProvider: string | null;
   pinnedProvider: string | null;
   onTogglePin: (provider: string) => void;
+  /** Co-occurrence matrices for the active domain (used by TermMap for browser-side MDS) */
+  cooccurrenceData?: CooccurrenceData | null;
 }
 
 export function ContentArea({
@@ -76,6 +78,7 @@ export function ContentArea({
   activeProvider,
   pinnedProvider,
   onTogglePin,
+  cooccurrenceData,
 }: ContentAreaProps) {
   // Build selection bar chips
   const selectedChips = domain
@@ -136,6 +139,8 @@ export function ContentArea({
                 termCoords={domain.term_mds_coordinates}
                 termClusters={domain.term_cluster_assignments ?? {}}
                 clusterLabels={domain.term_cluster_labels ?? []}
+                cooccurrenceData={cooccurrenceData}
+                selectedModelIds={selectedModelIds}
               />
             )}
 

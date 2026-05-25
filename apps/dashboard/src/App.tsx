@@ -10,6 +10,7 @@ import { NavBar } from './components/NavBar';
 import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
 import type { PublishedModel } from './data/types';
+import type { CooccurrenceData } from './components/TermMap';
 
 // Extended type for fields present in published JSON beyond base DomainResultPublished
 interface DomainExtended {
@@ -67,25 +68,42 @@ export default function App() {
   const [pinnedProvider, setPinnedProvider] = useState<string | null>(null);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>('term-map');
+  const [cooccurrenceData, setCooccurrenceData] = useState<CooccurrenceData | null>(null);
 
-  // Fetch domain data on domain change
+  // Fetch domain data and co-occurrence matrices on domain change
   useEffect(() => {
     let cancelled = false;
 
     const load = async () => {
       setLoading(true);
       setError(null);
+      // Reset co-occurrence data immediately so TermMap falls back to static coords
+      setCooccurrenceData(null);
       try {
-        const r = await fetch(`/data/${activeDomain}.json`);
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        const data = (await r.json()) as DomainExtended;
+        // Fetch domain JSON and co-occurrence JSON in parallel; co-occurrence
+        // is best-effort (not all domains have one yet).
+        const [domainResp, cooccResp] = await Promise.all([
+          fetch(`/data/${activeDomain}.json`),
+          fetch(`/data/${activeDomain}-cooccurrence.json`).catch(() => null),
+        ]);
+
+        if (!domainResp.ok) throw new Error(`HTTP ${domainResp.status}`);
+        const data = (await domainResp.json()) as DomainExtended;
         if (cancelled) return;
+
         setDomain(data);
         setSelectedModelIds(new Set(data.models.map((m) => m.model_id)));
         if (data.models.length > 0) {
           setActiveProvider(displayProvider(data.models[0]));
         }
-        setLoading(false);
+
+        // Load co-occurrence data if available
+        if (cooccResp && cooccResp.ok) {
+          const cooccData = (await cooccResp.json()) as CooccurrenceData;
+          if (!cancelled) setCooccurrenceData(cooccData);
+        }
+
+        if (!cancelled) setLoading(false);
       } catch (e) {
         if (cancelled) return;
         const msg = e instanceof Error ? e.message : 'Failed to load domain data';
@@ -195,6 +213,7 @@ export default function App() {
           activeProvider={activeProvider}
           pinnedProvider={pinnedProvider}
           onTogglePin={handleTogglePin}
+          cooccurrenceData={cooccurrenceData}
         />
       </div>
     </>

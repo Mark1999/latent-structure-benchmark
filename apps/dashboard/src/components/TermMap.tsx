@@ -1,12 +1,25 @@
 /**
  * TermMap — hero visualization: convex hulls, cluster labels, colored dots.
  *
- * Ports renderTerms() from docs/slicer-prototype.html.
- * Requires: term_mds_coordinates, term_cluster_assignments, term_cluster_labels
- * from the domain JSON.
+ * When cooccurrenceData + selectedModelIds are provided, re-pools the
+ * co-occurrence matrices, runs SMACOF, and Procrustes-aligns the result to
+ * the reference solution (all-models). Cluster assignments are re-computed
+ * with AHC after each MDS update.
+ *
+ * Falls back to static termCoords/termClusters when cooccurrenceData is null.
  */
 
-import { useRef, useEffect, useState, useCallback } from 'react';
+import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { smacof } from '../lib/smacof';
+import { procrustesAlign } from '../lib/procrustes';
+import { poolCooccurrence, cooccurrenceToDistances } from '../lib/cooccurrence';
+import { ahcCluster } from '../lib/ahcCluster';
+
+/** Shape of the family-cooccurrence.json file */
+export interface CooccurrenceData {
+  items: string[];
+  models: Record<string, number[][]>;
+}
 
 // Cluster color palette from tokens.css / DESIGN_SYSTEM.md §1.2
 const CLUSTER_COLORS = [
@@ -72,12 +85,24 @@ interface TooltipState {
 }
 
 interface TermMapProps {
+  /** Pre-computed static coordinates — used when cooccurrenceData is not available */
   termCoords: Record<string, [number, number]>;
+  /** Pre-computed static cluster assignments — used when cooccurrenceData is not available */
   termClusters: Record<string, number>;
   clusterLabels: string[];
+  /** Dynamic co-occurrence data for browser-side MDS recomputation */
+  cooccurrenceData?: CooccurrenceData | null;
+  /** Set of currently selected model IDs — triggers MDS recompute when changed */
+  selectedModelIds?: Set<string>;
 }
 
-export function TermMap({ termCoords, termClusters, clusterLabels }: TermMapProps) {
+export function TermMap({
+  termCoords,
+  termClusters,
+  clusterLabels,
+  cooccurrenceData,
+  selectedModelIds,
+}: TermMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string>('');
   const [tooltip, setTooltip] = useState<TooltipState>({
@@ -85,13 +110,96 @@ export function TermMap({ termCoords, termClusters, clusterLabels }: TermMapProp
   });
   const [, setHoveredCluster] = useState<number | null>(null);
 
-  // Build term entries once
-  const terms: TermEntry[] = Object.entries(termCoords).map(([term, [x, y]]) => ({
-    term,
-    x,
-    y,
-    cluster: termClusters[term] ?? 0,
-  }));
+  // ── Dynamic MDS state ─────────────────────────────────────────────────────
+  // liveCoords: the current (post-Procrustes) coordinate map used for rendering
+  const [liveCoords, setLiveCoords] = useState<Record<string, [number, number]> | null>(null);
+  // liveClusters: AHC cluster assignments from the current distance matrix
+  const [liveClusters, setLiveClusters] = useState<Record<string, number> | null>(null);
+  // previousCoords: the last solved coordinate array (indexed to items order)
+  // used as warm-start for the next SMACOF run
+  const prevCoordsRef = useRef<[number, number][] | null>(null);
+  // referenceCoords: the all-models solution used as Procrustes target
+  const refCoordsRef = useRef<[number, number][] | null>(null);
+  // referenceClusterCount: cluster count from the static domain JSON
+  const refClusterCount = useMemo(() => {
+    const vals = Object.values(termClusters);
+    if (vals.length === 0) return 8;
+    return Math.max(...vals) + 1;
+  }, [termClusters]);
+
+  // ── Compute all-models reference solution on first cooccurrence data load ──
+  useEffect(() => {
+    if (!cooccurrenceData) return;
+    const { items, models } = cooccurrenceData;
+    const n = items.length;
+    if (n === 0) return;
+
+    const allModelIds = new Set(Object.keys(models));
+    const pooled = poolCooccurrence(models, allModelIds, n);
+    const distances = cooccurrenceToDistances(pooled);
+    const { coordinates } = smacof(distances, 2, 200, 1e-6);
+
+    refCoordsRef.current = coordinates;
+    prevCoordsRef.current = coordinates.map(([x, y]): [number, number] => [x, y]);
+  }, [cooccurrenceData]);
+
+  // ── Recompute MDS when selectedModelIds changes ───────────────────────────
+  useEffect(() => {
+    if (!cooccurrenceData || !selectedModelIds) return;
+    const { items, models } = cooccurrenceData;
+    const n = items.length;
+    if (n === 0) return;
+
+    // Defer to avoid blocking main thread
+    const handle = setTimeout(() => {
+      const pooled = poolCooccurrence(models, selectedModelIds, n);
+      const distances = cooccurrenceToDistances(pooled);
+
+      // Warm-start from previous solution for smoother visual evolution
+      const warmStart = prevCoordsRef.current ?? undefined;
+      const { coordinates } = smacof(distances, 2, 200, 1e-6, warmStart);
+
+      // Procrustes-align to the reference (all-models) solution
+      const aligned = refCoordsRef.current
+        ? procrustesAlign(refCoordsRef.current, coordinates)
+        : coordinates;
+
+      // AHC re-clustering with same cluster count as reference
+      const clusterAssignments = ahcCluster(distances, refClusterCount);
+
+      // Store as warm-start for next run (use aligned coords to prevent drift)
+      prevCoordsRef.current = aligned.map(([x, y]): [number, number] => [x, y]);
+
+      // Build named maps
+      const coordMap: Record<string, [number, number]> = {};
+      const clusterMap: Record<string, number> = {};
+      items.forEach((item, i) => {
+        coordMap[item] = aligned[i];
+        clusterMap[item] = clusterAssignments[i];
+      });
+
+      setLiveCoords(coordMap);
+      setLiveClusters(clusterMap);
+    }, 0);
+
+    return () => clearTimeout(handle);
+  }, [cooccurrenceData, selectedModelIds, refClusterCount]);
+
+  // ── Resolve which coordinates/clusters to render ──────────────────────────
+  const effectiveCoords = liveCoords ?? termCoords;
+  const effectiveClusters = liveClusters ?? termClusters;
+
+  // Build term entries from effective coords
+  const terms: TermEntry[] = useMemo(
+    () =>
+      Object.entries(effectiveCoords).map(([term, [x, y]]) => ({
+        term,
+        x,
+        y,
+        cluster: effectiveClusters[term] ?? 0,
+      })),
+    [effectiveCoords, effectiveClusters]
+  );
 
   const render = useCallback(() => {
     if (!wrapRef.current) return;
@@ -143,7 +251,7 @@ export function TermMap({ termCoords, termClusters, clusterLabels }: TermMapProp
     Object.entries(clusters).forEach(([cidStr, clusterTerms]) => {
       const cid = parseInt(cidStr, 10);
       const col = getClusterColor(cid);
-      const label = clusterLabels[cid] || `Cluster ${cid}`;
+      const label = clusterLabels[cid] || `Cluster ${cid + 1}`;
       const cx = clusterTerms.reduce((s, t) => s + sx(t.x), 0) / clusterTerms.length;
       const cy = clusterTerms.reduce((s, t) => s + sy(t.y), 0) / clusterTerms.length;
 
@@ -213,15 +321,18 @@ export function TermMap({ termCoords, termClusters, clusterLabels }: TermMapProp
     // Footer annotation
     const nTerms = terms.length;
     const nClusters = Object.keys(clusters).length;
+    const modelNote = liveCoords && selectedModelIds
+      ? `${selectedModelIds.size} model${selectedModelIds.size !== 1 ? 's' : ''} · `
+      : '';
     svgParts.push(
-      `<text x="${(pad.l + pw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="#a0a098">${nTerms} shared terms · ${nClusters} clusters from pile-sort co-occurrence</text>`
+      `<text x="${(pad.l + pw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="#a0a098">${modelNote}${nTerms} shared terms · ${nClusters} clusters from pile-sort co-occurrence</text>`
     );
 
     svgParts.push('</svg>');
     setSvgContent(svgParts.join(''));
-  }, [terms, clusterLabels]);
+  }, [terms, clusterLabels, liveCoords, selectedModelIds]);
 
-  // Re-render on resize
+  // Re-render on resize or term/coord change
   useEffect(() => {
     render();
     const observer = new ResizeObserver(() => render());
@@ -299,7 +410,7 @@ export function TermMap({ termCoords, termClusters, clusterLabels }: TermMapProp
       const idx = parseInt(target.dataset.idx || '0', 10);
       const t = terms[idx];
       if (!t) return;
-      const label = clusterLabels[t.cluster] || `Cluster ${t.cluster}`;
+      const label = clusterLabels[t.cluster] || `Cluster ${t.cluster + 1}`;
       const col = getClusterColor(t.cluster);
       setTooltip({
         visible: true,
