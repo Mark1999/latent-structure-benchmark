@@ -1,1120 +1,757 @@
 /*
- * LSB App Styles — page chrome and reveal animation
- * Source of truth: DESIGN_SYSTEM.md §2 (page architecture), §12.1 (reveal animation)
- *
- * Design philosophy (§0): scientific instrument, not a product. OWID-style.
- * No gradients, no dark-mode hero, no decorative animation.
- * Data is the decoration.
+ * LSB Dashboard — App Shell Layout
+ * Companion to tokens.css. Full-viewport, no-scroll layout.
  */
 
-/* ===== Reset / base ===== */
+@import './tokens.css';
 
-*,
-*::before,
-*::after {
+/* ===== Reset ===== */
+*, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
   padding: 0;
 }
 
-html {
-  font-size: var(--font-size-base);
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-}
-
+/* ===== Body ===== */
 body {
   font-family: var(--font-body);
-  font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-body);
+  background: var(--color-background);
   color: var(--color-text-primary);
-  background-color: var(--color-background);
-  min-height: 100vh;
+  height: 100vh;
+  overflow: hidden;
 }
 
-a {
+/* ===== Nav Bar (48px) ===== */
+.nav {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 0 var(--space-6);
+  height: 48px;
+  background: var(--color-background);
+  border-bottom: var(--border-width) solid var(--color-border);
+  flex-shrink: 0;
+  z-index: 10;
+}
+
+.nav__brand {
+  font-size: 15px;
+  font-weight: var(--font-weight-bold);
   color: var(--color-info);
+  letter-spacing: -0.01em;
+}
+
+.nav__brand span {
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-secondary);
+}
+
+.nav__right {
+  display: flex;
+  align-items: center;
+  height: 100%;
+}
+
+.nav__tab {
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  height: 100%;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid transparent;
+  cursor: pointer;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
   text-decoration: none;
+  white-space: nowrap;
+  transition: color 0.15s;
 }
 
-a:hover {
-  text-decoration: underline;
+.nav__tab:hover {
+  color: var(--color-text-primary);
 }
 
-a:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-sm);
+.nav__tab--active {
+  color: var(--color-info);
+  border-bottom-color: var(--color-info);
+  font-weight: var(--font-weight-bold);
 }
 
-/* ===== Page-load reveal animation — DESIGN_SYSTEM.md §12.1 ===== */
-/*
- * Binding specification:
- *   - Total cascade duration: 600ms maximum from first paint to last element fully visible.
- *   - Stagger offset between sequential elements: 80ms maximum.
- *   - Easing: ease-out only.
- *   - Animated properties: opacity (0→1) and transform: translateY(8px→0) only.
- *   - All interactive elements must be pointer-responsive from first paint.
- *   - The cascade fires once on page load. No repeat.
- *   - prefers-reduced-motion: reduce → instant reveal, no animation.
- */
-
-.reveal-cascade-item {
-  opacity: 0;
-  transform: translateY(8px);
-  animation: revealFade 280ms ease-out forwards;
-  /* 280ms duration + 320ms max delay = 600ms total cascade (DESIGN_SYSTEM.md §12.1 binding cap; v0.4.1 fix from 300ms which produced 620ms) */
+/* ===== Main Grid ===== */
+.app-main {
+  display: grid;
+  grid-template-columns: 260px 1fr;
+  height: calc(100vh - 48px);
+  overflow: hidden;
 }
 
-/*
- * Stagger delays for cascade (max 80ms between elements, within §12.1 600ms total cap).
- *
- * Current cascade order at page-wrapper level (verified T10):
- *   1: Header         (0ms)
- *   2: ArticleHeader  (80ms)
- *   3: DomainPicker   (160ms)
- *   4: content-area   (240ms) — KeyFinding + DataExplorer within
- *   5: MethodologySummary (320ms)
- *   6: FailuresFindingsSection (360ms) — T10 inserts here
- *   7: Footer         (360ms) — moved from 6 by T10 plan §2.2
- *
- * Total: 280ms animation + 360ms max delay = 640ms. Exceeds §12.1 600ms cap by 40ms.
- * RESOLUTION: Footer and FailuresFindingsSection share 360ms delay (same slot).
- * The §12.1 cap of 600ms applies to the last element becoming visible:
- * 280ms duration + 360ms delay = 640ms. This is within 50ms of the cap —
- * acceptable given both slots share the same delay value and the perceived
- * difference is imperceptible. The cascade still reads naturally as 7 items
- * entering from the top.
- *
- * If the Architect requires strict 600ms cap, slots 6 and 7 can both use 320ms.
- * T10 plan §2.2 specifies 360ms for slot 6 (FailuresFindingsSection) and
- * 360ms for slot 7 (Footer). Implemented as specified.
- */
-.reveal-cascade-item:nth-child(1) { animation-delay: 0ms; }
-.reveal-cascade-item:nth-child(2) { animation-delay: 80ms; }
-.reveal-cascade-item:nth-child(3) { animation-delay: 160ms; }
-.reveal-cascade-item:nth-child(4) { animation-delay: 240ms; }
-.reveal-cascade-item:nth-child(5) { animation-delay: 320ms; }
-/* F-T13-1 (BLOCKING, applied at T13): 6th cascade slot for MethodologySummary/Footer. */
-/* T10 §2.2: slot 6 reassigned to FailuresFindingsSection at 360ms; Footer moves to slot 7. */
-.reveal-cascade-item:nth-child(6) { animation-delay: 360ms; }
-/* T10 §2.2: slot 7 = Footer (360ms — same delay as slot 6, Footer is the last item) */
-.reveal-cascade-item:nth-child(7) { animation-delay: 360ms; }
-
-@keyframes revealFade {
-  from {
-    opacity: 0;
-    transform: translateY(8px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-/* prefers-reduced-motion override: instant reveal, no motion */
-@media (prefers-reduced-motion: reduce) {
-  .reveal-cascade-item {
-    animation: none;
-    opacity: 1;
-    transform: none;
-  }
-}
-
-/* ===== Page layout ===== */
-
-.page-wrapper {
+/* ===== Sidebar (260px) ===== */
+.sidebar {
+  background: var(--color-background);
+  border-right: var(--border-width) solid var(--color-border);
+  overflow-y: auto;
+  font-size: var(--font-size-xs);
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
 }
 
-.page-main {
+.sidebar::-webkit-scrollbar {
+  width: 3px;
+}
+
+.sidebar::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+/* Domain section */
+.sidebar__domain {
+  padding: 14px 14px 10px;
+  border-bottom: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+}
+
+.sidebar__section-label {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  display: block;
+  margin-bottom: var(--space-2) - 2px;
+}
+
+.domain-select {
+  width: 100%;
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 6px 28px 6px 10px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-background);
+  appearance: none;
+  cursor: pointer;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 16 16' fill='none' stroke='%237f8c8d' stroke-width='2'%3E%3Cpath d='M4 6l4 4 4-4'/%3E%3C/svg%3E");
+  background-repeat: no-repeat;
+  background-position: right 8px center;
+  color: var(--color-text-primary);
+}
+
+.domain-select:focus {
+  outline: 2px solid var(--color-info);
+  outline-offset: 1px;
+}
+
+/* Models section */
+.sidebar__models {
+  padding: 0 14px;
+  margin-bottom: 2px;
   flex: 1;
 }
 
-/* ===== Site header — DESIGN_SYSTEM.md §2.2 ===== */
-
-.site-header {
-  border-bottom: var(--border-width) solid var(--color-border);
-  background-color: var(--color-background);
-  position: sticky;
-  top: 0;
-  z-index: 100;
-}
-
-.site-header__inner {
-  max-width: var(--max-explorer-width);
-  margin: 0 auto;
-  padding: var(--space-4) var(--space-6);
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: var(--space-6);
-}
-
-.site-header__logo {
-  display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  text-decoration: none;
-  color: var(--color-text-primary);
+.sidebar__models-header {
+  font-size: 10px;
   font-weight: var(--font-weight-bold);
-  font-size: var(--font-size-base);
-  flex-shrink: 0;
-}
-
-.site-header__logo:hover {
-  text-decoration: none;
-  color: var(--color-text-primary);
-}
-
-.site-header__logo-glyph {
-  width: 28px;
-  height: 28px;
-  flex-shrink: 0;
-}
-
-.site-header__nav {
-  display: flex;
-  align-items: center;
-  gap: var(--space-6);
-}
-
-.site-header__nav-link {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-  text-decoration: none;
-  white-space: nowrap;
-  transition: color 150ms ease-out;
-}
-
-.site-header__nav-link:hover {
-  color: var(--color-text-primary);
-  text-decoration: none;
-}
-
-.site-header__nav-link:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-sm);
-}
-
-/* T11 / DESIGN_SYSTEM §8.1 — hamburger trigger (hidden on desktop; displayed at <768px) */
-
-.site-header__hamburger {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 48px;
-  height: 48px;
-  padding: 0;
-  background: transparent;
-  border: 2px solid transparent;
-  border-radius: var(--border-radius-sm);
-  cursor: pointer;
-  color: var(--color-text-primary);
-  flex-shrink: 0;
-}
-
-.site-header__hamburger:hover {
-  background: var(--color-surface-hover);
-  border-color: transparent;
-}
-
-.site-header__hamburger:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-sm);
-}
-
-.site-header__hamburger:active {
-  background: var(--color-surface);
-}
-
-@media (max-width: 768px) {
-  .site-header__hamburger {
-    display: flex;
-  }
-}
-
-/* ===== Article header — DESIGN_SYSTEM.md §2.1 ===== */
-
-.article-header {
-  max-width: var(--max-article-width);
-  margin: 0 auto;
-  padding: var(--space-12) var(--space-6) var(--space-8);
-}
-
-.article-header__eyebrow {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  letter-spacing: 0.08em;
   text-transform: uppercase;
+  letter-spacing: 0.08em;
   color: var(--color-text-secondary);
-  margin-bottom: var(--space-3);
-}
-
-.article-header__title {
-  font-size: var(--font-size-3xl);
-  font-weight: var(--font-weight-bold);
-  line-height: var(--line-height-tight);
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-4);
-}
-
-.article-header__subtitle {
-  font-size: var(--font-size-lg);
-  font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-body);
-  color: var(--color-text-secondary);
-  max-width: var(--max-prose-width);
-  margin-bottom: var(--space-6);
-}
-
-.article-header__byline-strip {
-  border-top: var(--border-width) solid var(--color-border);
-  padding-top: var(--space-3);
-  font-size: var(--font-size-sm);
-  color: var(--color-text-secondary);
+  margin: 10px 0 6px;
   display: flex;
-  align-items: center;
-  gap: var(--space-3);
-  flex-wrap: wrap;
-}
-
-.article-header__byline-separator {
-  color: var(--color-text-muted);
-}
-
-/* ===== Loading and error states — DESIGN_SYSTEM.md §12.2 ===== */
-/*
- * No spinner, no shimmer (shimmer is looping animation, prohibited per §0).
- * Loading text in --color-text-muted at --font-size-base.
- * Error text in --color-text-secondary.
- * Both states occupy the full content area; Header and Footer remain visible.
- */
-
-.content-placeholder {
-  max-width: var(--max-article-width);
-  margin: 0 auto;
-  padding: var(--space-12) var(--space-6);
-}
-
-.content-placeholder--loading {
-  color: var(--color-text-muted);
-  font-size: var(--font-size-base);
-}
-
-.content-placeholder--error {
-  color: var(--color-text-secondary);
-  font-size: var(--font-size-base);
-}
-
-/* ===== Site footer ===== */
-
-.site-footer {
-  border-top: var(--border-width) solid var(--color-border);
-  background-color: var(--color-surface);
-  padding: var(--space-8) var(--space-6);
-  margin-top: var(--space-20);
-}
-
-.site-footer__inner {
-  max-width: var(--max-explorer-width);
-  margin: 0 auto;
-  display: flex;
-  align-items: center;
   justify-content: space-between;
-  gap: var(--space-4);
-  flex-wrap: wrap;
-}
-
-.site-footer__links {
-  display: flex;
   align-items: center;
-  gap: var(--space-6);
-  flex-wrap: wrap;
 }
 
-.site-footer__link {
-  font-size: var(--font-size-sm);
+.sidebar__models-count {
+  font-family: var(--font-mono);
+  font-size: 9px;
   color: var(--color-text-secondary);
-  text-decoration: none;
 }
 
-.site-footer__link:hover {
-  color: var(--color-text-primary);
+.sidebar__actions {
+  display: flex;
+  gap: var(--space-2);
+  margin-bottom: var(--space-2) - 2px;
+}
+
+.sidebar__action-btn {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--color-info);
+  cursor: pointer;
+  background: none;
+  border: none;
+  padding: 0;
+}
+
+.sidebar__action-btn:hover {
   text-decoration: underline;
 }
 
-.site-footer__link:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-sm);
+/* Divider */
+.sidebar__divider {
+  height: 1px;
+  background: var(--color-border);
+  margin: 10px 14px;
 }
 
-.site-footer__license {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-  font-family: var(--font-mono);
+/* Filters section */
+.sidebar__filters {
+  padding: 0 14px;
+  padding-bottom: 14px;
 }
 
-/* ===== Embed mode (DESIGN_SYSTEM.md §12.5) ===== */
-/*
- * In ?embed=true mode, the page renders only the DataExplorer.
- * No outer margin or padding — full bleed within the iframe viewport.
- */
-
-.embed-root {
-  margin: 0;
-  padding: 0;
-}
-
-/* ===== DomainPicker — DESIGN_SYSTEM.md §2.3 ===== */
-/*
- * Horizontal pill-button domain navigation above the explorer.
- * Gap between pills: --space-3 (12px) per §2.3.
- * Active pill: background fill + bold weight (non-color indicator per §12.3).
- * Disabled pills: --color-text-muted, cursor: not-allowed (per §2.3 binding).
- */
-
-.domain-picker {
-  max-width: var(--max-explorer-width);
-  margin: 0 auto;
-  padding: 0 var(--space-6);
-}
-
-.domain-picker__divider {
-  border-top: var(--border-width) solid var(--color-border);
-  margin-bottom: var(--space-6);
-}
-
-.domain-picker__list {
+.toggle-row {
   display: flex;
-  flex-direction: row;
-  flex-wrap: wrap;
-  gap: var(--space-3);
   align-items: center;
-  padding-bottom: var(--space-6);
+  justify-content: space-between;
+  padding: 4px 0;
 }
 
-.domain-picker__pill {
-  display: inline-flex;
-  align-items: center;
-  padding: var(--space-2) var(--space-4);
-  border-radius: var(--border-radius-lg);
-  border: var(--border-width) solid var(--color-border);
-  background-color: var(--color-background);
-  color: var(--color-text-primary);
-  font-family: var(--font-body);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-tight);
-  cursor: pointer;
-  transition: background-color 150ms ease-out, border-color 150ms ease-out;
-  /* Always pointer-responsive from first paint per §12.1 */
-  pointer-events: auto;
+.toggle-label {
+  font-size: 11.5px;
+  color: var(--color-text-secondary);
 }
 
-.domain-picker__pill:hover:not(.domain-picker__pill--disabled) {
-  background-color: var(--color-surface-hover);
-  border-color: var(--color-info);
-}
-
-/* Active pill: fill + bold weight — non-color indicator per §12.3 / §2.3 */
-.domain-picker__pill--active {
-  background-color: var(--color-info);
-  border-color: var(--color-info);
-  color: var(--color-background);
-  font-weight: var(--font-weight-bold);
-}
-
-.domain-picker__pill--active:hover {
-  background-color: var(--color-info);
-  border-color: var(--color-info);
-}
-
-/* Disabled pill: muted color, not-allowed cursor, focusable per §12.3 */
-.domain-picker__pill--disabled {
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-  background-color: var(--color-background);
-  border-color: var(--color-border);
-}
-
-.domain-picker__pill--disabled:hover {
-  background-color: var(--color-background);
-  border-color: var(--color-border);
-}
-
-/* Focus ring on all pills — WCAG AA visible focus indicator */
-.domain-picker__pill:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-}
-
-/* ===== KeyFinding — DESIGN_SYSTEM.md §3.8 ===== */
-/*
- * The key finding sentence between ArticleHeader and the explorer.
- * 4px --color-model-1 border-left, 780px max-width, light gray background.
- * Padding: 24px 32px (--space-6 and --space-8).
- *
- * Domain-switch animation: 200ms fade in on remount (key-change strategy).
- * prefers-reduced-motion: reduce → instant reveal, no animation.
- */
-
-.key-finding {
-  max-width: var(--max-article-width);
-  margin: 0 auto var(--space-8);
-  padding: 0 var(--space-6);
-}
-
-.key-finding__content {
-  background-color: var(--color-surface);
-  border-left: 4px solid var(--color-model-1);
-  padding: var(--space-6) var(--space-8);
-  font-family: var(--font-body);
-  font-size: 20px;
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
-  line-height: var(--line-height-body);
-  margin: 0;
-  /* Fade-in animation on mount — fires when key changes (domain switch) */
-  animation: keyFindingFade 200ms ease-out forwards;
-}
-
-@keyframes keyFindingFade {
-  from {
-    opacity: 0;
-  }
-  to {
-    opacity: 1;
-  }
-}
-
-/* Respect prefers-reduced-motion: no fade */
-@media (prefers-reduced-motion: reduce) {
-  .key-finding__content {
-    animation: none;
-    opacity: 1;
-  }
-}
-
-/* ===== MDSPlot — DESIGN_SYSTEM.md §3.3 + §3.3.5 ===== */
-/*
- * The signature MDS visualization.
- * Hand-rolled SVG (no D3 dependency — Phase 5 per §3.2).
- * R1-state rendering per §3.3.5 binding requirements.
- * Ellipse colors set inline from modelColors prop (no hardcoded values here).
- */
-
-.mds-plot {
+.toggle {
+  width: 32px;
+  height: 18px;
+  border-radius: 9px;
+  background: var(--color-border);
   position: relative;
-  max-width: var(--max-chart-width);
-  margin: 0 auto var(--space-8);
-  padding: 0 var(--space-6);
-}
-
-.mds-plot__svg {
-  display: block;
-  width: 100%;
-  height: auto;
-  overflow: visible;
-}
-
-/* ── Tooltip ── */
-
-.mds-plot__tooltip {
-  position: absolute;
-  z-index: 200;
-  background-color: var(--color-background);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-md);
-  box-shadow: var(--shadow-md);
-  padding: var(--space-3) var(--space-4);
-  max-width: 260px;
-  pointer-events: none;
-  font-family: var(--font-body);
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-data);
-  color: var(--color-text-primary);
-}
-
-.mds-plot__tooltip-name {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-1);
-}
-
-.mds-plot__tooltip-id {
-  font-family: var(--font-mono);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  margin-bottom: var(--space-2);
-  word-break: break-all;
-}
-
-.mds-plot__tooltip-badge {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-2);
-}
-
-.mds-plot__tooltip-state {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  font-style: italic;
-}
-
-.mds-plot__tooltip-text {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-primary);
-  line-height: var(--line-height-body);
-  margin-bottom: var(--space-1);
-}
-
-.mds-plot__tooltip-threshold {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  font-style: italic;
-}
-
-.mds-plot__tooltip-terms {
-  margin-top: var(--space-2);
-}
-
-.mds-plot__tooltip-terms-label {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-secondary);
-  margin-bottom: var(--space-1);
-}
-
-.mds-plot__tooltip-terms-list {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-1);
-}
-
-.mds-plot__tooltip-term {
-  display: inline-block;
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-sm);
-  padding: 1px var(--space-2);
-  font-size: var(--font-size-xs);
-  color: var(--color-text-primary);
-}
-
-/* ── Legend (below plot per §3.3.5 imp. req. 4) ── */
-
-.mds-plot__legend {
-  display: flex;
-  flex-wrap: wrap;
-  gap: var(--space-6);
-  margin-top: var(--space-4);
-  padding: var(--space-3) var(--space-4);
-  background-color: var(--color-surface);
-  border-radius: var(--border-radius-sm);
-  border: var(--border-width) solid var(--color-border);
-}
-
-.mds-plot__legend-item {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-}
-
-.mds-plot__legend-label {
-  display: flex;
-  flex-direction: column;
-  gap: 0;
-}
-
-.mds-plot__legend-primary {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
-  line-height: var(--line-height-tight);
-}
-
-.mds-plot__legend-secondary {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-secondary);
-  font-style: italic;
-  line-height: var(--line-height-tight);
-}
-
-/* ===== Explorer layout — T7 two-column (MDS + ModelSelector) ===== */
-/*
- * Desktop: CSS grid with two columns (viz left, selector right).
- * Mobile: single column (viz on top, selector below).
- * Breakpoint at 768px — below that, single column.
- * Source: DESIGN_SYSTEM.md §3.1 (explorer layout).
- */
-
-.explorer-layout {
-  display: grid;
-  grid-template-columns: 1fr auto;
-  grid-template-areas: "viz selector";
-  gap: var(--space-6);
-  max-width: var(--max-explorer-width, 1200px);
-  margin: 0 auto;
-  padding: 0 var(--space-6);
-  align-items: start;
-}
-
-.explorer-layout__viz {
-  grid-area: viz;
-  min-width: 0; /* allow shrinking in grid */
-}
-
-.explorer-layout__selector {
-  grid-area: selector;
-  width: 220px;
+  cursor: pointer;
+  border: none;
+  transition: background 0.2s;
   flex-shrink: 0;
 }
 
-@media (max-width: 768px) {
-  .explorer-layout {
-    grid-template-columns: 1fr;
-  }
-
-  .explorer-layout__selector {
-    width: auto;
-  }
-
-  .explorer-layout__selector .model-selector {
-    display: none;
-  }
+.toggle--on {
+  background: var(--color-info);
 }
 
-.explorer-layout__mobile-selector-trigger {
-  display: none;
-  align-items: center;
-  justify-content: center;
-  width: 100%;
-  min-height: 48px;
-  padding: var(--space-2) var(--space-4);
-  background: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-md);
-  cursor: pointer;
-  color: var(--color-text-primary);
-  font-family: var(--font-body);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-medium);
-  text-align: center;
-  gap: var(--space-2);
-}
-
-.explorer-layout__mobile-selector-trigger:hover {
-  background: var(--color-surface-hover);
-  border-color: var(--color-border);
-}
-
-.explorer-layout__mobile-selector-trigger:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-md);
-}
-
-.explorer-layout__mobile-selector-trigger:active {
-  background: var(--color-surface);
-}
-
-@media (max-width: 768px) {
-  .explorer-layout__mobile-selector-trigger {
-    display: flex;
-  }
-}
-
-/* App-shell mode: no-selector modifier hides the right column entirely */
-.explorer-layout--no-selector {
-  grid-template-columns: 1fr;
-  grid-template-areas: "viz";
-  padding: 0;
-  max-width: none;
-  margin: 0;
-}
-
-/* ===== ModelSelector — DESIGN_SYSTEM.md §3.7 ===== */
-/*
- * Control panel: checkbox per model, origin badge, weights indicator.
- * Container: --color-surface background, --border-width border, --space-4 padding.
- * Per-row: --space-2 vertical padding, --space-3 gap.
- * Origin badge: --font-size-xs, bold, --color-origin-* token color.
- * Hover: row background-color --color-surface-hover.
- * All values via design tokens — no hardcoded colors.
- */
-
-.model-selector {
-  background-color: var(--color-surface);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-md);
-  padding: var(--space-4);
-  font-family: var(--font-body);
-}
-
-.model-selector__heading {
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-bold);
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-3);
-  text-transform: uppercase;
-  letter-spacing: 0.06em;
-}
-
-/* Max-6 warning — role="alert" aria-live="polite" */
-.model-selector__max-warning {
-  font-size: var(--font-size-xs);
-  color: var(--color-error);
-  background-color: rgba(192, 57, 43, 0.08);
-  border: var(--border-width) solid rgba(192, 57, 43, 0.25);
-  border-radius: var(--border-radius-sm);
-  padding: var(--space-2) var(--space-3);
-  margin-bottom: var(--space-3);
-  line-height: var(--line-height-data);
-}
-
-/* Thin divider between origin groups */
-.model-selector__group-divider {
-  border-top: var(--border-width) solid var(--color-border);
-  margin: var(--space-2) 0;
-}
-
-/* Per-model row: label wrapping checkbox + dot + name + badges */
-.model-selector__row {
-  display: flex;
-  align-items: center;
-  gap: var(--space-2);
-  padding: var(--space-2) var(--space-2);
-  border-radius: var(--border-radius-sm);
-  cursor: pointer;
-  transition: background-color 100ms ease-out;
-  line-height: var(--line-height-tight);
-}
-
-.model-selector__row:hover {
-  background-color: var(--color-surface-hover);
-}
-
-.model-selector__row--disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
-}
-
-.model-selector__row--disabled:hover {
-  background-color: transparent;
-}
-
-.model-selector__checkbox {
-  flex-shrink: 0;
+.toggle__thumb {
   width: 14px;
   height: 14px;
+  border-radius: 50%;
+  background: var(--color-background);
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  transition: left 0.2s;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.15);
+}
+
+.toggle--on .toggle__thumb {
+  left: 16px;
+}
+
+/* ===== Provider Tree ===== */
+.provider-group {
+  margin: 0 0 3px;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.provider-group:hover {
+  border-color: var(--color-text-secondary);
+}
+
+.provider-group--open {
+  border-color: var(--color-text-secondary);
+}
+
+.provider-group__header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 8px;
   cursor: pointer;
-  accent-color: var(--color-info);
+  user-select: none;
+  background: none;
+  border: none;
+  width: 100%;
+  text-align: left;
 }
 
-.model-selector__row--disabled .model-selector__checkbox {
-  cursor: not-allowed;
+.provider-group__header:hover {
+  background: var(--color-surface);
 }
 
-/* 12px color dot */
-.model-selector__dot {
-  display: inline-block;
+.provider-group__chevron {
   width: 12px;
   height: 12px;
+  color: var(--color-text-secondary);
+  transition: transform 0.2s;
+  flex-shrink: 0;
+}
+
+.provider-group--open .provider-group__chevron {
+  transform: rotate(90deg);
+}
+
+.provider-group__dot {
+  width: 9px;
+  height: 9px;
   border-radius: 50%;
   flex-shrink: 0;
 }
 
-.model-selector__name {
+.provider-group__name {
   font-size: var(--font-size-xs);
   font-weight: var(--font-weight-medium);
-  color: var(--color-text-primary);
   flex: 1;
-  min-width: 0;
+  color: var(--color-text-primary);
+}
+
+.provider-group__count {
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-secondary);
+}
+
+.provider-group__pin {
+  width: 18px;
+  height: 18px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: var(--border-radius-sm) - 1px;
+  flex-shrink: 0;
+}
+
+.provider-group__pin:hover {
+  color: var(--color-info);
+  background: var(--color-surface-hover);
+}
+
+.provider-group__pin--on {
+  color: var(--color-info);
+}
+
+.provider-group__checkbox {
+  width: 14px;
+  height: 14px;
+  border: 1.5px solid var(--color-border);
+  border-radius: var(--border-radius-sm) - 1px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+  background: none;
+}
+
+.provider-group__checkbox--on {
+  background: var(--color-info);
+  border-color: var(--color-info);
+}
+
+/* Model list (expanded) */
+.provider-group__models {
+  display: none;
+  padding: 0 8px 6px 28px;
+  background: var(--color-surface);
+  border-top: var(--border-width) solid var(--color-surface-hover);
+}
+
+.provider-group--open .provider-group__models {
+  display: block;
+}
+
+.model-family-label {
+  font-size: 9px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+  margin: 6px 0 3px;
+}
+
+.model-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 4px;
+  border-radius: var(--border-radius-sm) - 1px;
+  cursor: pointer;
+}
+
+.model-row:hover {
+  background: var(--color-surface-hover);
+}
+
+.model-row--selected {
+  background: var(--color-surface-hover);
+}
+
+.model-row__checkbox {
+  width: 12px;
+  height: 12px;
+  border: 1.5px solid var(--color-border);
+  border-radius: 2px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  cursor: pointer;
+}
+
+.model-row--selected .model-row__checkbox {
+  background: var(--color-info);
+  border-color: var(--color-info);
+}
+
+.model-row__name {
+  font-family: var(--font-body);
+  font-size: 11.5px;
+  flex: 1;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  color: var(--color-text-primary);
 }
 
-/* Origin badge: [US] / [EU] / [CN] — color set inline via token value */
-.model-selector__origin-badge {
-  font-size: var(--font-size-xs);
-  font-weight: var(--font-weight-bold);
-  background-color: var(--color-surface-hover);
-  border-radius: var(--border-radius-sm);
-  padding: 1px var(--space-1);
-  flex-shrink: 0;
-  white-space: nowrap;
-}
-
-/* Open/closed weights indicator */
-.model-selector__weights-badge {
-  font-size: var(--font-size-xs);
+.model-row__date {
+  font-family: var(--font-mono);
+  font-size: 9px;
   color: var(--color-text-secondary);
-  border: var(--border-width) solid var(--color-border);
-  border-radius: var(--border-radius-sm);
-  padding: 0 var(--space-1);
+}
+
+.model-row__badge {
+  font-size: 8px;
+  font-weight: var(--font-weight-bold);
+  padding: 1px 4px;
+  border-radius: 2px;
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* ===== Content Area ===== */
+.content-area {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+/* ===== Viz Tabs ===== */
+.viz-tabs {
+  display: flex;
+  padding: 0 20px;
+  background: var(--color-background);
+  border-bottom: var(--border-width) solid var(--color-border);
+  height: 36px;
   flex-shrink: 0;
-  white-space: nowrap;
 }
 
-.model-selector__weights-badge--open {
-  color: var(--color-success);
-  border-color: var(--color-success);
-}
-
-.model-selector__weights-badge--closed {
-  color: var(--color-text-muted);
-}
-
-/* Select all / Clear all buttons */
-.model-selector__actions {
+.viz-tab {
   display: flex;
   align-items: center;
-  gap: var(--space-2);
-  margin-top: var(--space-3);
-  padding-top: var(--space-3);
-  border-top: var(--border-width) solid var(--color-border);
-}
-
-.model-selector__action-link {
-  background: none;
-  border: none;
-  padding: 0;
-  font-family: var(--font-body);
-  font-size: var(--font-size-xs);
+  padding: 0 14px;
+  font-size: 11px;
   font-weight: var(--font-weight-medium);
-  color: var(--color-info);
+  color: var(--color-text-secondary);
+  border-bottom: 2px solid transparent;
   cursor: pointer;
-  text-decoration: none;
-  transition: color 100ms ease-out;
+  white-space: nowrap;
+  background: none;
+  border-top: none;
+  border-left: none;
+  border-right: none;
+  transition: color 0.15s;
 }
 
-.model-selector__action-link:hover {
-  text-decoration: underline;
+.viz-tab:hover {
+  color: var(--color-text-primary);
 }
 
-.model-selector__action-link:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-sm);
+.viz-tab--active {
+  color: var(--color-info);
+  border-bottom-color: var(--color-info);
+  font-weight: var(--font-weight-bold);
 }
 
-.model-selector__action-sep {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-muted);
-}
-
-/* ===== VizSwitcher — DESIGN_SYSTEM.md §3.2 + §12.3 ===== */
-/*
- * Tab bar for the Data Explorer. Phase 5: one active tab (MDS Plot),
- * three disabled tabs (Free Lists, Similarity, Drift).
- *
- * §12.3 binding constraints implemented here:
- *   - Active tab: bottom border (3px solid --color-model-1) + bold weight.
- *     Non-color indicator required — sighted users must not rely on color alone.
- *   - Disabled tabs: --color-text-muted text, cursor: not-allowed.
- *   - Focus ring on all tabs (disabled tabs remain focusable per §12.3).
- *   - No hardcoded colors — design tokens only.
- */
-
-.viz-switcher {
-  max-width: var(--max-explorer-width, 1200px);
-  margin: 0 auto;
-  padding: 0 var(--space-6);
-  margin-bottom: var(--space-4);
-}
-
-.viz-switcher__tablist {
+/* ===== Selection Bar ===== */
+.selection-bar {
   display: flex;
-  flex-direction: row;
-  gap: 0;
+  align-items: center;
+  gap: 5px;
+  padding: 6px 20px;
+  background: var(--color-background);
   border-bottom: var(--border-width) solid var(--color-border);
+  flex-shrink: 0;
+  flex-wrap: wrap;
+  min-height: 34px;
 }
 
-.viz-switcher__tab {
+.selection-bar__label {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+}
+
+.selection-chip {
   display: inline-flex;
   align-items: center;
-  padding: var(--space-3) var(--space-4);
-  border: none;
-  border-bottom: 3px solid transparent;
-  background-color: transparent;
-  color: var(--color-text-secondary);
+  gap: 3px;
   font-family: var(--font-body);
-  font-size: var(--font-size-sm);
-  font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-tight);
-  cursor: pointer;
-  transition: color 150ms ease-out, border-bottom-color 150ms ease-out;
-  /* Always pointer-responsive per §12.1 */
-  pointer-events: auto;
-  /* Bottom border sits flush with the tablist border-bottom */
-  margin-bottom: -1px;
-}
-
-.viz-switcher__tab:hover:not(.viz-switcher__tab--disabled) {
-  color: var(--color-text-primary);
-  border-bottom-color: var(--color-border);
-}
-
-/* Active tab: bottom border (3px solid --color-model-1) + bold weight.
-   Non-color indicator per §12.3: sighted users see the border AND the weight. */
-.viz-switcher__tab--active {
-  color: var(--color-text-primary);
-  font-weight: var(--font-weight-bold);
-  border-bottom-color: var(--color-model-1);
-}
-
-.viz-switcher__tab--active:hover {
-  border-bottom-color: var(--color-model-1);
-}
-
-/* Disabled tab: muted color, not-allowed cursor (§12.3 binding).
-   Click is suppressed in component code. Tab remains focusable. */
-.viz-switcher__tab--disabled {
-  color: var(--color-text-muted);
-  cursor: not-allowed;
-}
-
-.viz-switcher__tab--disabled:hover {
-  color: var(--color-text-muted);
-  border-bottom-color: transparent;
-}
-
-/* Focus ring on all tabs — WCAG AA visible focus indicator.
-   Applies to both active and disabled tabs (disabled tabs are focusable per §12.3). */
-.viz-switcher__tab:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-sm) var(--border-radius-sm) 0 0;
-}
-
-/* ===== DownloadBar focus indicators — v0.4.3 (UI/UX T10 finding 2, T11 finding 1, T12) =====
-   Explicit focus-visible rings matching the design-system pattern;
-   browser-default focus rings are inconsistent across user agents.
-   T12 adds .download-bar__cite-btn and .download-bar__embed-btn. */
-
-.download-bar__csv-btn:focus-visible,
-.download-bar__permalink-btn:focus-visible,
-.download-bar__cite-btn:focus-visible,
-.download-bar__embed-btn:focus-visible,
-.download-bar__png-btn:focus-visible,
-.download-bar__png-hires-btn:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
-  border-radius: var(--border-radius-sm);
-}
-
-/* ===== Utility: visually hidden (screen-reader only) ===== */
-
-.sr-only {
-  position: absolute;
-  width: 1px;
-  height: 1px;
-  padding: 0;
-  margin: -1px;
-  overflow: hidden;
-  clip: rect(0, 0, 0, 0);
-  white-space: nowrap;
-  border-width: 0;
-}
-
-/* ===== MethodologySummary block — DESIGN_SYSTEM.md §12.7 (v0.4.4, T13) ===== */
-
-.methodology-summary {
-  max-width: var(--max-prose-width);
-  margin: var(--space-16) auto 0;
-  padding: var(--space-8) var(--space-6) 0;
-  border-top: var(--border-width) solid var(--color-border);
-}
-
-.methodology-summary__heading {
-  font-size: var(--font-size-xl);
-  font-weight: var(--font-weight-bold);
-  line-height: var(--line-height-tight);
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-4);
-}
-
-/* F-T13-7 (BLOCKING): --color-text-caption (#6c757d, ~4.60:1 on white) — WCAG AA at 16px.
-   --color-text-secondary (#7f8c8d) fails at 16px/500 weight (~3.40:1). */
-.methodology-summary__tagline {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-medium);
-  line-height: var(--line-height-body);
-  color: var(--color-text-caption);
-  margin-bottom: var(--space-4);
-}
-
-.methodology-summary__body {
-  font-size: var(--font-size-base);
-  font-weight: var(--font-weight-regular);
-  line-height: var(--line-height-body);
-  color: var(--color-text-primary);
-  margin-bottom: var(--space-4);
-}
-
-.methodology-summary__footnote {
-  font-size: var(--font-size-xs);
-  line-height: var(--line-height-body);
-  color: var(--color-text-caption);
-}
-
-.methodology-summary__footnote a {
+  font-size: 10.5px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--color-surface-hover);
   color: var(--color-info);
-  text-decoration: underline;
 }
 
-.methodology-summary__footnote a:focus-visible {
-  outline: 2px solid var(--color-info);
-  outline-offset: 2px;
+.selection-chip__dot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+}
+
+.selection-chip__remove {
+  font-size: 9px;
+  cursor: pointer;
+  opacity: 0.4;
+  margin-left: 1px;
+  background: none;
+  border: none;
+  color: inherit;
+  padding: 0;
+  line-height: 1;
+}
+
+.selection-chip__remove:hover {
+  opacity: 1;
+}
+
+.selection-chip--overflow {
+  background: var(--color-surface);
+  color: var(--color-text-secondary);
+}
+
+/* ===== Chart Container ===== */
+.chart-area {
+  flex: 1;
+  padding: 16px 20px;
+  overflow: auto;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+
+.chart-lede {
+  font-size: 13px;
+  line-height: 1.55;
+  color: var(--color-text-secondary);
+  max-width: 580px;
+  margin-bottom: 10px;
+}
+
+.chart-lede strong {
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.chart-wrap {
+  flex: 1;
+  min-height: 420px;
+  position: relative;
+  background: #fdfdfc;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-md) - 2px;
+  overflow: hidden;
+}
+
+.chart-wrap svg {
+  display: block;
+}
+
+/* Placeholder for non-Term-Map tabs */
+.viz-placeholder {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-sm);
+  font-style: italic;
+}
+
+/* ===== Tooltip ===== */
+.chart-tooltip {
+  position: absolute;
+  background: var(--color-tooltip-dark-bg);
+  color: var(--color-tooltip-dark-text);
+  padding: 10px 12px;
   border-radius: var(--border-radius-sm);
+  font-size: 11px;
+  pointer-events: none;
+  z-index: 10;
+  box-shadow: var(--shadow-md);
+  max-width: 240px;
+  display: none;
+  line-height: 1.5;
 }
 
-/* ===== Mobile layout — five T13 gaps + explorer collapse ===== */
-/*
- * T13 mobile gaps (DESIGN_SYSTEM.md §12.7, F-T13 findings):
- *   1. DownloadBar touch targets ≥ 44px
- *   2. CiteModal / EmbedModal full-screen sizing
- *   3. ArticleHeader title font scale-down (48px → 32px)
- *   4. Site header nav hide-on-mobile (Phase 6 adds hamburger)
- *   5. MDSPlot viewBox already set in MDSPlot.tsx (no CSS gap)
- * Bottom-drawer overlay deferred to Phase 6 per §12.7 binding ruling.
- */
+.chart-tooltip.visible {
+  display: block;
+}
 
-@media (max-width: 768px) {
-  /* T13 mobile gap 1: DownloadBar touch targets ≥ 44px */
-  .download-bar__csv-btn,
-  .download-bar__permalink-btn,
-  .download-bar__png-btn,
-  .download-bar__png-hires-btn,
-  .download-bar__cite-btn,
-  .download-bar__embed-btn {
-    min-height: 44px;
-  }
+.chart-tooltip__title {
+  font-weight: var(--font-weight-bold);
+  font-size: var(--font-size-xs);
+  display: block;
+  margin-bottom: 1px;
+}
 
-  /* T13 mobile gap 2: CiteModal / EmbedModal full-screen */
-  .cite-modal__dialog,
-  .embed-modal__dialog {
-    width: calc(100% - 32px);
-    max-height: 90vh;
-    overflow-y: auto;
-  }
+.chart-tooltip__sub {
+  opacity: 0.5;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  margin-bottom: 5px;
+}
 
-  /* T13 mobile gap 3: ArticleHeader title scale-down */
-  .article-header__title {
-    font-size: var(--font-size-2xl);
-  }
+.chart-tooltip__mono {
+  font-family: var(--font-mono);
+  font-size: 10px;
+}
 
-  /* T11 / DESIGN_SYSTEM §8.1 — site-header__hamburger replaces this nav at <768px */
-  .site-header__nav {
-    display: none;
-  }
+.chart-tooltip__sep {
+  height: 1px;
+  background: var(--color-tooltip-dark-divider);
+  margin: 5px 0;
+}
+
+/* ===== Timeline ===== */
+.timeline {
+  padding: 10px 20px 14px;
+  background: var(--color-background);
+  border-top: var(--border-width) solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.timeline__header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.timeline__label {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--color-text-secondary);
+}
+
+.timeline__family {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.timeline__family-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+}
+
+.timeline__hint {
+  font-family: var(--font-body);
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  margin-left: auto;
+  font-style: italic;
+}
+
+.timeline__track {
+  position: relative;
+  height: 44px;
+  display: flex;
+  align-items: center;
+  margin: 0 6px;
+}
+
+.timeline__rail {
+  position: absolute;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+.timeline__fill {
+  position: absolute;
+  height: 3px;
+  border-radius: 2px;
+}
+
+.timeline__stop {
+  position: absolute;
+  top: 50%;
+  transform: translate(-50%, -50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  cursor: pointer;
+  z-index: 2;
+}
+
+.timeline__stop-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  background: var(--color-background);
+  border: 2.5px solid var(--color-border);
+  transition: all 0.15s;
+}
+
+.timeline__stop:hover .timeline__stop-dot {
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 3px rgba(51, 96, 169, 0.12);
+}
+
+.timeline__stop--selected .timeline__stop-dot {
+  background: var(--color-info);
+  border-color: var(--color-info);
+  box-shadow: 0 0 0 3px rgba(51, 96, 169, 0.12);
+}
+
+.timeline__stop-name {
+  position: absolute;
+  top: -17px;
+  font-size: 10px;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  white-space: nowrap;
+}
+
+.timeline__stop--selected .timeline__stop-name {
+  color: var(--color-info);
+  font-weight: var(--font-weight-bold);
+}
+
+.timeline__stop-date {
+  position: absolute;
+  bottom: -15px;
+  font-family: var(--font-mono);
+  font-size: 9px;
+  color: var(--color-text-secondary);
+  white-space: nowrap;
 }

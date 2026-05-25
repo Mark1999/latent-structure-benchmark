@@ -1,0 +1,120 @@
+/**
+ * Sidebar — domain dropdown + ProviderTree + filters
+ */
+
+import { ProviderTree } from './ProviderTree';
+import type { PublishedModel } from '../data/types';
+
+type DomainSlug = 'family' | 'holidays' | 'food';
+
+const DOMAINS: Array<{ slug: DomainSlug; label: string }> = [
+  { slug: 'family',   label: 'Family' },
+  { slug: 'holidays', label: 'Holidays' },
+  { slug: 'food',     label: 'Food' },
+];
+
+interface SidebarProps {
+  activeDomain: DomainSlug;
+  onDomainChange: (slug: DomainSlug) => void;
+  models: PublishedModel[];
+  selected: Set<string>;
+  onToggleModel: (id: string) => void;
+  onToggleProvider: (provider: string) => void;
+  onSelectAll: () => void;
+  onSelectNone: () => void;
+  pinnedProvider: string | null;
+  onTogglePin: (provider: string) => void;
+  openWeightsOnly: boolean;
+  onOpenWeightsToggle: () => void;
+}
+
+export function Sidebar({
+  activeDomain,
+  onDomainChange,
+  models,
+  selected,
+  onToggleModel,
+  onToggleProvider,
+  onSelectAll,
+  onSelectNone,
+  pinnedProvider,
+  onTogglePin,
+  openWeightsOnly,
+  onOpenWeightsToggle,
+}: SidebarProps) {
+  return (
+    <aside className="sidebar" role="complementary" aria-label="Domain and model selection">
+      {/* Domain section */}
+      <div className="sidebar__domain">
+        <label className="sidebar__section-label" htmlFor="domain-select">
+          Domain
+        </label>
+        <select
+          id="domain-select"
+          className="domain-select"
+          value={activeDomain}
+          onChange={(e) => onDomainChange(e.target.value as DomainSlug)}
+        >
+          <optgroup label="Everyday">
+            {DOMAINS.map(({ slug, label }) => (
+              <option key={slug} value={slug}>{label}</option>
+            ))}
+          </optgroup>
+          <optgroup label="Professional (soon)" disabled>
+            <option disabled>Medical</option>
+          </optgroup>
+        </select>
+      </div>
+
+      {/* Providers & Models section */}
+      <div className="sidebar__models">
+        <div className="sidebar__models-header">
+          <span>Providers &amp; Models</span>
+          <span className="sidebar__models-count">
+            {selected.size} of {models.length}
+          </span>
+        </div>
+        <div className="sidebar__actions">
+          <button className="sidebar__action-btn" onClick={onSelectAll}>
+            Select all
+          </button>
+          <button className="sidebar__action-btn" onClick={onSelectNone}>
+            Clear
+          </button>
+        </div>
+        <ProviderTree
+          models={models}
+          selected={selected}
+          onToggleModel={onToggleModel}
+          onToggleProvider={onToggleProvider}
+          pinnedProvider={pinnedProvider}
+          onTogglePin={onTogglePin}
+          openWeightsOnly={openWeightsOnly}
+        />
+      </div>
+
+      <div className="sidebar__divider" aria-hidden="true" />
+
+      {/* Filters section */}
+      <div className="sidebar__filters">
+        <div className="sidebar__models-header">
+          <span>Filters</span>
+        </div>
+        <div className="toggle-row">
+          <span className="toggle-label" id="open-weights-label">
+            Open weights only
+          </span>
+          <button
+            className={`toggle${openWeightsOnly ? ' toggle--on' : ''}`}
+            onClick={onOpenWeightsToggle}
+            role="switch"
+            aria-checked={openWeightsOnly}
+            aria-labelledby="open-weights-label"
+          >
+            <span className="toggle__thumb" />
+          </button>
+        </div>
+      </div>
+    </aside>
+  );
+}
