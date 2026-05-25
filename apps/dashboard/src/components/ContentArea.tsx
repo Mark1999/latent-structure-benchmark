@@ -5,6 +5,7 @@
 import { VizTabs, type ActiveVizTab } from './VizTabs';
 import { SelectionBar } from './SelectionBar';
 import { TermMap } from './TermMap';
+import { MDSPlot } from './MDSPlot';
 import { Timeline } from './Timeline';
 import type { DomainResultPublished, PublishedModel } from '../data/types';
 
@@ -138,10 +139,20 @@ export function ContentArea({
               />
             )}
 
-            {activeVizTab !== 'term-map' && (
+            {activeVizTab === 'mds-plot' && (
+              <MDSPlot
+                mdsCoordinates={domain.mds_coordinates as unknown as Record<string, [number, number]>}
+                mdsUncertainty={domain.mds_uncertainty as unknown as Record<string, { semi_major: number; semi_minor: number; rotation_rad: number; center: [number, number]; n_bootstrap: number } | null>}
+                models={domain.models}
+                selectedModelIds={selectedModelIds}
+                topTerms={(domain.display as unknown as { top_terms: Record<string, string[]> })?.top_terms ?? {}}
+                centralityScores={(domain as unknown as { cultural_centrality_scores: Record<string, number> }).cultural_centrality_scores ?? {}}
+              />
+            )}
+
+            {activeVizTab !== 'term-map' && activeVizTab !== 'mds-plot' && (
               <div className="chart-wrap">
                 <div className="viz-placeholder">
-                  {activeVizTab === 'mds-plot' && 'MDS Plot — coming soon'}
                   {activeVizTab === 'cluster-tree' && 'Cluster Tree — coming soon'}
                   {activeVizTab === 'free-lists' && 'Free Lists — coming soon'}
                   {activeVizTab === 'similarity' && 'Similarity — coming soon'}
