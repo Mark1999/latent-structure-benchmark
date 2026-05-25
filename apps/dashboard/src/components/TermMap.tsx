@@ -242,12 +242,13 @@ export function TermMap({
       );
     });
 
-    // Term labels — hidden by default
-    terms.forEach((t, i) => {
-      const px = (sx(t.x) + 7).toFixed(1);
+    // Term labels — visible, small, positioned right of each dot
+    terms.forEach((t) => {
+      const px = (sx(t.x) + 6).toFixed(1);
       const py = (sy(t.y) + 3).toFixed(1);
+      const col = getClusterColor(t.cluster);
       svgParts.push(
-        `<text class="term-label" x="${px}" y="${py}" font-family="var(--font-body)" font-size="10" fill="#444" data-cluster="${t.cluster}" data-idx="${i}" data-ox="${px}" data-oy="${py}" pointer-events="none" opacity="0">${escapeXml(t.term)}</text>`
+        `<text x="${px}" y="${py}" font-family="var(--font-body)" font-size="9" fill="${col}" opacity=".7" pointer-events="none">${escapeXml(t.term)}</text>`
       );
     });
 
