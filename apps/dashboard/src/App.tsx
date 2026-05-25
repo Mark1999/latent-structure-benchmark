@@ -464,7 +464,7 @@ import { modelShortName } from "./lib/modelShortName";
 
 // eslint-disable-next-line @typescript-eslint/no-unused-vars
 function SelectionBar({ domainResult: _domainResult, selectedModels, onRemoveModel, modelColors }: SelectionBarProps) {
-  const CHIP_LIMIT = 8;
+  const CHIP_LIMIT = 4;
 
   if (selectedModels.length === 0) {
     return (

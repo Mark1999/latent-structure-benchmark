@@ -669,3 +669,27 @@
 .app-shell .viz-switcher {
   flex-shrink: 0;
 }
+
+/* Compress viz component chrome in app-shell mode */
+.app-shell .term-mds-plot__description,
+.app-shell .mds-plot__description {
+  font-size: 12px;
+  line-height: 1.4;
+  margin-bottom: var(--space-1);
+  max-width: none;
+}
+
+/* Hide "Read as table" in app-shell — save vertical space */
+.app-shell .read-as-table-toggle {
+  display: none;
+}
+
+/* Compact controls row */
+.app-shell .term-mds-plot__controls {
+  margin-bottom: var(--space-1);
+}
+
+/* Stress value compact */
+.app-shell .term-mds-plot__stress {
+  margin-top: 0;
+}

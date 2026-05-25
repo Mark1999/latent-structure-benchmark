@@ -427,6 +427,7 @@ const TERM_MDS_TABLE_CONTAINER_ID = "term-mds-table-container";
 export function TermMDSPlot({ domainResult }: TermMDSPlotProps) {
   const [showUncertainty, setShowUncertainty] = useState(false);
   const [showClusterLabels, setShowClusterLabels] = useState(true);
+  const [showTermLabels, setShowTermLabels] = useState(false);
   const [hoveredTerm, setHoveredTerm] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
   const [readAsTable, setReadAsTable] = useState(false);
@@ -585,18 +586,7 @@ export function TermMDSPlot({ domainResult }: TermMDSPlotProps) {
   // Description paragraph text (spec binding)
   const descriptionText = `Where ${domainResult.domain_slug} terms cluster in model output space: points show individual terms, colored by cluster. Proximity means models consistently grouped these terms together. Hover any term to see its uncertainty range.`;
 
-  // Unique cluster ids for legend
-  const uniqueClusters = useMemo(() => {
-    const seen = new Set<number>();
-    const result: Array<{ id: number; label: string; color: string }> = [];
-    for (const p of points) {
-      if (!seen.has(p.clusterId)) {
-        seen.add(p.clusterId);
-        result.push({ id: p.clusterId, label: p.clusterLabel, color: p.color });
-      }
-    }
-    return result.sort((a, b) => a.id - b.id);
-  }, [points]);
+  // Cluster legend removed — cluster region labels on chart serve this purpose.
 
   if (!hasData) {
     return (
@@ -639,6 +629,14 @@ export function TermMDSPlot({ domainResult }: TermMDSPlotProps) {
               onChange={(e) => setShowClusterLabels(e.target.checked)}
             />
             Show cluster labels
+          </label>
+          <label className="term-mds-plot__toggle-label">
+            <input
+              type="checkbox"
+              checked={showTermLabels}
+              onChange={(e) => setShowTermLabels(e.target.checked)}
+            />
+            Show term labels
           </label>
         </div>
       )}
@@ -804,7 +802,8 @@ export function TermMDSPlot({ domainResult }: TermMDSPlotProps) {
             })}
           </g>
 
-          {/* ── Term labels (greedy placed; hidden on mobile via CSS) ── */}
+          {/* ── Term labels (greedy placed; hidden by default, shown via toggle) ── */}
+          {showTermLabels && (
           <g aria-hidden="true">
             {points.map((p) => {
               const lp = labelPlacementMap.get(p.term);
@@ -826,6 +825,7 @@ export function TermMDSPlot({ domainResult }: TermMDSPlotProps) {
               );
             })}
           </g>
+          )}
 
           {/* ── Axis labels ── */}
           <text
@@ -896,20 +896,8 @@ export function TermMDSPlot({ domainResult }: TermMDSPlotProps) {
         </p>
       )}
 
-      {/* Cluster legend */}
-      {!readAsTable && uniqueClusters.length > 0 && (
-        <div className="term-mds-plot__legend" aria-hidden="true">
-          {uniqueClusters.map((c) => (
-            <span key={c.id} className="term-mds-plot__legend-item">
-              <span
-                className="term-mds-plot__legend-dot"
-                style={{ background: c.color }}
-              />
-              {c.label}
-            </span>
-          ))}
-        </div>
-      )}
+      {/* Cluster legend removed — cluster region labels on the chart serve
+          the same purpose without consuming vertical space. */}
 
       {/* TermMDSTable container — U1 Option A: ALWAYS in DOM */}
       <div
