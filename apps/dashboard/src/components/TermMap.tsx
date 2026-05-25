@@ -31,42 +31,6 @@ function getClusterColor(idx: number): string {
   return CLUSTER_COLORS[idx % CLUSTER_COLORS.length];
 }
 
-// ── Convex hull (Graham scan) ──
-function cross(O: [number, number], A: [number, number], B: [number, number]): number {
-  return (A[0] - O[0]) * (B[1] - O[1]) - (A[1] - O[1]) * (B[0] - O[0]);
-}
-
-function convexHull(pts: [number, number][]): [number, number][] {
-  const s = pts.slice().sort((a, b) => a[0] - b[0] || a[1] - b[1]);
-  if (s.length <= 1) return s;
-  const lo: [number, number][] = [];
-  for (const p of s) {
-    while (lo.length >= 2 && cross(lo[lo.length - 2], lo[lo.length - 1], p) <= 0) lo.pop();
-    lo.push(p);
-  }
-  const up: [number, number][] = [];
-  for (const p of [...s].reverse()) {
-    while (up.length >= 2 && cross(up[up.length - 2], up[up.length - 1], p) <= 0) up.pop();
-    up.push(p);
-  }
-  return lo.slice(0, -1).concat(up.slice(0, -1));
-}
-
-// Pad hull outward from centroid by padPx pixels
-function padHull(
-  hull: [number, number][],
-  cx: number,
-  cy: number,
-  padPx: number
-): [number, number][] {
-  return hull.map(([px, py]) => {
-    const dx = px - cx;
-    const dy = py - cy;
-    const d = Math.sqrt(dx * dx + dy * dy) || 1;
-    return [px + (dx / d) * padPx, py + (dy / d) * padPx];
-  });
-}
-
 interface TermEntry {
   term: string;
   x: number;
@@ -74,15 +38,6 @@ interface TermEntry {
   cluster: number;
 }
 
-interface TooltipState {
-  visible: boolean;
-  x: number;
-  y: number;
-  term: string;
-  clusterLabel: string;
-  clusterColor: string;
-  coords: [number, number];
-}
 
 interface TermMapProps {
   /** Pre-computed static coordinates — used when cooccurrenceData is not available */
@@ -105,10 +60,6 @@ export function TermMap({
 }: TermMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string>('');
-  const [tooltip, setTooltip] = useState<TooltipState>({
-    visible: false, x: 0, y: 0, term: '', clusterLabel: '', clusterColor: '', coords: [0, 0],
-  });
-  const [, setHoveredCluster] = useState<number | null>(null);
 
   // ── Dynamic MDS state ─────────────────────────────────────────────────────
   // liveCoords: the current (post-Procrustes) coordinate map used for rendering
@@ -247,7 +198,7 @@ export function TermMap({
     const plotCx = pad.l + pw / 2;
     const plotCy = pad.t + ph / 2;
 
-    // Draw hulls and cluster labels
+    // Draw cluster labels (no hulls — they produce ugly slivers for small clusters)
     Object.entries(clusters).forEach(([cidStr, clusterTerms]) => {
       const cid = parseInt(cidStr, 10);
       const col = getClusterColor(cid);
@@ -255,25 +206,7 @@ export function TermMap({
       const cx = clusterTerms.reduce((s, t) => s + sx(t.x), 0) / clusterTerms.length;
       const cy = clusterTerms.reduce((s, t) => s + sy(t.y), 0) / clusterTerms.length;
 
-      if (clusterTerms.length >= 2) {
-        const pts = clusterTerms.map((t): [number, number] => [sx(t.x), sy(t.y)]);
-        const hull = convexHull(pts);
-        if (hull.length >= 2) {
-          const padded = padHull(hull, cx, cy, 18);
-          const pathD = padded
-            .map((p, i) => `${i === 0 ? 'M' : 'L'}${p[0].toFixed(1)},${p[1].toFixed(1)}`)
-            .join(' ') + 'Z';
-          svgParts.push(
-            `<path d="${pathD}" fill="${col}" fill-opacity=".07" stroke="${col}" stroke-opacity=".25" stroke-width="1.5" data-cluster="${cid}" cursor="pointer"/>`
-          );
-        }
-      } else if (clusterTerms.length === 1) {
-        svgParts.push(
-          `<circle cx="${sx(clusterTerms[0].x).toFixed(1)}" cy="${sy(clusterTerms[0].y).toFixed(1)}" r="20" fill="${col}" fill-opacity=".07" stroke="${col}" stroke-opacity=".2" stroke-width="1" data-cluster="${cid}" cursor="pointer"/>`
-        );
-      }
-
-      // Cluster label — find point farthest from plot center, push further out
+      // Position label at the cluster's farthest point from plot center, pushed outward
       let bestX = cx, bestY = cy;
       if (clusterTerms.length >= 2) {
         let maxDist = 0;
@@ -340,101 +273,7 @@ export function TermMap({
     return () => observer.disconnect();
   }, [render]);
 
-  // Cluster hover: explode dots + show labels
-  const handleClusterHover = useCallback((cid: number) => {
-    setHoveredCluster(cid);
-    const svg = document.getElementById('term-svg');
-    if (!svg) return;
 
-    // Show labels for hovered cluster only
-    svg.querySelectorAll<SVGTextElement>('.term-label').forEach((el) => {
-      el.setAttribute('opacity', el.dataset.cluster === String(cid) ? '1' : '0');
-    });
-
-    // Explode dots outward from cluster centroid
-    const dots = svg.querySelectorAll<SVGCircleElement>(`.term-dot[data-cluster="${cid}"]`);
-    if (dots.length < 2) return;
-
-    let cx = 0, cy = 0;
-    dots.forEach((d) => { cx += parseFloat(d.dataset.ox || '0'); cy += parseFloat(d.dataset.oy || '0'); });
-    cx /= dots.length; cy /= dots.length;
-
-    const strength = 25;
-    dots.forEach((d) => {
-      const ox = parseFloat(d.dataset.ox || '0');
-      const oy = parseFloat(d.dataset.oy || '0');
-      const dx = ox - cx, dy = oy - cy;
-      const dist = Math.sqrt(dx * dx + dy * dy) || 1;
-      d.style.transition = 'cx 0.25s ease-out, cy 0.25s ease-out';
-      d.setAttribute('cx', String(ox + (dx / dist) * strength));
-      d.setAttribute('cy', String(oy + (dy / dist) * strength));
-      d.setAttribute('r', '5');
-    });
-
-    // Fade non-hovered dots and hulls
-    svg.querySelectorAll<SVGCircleElement>('.term-dot').forEach((d) => {
-      if (d.dataset.cluster !== String(cid)) d.style.opacity = '0.15';
-    });
-    svg.querySelectorAll<SVGPathElement | SVGCircleElement>('[data-cluster]').forEach((el) => {
-      if (el.dataset.cluster !== String(cid) && !el.classList.contains('term-dot')) {
-        (el as SVGElement).style.opacity = '0.08';
-      }
-    });
-  }, []);
-
-  const handleClusterUnhover = useCallback(() => {
-    setHoveredCluster(null);
-    const svg = document.getElementById('term-svg');
-    if (!svg) return;
-
-    svg.querySelectorAll<SVGTextElement>('.term-label').forEach((el) => el.setAttribute('opacity', '0'));
-    svg.querySelectorAll<SVGCircleElement>('.term-dot').forEach((d) => {
-      d.style.transition = 'cx 0.2s ease-in, cy 0.2s ease-in, opacity 0.2s';
-      d.setAttribute('cx', d.dataset.ox || '0');
-      d.setAttribute('cy', d.dataset.oy || '0');
-      d.setAttribute('r', '4');
-      d.style.opacity = '1';
-    });
-    svg.querySelectorAll<SVGElement>('[data-cluster]').forEach((el) => {
-      el.style.opacity = '1';
-    });
-  }, []);
-
-  // Mouse event delegation on the SVG wrapper
-  const handleMouseMove = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    const rect = wrapRef.current?.getBoundingClientRect();
-    if (!rect) return;
-
-    if (target.classList.contains('term-dot')) {
-      const idx = parseInt(target.dataset.idx || '0', 10);
-      const t = terms[idx];
-      if (!t) return;
-      const label = clusterLabels[t.cluster] || `Cluster ${t.cluster + 1}`;
-      const col = getClusterColor(t.cluster);
-      setTooltip({
-        visible: true,
-        x: e.clientX - rect.left + 12,
-        y: e.clientY - rect.top - 8,
-        term: t.term,
-        clusterLabel: label,
-        clusterColor: col,
-        coords: [t.x, t.y],
-      });
-    } else if (target.dataset.cluster !== undefined && target.tagName === 'path') {
-      const cid = parseInt(target.dataset.cluster || '0', 10);
-      handleClusterHover(cid);
-    }
-  }, [terms, clusterLabels, handleClusterHover]);
-
-  const handleMouseLeave = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
-    const target = e.target as HTMLElement;
-    if (target.classList.contains('term-dot')) {
-      setTooltip((prev) => ({ ...prev, visible: false }));
-    } else if (target.tagName === 'path') {
-      handleClusterUnhover();
-    }
-  }, [handleClusterUnhover]);
 
   if (terms.length === 0) {
     return (
@@ -448,34 +287,13 @@ export function TermMap({
     <div
       ref={wrapRef}
       className="chart-wrap"
-      onMouseMove={handleMouseMove}
-      onMouseLeave={handleMouseLeave}
       role="img"
       aria-label="Term map visualization showing clusters of related terms"
     >
-      {/* SVG rendered via innerHTML for performance */}
       <div
         style={{ width: '100%', height: '100%' }}
         dangerouslySetInnerHTML={{ __html: svgContent }}
       />
-      {tooltip.visible && (
-        <div
-          className="chart-tooltip visible"
-          style={{ left: tooltip.x, top: tooltip.y }}
-          aria-hidden="true"
-        >
-          <span className="chart-tooltip__title">{tooltip.term}</span>
-          <div className="chart-tooltip__sub" style={{ color: tooltip.clusterColor }}>
-            {tooltip.clusterLabel}
-          </div>
-          <div>
-            Position:{' '}
-            <span className="chart-tooltip__mono">
-              ({tooltip.coords[0].toFixed(3)}, {tooltip.coords[1].toFixed(3)})
-            </span>
-          </div>
-        </div>
-      )}
     </div>
   );
 }
