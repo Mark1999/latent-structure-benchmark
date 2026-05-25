@@ -44,8 +44,9 @@ interface TermEntry {
 
 
 // Lens constants — SVG-coordinate units (roughly 1 unit ≈ 1 CSS pixel at typical viewport)
-const LENS_RADIUS = 80;
-const MAX_DISPLACEMENT = 35;
+const LENS_RADIUS = 110;
+const MAX_DISPLACEMENT = 65;
+const LENS_FONT_SIZE = 13; // larger text inside the lens for readability
 
 interface TermMapProps {
   /** Pre-computed static coordinates — used when cooccurrenceData is not available */
@@ -260,7 +261,7 @@ export function TermMap({
       const py = (sy(t.y) + 3).toFixed(1);
       const col = getClusterColor(t.cluster);
       svgParts.push(
-        `<text class="term-label" x="${px}" y="${py}" data-ox="${px}" data-oy="${py}" font-family="var(--font-body)" font-size="9" fill="${col}" opacity=".7" pointer-events="none">${escapeXml(t.term)}</text>`
+        `<text class="term-label" x="${px}" y="${py}" data-ox="${px}" data-oy="${py}" data-base-size="11" font-family="var(--font-body)" font-size="11" fill="${col}" opacity=".7" pointer-events="none">${escapeXml(t.term)}</text>`
       );
     });
 
@@ -308,6 +309,10 @@ export function TermMap({
         svg.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
           lbl.setAttribute('x', lbl.getAttribute('data-ox') ?? '0');
           lbl.setAttribute('y', lbl.getAttribute('data-oy') ?? '0');
+          const baseSize = lbl.getAttribute('data-base-size') ?? '11';
+          lbl.setAttribute('font-size', baseSize);
+          lbl.setAttribute('opacity', '0.7');
+          lbl.setAttribute('font-weight', 'normal');
         });
         if (lensRingRef.current) {
           lensRingRef.current.remove();
@@ -355,22 +360,32 @@ export function TermMap({
         }
       });
 
-      // Displace labels
+      // Displace labels + enlarge inside lens
       svgEl.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
         const ox = parseFloat(lbl.getAttribute('data-ox') ?? '0');
         const oy = parseFloat(lbl.getAttribute('data-oy') ?? '0');
         const dx = ox - mouseX;
         const dy = oy - mouseY;
         const dist = Math.sqrt(dx * dx + dy * dy);
+        const baseSize = parseFloat(lbl.getAttribute('data-base-size') ?? '11');
 
         if (dist < LENS_RADIUS && dist > 0) {
-          const strength = Math.pow(1 - dist / LENS_RADIUS, 2) * MAX_DISPLACEMENT;
+          const t = 1 - dist / LENS_RADIUS; // 0 at edge, 1 at center
+          const strength = (t * t) * MAX_DISPLACEMENT;
           const angle = Math.atan2(dy, dx);
           lbl.setAttribute('x', String(ox + Math.cos(angle) * strength));
           lbl.setAttribute('y', String(oy + Math.sin(angle) * strength));
+          // Scale up font inside lens (lerp from baseSize to LENS_FONT_SIZE)
+          const fontSize = baseSize + (LENS_FONT_SIZE - baseSize) * t;
+          lbl.setAttribute('font-size', String(Math.round(fontSize)));
+          lbl.setAttribute('opacity', '1');
+          lbl.setAttribute('font-weight', '600');
         } else {
           lbl.setAttribute('x', String(ox));
           lbl.setAttribute('y', String(oy));
+          lbl.setAttribute('font-size', String(baseSize));
+          lbl.setAttribute('opacity', '0.7');
+          lbl.setAttribute('font-weight', 'normal');
         }
       });
     }
@@ -383,6 +398,10 @@ export function TermMap({
       svgEl.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
         lbl.setAttribute('x', lbl.getAttribute('data-ox') ?? '0');
         lbl.setAttribute('y', lbl.getAttribute('data-oy') ?? '0');
+        const baseSize = lbl.getAttribute('data-base-size') ?? '11';
+        lbl.setAttribute('font-size', baseSize);
+        lbl.setAttribute('opacity', '0.7');
+        lbl.setAttribute('font-weight', 'normal');
       });
       if (lensRingRef.current) {
         lensRingRef.current.remove();
