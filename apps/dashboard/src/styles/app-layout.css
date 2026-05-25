@@ -595,21 +595,77 @@
   min-height: 0;
 }
 
-/* Override data-explorer padding in app-shell mode to use the chart area's padding */
+/* ===== App-shell overrides for DataExplorer internals ===== */
+/* The DataExplorer was designed for article layout (scroll page).
+   In app-shell mode it must fill available viewport height. */
+
 .app-shell .data-explorer {
   flex: 1;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  overflow: hidden;
 }
 
-/* In app-shell mode, the explorer-layout should fill available height */
-.app-shell .explorer-layout {
+/* Override the grid layout to a simple flex column — no selector column */
+.app-shell .explorer-layout,
+.app-shell .explorer-layout--no-selector {
+  display: flex !important;
+  flex-direction: column;
   flex: 1;
   min-height: 0;
+  overflow: hidden;
+  max-width: none;
+  padding: 0;
+  margin: 0;
+  gap: 0;
 }
 
+/* The viz area fills ALL remaining space and scrolls internally.
+   Source attribution + download bar are siblings of explorer-layout
+   in the data-explorer flex column — they must not steal chart height. */
 .app-shell .explorer-layout__viz {
+  flex: 1;
   min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-2) var(--space-5);
+}
+
+/* Hide the model selector column — sidebar handles it */
+.app-shell .explorer-layout__selector,
+.app-shell .explorer-layout__mobile-selector-trigger {
+  display: none !important;
+}
+
+/* CRITICAL: source-attribution and download-bar are siblings of
+   explorer-layout inside data-explorer. In app-shell mode, hide them
+   at the top level — the essential info (source, cite) is in the sidebar
+   and accessible via CSV/permalink buttons on the viz itself. */
+.app-shell .source-attribution {
+  display: none !important;
+}
+
+/* Default download-bar styles (moved from inline to CSS) */
+.download-bar {
+  display: flex;
+  gap: var(--space-2);
+  margin-top: var(--space-2);
+  flex-wrap: wrap;
+  align-items: flex-start;
+}
+
+.app-shell .download-bar {
+  display: none !important;
+}
+
+/* Compact the selection bar — max 1 row */
+.app-shell .selection-bar {
+  flex-wrap: nowrap;
   overflow: hidden;
+  max-height: 34px;
+}
+
+/* The viz-switcher should be compact */
+.app-shell .viz-switcher {
+  flex-shrink: 0;
 }

@@ -234,13 +234,6 @@ export function DownloadBar({
   return (
     <div
       className="download-bar"
-      style={{
-        display: "flex",
-        gap: "var(--space-2)",
-        marginTop: "var(--space-2)",
-        flexWrap: "wrap",
-        alignItems: "flex-start",
-      }}
     >
       {/* CSV Download button */}
       <button
