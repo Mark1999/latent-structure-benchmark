@@ -7,6 +7,10 @@
  * with AHC after each MDS update.
  *
  * Falls back to static termCoords/termClusters when cooccurrenceData is null.
+ *
+ * Magnifying lens: when lensEnabled=true, a circular lens follows the mouse.
+ * Terms inside the lens radius are displaced outward using a quadratic falloff
+ * repulsion so overlapping labels spread apart and become readable.
  */
 
 import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
@@ -39,6 +43,10 @@ interface TermEntry {
 }
 
 
+// Lens constants — SVG-coordinate units (roughly 1 unit ≈ 1 CSS pixel at typical viewport)
+const LENS_RADIUS = 80;
+const MAX_DISPLACEMENT = 35;
+
 interface TermMapProps {
   /** Pre-computed static coordinates — used when cooccurrenceData is not available */
   termCoords: Record<string, [number, number]>;
@@ -49,6 +57,8 @@ interface TermMapProps {
   cooccurrenceData?: CooccurrenceData | null;
   /** Set of currently selected model IDs — triggers MDS recompute when changed */
   selectedModelIds?: Set<string>;
+  /** When true, a cursor-following magnifying lens spreads overlapping terms apart */
+  lensEnabled?: boolean;
 }
 
 export function TermMap({
@@ -57,6 +67,7 @@ export function TermMap({
   clusterLabels,
   cooccurrenceData,
   selectedModelIds,
+  lensEnabled = false,
 }: TermMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string>('');
@@ -243,12 +254,13 @@ export function TermMap({
     });
 
     // Term labels — visible, small, positioned right of each dot
+    // data-ox / data-oy store the label's original position for lens displacement
     terms.forEach((t) => {
       const px = (sx(t.x) + 6).toFixed(1);
       const py = (sy(t.y) + 3).toFixed(1);
       const col = getClusterColor(t.cluster);
       svgParts.push(
-        `<text x="${px}" y="${py}" font-family="var(--font-body)" font-size="9" fill="${col}" opacity=".7" pointer-events="none">${escapeXml(t.term)}</text>`
+        `<text class="term-label" x="${px}" y="${py}" data-ox="${px}" data-oy="${py}" font-family="var(--font-body)" font-size="9" fill="${col}" opacity=".7" pointer-events="none">${escapeXml(t.term)}</text>`
       );
     });
 
@@ -274,6 +286,153 @@ export function TermMap({
     return () => observer.disconnect();
   }, [render]);
 
+  // ── Magnifying lens interaction ───────────────────────────────────────────
+  // rafRef: pending requestAnimationFrame id (used to cancel on cleanup)
+  const rafRef = useRef<number | null>(null);
+  // lensRingRef: the <circle> element appended to the SVG as a lens outline
+  const lensRingRef = useRef<SVGCircleElement | null>(null);
+
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    // Create / remove lens ring element whenever lensEnabled changes
+    if (!lensEnabled) {
+      // Reset all displaced elements back to their original positions
+      const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
+      if (svg) {
+        svg.querySelectorAll<SVGCircleElement>('.term-dot').forEach((dot) => {
+          dot.setAttribute('cx', dot.getAttribute('data-ox') ?? '0');
+          dot.setAttribute('cy', dot.getAttribute('data-oy') ?? '0');
+        });
+        svg.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
+          lbl.setAttribute('x', lbl.getAttribute('data-ox') ?? '0');
+          lbl.setAttribute('y', lbl.getAttribute('data-oy') ?? '0');
+        });
+        if (lensRingRef.current) {
+          lensRingRef.current.remove();
+          lensRingRef.current = null;
+        }
+      }
+      return;
+    }
+
+    function applyLens(svgEl: SVGSVGElement, mouseX: number, mouseY: number) {
+      // Ensure lens ring exists
+      if (!lensRingRef.current) {
+        const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        ring.setAttribute('class', 'lens-ring');
+        ring.setAttribute('r', String(LENS_RADIUS));
+        ring.setAttribute('fill', 'none');
+        ring.setAttribute('stroke', 'rgba(0,0,0,0.15)');
+        ring.setAttribute('stroke-width', '1');
+        ring.setAttribute('stroke-dasharray', '4 2');
+        ring.setAttribute('pointer-events', 'none');
+        svgEl.appendChild(ring);
+        lensRingRef.current = ring;
+      }
+
+      // Move the lens ring to follow the mouse
+      lensRingRef.current.setAttribute('cx', String(mouseX));
+      lensRingRef.current.setAttribute('cy', String(mouseY));
+
+      // Displace dots
+      svgEl.querySelectorAll<SVGCircleElement>('.term-dot').forEach((dot) => {
+        const ox = parseFloat(dot.getAttribute('data-ox') ?? '0');
+        const oy = parseFloat(dot.getAttribute('data-oy') ?? '0');
+        const dx = ox - mouseX;
+        const dy = oy - mouseY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < LENS_RADIUS && dist > 0) {
+          const strength = Math.pow(1 - dist / LENS_RADIUS, 2) * MAX_DISPLACEMENT;
+          const angle = Math.atan2(dy, dx);
+          dot.setAttribute('cx', String(ox + Math.cos(angle) * strength));
+          dot.setAttribute('cy', String(oy + Math.sin(angle) * strength));
+        } else {
+          dot.setAttribute('cx', String(ox));
+          dot.setAttribute('cy', String(oy));
+        }
+      });
+
+      // Displace labels
+      svgEl.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
+        const ox = parseFloat(lbl.getAttribute('data-ox') ?? '0');
+        const oy = parseFloat(lbl.getAttribute('data-oy') ?? '0');
+        const dx = ox - mouseX;
+        const dy = oy - mouseY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < LENS_RADIUS && dist > 0) {
+          const strength = Math.pow(1 - dist / LENS_RADIUS, 2) * MAX_DISPLACEMENT;
+          const angle = Math.atan2(dy, dx);
+          lbl.setAttribute('x', String(ox + Math.cos(angle) * strength));
+          lbl.setAttribute('y', String(oy + Math.sin(angle) * strength));
+        } else {
+          lbl.setAttribute('x', String(ox));
+          lbl.setAttribute('y', String(oy));
+        }
+      });
+    }
+
+    function resetLens(svgEl: SVGSVGElement) {
+      svgEl.querySelectorAll<SVGCircleElement>('.term-dot').forEach((dot) => {
+        dot.setAttribute('cx', dot.getAttribute('data-ox') ?? '0');
+        dot.setAttribute('cy', dot.getAttribute('data-oy') ?? '0');
+      });
+      svgEl.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
+        lbl.setAttribute('x', lbl.getAttribute('data-ox') ?? '0');
+        lbl.setAttribute('y', lbl.getAttribute('data-oy') ?? '0');
+      });
+      if (lensRingRef.current) {
+        lensRingRef.current.remove();
+        lensRingRef.current = null;
+      }
+    }
+
+    // `wrap` is const and was narrowed to HTMLDivElement by the guard above;
+    // the non-null assertion below is safe since wrap cannot be reassigned.
+    const safeWrap: HTMLDivElement = wrap;
+
+    function handleMouseMove(e: MouseEvent) {
+      if (rafRef.current !== null) return; // skip if frame already queued
+      rafRef.current = requestAnimationFrame(() => {
+        rafRef.current = null;
+        const svg = safeWrap.querySelector<SVGSVGElement>('#term-svg');
+        if (!svg) return;
+        const rect = svg.getBoundingClientRect();
+        const mouseX = e.clientX - rect.left;
+        const mouseY = e.clientY - rect.top;
+        applyLens(svg, mouseX, mouseY);
+      });
+    }
+
+    function handleMouseLeave() {
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      const svg = safeWrap.querySelector<SVGSVGElement>('#term-svg');
+      if (svg) resetLens(svg);
+    }
+
+    safeWrap.addEventListener('mousemove', handleMouseMove);
+    safeWrap.addEventListener('mouseleave', handleMouseLeave);
+
+    return () => {
+      safeWrap.removeEventListener('mousemove', handleMouseMove);
+      safeWrap.removeEventListener('mouseleave', handleMouseLeave);
+      if (rafRef.current !== null) {
+        cancelAnimationFrame(rafRef.current);
+        rafRef.current = null;
+      }
+      // Clean up the ring if component unmounts while lens active
+      if (lensRingRef.current) {
+        lensRingRef.current.remove();
+        lensRingRef.current = null;
+      }
+    };
+  }, [lensEnabled, svgContent]); // re-attach when SVG re-renders (new data-ox/oy in DOM)
 
 
   if (terms.length === 0) {

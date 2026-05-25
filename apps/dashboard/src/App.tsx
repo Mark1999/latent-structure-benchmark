@@ -69,6 +69,7 @@ export default function App() {
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>('term-map');
   const [cooccurrenceData, setCooccurrenceData] = useState<CooccurrenceData | null>(null);
+  const [lensEnabled, setLensEnabled] = useState(false);
 
   // Fetch domain data and co-occurrence matrices on domain change
   useEffect(() => {
@@ -201,6 +202,8 @@ export default function App() {
           onTogglePin={handleTogglePin}
           openWeightsOnly={openWeightsOnly}
           onOpenWeightsToggle={() => setOpenWeightsOnly((v) => !v)}
+          lensEnabled={lensEnabled}
+          onLensToggle={() => setLensEnabled((v) => !v)}
         />
         <ContentArea
           domain={domain}
@@ -214,6 +217,7 @@ export default function App() {
           pinnedProvider={pinnedProvider}
           onTogglePin={handleTogglePin}
           cooccurrenceData={cooccurrenceData}
+          lensEnabled={lensEnabled}
         />
       </div>
     </>

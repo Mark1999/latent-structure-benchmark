@@ -65,6 +65,8 @@ interface ContentAreaProps {
   onTogglePin: (provider: string) => void;
   /** Co-occurrence matrices for the active domain (used by TermMap for browser-side MDS) */
   cooccurrenceData?: CooccurrenceData | null;
+  /** When true, TermMap shows a cursor-following magnifying lens */
+  lensEnabled?: boolean;
 }
 
 export function ContentArea({
@@ -79,6 +81,7 @@ export function ContentArea({
   pinnedProvider,
   onTogglePin,
   cooccurrenceData,
+  lensEnabled,
 }: ContentAreaProps) {
   // Build selection bar chips
   const selectedChips = domain
@@ -141,6 +144,7 @@ export function ContentArea({
                 clusterLabels={domain.term_cluster_labels ?? []}
                 cooccurrenceData={cooccurrenceData}
                 selectedModelIds={selectedModelIds}
+                lensEnabled={lensEnabled}
               />
             )}
 
