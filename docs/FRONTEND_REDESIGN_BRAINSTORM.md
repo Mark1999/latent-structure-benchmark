@@ -317,12 +317,24 @@ The hover-explode interaction is working in `docs/slicer-prototype.html`. Tested
 - Non-hovered clusters fade to ~15% opacity, providing strong visual focus
 - Terms animate back to original positions on mouse-out (0.2s ease)
 
+### Chart sizing strategy (2026-05-25)
+
+Don't fight the viewport height. Instead:
+1. **Zoom:** D3-zoom (scroll wheel / pinch). Chart renders at whatever size the viewport gives it; zoom handles the rest.
+2. **Semantic zoom:** As user zooms in, term labels progressively appear when there's enough pixel space. At default zoom, only cluster hull labels show.
+3. **Fisheye burst:** Hover a cluster or dense area → dots spread and labels appear, even without zooming.
+4. **First-visit tooltip:** "Scroll to zoom, hover clusters to explore" — dismissable.
+
+This eliminates the "cramming 100 labels into a viewport" problem entirely.
+
 ### Polish needed (future iteration)
-- Bottom clusters clip when chart area is short — needs scrollable area or dynamic padding
+- D3-zoom integration (scroll wheel / pinch)
+- Semantic zoom: labels appear/disappear based on zoom level
 - Cluster labels collide in dense areas — need label collision avoidance for the 19 labels themselves
 - Hover should trigger on dots too, not just hull paths
 - Cluster label aggregation is imperfect (CDA SME A2 advisory) — e.g., "Cousin Relationships" label on the grandparent cluster
 - Explosion strength (25px) could be adaptive based on cluster density
+- First-visit tooltip for zoom hint
 
 ### Not using
 - Flavor wheel / radial layout (Mark dropped this)
