@@ -6,6 +6,11 @@ import { VizTabs, type ActiveVizTab } from './VizTabs';
 import { SelectionBar } from './SelectionBar';
 import { TermMap, type CooccurrenceData, type ModelPileData } from './TermMap';
 import { MDSPlot } from './MDSPlot';
+import { CentralityChart } from './CentralityChart';
+import { SimilarityHeatmap } from './SimilarityHeatmap';
+import { FreeListCompare, type SutropCsiEntry } from './FreeListCompare';
+import { PileStructure } from './PileStructure';
+import { ClusterTree } from './ClusterTree';
 import { Timeline } from './Timeline';
 import type { DomainResultPublished, PublishedModel } from '../data/types';
 
@@ -15,6 +20,16 @@ interface DomainExtended extends DomainResultPublished {
   term_cluster_assignments?: Record<string, number>;
   term_cluster_labels?: string[];
   centroid_piles?: Record<string, ModelPileData>;
+  /** Cultural centrality scores: model_id → score (~0.2–0.3). */
+  cultural_centrality_scores?: Record<string, number>;
+  /** Pairwise similarity matrix as a flat 2D array. Model order matches the models array. */
+  similarity_matrix_array?: number[][];
+  /** Scipy linkage matrix for hierarchical clustering: rows of [idx1, idx2, distance, count]. */
+  term_cluster_linkage?: number[][];
+  /** Ordered list of term names corresponding to leaf indices 0..n-1 in the linkage matrix. */
+  term_mds_items?: string[];
+  /** Bootstrap proportion per internal linkage node (one value per linkage row). */
+  term_cluster_bp_values?: number[];
 }
 
 // Provider display color map
@@ -161,15 +176,64 @@ export function ContentArea({
               />
             )}
 
-            {activeVizTab !== 'term-map' && activeVizTab !== 'mds-plot' && (
+            {activeVizTab === 'centrality' && (
               <div className="chart-wrap">
-                <div className="viz-placeholder">
-                  {activeVizTab === 'cluster-tree' && 'Cluster Tree — coming soon'}
-                  {activeVizTab === 'free-lists' && 'Free Lists — coming soon'}
-                  {activeVizTab === 'similarity' && 'Similarity — coming soon'}
-                  {activeVizTab === 'centrality' && 'Centrality — coming soon'}
-                  {activeVizTab === 'pile-structure' && 'Pile Structure — coming soon'}
-                </div>
+                <CentralityChart
+                  centralityScores={domain.cultural_centrality_scores ?? {}}
+                  models={domain.models}
+                  selectedModelIds={selectedModelIds}
+                />
+              </div>
+            )}
+
+            {activeVizTab === 'similarity' && (
+              <div className="chart-wrap">
+                <SimilarityHeatmap
+                  similarityMatrix={
+                    (domain as unknown as { similarity_matrix: number[][] }).similarity_matrix ?? []
+                  }
+                  models={domain.models}
+                  selectedModelIds={selectedModelIds}
+                />
+              </div>
+            )}
+
+            {activeVizTab === 'free-lists' && (
+              <FreeListCompare
+                sutropCsi={domain.sutrop_csi as unknown as Record<string, SutropCsiEntry[]>}
+                models={domain.models}
+                selectedModelIds={selectedModelIds}
+              />
+            )}
+
+            {activeVizTab === 'pile-structure' && domain.centroid_piles && (
+              <PileStructure
+                centroidPiles={domain.centroid_piles}
+                models={domain.models}
+                selectedModelIds={selectedModelIds}
+              />
+            )}
+
+            {activeVizTab === 'pile-structure' && !domain.centroid_piles && (
+              <div className="chart-wrap">
+                <div className="viz-placeholder">Pile structure data not available for this domain.</div>
+              </div>
+            )}
+
+            {activeVizTab === 'cluster-tree' && domain.term_cluster_linkage && domain.term_mds_items && (
+              <div className="chart-wrap">
+                <ClusterTree
+                  linkage={domain.term_cluster_linkage}
+                  items={domain.term_mds_items}
+                  clusterAssignments={domain.term_cluster_assignments ?? {}}
+                  bpValues={domain.term_cluster_bp_values}
+                />
+              </div>
+            )}
+
+            {activeVizTab === 'cluster-tree' && (!domain.term_cluster_linkage || !domain.term_mds_items) && (
+              <div className="chart-wrap">
+                <div className="viz-placeholder">Cluster tree data not available for this domain.</div>
               </div>
             )}
           </>
