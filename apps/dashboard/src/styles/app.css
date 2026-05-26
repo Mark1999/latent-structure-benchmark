@@ -440,7 +440,8 @@ body {
 .content-area {
   display: flex;
   flex-direction: column;
-  overflow: hidden;
+  overflow: clip;
+  min-width: 0;
 }
 
 /* ===== Viz Tabs ===== */
@@ -451,12 +452,18 @@ body {
   border-bottom: var(--border-width) solid var(--color-border);
   height: 36px;
   flex-shrink: 0;
+  overflow-x: auto;
+  min-width: 0;
+}
+
+.viz-tabs::-webkit-scrollbar {
+  height: 0;
 }
 
 .viz-tab {
   display: flex;
   align-items: center;
-  padding: 0 14px;
+  padding: 0 10px;
   font-size: 11px;
   font-weight: var(--font-weight-medium);
   color: var(--color-text-secondary);
@@ -544,10 +551,12 @@ body {
 .chart-area {
   flex: 1;
   padding: 16px 20px;
-  overflow: auto;
+  overflow-y: auto;
+  overflow-x: hidden;
   display: flex;
   flex-direction: column;
   min-height: 0;
+  min-width: 0;
 }
 
 .chart-lede {
@@ -564,17 +573,23 @@ body {
 }
 
 .chart-wrap {
-  flex: 1;
-  min-height: 420px;
   position: relative;
   background: #fdfdfc;
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--border-radius-md) - 2px;
-  overflow: hidden;
+  overflow: visible;
 }
 
 .chart-wrap svg {
   display: block;
+}
+
+.chart-wrap__desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  max-width: var(--max-prose-width);
+  padding: var(--space-3) var(--space-4) 0;
+  line-height: var(--line-height-body);
 }
 
 /* Placeholder for non-Term-Map tabs */
@@ -596,6 +611,8 @@ body {
   gap: var(--space-3);
   padding: var(--space-2) 0 var(--space-4);
   align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .freelist-column {
@@ -711,6 +728,8 @@ body {
   gap: var(--space-3);
   padding: var(--space-2) 0 var(--space-4);
   align-items: flex-start;
+  min-width: 0;
+  max-width: 100%;
 }
 
 .pile-column {
@@ -1021,6 +1040,22 @@ body {
   white-space: nowrap;
 }
 
+/* ===== Model Map ===== */
+
+.model-map__desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  max-width: var(--max-prose-width);
+  padding: var(--space-3) var(--space-4) 0;
+  line-height: var(--line-height-body);
+}
+
+.model-map__svg-container {
+  max-width: 520px;
+  margin: 0 auto;
+  padding: var(--space-2) var(--space-4) var(--space-4);
+}
+
 /* ===== CentralityChart ===== */
 
 .centrality-chart {
@@ -1066,6 +1101,7 @@ body {
 .similarity-heatmap {
   padding: var(--space-4) var(--space-2);
   width: 100%;
+  max-width: 650px;
   overflow-x: auto;
 }
 
@@ -1102,7 +1138,6 @@ body {
 
 .cluster-tree {
   width: 100%;
-  overflow: auto;           /* tall SVG scrolls; chart-area has overflow:auto too */
 }
 
 .cluster-tree--empty {

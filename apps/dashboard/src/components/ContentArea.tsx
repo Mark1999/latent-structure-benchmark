@@ -165,7 +165,7 @@ export function ContentArea({
               />
             )}
 
-            {activeVizTab === 'mds-plot' && (
+            {activeVizTab === 'mds-plot' && domain.mds_coordinates && (
               <MDSPlot
                 mdsCoordinates={domain.mds_coordinates as unknown as Record<string, [number, number]>}
                 mdsUncertainty={domain.mds_uncertainty as unknown as Record<string, { semi_major: number; semi_minor: number; rotation_rad: number; center: [number, number]; n_bootstrap: number } | null>}
@@ -178,6 +178,11 @@ export function ContentArea({
 
             {activeVizTab === 'centrality' && (
               <div className="chart-wrap">
+                <p className="chart-wrap__desc">
+                  Cultural centrality measures how typical each model&apos;s categorical
+                  structure is relative to the group. Higher scores mean the model organizes
+                  vocabulary more like the consensus.
+                </p>
                 <CentralityChart
                   centralityScores={domain.cultural_centrality_scores ?? {}}
                   models={domain.models}
@@ -188,6 +193,11 @@ export function ContentArea({
 
             {activeVizTab === 'similarity' && (
               <div className="chart-wrap">
+                <p className="chart-wrap__desc">
+                  Pairwise similarity between models based on how they co-organize domain
+                  terms. Darker cells indicate models that produce more similar categorical
+                  structures.
+                </p>
                 <SimilarityHeatmap
                   similarityMatrix={
                     (domain as unknown as { similarity_matrix: number[][] }).similarity_matrix ?? []

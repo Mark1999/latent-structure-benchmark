@@ -1,5 +1,5 @@
 /**
- * MDSPlot — model-level MDS scatter plot.
+ * ModelMap — model-level MDS scatter plot.
  * Shows model positions in 2D MDS space with confidence ellipses.
  * Responds to model selection — only selected models are shown.
  */
@@ -55,7 +55,7 @@ export function MDSPlot({
   }, [models, selectedModelIds, mdsCoordinates]);
 
   const { svgContent, width, height } = useMemo(() => {
-    const W = 700, pad = { t: 30, r: 30, b: 45, l: 50 };
+    const W = 500, pad = { t: 30, r: 30, b: 45, l: 50 };
     const pw = W - pad.l - pad.r;
 
     if (visibleModels.length === 0) {
@@ -144,21 +144,28 @@ export function MDSPlot({
   if (visibleModels.length === 0) {
     return (
       <div className="chart-wrap">
-        <div className="viz-placeholder">Select models to see the MDS plot.</div>
+        <div className="viz-placeholder">Select models to see the model map.</div>
       </div>
     );
   }
 
   return (
     <div className="chart-wrap" ref={containerRef} style={{ position: 'relative' }}>
-      <svg
-        width="100%"
-        viewBox={`0 0 ${width} ${height}`}
-        style={{ display: 'block' }}
-        onMouseMove={handleMouseMove}
-        onMouseLeave={handleMouseLeave}
-        dangerouslySetInnerHTML={{ __html: svgContent }}
-      />
+      <p className="model-map__desc">
+        Each dot is one AI model. Models placed close together organize vocabulary
+        in similar ways. Ellipses show 95% confidence regions from bootstrap
+        resampling — smaller ellipses mean more stable positions.
+      </p>
+      <div className="model-map__svg-container">
+        <svg
+          width="100%"
+          viewBox={`0 0 ${width} ${height}`}
+          style={{ display: 'block' }}
+          onMouseMove={handleMouseMove}
+          onMouseLeave={handleMouseLeave}
+          dangerouslySetInnerHTML={{ __html: svgContent }}
+        />
+      </div>
       {tooltip && tooltipModel && (
         <div className="chart-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
           <div className="chart-tooltip__name">{shortName(tooltip.id)}</div>

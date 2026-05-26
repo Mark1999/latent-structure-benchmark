@@ -63,9 +63,9 @@ export function SimilarityHeatmap({
 
   const n = filteredModels.length;
 
-  const CELL_SIZE = 40;
-  const HEADER_SIZE = 80;  // space for rotated column headers
-  const ROW_LABEL_WIDTH = 120;
+  const CELL_SIZE = 32;
+  const HEADER_SIZE = 90;  // space for rotated column headers
+  const ROW_LABEL_WIDTH = 110;
   const PADDING = 4;
 
   const svgWidth = ROW_LABEL_WIDTH + n * CELL_SIZE + PADDING;

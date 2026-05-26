@@ -13,7 +13,7 @@ export type ActiveVizTab =
 
 const TABS: Array<{ id: ActiveVizTab; label: string }> = [
   { id: 'term-map',      label: 'Term Map' },
-  { id: 'mds-plot',      label: 'MDS Plot' },
+  { id: 'mds-plot',      label: 'Model Map' },
   { id: 'cluster-tree',  label: 'Cluster Tree' },
   { id: 'free-lists',    label: 'Free Lists' },
   { id: 'similarity',    label: 'Similarity' },
