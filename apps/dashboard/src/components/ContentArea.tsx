@@ -15,7 +15,11 @@ import { ClusterTree } from './ClusterTree';
 import { Focus1SelfConsistencyOverview } from './Focus1SelfConsistencyOverview';
 import { Focus1RunDistribution } from './Focus1RunDistribution';
 import { Focus1TermStability } from './Focus1TermStability';
-import type { DomainResultPublished, PublishedModel } from '../data/types';
+import { Focus2FamilyOverview } from './Focus2FamilyOverview';
+import { Focus2FamilySimilarity } from './Focus2FamilySimilarity';
+import { Focus2FamilySalience } from './Focus2FamilySalience';
+import { Focus2FamilyPiles } from './Focus2FamilyPiles';
+import type { DomainResultPublished, PublishedModel, EllipseParams } from '../data/types';
 
 // Extended domain fields present in published JSON but not yet in DomainResultPublished type
 interface DomainExtended extends DomainResultPublished {
@@ -84,6 +88,9 @@ interface ContentAreaProps {
   /** Single-selected model for Focus 1 views */
   selectedModelId: string | null;
   onSelectModel: (id: string) => void;
+  /** Selected provider family for Focus 2 views */
+  selectedProvider?: string | null;
+  onSelectProvider?: (provider: string | null) => void;
   /** Co-occurrence matrices for the active domain (used by TermMap for browser-side MDS) */
   cooccurrenceData?: CooccurrenceData | null;
   /** When true, TermMap shows a cursor-following magnifying lens */
@@ -106,6 +113,8 @@ export function ContentArea({
   onFocusChange,
   selectedModelId,
   onSelectModel,
+  selectedProvider = null,
+  onSelectProvider,
   cooccurrenceData,
   lensEnabled,
   activeDomain,
@@ -122,6 +131,7 @@ export function ContentArea({
     : [];
 
   const isFocus1 = activeFocus === 'focus-1';
+  const isFocus2 = activeFocus === 'focus-2';
 
   // When a card is clicked in Focus 1 Self-Consistency, select model and
   // auto-navigate to Run Distribution so the user sees immediate results.
@@ -134,7 +144,7 @@ export function ContentArea({
     <div className="content-area">
       <FocusSelector active={activeFocus} onChange={onFocusChange} />
       <VizTabs active={activeVizTab} onChange={onVizTabChange} activeFocus={activeFocus} />
-      {!isFocus1 && <SelectionBar selected={selectedChips} onRemove={onRemoveModel} />}
+      {!isFocus1 && !isFocus2 && <SelectionBar selected={selectedChips} onRemove={onRemoveModel} />}
 
       <div className="chart-area">
         {loading && (
@@ -145,6 +155,62 @@ export function ContentArea({
         {error && (
           <div className="chart-lede">
             <strong>Error:</strong> {error}
+          </div>
+        )}
+
+        {/* ===== Focus 2 tabs ===== */}
+        {!loading && !error && isFocus2 && domain && (
+          <>
+            {activeVizTab === 'f2-overview' && (
+              <Focus2FamilyOverview
+                models={domain.models}
+                similarityMatrix={
+                  (domain as unknown as { similarity_matrix: number[][] }).similarity_matrix ?? []
+                }
+                similarityCi={
+                  (domain as unknown as { similarity_ci: Array<Array<[number, number] | null>> }).similarity_ci ?? []
+                }
+                onSelectProvider={(provider) => {
+                  onSelectProvider?.(provider);
+                  onVizTabChange('f2-similarity');
+                }}
+              />
+            )}
+            {activeVizTab === 'f2-similarity' && (
+              <Focus2FamilySimilarity
+                models={domain.models}
+                similarityMatrix={
+                  (domain as unknown as { similarity_matrix: number[][] }).similarity_matrix ?? []
+                }
+                mdsCoordinates={
+                  domain.mds_coordinates as unknown as Record<string, [number, number]>
+                }
+                mdsUncertainty={
+                  domain.mds_uncertainty as unknown as Record<string, EllipseParams | null>
+                }
+                selectedProvider={selectedProvider}
+              />
+            )}
+            {activeVizTab === 'f2-salience' && (
+              <Focus2FamilySalience
+                models={domain.models}
+                sutropCsi={domain.sutrop_csi as unknown as Record<string, SutropCsiEntry[]>}
+                selectedProvider={selectedProvider}
+              />
+            )}
+            {activeVizTab === 'f2-piles' && (
+              <Focus2FamilyPiles
+                models={domain.models}
+                centroidPiles={domain.centroid_piles}
+                selectedProvider={selectedProvider}
+              />
+            )}
+          </>
+        )}
+
+        {!loading && !error && isFocus2 && !domain && (
+          <div className="chart-wrap">
+            <div className="viz-placeholder">Select a domain to begin.</div>
           </div>
         )}
 
@@ -175,7 +241,7 @@ export function ContentArea({
         )}
 
         {/* ===== Focus 3 tabs ===== */}
-        {!loading && !error && !isFocus1 && domain && (
+        {!loading && !error && !isFocus1 && !isFocus2 && domain && (
           <>
             <p className="chart-lede" aria-live="polite">
               Across{' '}
@@ -288,7 +354,7 @@ export function ContentArea({
           </>
         )}
 
-        {!loading && !error && !isFocus1 && !domain && (
+        {!loading && !error && !isFocus1 && !isFocus2 && !domain && (
           <div className="chart-wrap">
             <div className="viz-placeholder">Select a domain to begin.</div>
           </div>
