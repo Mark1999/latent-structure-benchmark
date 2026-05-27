@@ -44,7 +44,7 @@ from cdb_analyze.cooccurrence import (
     compute_cross_model_term_frequency,
 )
 from cdb_analyze.gates import G1SplitResult, g1_stability_split
-from cdb_analyze.mds import compute_cross_model_similarity, run_item_mds
+from cdb_analyze.mds import compute_cross_model_similarity, run_item_mds, run_item_mds_with_stress
 from cdb_analyze.salience import compute_salience_agreement, sutrop_csi
 from cdb_analyze.sensitivity import (
     compute_between_model_salience_variance,
@@ -596,14 +596,16 @@ def run_pipeline(
     # mds_within_model: list = []; we populate it post-construction via
     # model_copy(update=...) to respect immutability.
     per_model_mds: dict[str, list[dict]] = {}
+    per_model_mds_stress: dict[str, float] = {}
     for mid in model_ids:
         mat = model_matrices[mid]
         if len(mat.items) >= 3:
-            item_coords = run_item_mds(mat)
+            item_coords, stress = run_item_mds_with_stress(mat)
             per_model_mds[mid] = [
                 {"item": item, "x": float(x), "y": float(y)}
                 for item, (x, y) in item_coords.items()
             ]
+            per_model_mds_stress[mid] = stress
         else:
             per_model_mds[mid] = []
     logger.info("Computed per-model term MDS for %d models", len(per_model_mds))
@@ -960,9 +962,15 @@ def run_pipeline(
     # updated objects via model_copy(update=...).
     within_model_results_final = []
     for wm in within_model_results:
+        updates: dict[str, object] = {}
         mds_data = per_model_mds.get(wm.model_id, [])
         if mds_data:
-            wm = wm.model_copy(update={"mds_within_model": mds_data})
+            updates["mds_within_model"] = mds_data
+        wm_stress = per_model_mds_stress.get(wm.model_id)
+        if wm_stress is not None:
+            updates["within_model_mds_stress"] = wm_stress
+        if updates:
+            wm = wm.model_copy(update=updates)
         within_model_results_final.append(wm)
 
     return DomainResult(

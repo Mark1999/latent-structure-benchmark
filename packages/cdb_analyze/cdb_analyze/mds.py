@@ -131,3 +131,32 @@ def run_item_mds(
         item: (float(coords[i, 0]), float(coords[i, 1]))
         for i, item in enumerate(matrix.items)
     }
+
+
+def run_item_mds_with_stress(
+    matrix: CooccurrenceMatrix,
+    *,
+    n_components: int = 2,
+    random_state: int = 42,
+) -> tuple[dict[str, tuple[float, float]], float]:
+    """Like run_item_mds but also returns the MDS stress value."""
+    sim = np.array(matrix.matrix, dtype=np.float64)
+    dissimilarity = 1.0 - sim
+    np.fill_diagonal(dissimilarity, 0.0)
+
+    mds = MDS(
+        n_components=n_components,
+        metric="precomputed",
+        init="random",
+        n_init=4,
+        random_state=random_state,
+        normalized_stress="auto",
+    )
+    coords: NDArray[np.float64] = mds.fit_transform(dissimilarity)
+    stress = float(mds.stress_)
+
+    item_coords = {
+        item: (float(coords[i, 0]), float(coords[i, 1]))
+        for i, item in enumerate(matrix.items)
+    }
+    return item_coords, stress
