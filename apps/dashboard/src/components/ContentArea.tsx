@@ -1,8 +1,9 @@
 /**
- * ContentArea — wraps viz tabs + selection bar + chart + timeline
+ * ContentArea — wraps focus selector + viz tabs + selection bar + chart + timeline
  */
 
-import { VizTabs, type ActiveVizTab } from './VizTabs';
+import { VizTabs, type ActiveVizTab, type ActiveFocus } from './VizTabs';
+import { FocusSelector } from './FocusSelector';
 import { SelectionBar } from './SelectionBar';
 import { TermMap, type CooccurrenceData, type ModelPileData } from './TermMap';
 import { MDSPlot } from './MDSPlot';
@@ -12,6 +13,9 @@ import { FreeListCompare, type SutropCsiEntry } from './FreeListCompare';
 import { PileStructure } from './PileStructure';
 import { ClusterTree } from './ClusterTree';
 import { Timeline } from './Timeline';
+import { Focus1SelfConsistencyOverview } from './Focus1SelfConsistencyOverview';
+import { Focus1RunDistribution } from './Focus1RunDistribution';
+import { Focus1TermStability } from './Focus1TermStability';
 import type { DomainResultPublished, PublishedModel } from '../data/types';
 
 // Extended domain fields present in published JSON but not yet in DomainResultPublished type
@@ -76,6 +80,11 @@ interface ContentAreaProps {
   onRemoveModel: (id: string) => void;
   activeVizTab: ActiveVizTab;
   onVizTabChange: (tab: ActiveVizTab) => void;
+  activeFocus: ActiveFocus;
+  onFocusChange: (focus: ActiveFocus) => void;
+  /** Single-selected model for Focus 1 views */
+  selectedModelId: string | null;
+  onSelectModel: (id: string) => void;
   activeProvider: string | null;
   pinnedProvider: string | null;
   onTogglePin: (provider: string) => void;
@@ -83,7 +92,11 @@ interface ContentAreaProps {
   cooccurrenceData?: CooccurrenceData | null;
   /** When true, TermMap shows a cursor-following magnifying lens */
   lensEnabled?: boolean;
+  /** Active domain slug — needed for Focus 1 data loading */
+  activeDomain: string;
 }
+
+export { PROVIDER_COLORS };
 
 export function ContentArea({
   domain,
@@ -93,11 +106,16 @@ export function ContentArea({
   onRemoveModel,
   activeVizTab,
   onVizTabChange,
+  activeFocus,
+  onFocusChange,
+  selectedModelId,
+  onSelectModel,
   activeProvider,
   pinnedProvider,
   onTogglePin,
   cooccurrenceData,
   lensEnabled,
+  activeDomain,
 }: ContentAreaProps) {
   // Build selection bar chips
   const selectedChips = domain
@@ -120,10 +138,13 @@ export function ContentArea({
     });
   }
 
+  const isFocus1 = activeFocus === 'focus-1';
+
   return (
     <div className="content-area">
-      <VizTabs active={activeVizTab} onChange={onVizTabChange} />
-      <SelectionBar selected={selectedChips} onRemove={onRemoveModel} />
+      <FocusSelector active={activeFocus} onChange={onFocusChange} />
+      <VizTabs active={activeVizTab} onChange={onVizTabChange} activeFocus={activeFocus} />
+      {!isFocus1 && <SelectionBar selected={selectedChips} onRemove={onRemoveModel} />}
 
       <div className="chart-area">
         {loading && (
@@ -136,7 +157,35 @@ export function ContentArea({
             <strong>Error:</strong> {error}
           </div>
         )}
-        {!loading && !error && domain && (
+
+        {/* ===== Focus 1 tabs ===== */}
+        {!loading && !error && isFocus1 && (
+          <>
+            {activeVizTab === 'f1-self-consistency' && (
+              <Focus1SelfConsistencyOverview
+                domainSlug={activeDomain}
+                models={domain?.models ?? []}
+                selectedModelId={selectedModelId}
+                onSelectModel={onSelectModel}
+              />
+            )}
+            {activeVizTab === 'f1-run-distribution' && (
+              <Focus1RunDistribution
+                domainSlug={activeDomain}
+                selectedModelId={selectedModelId}
+              />
+            )}
+            {activeVizTab === 'f1-term-stability' && (
+              <Focus1TermStability
+                domainSlug={activeDomain}
+                selectedModelId={selectedModelId}
+              />
+            )}
+          </>
+        )}
+
+        {/* ===== Focus 3 tabs ===== */}
+        {!loading && !error && !isFocus1 && domain && (
           <>
             <p className="chart-lede" aria-live="polite">
               Across{' '}
@@ -248,7 +297,8 @@ export function ContentArea({
             )}
           </>
         )}
-        {!loading && !error && !domain && (
+
+        {!loading && !error && !isFocus1 && !domain && (
           <div className="chart-wrap">
             <div className="viz-placeholder">Select a domain to begin.</div>
           </div>

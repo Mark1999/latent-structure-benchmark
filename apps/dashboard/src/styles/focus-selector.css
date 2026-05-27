@@ -1,0 +1,62 @@
+/*
+ * Focus selector bar — pill toggle between Focus 3 (Cross-Model) and Focus 1 (Individual)
+ * DESIGN_SYSTEM.md §13.1
+ */
+
+.focus-selector {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: 5px 20px;
+  background: var(--color-background);
+  border-bottom: var(--border-width) solid var(--color-border);
+  flex-shrink: 0;
+}
+
+.focus-selector__label {
+  font-size: 10px;
+  font-weight: var(--font-weight-bold);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--color-text-secondary);
+  margin-right: var(--space-1);
+}
+
+.focus-selector__pill {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 28px;
+  padding: 4px var(--space-3);
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  border-radius: var(--border-radius-md);
+  cursor: pointer;
+  transition: background 0.15s, color 0.15s, border-color 0.15s;
+  white-space: nowrap;
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-surface);
+  color: var(--color-text-primary);
+  outline: none;
+}
+
+.focus-selector__pill:hover {
+  background: var(--color-surface-hover);
+}
+
+.focus-selector__pill:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+.focus-selector__pill--active {
+  background: var(--color-info);
+  color: var(--color-background);
+  border-color: var(--color-info);
+}
+
+.focus-selector__pill--active:hover {
+  background: var(--color-info);
+  opacity: 0.92;
+}

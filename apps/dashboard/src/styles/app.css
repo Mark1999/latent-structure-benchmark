@@ -4,6 +4,8 @@
  */
 
 @import './tokens.css';
+@import './focus-selector.css';
+@import './focus1.css';
 
 /* ===== Reset ===== */
 *, *::before, *::after {

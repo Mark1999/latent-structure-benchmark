@@ -1,5 +1,9 @@
 /**
- * VizTabs — horizontal tab bar for visualization types
+ * VizTabs — horizontal tab bar for visualization types.
+ *
+ * Renders Focus 3 (cross-model) tabs when activeFocus === 'focus-3',
+ * or Focus 1 (individual model) tabs when activeFocus === 'focus-1'.
+ * DESIGN_SYSTEM.md §13.9
  */
 
 export type ActiveVizTab =
@@ -9,27 +13,41 @@ export type ActiveVizTab =
   | 'free-lists'
   | 'similarity'
   | 'centrality'
-  | 'pile-structure';
+  | 'pile-structure'
+  | 'f1-self-consistency'
+  | 'f1-run-distribution'
+  | 'f1-term-stability';
 
-const TABS: Array<{ id: ActiveVizTab; label: string }> = [
-  { id: 'term-map',      label: 'Term Map' },
-  { id: 'mds-plot',      label: 'Model Map' },
-  { id: 'cluster-tree',  label: 'Cluster Tree' },
-  { id: 'free-lists',    label: 'Free Lists' },
-  { id: 'similarity',    label: 'Similarity' },
-  { id: 'centrality',    label: 'Centrality' },
+export type ActiveFocus = 'focus-3' | 'focus-1';
+
+const FOCUS3_TABS: Array<{ id: ActiveVizTab; label: string }> = [
+  { id: 'term-map',       label: 'Term Map' },
+  { id: 'mds-plot',       label: 'Model Map' },
+  { id: 'cluster-tree',   label: 'Cluster Tree' },
+  { id: 'free-lists',     label: 'Free Lists' },
+  { id: 'similarity',     label: 'Similarity' },
+  { id: 'centrality',     label: 'Centrality' },
   { id: 'pile-structure', label: 'Pile Structure' },
+];
+
+const FOCUS1_TABS: Array<{ id: ActiveVizTab; label: string }> = [
+  { id: 'f1-self-consistency', label: 'Self-Consistency' },
+  { id: 'f1-run-distribution', label: 'Run Distribution' },
+  { id: 'f1-term-stability',   label: 'Term Stability' },
 ];
 
 interface VizTabsProps {
   active: ActiveVizTab;
   onChange: (tab: ActiveVizTab) => void;
+  activeFocus: ActiveFocus;
 }
 
-export function VizTabs({ active, onChange }: VizTabsProps) {
+export function VizTabs({ active, onChange, activeFocus }: VizTabsProps) {
+  const tabs = activeFocus === 'focus-1' ? FOCUS1_TABS : FOCUS3_TABS;
+
   return (
     <div className="viz-tabs" role="tablist" aria-label="Visualization type">
-      {TABS.map((tab) => (
+      {tabs.map((tab) => (
         <button
           key={tab.id}
           role="tab"

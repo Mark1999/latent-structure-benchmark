@@ -1,0 +1,386 @@
+/*
+ * Focus 1 — Individual Model Consistency component styles.
+ * DESIGN_SYSTEM.md §13
+ * All values use existing tokens from tokens.css — no new tokens.
+ */
+
+/* ===== Shared Focus 1 layout ===== */
+
+.f1-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+  padding: var(--space-4) 0;
+}
+
+.f1-desc {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  max-width: var(--max-prose-width);
+  line-height: var(--line-height-body);
+  margin-bottom: var(--space-2);
+}
+
+/* ===== Self-Consistency Overview ===== */
+
+.f1-overview {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+  max-width: 720px;
+}
+
+/* Model card */
+.f1-model-card {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-4);
+  cursor: pointer;
+  outline: none;
+  transition: border-color 0.15s, box-shadow 0.15s;
+  text-align: left;
+  width: 100%;
+}
+
+.f1-model-card:hover {
+  border-color: var(--color-text-secondary);
+  box-shadow: var(--shadow-sm);
+}
+
+.f1-model-card:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+.f1-model-card--selected {
+  border-color: var(--color-info);
+  box-shadow: var(--shadow-sm);
+}
+
+.f1-model-card__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.f1-model-card__rank {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+  width: 18px;
+  flex-shrink: 0;
+  text-align: right;
+}
+
+.f1-model-card__dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+.f1-model-card__name {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Concentration tier badge */
+.f1-tier-badge {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 2px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.f1-tier-badge--concentrated {
+  color: var(--color-text-primary);
+  border: 1px solid var(--color-border);
+  background: transparent;
+}
+
+.f1-tier-badge--moderate {
+  color: var(--color-text-caption);
+  border: 1px solid var(--color-border);
+  background: transparent;
+}
+
+.f1-tier-badge--diffuse {
+  color: var(--color-text-caption);
+  border: 1px dashed var(--color-border);
+  background: transparent;
+}
+
+/* OCI row */
+.f1-model-card__oci-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding-left: 36px; /* align with name */
+}
+
+.f1-model-card__oci-label {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  white-space: nowrap;
+}
+
+.f1-model-card__oci-value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+
+.f1-model-card__oci-ci {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-caption);
+}
+
+/* Info button */
+.f1-info-btn {
+  background: none;
+  border: none;
+  padding: 0 var(--space-1);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  line-height: 1;
+  vertical-align: middle;
+}
+
+.f1-info-btn:hover {
+  color: var(--color-info);
+}
+
+/* Stats row */
+.f1-model-card__stats {
+  display: flex;
+  gap: var(--space-6);
+  padding-left: 36px;
+}
+
+.f1-stat {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.f1-stat__label {
+  font-size: 10px;
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.f1-stat__value {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
+/* Bootstrap caveat popover */
+.f1-popover {
+  position: relative;
+  display: inline-block;
+}
+
+.f1-popover__content {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--color-tooltip-dark-bg);
+  color: var(--color-tooltip-dark-text);
+  font-size: var(--font-size-xs);
+  line-height: var(--line-height-body);
+  padding: var(--space-3) var(--space-4);
+  border-radius: var(--border-radius-sm);
+  box-shadow: var(--shadow-md);
+  max-width: 320px;
+  width: max-content;
+  z-index: 20;
+  white-space: normal;
+}
+
+/* ===== Run Distribution ===== */
+
+.f1-run-layout {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-6);
+}
+
+.f1-section-heading {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-2);
+}
+
+.f1-heatmap-wrap {
+  overflow-x: auto;
+  max-width: 100%;
+}
+
+.f1-mds-wrap {
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-md);
+  padding: var(--space-4);
+  max-width: 480px;
+}
+
+.f1-mds-footnote {
+  font-size: 10px;
+  color: var(--color-text-caption);
+  margin-top: var(--space-2);
+}
+
+.f1-suppressed-msg {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  font-style: italic;
+  padding: var(--space-4) 0;
+}
+
+/* ===== Term Stability ===== */
+
+.f1-term-layout {
+  display: flex;
+  flex-direction: row;
+  gap: var(--space-8);
+  align-items: flex-start;
+  flex-wrap: wrap;
+}
+
+.f1-stability-list {
+  flex: 0 0 280px;
+  min-width: 200px;
+}
+
+.f1-stability-list__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-3);
+}
+
+.f1-term-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  max-height: 480px;
+  overflow-y: auto;
+}
+
+.f1-term-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 4px var(--space-2);
+  border-radius: var(--border-radius-sm);
+}
+
+/* Term stability tiers — dashed border (§13.8) */
+.f1-term-item--stable {
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+.f1-term-item--medium {
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-caption);
+}
+
+.f1-term-item--low {
+  border: 1px dashed var(--color-text-secondary);
+  color: var(--color-text-caption);
+}
+
+.f1-term-item__name {
+  font-size: var(--font-size-xs);
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.f1-term-item__runs {
+  font-family: var(--font-mono);
+  font-size: 10px;
+  color: var(--color-text-caption);
+  white-space: nowrap;
+  flex-shrink: 0;
+  margin-left: var(--space-2);
+}
+
+/* Stability legend */
+.f1-stability-legend {
+  display: flex;
+  gap: var(--space-4);
+  margin-top: var(--space-3);
+  flex-wrap: wrap;
+}
+
+.f1-stability-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+  font-size: 10px;
+  color: var(--color-text-caption);
+}
+
+.f1-stability-legend__swatch {
+  width: 20px;
+  height: 12px;
+  border-radius: 2px;
+}
+
+/* ===== Within-model term MDS ===== */
+
+.f1-within-mds {
+  flex: 1;
+  min-width: 280px;
+  max-width: 480px;
+}
+
+.f1-within-mds__svg {
+  display: block;
+  width: 100%;
+}
+
+/* ===== Empty / no-selection states ===== */
+
+.f1-empty {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: var(--space-10) var(--space-4);
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-style: italic;
+  text-align: center;
+}
+
+.f1-loading {
+  display: flex;
+  align-items: center;
+  padding: var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-muted);
+}

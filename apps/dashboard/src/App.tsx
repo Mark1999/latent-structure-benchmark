@@ -11,6 +11,7 @@ import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
 import type { PublishedModel } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
+import type { ActiveVizTab, ActiveFocus } from './components/VizTabs';
 
 // Extended type for fields present in published JSON beyond base DomainResultPublished
 interface DomainExtended {
@@ -36,7 +37,6 @@ interface DomainExtended {
   term_cluster_assignments?: Record<string, number>;
   term_cluster_labels?: string[];
 }
-import type { ActiveVizTab } from './components/VizTabs';
 
 type NavTab = 'explore' | 'methodology' | 'data';
 type DomainSlug = 'family' | 'holidays' | 'food';
@@ -67,9 +67,59 @@ export default function App() {
   const [openWeightsOnly, setOpenWeightsOnly] = useState(false);
   const [pinnedProvider, setPinnedProvider] = useState<string | null>(null);
   const [activeProvider, setActiveProvider] = useState<string | null>(null);
-  const [activeVizTab, setActiveVizTab] = useState<ActiveVizTab>('term-map');
   const [cooccurrenceData, setCooccurrenceData] = useState<CooccurrenceData | null>(null);
   const [lensEnabled, setLensEnabled] = useState(false);
+
+  // Focus-level state (§13.1)
+  const [activeFocus, setActiveFocus] = useState<ActiveFocus>('focus-3');
+
+  // Active viz tab — tracks separate tabs for each focus level
+  const [focus3VizTab, setFocus3VizTab] = useState<ActiveVizTab>('term-map');
+  const [focus1VizTab, setFocus1VizTab] = useState<ActiveVizTab>('f1-self-consistency');
+
+  // Single-select model for Focus 1 (§13.2)
+  const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
+
+  // Derived active viz tab from focus
+  const activeVizTab: ActiveVizTab = activeFocus === 'focus-1' ? focus1VizTab : focus3VizTab;
+
+  const handleVizTabChange = useCallback((tab: ActiveVizTab) => {
+    if (activeFocus === 'focus-1') {
+      setFocus1VizTab(tab);
+    } else {
+      setFocus3VizTab(tab);
+    }
+  }, [activeFocus]);
+
+  const handleFocusChange = useCallback((focus: ActiveFocus) => {
+    setActiveFocus(focus);
+    if (focus === 'focus-1') {
+      // Auto-set Focus 1 tab to self-consistency
+      setFocus1VizTab('f1-self-consistency');
+      // Auto-select first model lexicographically if none selected
+      setSelectedModelId((prev) => {
+        if (prev) return prev;
+        if (domain && domain.models.length > 0) {
+          const sorted = [...domain.models].sort((a, b) =>
+            a.model_id.localeCompare(b.model_id)
+          );
+          return sorted[0].model_id;
+        }
+        return null;
+      });
+    }
+    // When returning to Focus 3, the focus3VizTab already holds the last state
+  }, [domain]);
+
+  // When domain loads and Focus 1 is active, ensure a model is selected
+  useEffect(() => {
+    if (activeFocus === 'focus-1' && domain && domain.models.length > 0 && !selectedModelId) {
+      const sorted = [...domain.models].sort((a, b) =>
+        a.model_id.localeCompare(b.model_id)
+      );
+      setSelectedModelId(sorted[0].model_id);
+    }
+  }, [domain, activeFocus, selectedModelId]);
 
   // Fetch domain data and co-occurrence matrices on domain change
   useEffect(() => {
@@ -96,6 +146,14 @@ export default function App() {
         setSelectedModelIds(new Set(data.models.map((m) => m.model_id)));
         if (data.models.length > 0) {
           setActiveProvider(displayProvider(data.models[0]));
+        }
+
+        // Auto-select first model lexicographically for Focus 1
+        if (data.models.length > 0) {
+          const sorted = [...data.models].sort((a, b) =>
+            a.model_id.localeCompare(b.model_id)
+          );
+          setSelectedModelId(sorted[0].model_id);
         }
 
         // Load co-occurrence data if available
@@ -212,12 +270,17 @@ export default function App() {
           selectedModelIds={selectedModelIds}
           onRemoveModel={handleRemoveModel}
           activeVizTab={activeVizTab}
-          onVizTabChange={setActiveVizTab}
+          onVizTabChange={handleVizTabChange}
+          activeFocus={activeFocus}
+          onFocusChange={handleFocusChange}
+          selectedModelId={selectedModelId}
+          onSelectModel={setSelectedModelId}
           activeProvider={activeProvider}
           pinnedProvider={pinnedProvider}
           onTogglePin={handleTogglePin}
           cooccurrenceData={cooccurrenceData}
           lensEnabled={lensEnabled}
+          activeDomain={activeDomain}
         />
       </div>
     </>
