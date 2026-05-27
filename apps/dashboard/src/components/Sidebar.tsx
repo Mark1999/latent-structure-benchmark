@@ -1,9 +1,12 @@
 /**
- * Sidebar — domain dropdown + ProviderTree + filters
+ * Sidebar — domain dropdown + ProviderTree + filters.
+ * In Focus 1, the model-selection section is hidden (model selection
+ * happens via the ranked card list inside Focus1SelfConsistencyOverview).
  */
 
 import { ProviderTree } from './ProviderTree';
 import type { PublishedModel } from '../data/types';
+import type { ActiveFocus } from './VizTabs';
 
 type DomainSlug = 'family' | 'holidays' | 'food';
 
@@ -28,6 +31,8 @@ interface SidebarProps {
   onOpenWeightsToggle: () => void;
   lensEnabled: boolean;
   onLensToggle: () => void;
+  /** Current focus level — used to hide model selection in Focus 1 */
+  activeFocus?: ActiveFocus;
 }
 
 export function Sidebar({
@@ -45,7 +50,10 @@ export function Sidebar({
   onOpenWeightsToggle,
   lensEnabled,
   onLensToggle,
+  activeFocus,
 }: SidebarProps) {
+  const isFocus1 = activeFocus === 'focus-1';
+
   return (
     <aside className="sidebar" role="complementary" aria-label="Domain and model selection">
       {/* Domain section */}
@@ -70,68 +78,79 @@ export function Sidebar({
         </select>
       </div>
 
-      {/* Providers & Models section */}
-      <div className="sidebar__models">
-        <div className="sidebar__models-header">
-          <span>Providers &amp; Models</span>
-          <span className="sidebar__models-count">
-            {selected.size} of {models.length}
-          </span>
+      {/* Providers & Models section — hidden in Focus 1 (model is selected via ranked card list) */}
+      {!isFocus1 && (
+        <div className="sidebar__models">
+          <div className="sidebar__models-header">
+            <span>Providers &amp; Models</span>
+            <span className="sidebar__models-count">
+              {selected.size} of {models.length}
+            </span>
+          </div>
+          <div className="sidebar__actions">
+            <button className="sidebar__action-btn" onClick={onSelectAll}>
+              Select all
+            </button>
+            <button className="sidebar__action-btn" onClick={onSelectNone}>
+              Clear
+            </button>
+          </div>
+          <ProviderTree
+            models={models}
+            selected={selected}
+            onToggleModel={onToggleModel}
+            onToggleProvider={onToggleProvider}
+            pinnedProvider={pinnedProvider}
+            onTogglePin={onTogglePin}
+            openWeightsOnly={openWeightsOnly}
+          />
         </div>
-        <div className="sidebar__actions">
-          <button className="sidebar__action-btn" onClick={onSelectAll}>
-            Select all
-          </button>
-          <button className="sidebar__action-btn" onClick={onSelectNone}>
-            Clear
-          </button>
-        </div>
-        <ProviderTree
-          models={models}
-          selected={selected}
-          onToggleModel={onToggleModel}
-          onToggleProvider={onToggleProvider}
-          pinnedProvider={pinnedProvider}
-          onTogglePin={onTogglePin}
-          openWeightsOnly={openWeightsOnly}
-        />
-      </div>
+      )}
 
       <div className="sidebar__divider" aria-hidden="true" />
 
-      {/* Filters section */}
+      {/* Filters section — only show lens toggle in non-Focus-1 (lens applies to Term Map) */}
       <div className="sidebar__filters">
         <div className="sidebar__models-header">
           <span>Filters</span>
         </div>
-        <div className="toggle-row">
-          <span className="toggle-label" id="open-weights-label">
-            Open weights only
-          </span>
-          <button
-            className={`toggle${openWeightsOnly ? ' toggle--on' : ''}`}
-            onClick={onOpenWeightsToggle}
-            role="switch"
-            aria-checked={openWeightsOnly}
-            aria-labelledby="open-weights-label"
-          >
-            <span className="toggle__thumb" />
-          </button>
-        </div>
-        <div className="toggle-row">
-          <span className="toggle-label" id="lens-label">
-            Magnifying lens
-          </span>
-          <button
-            className={`toggle${lensEnabled ? ' toggle--on' : ''}`}
-            onClick={onLensToggle}
-            role="switch"
-            aria-checked={lensEnabled}
-            aria-labelledby="lens-label"
-          >
-            <span className="toggle__thumb" />
-          </button>
-        </div>
+        {!isFocus1 && (
+          <>
+            <div className="toggle-row">
+              <span className="toggle-label" id="open-weights-label">
+                Open weights only
+              </span>
+              <button
+                className={`toggle${openWeightsOnly ? ' toggle--on' : ''}`}
+                onClick={onOpenWeightsToggle}
+                role="switch"
+                aria-checked={openWeightsOnly}
+                aria-labelledby="open-weights-label"
+              >
+                <span className="toggle__thumb" />
+              </button>
+            </div>
+            <div className="toggle-row">
+              <span className="toggle-label" id="lens-label">
+                Magnifying lens
+              </span>
+              <button
+                className={`toggle${lensEnabled ? ' toggle--on' : ''}`}
+                onClick={onLensToggle}
+                role="switch"
+                aria-checked={lensEnabled}
+                aria-labelledby="lens-label"
+              >
+                <span className="toggle__thumb" />
+              </button>
+            </div>
+          </>
+        )}
+        {isFocus1 && (
+          <p className="sidebar__focus1-hint">
+            Select a model from the ranked list to explore its runs.
+          </p>
+        )}
       </div>
     </aside>
   );

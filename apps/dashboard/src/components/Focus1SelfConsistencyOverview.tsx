@@ -80,6 +80,7 @@ export function Focus1SelfConsistencyOverview({
   return (
     <div className="f1-container">
       <p className="f1-desc">{selfConsistencyDescription(domainSlug)}</p>
+      <p className="f1-hint">Click a model card to view its run distribution.</p>
 
       <div className="f1-overview" role="list" aria-label="Models ranked by output concentration">
         {ranked.map((modelData, idx) => {
@@ -104,7 +105,7 @@ export function Focus1SelfConsistencyOverview({
                 }
               }}
             >
-              {/* Header row: rank · dot · name · tier badge */}
+              {/* Header row: rank · dot · name · tier badge · selected indicator */}
               <div className="f1-model-card__header">
                 <span className="f1-model-card__rank">{idx + 1}</span>
                 <span
@@ -121,6 +122,11 @@ export function Focus1SelfConsistencyOverview({
                 >
                   {tier}
                 </span>
+                {isSelected && (
+                  <span className="f1-model-card__selected-indicator" aria-hidden="true">
+                    viewing
+                  </span>
+                )}
               </div>
 
               {/* OCI value row */}
@@ -136,7 +142,7 @@ export function Focus1SelfConsistencyOverview({
                   </span>
                 ) : (
                   <span className="f1-model-card__oci-ci">
-                    (N = {modelData.n_runs} runs; CI unavailable)
+                    (N = {modelData.n_runs} runs)
                   </span>
                 )}
                 {/* Info button for bootstrap caveat (§13.5) */}

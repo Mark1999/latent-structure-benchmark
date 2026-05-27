@@ -173,8 +173,14 @@ interface Focus1RunDistributionProps {
   selectedModelId: string | null;
 }
 
-function shortRunId(runId: string): string {
-  return runId.slice(0, 6);
+function shortModelName(modelId: string): string {
+  return modelId
+    .replace(/^claude-/, '')
+    .replace(/^gpt-/, 'gpt-')
+    .replace(/^gemini-/, 'gemini-')
+    .replace(/^meta-llama\//, '')
+    .replace(/^mistralai\//, '')
+    .split('/').pop() || modelId;
 }
 
 export function Focus1RunDistribution({
@@ -222,6 +228,7 @@ export function Focus1RunDistribution({
 
   return (
     <div className="f1-container">
+      <h3 className="f1-model-heading">{shortModelName(selectedModelId)}</h3>
       <p className="f1-desc">{RUN_DISTRIBUTION_DESCRIPTION}</p>
 
       <div className="f1-run-layout">
@@ -252,7 +259,7 @@ export function Focus1RunDistribution({
                       className="similarity-heatmap__col-header"
                       fontSize={Math.min(9, CELL_SIZE - 2)}
                     >
-                      {shortRunId(rid)}
+                      {`Run ${ci + 1}`}
                     </text>
                   );
                 })}
@@ -270,7 +277,7 @@ export function Focus1RunDistribution({
                         className="similarity-heatmap__row-label"
                         fontSize={Math.min(9, CELL_SIZE - 2)}
                       >
-                        {shortRunId(rowRid)}
+                        {`Run ${ri + 1}`}
                       </text>
                       {runIds.map((colRid, ci) => {
                         const sim = mat[ri]?.[ci] ?? 0;
@@ -287,7 +294,7 @@ export function Focus1RunDistribution({
                               fill={cellColor}
                               stroke="var(--color-border)"
                               strokeWidth={0.5}
-                              aria-label={`Run ${shortRunId(rowRid)} vs ${shortRunId(colRid)}: ${sim.toFixed(2)}`}
+                              aria-label={`Run ${ri + 1} vs Run ${ci + 1}: ${sim.toFixed(2)}`}
                             />
                             {CELL_SIZE >= 18 && (
                               <text

@@ -1,5 +1,5 @@
 /**
- * ContentArea — wraps focus selector + viz tabs + selection bar + chart + timeline
+ * ContentArea — wraps focus selector + viz tabs + selection bar + chart
  */
 
 import { VizTabs, type ActiveVizTab, type ActiveFocus } from './VizTabs';
@@ -12,7 +12,6 @@ import { SimilarityHeatmap } from './SimilarityHeatmap';
 import { FreeListCompare, type SutropCsiEntry } from './FreeListCompare';
 import { PileStructure } from './PileStructure';
 import { ClusterTree } from './ClusterTree';
-import { Timeline } from './Timeline';
 import { Focus1SelfConsistencyOverview } from './Focus1SelfConsistencyOverview';
 import { Focus1RunDistribution } from './Focus1RunDistribution';
 import { Focus1TermStability } from './Focus1TermStability';
@@ -85,9 +84,6 @@ interface ContentAreaProps {
   /** Single-selected model for Focus 1 views */
   selectedModelId: string | null;
   onSelectModel: (id: string) => void;
-  activeProvider: string | null;
-  pinnedProvider: string | null;
-  onTogglePin: (provider: string) => void;
   /** Co-occurrence matrices for the active domain (used by TermMap for browser-side MDS) */
   cooccurrenceData?: CooccurrenceData | null;
   /** When true, TermMap shows a cursor-following magnifying lens */
@@ -110,9 +106,6 @@ export function ContentArea({
   onFocusChange,
   selectedModelId,
   onSelectModel,
-  activeProvider,
-  pinnedProvider,
-  onTogglePin,
   cooccurrenceData,
   lensEnabled,
   activeDomain,
@@ -128,17 +121,14 @@ export function ContentArea({
         }))
     : [];
 
-  // Build provider models map for timeline
-  const providerModels: Record<string, Array<{ model_id: string; release_date: string }>> = {};
-  if (domain) {
-    domain.models.forEach((m) => {
-      const pid = displayProvider(m);
-      if (!providerModels[pid]) providerModels[pid] = [];
-      providerModels[pid].push({ model_id: m.model_id, release_date: m.release_date });
-    });
-  }
-
   const isFocus1 = activeFocus === 'focus-1';
+
+  // When a card is clicked in Focus 1 Self-Consistency, select model and
+  // auto-navigate to Run Distribution so the user sees immediate results.
+  function handleSelectModelAndNavigate(id: string) {
+    onSelectModel(id);
+    onVizTabChange('f1-run-distribution');
+  }
 
   return (
     <div className="content-area">
@@ -166,7 +156,7 @@ export function ContentArea({
                 domainSlug={activeDomain}
                 models={domain?.models ?? []}
                 selectedModelId={selectedModelId}
-                onSelectModel={onSelectModel}
+                onSelectModel={handleSelectModelAndNavigate}
               />
             )}
             {activeVizTab === 'f1-run-distribution' && (
@@ -305,12 +295,6 @@ export function ContentArea({
         )}
       </div>
 
-      <Timeline
-        activeProvider={activeProvider}
-        providerModels={providerModels}
-        pinnedProvider={pinnedProvider}
-        onTogglePin={onTogglePin}
-      />
     </div>
   );
 }

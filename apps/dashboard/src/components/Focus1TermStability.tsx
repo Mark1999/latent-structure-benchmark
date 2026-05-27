@@ -15,6 +15,16 @@ import {
 } from '../copy/focus1';
 import type { WithinModelMdsItem } from '../data/types';
 
+function shortModelName(modelId: string): string {
+  return modelId
+    .replace(/^claude-/, '')
+    .replace(/^gpt-/, 'gpt-')
+    .replace(/^gemini-/, 'gemini-')
+    .replace(/^meta-llama\//, '')
+    .replace(/^mistralai\//, '')
+    .split('/').pop() || modelId;
+}
+
 interface Focus1TermStabilityProps {
   domainSlug: string;
   selectedModelId: string | null;
@@ -62,6 +72,7 @@ export function Focus1TermStability({
 
   return (
     <div className="f1-container">
+      <h3 className="f1-model-heading">{shortModelName(selectedModelId)}</h3>
       <p className="f1-desc">{TERM_STABILITY_DESCRIPTION}</p>
 
       <div className="f1-term-layout">
@@ -80,14 +91,14 @@ export function Focus1TermStability({
                 <li
                   key={term}
                   className={`f1-term-item ${tierClass}`}
-                  title={`${term}: appears in ${runsCount}/${n_runs} runs (${(stability * 100).toFixed(0)}%)`}
+                  title={`${term}: stable in ${runsCount} of ${n_runs} runs (${(stability * 100).toFixed(0)}%)`}
                 >
                   <span className="f1-term-item__name">{term}</span>
                   <span
                     className="f1-term-item__runs"
-                    aria-label={`appears in ${runsCount} of ${n_runs} runs`}
+                    aria-label={`stable in ${runsCount} of ${n_runs} runs`}
                   >
-                    {runsCount}/{n_runs}
+                    {runsCount} of {n_runs} runs
                   </span>
                 </li>
               );

@@ -66,7 +66,6 @@ export default function App() {
   const [selectedModelIds, setSelectedModelIds] = useState<Set<string>>(new Set());
   const [openWeightsOnly, setOpenWeightsOnly] = useState(false);
   const [pinnedProvider, setPinnedProvider] = useState<string | null>(null);
-  const [activeProvider, setActiveProvider] = useState<string | null>(null);
   const [cooccurrenceData, setCooccurrenceData] = useState<CooccurrenceData | null>(null);
   const [lensEnabled, setLensEnabled] = useState(false);
 
@@ -135,9 +134,6 @@ export default function App() {
 
         setDomain(data);
         setSelectedModelIds(new Set(data.models.map((m) => m.model_id)));
-        if (data.models.length > 0) {
-          setActiveProvider(displayProvider(data.models[0]));
-        }
 
         // Auto-select first model lexicographically for Focus 1
         if (data.models.length > 0) {
@@ -189,7 +185,6 @@ export default function App() {
       });
       return next;
     });
-    setActiveProvider(pid);
   }, [domain, selectedModelIds]);
 
   const handleSelectAll = useCallback(() => {
@@ -253,6 +248,7 @@ export default function App() {
           onOpenWeightsToggle={() => setOpenWeightsOnly((v) => !v)}
           lensEnabled={lensEnabled}
           onLensToggle={() => setLensEnabled((v) => !v)}
+          activeFocus={activeFocus}
         />
         <ContentArea
           domain={domain}
@@ -266,9 +262,6 @@ export default function App() {
           onFocusChange={handleFocusChange}
           selectedModelId={selectedModelId}
           onSelectModel={setSelectedModelId}
-          activeProvider={activeProvider}
-          pinnedProvider={pinnedProvider}
-          onTogglePin={handleTogglePin}
           cooccurrenceData={cooccurrenceData}
           lensEnabled={lensEnabled}
           activeDomain={activeDomain}
