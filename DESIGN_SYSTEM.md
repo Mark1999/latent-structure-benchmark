@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.6.0  
+**Version:** v0.7.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.7.0** (F2-T1–T7 UI/UX gate, 2026-05-27) adds §14 (Focus 2 — Within-Provider Family Comparison visual decisions). Three-pill focus selector (§14.1), family sidebar single-select (§14.2), family overview cards with pairwise/mean labeling per CDA SME notes (§14.3), mini heatmap (§14.4), MDS ring highlight (§14.5), salience/pile reuse (§14.6), focus ordering rule (§14.7), model color retention (§14.8), Focus 2 tab IDs (§14.9), description paragraphs (§14.10), cite path (§14.11), single-family state (§14.12), forbidden vocabulary (§14.13). No new tokens.
 - **v0.6.0** (F1-T5 through F1-T9 UI/UX gate, 2026-05-27) adds §13 (Focus 1 — Individual Model Consistency visual decisions). Introduces: focus-level selector navigation (§13.1), single-select sidebar mode for Focus 1 (§13.2), ranked-list Self-Consistency Overview layout (§13.3), concentration tier badge vocabulary and color treatment (§13.4, no semantic color — border intensity only), OCI display with CI fallback and underestimation caveat affordance (§13.5), run agreement heatmap color scale assignment (§13.6, reuses existing sequential scale), run MDS specification with CDA SME S3 suppression rule and non-color centroid discriminator (§13.7), term stability dashed-border tier treatment (§13.8, mirrors §12.10), Focus 1 ActiveVizTab extensions (§13.9), journalist description paragraph copy (§13.10), and cite-path SourceAttribution/CSV requirements (§13.11). Two new constants added to `apps/dashboard/src/config/analysis.ts`: `OCI_CONCENTRATED_THRESHOLD`, `OCI_MODERATE_THRESHOLD`. No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-27-F1-T5toT9-uiux-verdict.md`).
 - **v0.5.2** (Phase 9a T6+T7, 2026-05-24) adds `TermMDSPlot.tsx`, `TermMDSTable.tsx`, `term-mds-plot.css`, `Dendrogram.tsx`, `DendrogramTable.tsx`, `dendrogram.css` to §11 Component Inventory. Introduces cluster color palette tokens (`--color-cluster-1` through `--color-cluster-8`) in §1.2. Extends `ActiveVizTab` to include `"term-mds"` and `"cluster-tree"`. VizSwitcher tab count: 6 → 8 (Term Map at index 1, Cluster Tree at index 2). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md`).
 - **v0.5.1** (Phase 9a T9, 2026-05-24) adds `PileComparison.tsx`, `PileComparisonTable.tsx`, and `pile-comparison.css` to §11 Component Inventory. Adds §12.10 PileComparison visual specification. Extends `ActiveVizTab` to include `"piles"` and `PermalinkState.vizTab` to include `"piles"`. VizSwitcher tab count: 5 → 6 (Pile Structure inserted at index 4). No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md`).
@@ -2029,6 +2030,83 @@ Focus 1 source line: "Individual consistency data: {domain}-focus1.json · Analy
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.6.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 14. Focus 2 — Within-Provider Family Comparison visual decisions (v0.7.0 — F2-T1–T7, 2026-05-27)
+
+### 14.1 Focus selector — three pills
+
+Order: `[Focus 3: Cross-model] [Focus 2: Within-family] [Focus 1: Individual model]` — broadest to narrowest. Same pill styling as §13.1. Focus 2 label: "Focus 2: Within-family".
+
+### 14.2 Sidebar in Focus 2
+
+Shows a provider family list. Multi-model families (2+): clickable rows with model count badge and provider color dot. Single-model families: grayed, non-clickable, "(1 model)" note. Click a family to enter provider-detail mode (sidebar shows selected family name + its models listed, non-interactive). "Back to all families" link above. Hide per-model checkboxes and filters (same pattern as §13.2 Focus 1 guard).
+
+### 14.3 Family Overview cards — pairwise labeling (CDA SME binding)
+
+Ranked vertical list by within-family similarity descending. Card anatomy:
+- Provider name + color dot + model count
+- Similarity display (varies by family size per CDA SME notes 1-3):
+  - N=1: No similarity shown. Note: "Single-model provider — no within-family comparison available."
+  - N=2: "Pairwise similarity (1 pair): X.XX (95% CI [X.XX, X.XX])"
+  - N=3: "Mean pairwise similarity (3 pairs): X.XX" with individual pairs listed as sub-rows
+- Individual pairwise scores visible by default (CDA SME note 7), not collapsed
+- Click navigates to Similarity tab for that family
+- Card styling: same as §13.3 (surface background, border, keyboard-focusable)
+
+### 14.4 Mini heatmap
+
+Reuses `SimilarityHeatmap.tsx` unchanged for 2×2 or 3×3 within-family slice. Same color scale (§12.8), same text contrast rules. No new component needed — pass filtered model list and matrix subset.
+
+### 14.5 MDS family highlight
+
+When a family is selected, the cross-model MDS shows:
+- Family members: existing filled circle (r=6) + outer ring (separate `<circle>` element, r=9, `fill: none`, `stroke: 2px var(--color-text-primary)` at 35% opacity). Non-color shape discriminator.
+- Non-family points: opacity reduced to 0.45 on the `<g>` element containing both ellipse and point.
+- Legend note: "Ring indicates selected provider family. Non-family models dimmed."
+- No convex hull (CDA SME note 4: visual grouping must not look like cluster boundary).
+
+### 14.6 Salience and Piles tabs
+
+Reuse existing `FreeListCompare` and `PileStructure` components scoped to the selected family's models. With 2-3 models, existing layouts work directly. No new components needed — pass filtered props.
+
+### 14.7 Focus selector ordering rule
+
+The pill order `3 → 2 → 1` is binding. It reflects analytical scope (all models → provider family → single model) and reading order (the broadest comparison is the default landing view).
+
+### 14.8 Model colors in Focus 2
+
+Family members retain their existing §12.4 `--color-model-*` colors. No shared "provider color." The ring treatment (§14.5) distinguishes family membership using shape, not color. Cross-focus color stability: same model = same color in Focus 1, 2, and 3.
+
+### 14.9 Focus 2 ActiveVizTab extensions
+
+Four tab IDs: `f2-overview`, `f2-similarity`, `f2-salience`, `f2-piles`. Labels: "Overview", "Similarity", "Salience", "Piles".
+
+### 14.10 Focus 2 description paragraphs
+
+Copy in `apps/dashboard/src/copy/focus2.ts`:
+
+- Overview: "How models from the same provider compare. Within-family similarity shows whether models sharing a training pipeline produce similar categorical structures, or whether model tier and generation shift the output."
+- Similarity: "Pairwise similarity between models from the selected provider family. The heatmap shows structural agreement between each pair of family members. The model map highlights family members in the full cross-model space."
+- Salience: "Term salience rankings for models from the selected provider family. Compare which terms each family member ranks as most prominent."
+- Piles: "Pile structures from each family member's centroid run. Compare how models from the same provider group domain vocabulary."
+
+### 14.11 Cite path
+
+Source line: "Within-family comparison: {domain}.json · Analysis: v{analysis_version}". CSV for Overview: provider, n_models, mean_pairwise_similarity, mean_pairwise_ci_lower (nullable), mean_pairwise_ci_upper (nullable). CSV for Similarity: provider, model_a, model_b, similarity, ci_lower (nullable), ci_upper (nullable).
+
+### 14.12 Single-family state
+
+Single-model families (DeepSeek, Meta, Microsoft) are a normal first-class state, not a "data gap." Card shows provider name, single model name, and note: "Within-family comparison requires two or more models from the same provider." No "coming soon" or "not yet available."
+
+### 14.13 Forbidden vocabulary additions (Focus 2)
+
+| Don't say | Say instead |
+|---|---|
+| "Provider consensus" | "Within-family similarity" |
+| "Family agreement" | "Within-family pairwise similarity" |
+| "Cluster of [provider] models" (on MDS) | "[Provider] models in the map" |
+
+---
+
+*End of DESIGN_SYSTEM.md v0.7.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
