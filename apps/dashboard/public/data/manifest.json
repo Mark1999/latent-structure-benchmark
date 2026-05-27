@@ -1,9 +1,9 @@
 {
-  "built_at": "2026-05-24T18:57:24.313539Z",
+  "built_at": "2026-05-27T18:38:36.922176Z",
   "domains": [
     {
       "slug": "family",
-      "analysis_version": "0.2",
+      "analysis_version": "0.3",
       "n_models": 15,
       "model_ids": [
         "claude-opus-4-5",
@@ -22,7 +22,7 @@
         "x-ai/grok-4",
         "x-ai/grok-4.20"
       ],
-      "generated_at": "2026-05-24T18:56:58.553613Z"
+      "generated_at": "2026-05-27T18:28:07.572646Z"
     },
     {
       "slug": "food",
@@ -63,5 +63,10 @@
     "family": "data/failures/family.json",
     "food": "data/failures/food.json",
     "holidays": "data/failures/holidays.json"
+  },
+  "focus1": {
+    "family": "data/family-focus1.json",
+    "food": "data/food-focus1.json",
+    "holidays": "data/holidays-focus1.json"
   }
 }
