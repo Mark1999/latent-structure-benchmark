@@ -37,6 +37,33 @@ from cdb_publish.lede import generate_lede
 from cdb_publish.schemas.manifest import Manifest, ManifestDomain
 
 
+def _build_focus1(domain_dict: dict, slug: str, output_dir: Path) -> str:
+    """Emit {slug}-focus1.json with per-model within-model data.
+
+    Args:
+        domain_dict: The already-serialized domain result dict.
+        slug: Domain slug.
+        output_dir: Output directory for the JSON file.
+
+    Returns the relative path (from dashboard public/) for the manifest.
+    """
+    centroid_piles = domain_dict.get("centroid_piles", {})
+    sutrop_csi = domain_dict.get("sutrop_csi", {})
+
+    focus1_data: dict[str, object] = {}
+    for wm in domain_dict.get("within_model_results", []):
+        mid = wm["model_id"]
+        entry = dict(wm)
+        entry["centroid_piles"] = centroid_piles.get(mid)
+        entry["sutrop_csi"] = sutrop_csi.get(mid)
+        focus1_data[mid] = entry
+
+    focus1_path = output_dir / f"{slug}-focus1.json"
+    focus1_path.write_text(json.dumps(focus1_data, indent=2), encoding="utf-8")
+
+    return f"data/{slug}-focus1.json"
+
+
 class DomainValidationError(ValueError):
     """Raised when a domain JSON file fails DomainResult validation.
 
@@ -174,6 +201,7 @@ def build(
     )
 
     manifest_domains: list[ManifestDomain] = []
+    focus1_map: dict[str, str] = {}
 
     for domain_dir in domain_dirs:
         json_files = sorted(domain_dir.glob("*.json"))
@@ -217,6 +245,10 @@ def build(
             domain_json_text, encoding="utf-8"
         )
 
+        # Write {slug}-focus1.json (Focus 1: Individual Model Consistency).
+        focus1_path = _build_focus1(domain_dict, slug, output_dir)
+        focus1_map[slug] = focus1_path
+
         model_ids = sorted(domain_result.mds_coordinates.keys())
         manifest_domains.append(
             ManifestDomain(
@@ -243,6 +275,7 @@ def build(
         built_at=datetime.now(tz=UTC),
         domains=manifest_domains,
         failures=failures_map,
+        focus1=focus1_map,
     )
 
     manifest_path = output_dir / "manifest.json"

@@ -65,3 +65,14 @@ class Manifest(BaseModel):
     See docs/status/2026-05-12-phase6-T9-architect-plan.md §2.5 and §2.7, and
     docs/DATA_DICTIONARY.md §12 for the published shape documentation.
     """
+
+    focus1: dict[str, str] = {}
+    """Map from domain_slug to the Focus 1 (Individual Model Consistency)
+    JSON path, relative to apps/dashboard/public/.
+
+    Example: ``{"family": "data/family-focus1.json"}``
+
+    Focus 1 files are lazy-loaded by the dashboard only when the user
+    navigates to Focus 1 tabs. They contain per-model run agreement
+    matrices, run summaries, and within-model analysis data.
+    """
