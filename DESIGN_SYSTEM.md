@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.5.2  
+**Version:** v0.6.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.6.0** (F1-T5 through F1-T9 UI/UX gate, 2026-05-27) adds §13 (Focus 1 — Individual Model Consistency visual decisions). Introduces: focus-level selector navigation (§13.1), single-select sidebar mode for Focus 1 (§13.2), ranked-list Self-Consistency Overview layout (§13.3), concentration tier badge vocabulary and color treatment (§13.4, no semantic color — border intensity only), OCI display with CI fallback and underestimation caveat affordance (§13.5), run agreement heatmap color scale assignment (§13.6, reuses existing sequential scale), run MDS specification with CDA SME S3 suppression rule and non-color centroid discriminator (§13.7), term stability dashed-border tier treatment (§13.8, mirrors §12.10), Focus 1 ActiveVizTab extensions (§13.9), journalist description paragraph copy (§13.10), and cite-path SourceAttribution/CSV requirements (§13.11). Two new constants added to `apps/dashboard/src/config/analysis.ts`: `OCI_CONCENTRATED_THRESHOLD`, `OCI_MODERATE_THRESHOLD`. No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-27-F1-T5toT9-uiux-verdict.md`).
 - **v0.5.2** (Phase 9a T6+T7, 2026-05-24) adds `TermMDSPlot.tsx`, `TermMDSTable.tsx`, `term-mds-plot.css`, `Dendrogram.tsx`, `DendrogramTable.tsx`, `dendrogram.css` to §11 Component Inventory. Introduces cluster color palette tokens (`--color-cluster-1` through `--color-cluster-8`) in §1.2. Extends `ActiveVizTab` to include `"term-mds"` and `"cluster-tree"`. VizSwitcher tab count: 6 → 8 (Term Map at index 1, Cluster Tree at index 2). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md`).
 - **v0.5.1** (Phase 9a T9, 2026-05-24) adds `PileComparison.tsx`, `PileComparisonTable.tsx`, and `pile-comparison.css` to §11 Component Inventory. Adds §12.10 PileComparison visual specification. Extends `ActiveVizTab` to include `"piles"` and `PermalinkState.vizTab` to include `"piles"`. VizSwitcher tab count: 5 → 6 (Pile Structure inserted at index 4). No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md`).
 - **v0.5.0** (Phase 9a T10, 2026-05-24) adds `CentralityChart.tsx`, `CentralityTable.tsx`, and `centrality-chart.css` to §11 Component Inventory. Introduces dark inverted tooltip token set (`--color-tooltip-dark-bg`, `--color-tooltip-dark-text`, `--color-tooltip-dark-divider`) in §1.2 for dense multi-line data tooltips. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T10-ui-ux-verdict.md`).
@@ -1943,6 +1944,91 @@ Term stability:  [solid pill] ≥80% of runs    [dashed faint] 60–79%    [dash
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.5.2. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 13. Focus 1 — Individual Model Consistency visual decisions (v0.6.0 — F1-T5–T9, 2026-05-27)
+
+These decisions cover the five Focus 1 frontend tasks (F1-T5 through F1-T9). All are binding on the Coder.
+
+### 13.1 Focus-level selector navigation
+
+A separate horizontal bar between the domain navigation row and the VizTabs row. Two pill buttons; Focus 2 deferred (do not render a disabled stub).
+
+- Active pill: `background: var(--color-info)`, `color: var(--color-background)`, `font-weight: var(--font-weight-medium)`.
+- Inactive pill: `background: var(--color-surface)`, `color: var(--color-text-primary)`, `border: 1px solid var(--color-border)`.
+- Focus ring: `outline: 2px solid var(--color-info); outline-offset: 2px`.
+- Min height: 36px. Min touch target: 44px via padding.
+- ARIA: `role="radiogroup"` on container, `aria-label="Analysis focus"`. Each pill: `role="radio"`, `aria-checked`.
+- CSS class: `.focus-selector`.
+
+### 13.2 Model selection in Focus 1
+
+When Focus 1 is active, sidebar transitions to single-select (`role="listbox"`, `aria-multiselectable="false"`). Selected row: filled model color dot. Unselected: hollow dot. Heading: "Select a model". Auto-select first model by lexicographic order from current set when Focus 1 activates. Restore multi-select state when returning to Focus 3.
+
+### 13.3 Self-Consistency Overview — ranked list layout
+
+Ranked vertical list of model cards sorted by OCI descending. Not a grid.
+
+Card anatomy (left to right): rank number → model color dot → model name → concentration tier badge (right-aligned). Below: OCI value row, supplementary stats (salience rho, n_runs), deterministic badge when applicable.
+
+- Card: `background: var(--color-surface)`, `border: 1px solid var(--color-border)`, `border-radius: var(--border-radius-md)`, `padding: var(--space-4)`.
+- Keyboard-focusable: `role="button"`, `tabindex="0"`. Enter/Space sets selected model.
+- Gap: `var(--space-3)`.
+
+### 13.4 Concentration tier badge (CDA SME S6 — no evaluative framing)
+
+| OCI range | Label | Badge text color | Border |
+|---|---|---|---|
+| OCI >= `OCI_CONCENTRATED_THRESHOLD` | "concentrated" | `--color-text-primary` | `1px solid var(--color-border)` |
+| OCI >= `OCI_MODERATE_THRESHOLD` | "moderate" | `--color-text-caption` | `1px solid var(--color-border)` |
+| OCI < `OCI_MODERATE_THRESHOLD` | "diffuse" | `--color-text-caption` | `1px dashed var(--color-border)` |
+
+Badge: outline-only pill, `--font-size-xs`, `--font-weight-medium`, `padding: 2px var(--space-2)`. No `--color-success`/`--color-warning`/`--color-error`.
+
+Constants in `apps/dashboard/src/config/analysis.ts`: `OCI_CONCENTRATED_THRESHOLD = 50`, `OCI_MODERATE_THRESHOLD = 10`.
+
+### 13.5 OCI display with CI and n_runs context (R10 + S5)
+
+Spell out "Output Concentration Index" in full. When `oci_ci` non-null: show `X.XX (95% CI [X.XX, X.XX], N = XX runs)`. When null: show `X.XX (N = XX runs; confidence interval unavailable at this run count)`.
+
+Info button `ⓘ` triggers popover with BOOTSTRAP_DESIGN.md §2 caveat: "Register 1 confidence intervals underestimate uncertainty because runs are correlated draws from the same model. See the methodology page for details."
+
+### 13.6 Run agreement heatmap color scale
+
+Reuses existing sequential scale (`--color-scale-seq-0` through `--color-scale-seq-4`) from §12.8. Same text contrast rules.
+
+### 13.7 Run MDS — suppression rule and discriminators (S3)
+
+When n_runs >= 5: render scatter plot. Centrality loading mapped to `--color-scale-seq-0` through `--color-scale-seq-4`. Centroid run: `2px solid var(--color-text-primary)` ring. Axis labels: "MDS Dimension 1/2". Stress footnote below.
+
+When n_runs < 5: suppress plot, show text: "Run map unavailable: fewer than 5 runs recorded for this model (N = [n_runs])."
+
+### 13.8 Term Stability — dashed-border tier treatment
+
+| Stability | Border style | Text color |
+|---|---|---|
+| >= 0.80 | `1px solid var(--color-border)` | `--color-text-primary` |
+| 0.60 to < 0.80 | `1px dashed var(--color-border)` | `--color-text-caption` |
+| < 0.60 | `1px dashed var(--color-text-secondary)` | `--color-text-caption` |
+
+Display: "appears in X/N runs". Within-model term MDS displayed alongside the stability list in the same tab.
+
+### 13.9 Focus 1 ActiveVizTab extensions
+
+Three new tab values when Focus 1 active: `f1-self-consistency`, `f1-run-distribution`, `f1-term-stability`. Labels: "Self-Consistency", "Run Distribution", "Term Stability".
+
+### 13.10 Focus 1 description paragraphs
+
+Each tab carries a visible description paragraph. Copy in `apps/dashboard/src/copy/focus1.ts`.
+
+- Self-Consistency: "How consistently each model organizes [domain] vocabulary across independent runs. The Output Concentration Index measures how concentrated the model's output distribution is — higher values mean the model produces nearly the same categorical structure each time."
+- Run Distribution: "How similar each pair of runs is for the selected model. The agreement matrix and run map show whether the model produces stable or variable categorical structures across runs."
+- Term Stability: "How reliably each term appears in the same structural position across runs for the selected model. Terms that appear in 80% or more of runs in the same position are considered structurally stable."
+
+### 13.11 Cite path — SourceAttribution and CSV
+
+Focus 1 source line: "Individual consistency data: {domain}-focus1.json · Analysis: v{analysis_version}". CSV columns: model_id, n_runs, oci, oci_ci_lower (nullable), oci_ci_upper (nullable), salience_stability_rho, deterministic_output, concentration_tier.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.6.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
