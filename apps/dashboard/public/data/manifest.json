@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-05-27T18:38:36.922176Z",
+  "built_at": "2026-05-27T18:40:11.827521Z",
   "domains": [
     {
       "slug": "family",
@@ -42,20 +42,25 @@
     },
     {
       "slug": "holidays",
-      "analysis_version": "0.2",
-      "n_models": 9,
+      "analysis_version": "0.3",
+      "n_models": 14,
       "model_ids": [
+        "claude-opus-4-5",
         "claude-opus-4-6",
         "claude-sonnet-4-6",
         "deepseek/deepseek-v3.2",
+        "google/gemini-2.5-flash",
         "google/gemini-2.5-pro",
         "meta-llama/llama-4-maverick",
         "mistralai/mistral-large-2512",
         "mistralai/mistral-small-2603",
+        "openai/gpt-5.2",
         "openai/gpt-5.4",
-        "openai/gpt-5.4-mini"
+        "openai/gpt-5.4-mini",
+        "x-ai/grok-4",
+        "x-ai/grok-4.20"
       ],
-      "generated_at": "2026-05-07T00:15:00.538916Z"
+      "generated_at": "2026-05-27T18:39:58.440967Z"
     }
   ],
   "oci_low_concentration_threshold": 3.0,
