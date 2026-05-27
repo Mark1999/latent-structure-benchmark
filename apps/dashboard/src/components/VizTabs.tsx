@@ -16,9 +16,13 @@ export type ActiveVizTab =
   | 'pile-structure'
   | 'f1-self-consistency'
   | 'f1-run-distribution'
-  | 'f1-term-stability';
+  | 'f1-term-stability'
+  | 'f2-overview'
+  | 'f2-similarity'
+  | 'f2-salience'
+  | 'f2-piles';
 
-export type ActiveFocus = 'focus-3' | 'focus-1';
+export type ActiveFocus = 'focus-3' | 'focus-1' | 'focus-2';
 
 const FOCUS3_TABS: Array<{ id: ActiveVizTab; label: string }> = [
   { id: 'term-map',       label: 'Term Map' },
@@ -36,6 +40,13 @@ const FOCUS1_TABS: Array<{ id: ActiveVizTab; label: string }> = [
   { id: 'f1-term-stability',   label: 'Term Stability' },
 ];
 
+const FOCUS2_TABS: Array<{ id: ActiveVizTab; label: string }> = [
+  { id: 'f2-overview',   label: 'Overview' },
+  { id: 'f2-similarity', label: 'Similarity' },
+  { id: 'f2-salience',   label: 'Salience' },
+  { id: 'f2-piles',      label: 'Piles' },
+];
+
 interface VizTabsProps {
   active: ActiveVizTab;
   onChange: (tab: ActiveVizTab) => void;
@@ -43,7 +54,10 @@ interface VizTabsProps {
 }
 
 export function VizTabs({ active, onChange, activeFocus }: VizTabsProps) {
-  const tabs = activeFocus === 'focus-1' ? FOCUS1_TABS : FOCUS3_TABS;
+  const tabs =
+    activeFocus === 'focus-1' ? FOCUS1_TABS :
+    activeFocus === 'focus-2' ? FOCUS2_TABS :
+    FOCUS3_TABS;
 
   return (
     <div className="viz-tabs" role="tablist" aria-label="Visualization type">

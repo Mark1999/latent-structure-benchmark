@@ -1,9 +1,9 @@
 /**
  * FocusSelector — pill toggle between analysis focus levels.
  *
- * Two pills: Focus 3 (cross-model) and Focus 1 (individual model).
- * Focus 2 deferred — do not render a disabled stub.
- * DESIGN_SYSTEM.md §13.1
+ * Three pills (broadest to narrowest): Focus 3, Focus 2, Focus 1.
+ * Order: [Focus 3: Cross-model] [Focus 2: Within-family] [Focus 1: Individual model]
+ * DESIGN_SYSTEM.md §14.1 (Focus 2 added v0.7.0)
  */
 
 import '../styles/focus-selector.css';
@@ -16,6 +16,7 @@ interface FocusSelectorProps {
 
 const FOCUS_OPTIONS: Array<{ id: ActiveFocus; label: string }> = [
   { id: 'focus-3', label: 'Focus 3: Cross-model' },
+  { id: 'focus-2', label: 'Focus 2: Within-family' },
   { id: 'focus-1', label: 'Focus 1: Individual model' },
 ];
 

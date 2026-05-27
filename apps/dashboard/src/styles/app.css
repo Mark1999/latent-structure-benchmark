@@ -6,6 +6,7 @@
 @import './tokens.css';
 @import './focus-selector.css';
 @import './focus1.css';
+@import './focus2.css';
 
 /* ===== Reset ===== */
 *, *::before, *::after {

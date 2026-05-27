@@ -69,22 +69,31 @@ export default function App() {
   const [cooccurrenceData, setCooccurrenceData] = useState<CooccurrenceData | null>(null);
   const [lensEnabled, setLensEnabled] = useState(false);
 
-  // Focus-level state (§13.1)
+  // Focus-level state (§13.1, §14.1)
   const [activeFocus, setActiveFocus] = useState<ActiveFocus>('focus-3');
 
   // Active viz tab — tracks separate tabs for each focus level
   const [focus3VizTab, setFocus3VizTab] = useState<ActiveVizTab>('term-map');
   const [focus1VizTab, setFocus1VizTab] = useState<ActiveVizTab>('f1-self-consistency');
+  const [focus2VizTab, setFocus2VizTab] = useState<ActiveVizTab>('f2-overview');
 
   // Single-select model for Focus 1 (§13.2)
   const [selectedModelId, setSelectedModelId] = useState<string | null>(null);
 
+  // Selected provider family for Focus 2 (§14.2)
+  const [selectedProvider, setSelectedProvider] = useState<string | null>(null);
+
   // Derived active viz tab from focus
-  const activeVizTab: ActiveVizTab = activeFocus === 'focus-1' ? focus1VizTab : focus3VizTab;
+  const activeVizTab: ActiveVizTab =
+    activeFocus === 'focus-1' ? focus1VizTab :
+    activeFocus === 'focus-2' ? focus2VizTab :
+    focus3VizTab;
 
   const handleVizTabChange = useCallback((tab: ActiveVizTab) => {
     if (activeFocus === 'focus-1') {
       setFocus1VizTab(tab);
+    } else if (activeFocus === 'focus-2') {
+      setFocus2VizTab(tab);
     } else {
       setFocus3VizTab(tab);
     }
@@ -106,6 +115,9 @@ export default function App() {
         }
         return null;
       });
+    } else if (focus === 'focus-2') {
+      // Auto-set Focus 2 tab to overview
+      setFocus2VizTab('f2-overview');
     }
     // When returning to Focus 3, the focus3VizTab already holds the last state
   }, [domain]);
@@ -249,6 +261,8 @@ export default function App() {
           lensEnabled={lensEnabled}
           onLensToggle={() => setLensEnabled((v) => !v)}
           activeFocus={activeFocus}
+          selectedProvider={selectedProvider}
+          onSelectProvider={setSelectedProvider}
         />
         <ContentArea
           domain={domain}
@@ -262,6 +276,8 @@ export default function App() {
           onFocusChange={handleFocusChange}
           selectedModelId={selectedModelId}
           onSelectModel={setSelectedModelId}
+          selectedProvider={selectedProvider}
+          onSelectProvider={setSelectedProvider}
           cooccurrenceData={cooccurrenceData}
           lensEnabled={lensEnabled}
           activeDomain={activeDomain}
