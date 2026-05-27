@@ -299,6 +299,22 @@ class CentroidPileData(BaseModel):
     term_stability: dict[str, float] = {}  # item → fraction of runs in same pile as centroid
 
 
+class RunSummary(BaseModel):
+    """Summary of one model run for Focus 1 per-run drill-down.
+
+    Lightweight metadata extracted from InformantRecord. Full per-run
+    data (free list items, pile memberships) is available in the open
+    data bundle (informants.jsonl); this schema carries only the
+    summary needed for the Focus 1 dashboard view.
+    """
+    run_id: str             # informant_id
+    run_index: int
+    n_free_list_items: int  # len(freelist.parsed_items)
+    n_piles: int            # len(pile_sort.parsed_piles)
+    pile_labels: list[str]  # from interview.parsed_pile_labels
+    centrality_loading: float  # first-eigenvector loading on run×run agreement matrix
+
+
 class WithinModelResult(BaseModel):
     """Register 1 result block for one model on one domain.
 
@@ -352,6 +368,13 @@ class WithinModelResult(BaseModel):
     # CDA SME F3 (2026-05-24-phase9a-cda-sme-verdict.md): per-model item MDS
     # is Register 1; the underestimates_uncertainty=True annotation applies.
     mds_within_model: list[Any] = []  # list[{"item": str, "x": float, "y": float}]
+    within_model_mds_stress: float | None = None  # MDS stress for within-model term MDS
+
+    # Focus 1 fields (2026-05-27). Per-run drill-down data and the run×run
+    # agreement matrix that OCI is derived from (previously computed and
+    # discarded; now retained for the Focus 1 dashboard view and open data).
+    run_agreement_matrix: list[list[float]] = []  # N×N agreement fractions
+    run_summaries: list[RunSummary] = []           # per-run metadata summaries
 
 
 # ──────────────────────────────────────────────────────────────────────

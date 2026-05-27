@@ -25,6 +25,7 @@ from cdb_core.schemas import (
     PileSort,
     PileSortRecord,
     RawResponse,
+    RunSummary,
     SutropCSI,
     WithinModelResult,
 )
@@ -51,6 +52,7 @@ __all__ = [
     "RawResponse",
     "ROMNEY_THRESHOLD_CLASSIC",
     "ROMNEY_THRESHOLD_LSB",
+    "RunSummary",
     "SutropCSI",
     "WithinModelResult",
 ]
