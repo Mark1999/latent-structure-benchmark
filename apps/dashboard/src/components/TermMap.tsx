@@ -104,10 +104,25 @@ interface TermEntry {
 }
 
 
-// Lens constants — SVG-coordinate units (roughly 1 unit ≈ 1 CSS pixel at typical viewport)
+// Lens constants — SVG-coordinate units at zoom=1
 const LENS_RADIUS = 110;
 const MAX_DISPLACEMENT = 65;
-const LENS_FONT_SIZE = 13; // larger text inside the lens for readability
+const LENS_FONT_SIZE = 13;
+
+// Zoom constants
+const MIN_ZOOM = 1;
+const MAX_ZOOM = 8;
+const ZOOM_SENSITIVITY = 0.0015;
+
+function clientToSVGCoords(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
+  const pt = svg.createSVGPoint();
+  pt.x = clientX;
+  pt.y = clientY;
+  const ctm = svg.getScreenCTM();
+  if (!ctm) return { x: clientX, y: clientY };
+  const svgPt = pt.matrixTransform(ctm.inverse());
+  return { x: svgPt.x, y: svgPt.y };
+}
 
 interface TermMapProps {
   /** Pre-computed static coordinates — used when cooccurrenceData is not available */
@@ -136,6 +151,13 @@ export function TermMap({
 }: TermMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string>('');
+  const [zoomDisplay, setZoomDisplay] = useState(1);
+
+  // Zoom/pan state (refs to avoid re-render on every wheel tick)
+  const zoomRef = useRef({ level: 1, vbX: 0, vbY: 0, vbW: 0, vbH: 0 });
+  const baseVBRef = useRef({ w: 0, h: 0 });
+  const isPanningRef = useRef(false);
+  const lastPanRef = useRef({ x: 0, y: 0 });
 
   // ── Per-model pile label selector state ──────────────────────────────────
   // Sorted list of model keys available for pile label selection
@@ -290,8 +312,11 @@ export function TermMap({
       clusters[t.cluster].push(t);
     });
 
+    baseVBRef.current = { w: W, h: H };
+    zoomRef.current = { level: 1, vbX: 0, vbY: 0, vbW: W, vbH: H };
+
     const svgParts: string[] = [];
-    svgParts.push(`<svg width="${W}" height="${H}" id="term-svg">`);
+    svgParts.push(`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" id="term-svg">`);
 
     // Light grid
     for (let i = 0; i <= 4; i++) {
@@ -447,6 +472,103 @@ export function TermMap({
     return () => observer.disconnect();
   }, [render]);
 
+  // ── Zoom & pan interaction ────────────────────────────────────────────────
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    function handleWheel(e: WheelEvent) {
+      e.preventDefault();
+      const svg = wrap!.querySelector<SVGSVGElement>('#term-svg');
+      if (!svg) return;
+
+      const z = zoomRef.current;
+      const { w: baseW, h: baseH } = baseVBRef.current;
+      if (baseW === 0) return;
+
+      const svgPt = clientToSVGCoords(svg, e.clientX, e.clientY);
+      const rect = svg.getBoundingClientRect();
+
+      const delta = -e.deltaY * ZOOM_SENSITIVITY;
+      const newLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z.level * (1 + delta)));
+
+      const newW = baseW / newLevel;
+      const newH = baseH / newLevel;
+
+      // Keep point under cursor fixed
+      const ratioX = (e.clientX - rect.left) / rect.width;
+      const ratioY = (e.clientY - rect.top) / rect.height;
+      const newX = svgPt.x - ratioX * newW;
+      const newY = svgPt.y - ratioY * newH;
+
+      zoomRef.current = { level: newLevel, vbX: newX, vbY: newY, vbW: newW, vbH: newH };
+      svg.setAttribute('viewBox', `${newX} ${newY} ${newW} ${newH}`);
+      setZoomDisplay(newLevel);
+    }
+
+    function handleMouseDown(e: MouseEvent) {
+      if (zoomRef.current.level <= 1.02) return;
+      if (lensEnabled) return;
+      isPanningRef.current = true;
+      lastPanRef.current = { x: e.clientX, y: e.clientY };
+      wrap!.style.cursor = 'grabbing';
+      e.preventDefault();
+    }
+
+    function handleMouseMovePan(e: MouseEvent) {
+      if (!isPanningRef.current) return;
+      const svg = wrap!.querySelector<SVGSVGElement>('#term-svg');
+      if (!svg) return;
+
+      const rect = svg.getBoundingClientRect();
+      const z = zoomRef.current;
+      const dx = ((e.clientX - lastPanRef.current.x) / rect.width) * z.vbW;
+      const dy = ((e.clientY - lastPanRef.current.y) / rect.height) * z.vbH;
+
+      z.vbX -= dx;
+      z.vbY -= dy;
+      zoomRef.current = { ...z };
+      svg.setAttribute('viewBox', `${z.vbX} ${z.vbY} ${z.vbW} ${z.vbH}`);
+
+      lastPanRef.current = { x: e.clientX, y: e.clientY };
+    }
+
+    function handleMouseUp() {
+      if (isPanningRef.current) {
+        isPanningRef.current = false;
+        if (wrap && zoomRef.current.level > 1.02 && !lensEnabled) {
+          wrap.style.cursor = 'grab';
+        } else {
+          wrap!.style.cursor = '';
+        }
+      }
+    }
+
+    function handleDblClick() {
+      const svg = wrap!.querySelector<SVGSVGElement>('#term-svg');
+      if (!svg) return;
+      const { w, h } = baseVBRef.current;
+      zoomRef.current = { level: 1, vbX: 0, vbY: 0, vbW: w, vbH: h };
+      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+      setZoomDisplay(1);
+      wrap!.style.cursor = '';
+    }
+
+    wrap.addEventListener('wheel', handleWheel, { passive: false });
+    wrap.addEventListener('mousedown', handleMouseDown);
+    wrap.addEventListener('mousemove', handleMouseMovePan);
+    window.addEventListener('mouseup', handleMouseUp);
+    wrap.addEventListener('dblclick', handleDblClick);
+
+    return () => {
+      wrap.removeEventListener('wheel', handleWheel);
+      wrap.removeEventListener('mousedown', handleMouseDown);
+      wrap.removeEventListener('mousemove', handleMouseMovePan);
+      window.removeEventListener('mouseup', handleMouseUp);
+      wrap.removeEventListener('dblclick', handleDblClick);
+    };
+  }, [svgContent, lensEnabled]);
+
   // ── Magnifying lens interaction ───────────────────────────────────────────
   // rafRef: pending requestAnimationFrame id (used to cancel on cleanup)
   const rafRef = useRef<number | null>(null);
@@ -482,24 +604,34 @@ export function TermMap({
       return;
     }
 
-    function applyLens(svgEl: SVGSVGElement, mouseX: number, mouseY: number) {
+    function applyLens(svgEl: SVGSVGElement, clientX: number, clientY: number) {
+      const svgPt = clientToSVGCoords(svgEl, clientX, clientY);
+      const mouseX = svgPt.x;
+      const mouseY = svgPt.y;
+
+      // Scale lens radius to maintain consistent screen size at any zoom
+      const z = zoomRef.current.level;
+      const effectiveRadius = LENS_RADIUS / z;
+      const effectiveDisplacement = MAX_DISPLACEMENT / z;
+
       // Ensure lens ring exists
       if (!lensRingRef.current) {
         const ring = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
         ring.setAttribute('class', 'lens-ring');
-        ring.setAttribute('r', String(LENS_RADIUS));
         ring.setAttribute('fill', 'none');
         ring.setAttribute('stroke', 'rgba(0,0,0,0.15)');
-        ring.setAttribute('stroke-width', '1');
-        ring.setAttribute('stroke-dasharray', '4 2');
+        ring.setAttribute('stroke-width', String(1 / z));
+        ring.setAttribute('stroke-dasharray', `${4 / z} ${2 / z}`);
         ring.setAttribute('pointer-events', 'none');
         svgEl.appendChild(ring);
         lensRingRef.current = ring;
       }
 
-      // Move the lens ring to follow the mouse
       lensRingRef.current.setAttribute('cx', String(mouseX));
       lensRingRef.current.setAttribute('cy', String(mouseY));
+      lensRingRef.current.setAttribute('r', String(effectiveRadius));
+      lensRingRef.current.setAttribute('stroke-width', String(1 / z));
+      lensRingRef.current.setAttribute('stroke-dasharray', `${4 / z} ${2 / z}`);
 
       // Displace dots
       svgEl.querySelectorAll<SVGCircleElement>('.term-dot').forEach((dot) => {
@@ -509,8 +641,8 @@ export function TermMap({
         const dy = oy - mouseY;
         const dist = Math.sqrt(dx * dx + dy * dy);
 
-        if (dist < LENS_RADIUS && dist > 0) {
-          const strength = Math.pow(1 - dist / LENS_RADIUS, 2) * MAX_DISPLACEMENT;
+        if (dist < effectiveRadius && dist > 0) {
+          const strength = Math.pow(1 - dist / effectiveRadius, 2) * effectiveDisplacement;
           const angle = Math.atan2(dy, dx);
           dot.setAttribute('cx', String(ox + Math.cos(angle) * strength));
           dot.setAttribute('cy', String(oy + Math.sin(angle) * strength));
@@ -529,13 +661,12 @@ export function TermMap({
         const dist = Math.sqrt(dx * dx + dy * dy);
         const baseSize = parseFloat(lbl.getAttribute('data-base-size') ?? '11');
 
-        if (dist < LENS_RADIUS && dist > 0) {
-          const t = 1 - dist / LENS_RADIUS; // 0 at edge, 1 at center
-          const strength = (t * t) * MAX_DISPLACEMENT;
+        if (dist < effectiveRadius && dist > 0) {
+          const t = 1 - dist / effectiveRadius;
+          const strength = (t * t) * effectiveDisplacement;
           const angle = Math.atan2(dy, dx);
           lbl.setAttribute('x', String(ox + Math.cos(angle) * strength));
           lbl.setAttribute('y', String(oy + Math.sin(angle) * strength));
-          // Scale up font inside lens (lerp from baseSize to LENS_FONT_SIZE)
           const fontSize = baseSize + (LENS_FONT_SIZE - baseSize) * t;
           lbl.setAttribute('font-size', String(Math.round(fontSize)));
           lbl.setAttribute('opacity', '1');
@@ -574,15 +705,12 @@ export function TermMap({
     const safeWrap: HTMLDivElement = wrap;
 
     function handleMouseMove(e: MouseEvent) {
-      if (rafRef.current !== null) return; // skip if frame already queued
+      if (rafRef.current !== null) return;
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
         const svg = safeWrap.querySelector<SVGSVGElement>('#term-svg');
         if (!svg) return;
-        const rect = svg.getBoundingClientRect();
-        const mouseX = e.clientX - rect.left;
-        const mouseY = e.clientY - rect.top;
-        applyLens(svg, mouseX, mouseY);
+        applyLens(svg, e.clientX, e.clientY);
       });
     }
 
@@ -654,7 +782,7 @@ export function TermMap({
         className="chart-wrap"
         role="img"
         aria-label="Term map visualization showing clusters of related terms"
-        style={{ flex: '1' }}
+        style={{ flex: '1', overflow: 'hidden' }}
       >
         <div
           style={{ width: '100%', height: '100%' }}
@@ -662,11 +790,18 @@ export function TermMap({
         />
       </div>
 
-      {/* Stress annotation — always visible */}
+      {/* Stress + zoom annotation */}
       <div className="term-map-stress" aria-label="MDS goodness-of-fit statistic">
-        {liveCoords !== null && liveStress !== null
-          ? `Kruskal's stress: ${liveStress.toFixed(3)} · Lower = better fit`
-          : 'Stress: computed at analysis time'}
+        <span>
+          {liveCoords !== null && liveStress !== null
+            ? `Kruskal's stress: ${liveStress.toFixed(3)} · Lower = better fit`
+            : 'Stress: computed at analysis time'}
+        </span>
+        {zoomDisplay > 1.02 && (
+          <span className="term-map-stress__zoom">
+            {Math.round(zoomDisplay * 100)}% · double-click to reset
+          </span>
+        )}
       </div>
     </div>
   );
