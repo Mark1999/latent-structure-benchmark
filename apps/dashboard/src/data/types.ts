@@ -111,6 +111,88 @@ export interface Manifest {
   oci_low_concentration_threshold: number;
 }
 
+// ===== Focus 1 types =====
+
+/**
+ * Published run summary for a single pile-sort run.
+ * Subset of RunResult exposed in the Focus 1 published JSON.
+ */
+export interface RunSummaryPublished {
+  run_id: string;
+  run_index: number;
+  n_free_list_items: number;
+  n_piles: number;
+  pile_labels: string[];
+  centrality_loading: number;
+}
+
+/**
+ * Centroid pile data as published in focus1.json.
+ */
+export interface CentroidPilesPublished {
+  piles: string[][];
+  labels: string[];
+  term_stability: Record<string, number>;
+}
+
+/**
+ * Sutrop CSI entry for a single term, as published in focus1.json.
+ */
+export interface SutropCsiEntry {
+  item: string;
+  csi: number;
+  f_mentions: number;
+  n_runs: number;
+  mean_position: number;
+}
+
+/**
+ * Within-model MDS coordinate entry.
+ */
+export interface WithinModelMdsItem {
+  item: string;
+  x: number;
+  y: number;
+}
+
+/**
+ * Focus 1 data for a single model.
+ * Extends the within-model fields from WithinModelResult with Focus 1 additions.
+ */
+export interface Focus1ModelData {
+  model_id: string;
+  n_runs: number;
+  oci: number;
+  oci_ci: [number, number] | null;
+  underestimates_uncertainty: boolean;
+  deterministic_output: boolean;
+  salience_stability_rho: number | null;
+  elbow_stability: number | null;
+  mds_procrustes_rmse: number | null;
+  centrality_scores_by_run: Record<string, number>;
+  centroid_run_id: string;
+  /** Within-model MDS coordinates — list of {item, x, y} objects. */
+  mds_within_model: WithinModelMdsItem[];
+  /** Stress value from within-model MDS fit. */
+  within_model_mds_stress: number | null;
+  /** Run-by-run agreement matrix (n_runs × n_runs). */
+  run_agreement_matrix: number[][];
+  /** Per-run summary data. */
+  run_summaries: RunSummaryPublished[];
+  /** Centroid piles with term stability. Null if not computed. */
+  centroid_piles: CentroidPilesPublished | null;
+  /** Sutrop CSI salience ranking for this model in this domain. Null if not computed. */
+  sutrop_csi: SutropCsiEntry[] | null;
+}
+
+/**
+ * The full Focus 1 published file: model_id → Focus1ModelData.
+ * Fetched on-demand from /data/{slug}-focus1.json.
+ */
+export type Focus1Data = Record<string, Focus1ModelData>;
+
+// ===== Domain result types =====
+
 /**
  * Full published domain result.
  * Fetched on-demand from /data/{slug}.json (or /{slug}.v{version}.json).
