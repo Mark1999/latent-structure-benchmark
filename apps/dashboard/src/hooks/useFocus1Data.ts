@@ -5,7 +5,7 @@
  * Returns { data, loading, error }.
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import type { Focus1Data } from '../data/types';
 
 interface UseFocus1DataResult {
@@ -18,49 +18,37 @@ interface UseFocus1DataResult {
 const cache: Record<string, Focus1Data> = {};
 
 export function useFocus1Data(domainSlug: string): UseFocus1DataResult {
+  // Initialize directly from cache if available
   const [data, setData] = useState<Focus1Data | null>(() => cache[domainSlug] ?? null);
   const [loading, setLoading] = useState<boolean>(() => !(domainSlug in cache));
   const [error, setError] = useState<string | null>(null);
 
-  // Track latest domain to avoid state updates after domain switch
-  const latestDomain = useRef(domainSlug);
-  latestDomain.current = domainSlug;
-
   useEffect(() => {
-    // Already cached — nothing to do
-    if (domainSlug in cache) {
-      setData(cache[domainSlug]);
-      setLoading(false);
-      setError(null);
-      return;
-    }
+    // Already cached — no fetch needed
+    if (domainSlug in cache) return;
 
     let cancelled = false;
-    setLoading(true);
-    setError(null);
 
-    fetch(`/data/${domainSlug}-focus1.json`)
-      .then(async (resp) => {
+    const load = async () => {
+      setLoading(true);
+      setError(null);
+      try {
+        const resp = await fetch(`/data/${domainSlug}-focus1.json`);
         if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-        return resp.json() as Promise<Focus1Data>;
-      })
-      .then((json) => {
+        const json = (await resp.json()) as Focus1Data;
         if (cancelled) return;
         cache[domainSlug] = json;
-        if (latestDomain.current === domainSlug) {
-          setData(json);
-          setLoading(false);
-        }
-      })
-      .catch((e: unknown) => {
+        setData(json);
+        setLoading(false);
+      } catch (e: unknown) {
         if (cancelled) return;
-        if (latestDomain.current === domainSlug) {
-          const msg = e instanceof Error ? e.message : 'Failed to load Focus 1 data';
-          setError(msg);
-          setLoading(false);
-        }
-      });
+        const msg = e instanceof Error ? e.message : 'Failed to load Focus 1 data';
+        setError(msg);
+        setLoading(false);
+      }
+    };
 
+    void load();
     return () => { cancelled = true; };
   }, [domainSlug]);
 

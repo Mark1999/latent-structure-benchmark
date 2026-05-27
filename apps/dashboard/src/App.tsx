@@ -111,15 +111,6 @@ export default function App() {
     // When returning to Focus 3, the focus3VizTab already holds the last state
   }, [domain]);
 
-  // When domain loads and Focus 1 is active, ensure a model is selected
-  useEffect(() => {
-    if (activeFocus === 'focus-1' && domain && domain.models.length > 0 && !selectedModelId) {
-      const sorted = [...domain.models].sort((a, b) =>
-        a.model_id.localeCompare(b.model_id)
-      );
-      setSelectedModelId(sorted[0].model_id);
-    }
-  }, [domain, activeFocus, selectedModelId]);
 
   // Fetch domain data and co-occurrence matrices on domain change
   useEffect(() => {

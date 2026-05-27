@@ -231,7 +231,7 @@
 
 .f1-heatmap-wrap {
   overflow-x: auto;
-  max-width: 100%;
+  max-width: 600px;
 }
 
 .f1-mds-wrap {
