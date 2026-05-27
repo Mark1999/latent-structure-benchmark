@@ -33,10 +33,11 @@ resolution (``options_for_level_two``):
 from __future__ import annotations
 
 import numpy as np
-from cdb_core import InformantRecord, WithinModelResult
+from cdb_core import InformantRecord, RunSummary, WithinModelResult
 from numpy.typing import NDArray
+from scipy.stats import spearmanr
 
-from cdb_analyze.consensus import compute_consensus_free_list
+from cdb_analyze.consensus import compute_consensus_free_list, smiths_s
 
 
 def run_within_model_analysis(
@@ -105,6 +106,12 @@ def run_within_model_analysis(
     if n_bootstrap > 0 and n_runs >= 3:
         oci_ci = _bootstrap_oci(records, n_bootstrap=n_bootstrap, random_state=random_state)
 
+    run_summaries = _build_run_summaries(records, centrality)
+    salience_rho = _salience_stability_rho(records)
+
+    # Retain the agreement matrix (rounded to 4dp per CDA SME S9)
+    agreement_list = np.round(agreement, 4).tolist()
+
     return WithinModelResult(
         model_id=model_id,
         n_runs=n_runs,
@@ -114,6 +121,9 @@ def run_within_model_analysis(
         deterministic_output=deterministic,
         centrality_scores_by_run=centrality_by_run,
         centroid_run_id=centroid_run_id,
+        run_agreement_matrix=agreement_list,
+        run_summaries=run_summaries,
+        salience_stability_rho=salience_rho,
     )
 
 
@@ -175,6 +185,72 @@ def options_for_level_two(
         "option_b_centroid_run_id": wm.centroid_run_id,
         "option_c_weight": wm.oci,
     }
+
+
+# ---------------------------------------------------------------------------
+# Focus 1 helpers
+# ---------------------------------------------------------------------------
+
+def _build_run_summaries(
+    records: list[InformantRecord],
+    centrality: NDArray[np.float64],
+) -> list[RunSummary]:
+    """Build a RunSummary for each record, in the same order as the records list."""
+    return [
+        RunSummary(
+            run_id=r.informant_id,
+            run_index=r.run_index,
+            n_free_list_items=len(r.freelist.parsed_items),
+            n_piles=len(r.pile_sort.parsed_piles),
+            pile_labels=r.interview.parsed_pile_labels if r.interview else [],
+            centrality_loading=float(centrality[i]),
+        )
+        for i, r in enumerate(records)
+    ]
+
+
+def _salience_stability_rho(
+    records: list[InformantRecord],
+) -> float | None:
+    """Mean pairwise Spearman rho of per-run Smith's S rankings.
+
+    Per CDA SME S2: for each run, rank items by their individual Smith's S
+    within that run (S = (L - R + 1) / L). Then compute Spearman rho between
+    all pairs of runs on the intersection of items present in both runs.
+    Return the mean of pairwise rhos. None if fewer than 2 runs have items.
+    """
+    per_run_salience: list[dict[str, float]] = []
+    for r in records:
+        raw_order = r.freelist.parsed_raw_order
+        list_length = len(raw_order)
+        if list_length == 0:
+            continue
+        seen: set[str] = set()
+        salience: dict[str, float] = {}
+        for rank_0, item in enumerate(raw_order):
+            if item in seen:
+                continue
+            seen.add(item)
+            salience[item] = smiths_s(rank_0 + 1, list_length)
+        per_run_salience.append(salience)
+
+    n = len(per_run_salience)
+    if n < 2:
+        return None
+
+    rhos: list[float] = []
+    for i in range(n):
+        for j in range(i + 1, n):
+            shared = sorted(set(per_run_salience[i]) & set(per_run_salience[j]))
+            if len(shared) < 3:
+                continue
+            x = [per_run_salience[i][item] for item in shared]
+            y = [per_run_salience[j][item] for item in shared]
+            rho, _ = spearmanr(x, y)
+            if not np.isnan(rho):
+                rhos.append(float(rho))
+
+    return float(np.mean(rhos)) if rhos else None
 
 
 # ---------------------------------------------------------------------------
