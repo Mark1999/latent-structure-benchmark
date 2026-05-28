@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.7.0  
+**Version:** v0.8.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.8.0** (viz-fixes fix-forward, 2026-05-28) adds §15 (Term stability pill tiers, TermMap uncertainty ellipse color, `.term-map-controls` inline-style grandfather, tooltip font-size exception). No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-28-viz-fixes-ui-ux-verdict.md` items 2–4).
 - **v0.7.0** (F2-T1–T7 UI/UX gate, 2026-05-27) adds §14 (Focus 2 — Within-Provider Family Comparison visual decisions). Three-pill focus selector (§14.1), family sidebar single-select (§14.2), family overview cards with pairwise/mean labeling per CDA SME notes (§14.3), mini heatmap (§14.4), MDS ring highlight (§14.5), salience/pile reuse (§14.6), focus ordering rule (§14.7), model color retention (§14.8), Focus 2 tab IDs (§14.9), description paragraphs (§14.10), cite path (§14.11), single-family state (§14.12), forbidden vocabulary (§14.13). No new tokens.
 - **v0.6.0** (F1-T5 through F1-T9 UI/UX gate, 2026-05-27) adds §13 (Focus 1 — Individual Model Consistency visual decisions). Introduces: focus-level selector navigation (§13.1), single-select sidebar mode for Focus 1 (§13.2), ranked-list Self-Consistency Overview layout (§13.3), concentration tier badge vocabulary and color treatment (§13.4, no semantic color — border intensity only), OCI display with CI fallback and underestimation caveat affordance (§13.5), run agreement heatmap color scale assignment (§13.6, reuses existing sequential scale), run MDS specification with CDA SME S3 suppression rule and non-color centroid discriminator (§13.7), term stability dashed-border tier treatment (§13.8, mirrors §12.10), Focus 1 ActiveVizTab extensions (§13.9), journalist description paragraph copy (§13.10), and cite-path SourceAttribution/CSV requirements (§13.11). Two new constants added to `apps/dashboard/src/config/analysis.ts`: `OCI_CONCENTRATED_THRESHOLD`, `OCI_MODERATE_THRESHOLD`. No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-27-F1-T5toT9-uiux-verdict.md`).
 - **v0.5.2** (Phase 9a T6+T7, 2026-05-24) adds `TermMDSPlot.tsx`, `TermMDSTable.tsx`, `term-mds-plot.css`, `Dendrogram.tsx`, `DendrogramTable.tsx`, `dendrogram.css` to §11 Component Inventory. Introduces cluster color palette tokens (`--color-cluster-1` through `--color-cluster-8`) in §1.2. Extends `ActiveVizTab` to include `"term-mds"` and `"cluster-tree"`. VizSwitcher tab count: 6 → 8 (Term Map at index 1, Cluster Tree at index 2). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-T6T7-ui-ux-verdict.md`).
@@ -2107,6 +2108,54 @@ Single-model families (DeepSeek, Meta, Microsoft) are a normal first-class state
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.7.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 15. Viz-fixes visual decisions (v0.8.0 — 2026-05-28)
+
+Captures four visual decisions introduced by the viz-fixes change set and ratified by the UI/UX agent (PASS-WITH-NOTES verdict `docs/status/2026-05-28-viz-fixes-ui-ux-verdict.md` items 1–4).
+
+### 15.1 Term stability pill tiers
+
+`PileStructure.tsx` (and related components) renders a stability badge on each pile term. Three tiers based on stability score, encoded via both border-style AND text-color (not color alone — satisfies WCAG 1.4.1):
+
+| Tier | Condition | Border | Text color |
+|---|---|---|---|
+| **High** | stability ≥ 0.80 | `1px solid var(--color-border)` | `var(--color-text-primary)` |
+| **Medium** | 0.50 ≤ stability < 0.80 | `1px dashed var(--color-border)` | `var(--color-text-primary)` |
+| **Low** | stability < 0.50 | `1px dashed var(--color-text-secondary)` | `var(--color-text-caption)` |
+
+The legend for pill tiers is `aria-hidden="true"` — screen readers access stability values via `aria-label` on each pill. The two-channel encoding (border-style + text-color) is the sole discriminator; no background-color difference between tiers.
+
+### 15.2 TermMap uncertainty ellipses — cluster color
+
+When `showUncertainty === true`, each term's confidence ellipse is filled/stroked using `getClusterColor(t.cluster)` (the cluster palette from §1.2, `--color-cluster-1` through `--color-cluster-8`). This is defensible because cluster color is already the term's primary positional encoding in the term map; using the same color for the uncertainty region avoids introducing a second independent color encoding that would compete with it.
+
+This decision is NOT a precedent for using cluster colors in non-term-map contexts. The cluster palette (`--color-cluster-*`) and the model palette (`--color-model-*`) must never appear in the same legend within a single chart.
+
+### 15.3 `.term-map-controls` inline-style layout (grandfathered)
+
+The `.term-map-controls` row in `TermMap.tsx` uses inline `style` attributes for its flex layout. This is grandfathered as-is because the values map directly to existing design tokens:
+
+- `gap: '12px'` → `--space-3`
+- `gap: '8px'` → `--space-2`
+- `gap: '16px'` → `--space-4`
+- `gap: '6px'` → not a named spacing token but within the established `--space-1`/`--space-2` range
+- `fontSize: '12px'` → `--font-size-xs`
+- `fontFamily: 'var(--font-body)'` → uses token already
+- `color: 'var(--color-text-primary)'` → uses token already
+
+**The grandfathering is frozen.** No additional inline styles may be added to `.term-map-controls`. Any new control added to this row must use CSS class rules referencing tokens, not inline styles.
+
+### 15.4 Tooltip font-size exception — supplementary text at 10px
+
+Inside the dark-inverted tooltip (`.centrality-chart__tooltip`, using `--color-tooltip-dark-bg` / `--color-tooltip-dark-text`), supplementary footnote text (e.g., bootstrap sample count labels) may use `fontSize: '10px'` — below the `--font-size-xs: 12px` floor. This exception is allowed only under these three conditions simultaneously:
+
+1. The element is inside the dark-inverted tooltip container (background `var(--color-tooltip-dark-bg)`).
+2. The text is supplementary, non-primary information (the primary reading path is at `--font-size-xs` or larger).
+3. The element has an accessible counterpart at full size (table path or `aria-label`).
+
+This exception does NOT apply anywhere outside the dark-inverted tooltip. Any 10px text outside this context is a WCAG AA violation and must be corrected.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.8.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

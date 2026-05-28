@@ -22,14 +22,14 @@ interface FreeListCompareProps {
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
-  anthropic:  '#d97706',
-  openai:     '#10a37f',
-  google:     '#4285f4',
-  meta:       '#0668e1',
-  xai:        '#1d1d1f',
-  mistral:    '#f97316',
-  deepseek:   '#0ea5e9',
-  microsoft:  '#00a4ef',
+  anthropic:  'var(--color-provider-anthropic)',
+  openai:     'var(--color-provider-openai)',
+  google:     'var(--color-provider-google)',
+  meta:       'var(--color-provider-meta)',
+  xai:        'var(--color-provider-xai)',
+  mistral:    'var(--color-provider-mistral)',
+  deepseek:   'var(--color-provider-deepseek)',
+  microsoft:  'var(--color-provider-microsoft)',
 };
 
 function displayProvider(model: PublishedModel): string {

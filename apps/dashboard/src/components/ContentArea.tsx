@@ -37,18 +37,19 @@ interface DomainExtended extends DomainResultPublished {
   term_mds_items?: string[];
   /** Bootstrap proportion per internal linkage node (one value per linkage row). */
   term_cluster_bp_values?: number[];
+  term_mds_uncertainty?: Record<string, EllipseParams | null>;
 }
 
 // Provider display color map
 const PROVIDER_COLORS: Record<string, string> = {
-  anthropic:  '#d97706',
-  openai:     '#10a37f',
-  google:     '#4285f4',
-  meta:       '#0668e1',
-  xai:        '#1d1d1f',
-  mistral:    '#f97316',
-  deepseek:   '#0ea5e9',
-  microsoft:  '#00a4ef',
+  anthropic:  'var(--color-provider-anthropic)',
+  openai:     'var(--color-provider-openai)',
+  google:     'var(--color-provider-google)',
+  meta:       'var(--color-provider-meta)',
+  xai:        'var(--color-provider-xai)',
+  mistral:    'var(--color-provider-mistral)',
+  deepseek:   'var(--color-provider-deepseek)',
+  microsoft:  'var(--color-provider-microsoft)',
 };
 
 function displayProvider(model: PublishedModel): string {
@@ -95,6 +96,8 @@ interface ContentAreaProps {
   cooccurrenceData?: CooccurrenceData | null;
   /** When true, TermMap shows a cursor-following magnifying lens */
   lensEnabled?: boolean;
+  /** Callback to toggle magnifying lens */
+  onLensToggle?: () => void;
   /** Active domain slug — needed for Focus 1 data loading */
   activeDomain: string;
 }
@@ -117,6 +120,7 @@ export function ContentArea({
   onSelectProvider,
   cooccurrenceData,
   lensEnabled,
+  onLensToggle,
   activeDomain,
 }: ContentAreaProps) {
   // Build selection bar chips
@@ -244,9 +248,17 @@ export function ContentArea({
         {!loading && !error && !isFocus1 && !isFocus2 && domain && (
           <>
             <p className="chart-lede" aria-live="polite">
-              Across{' '}
-              <strong>{selectedModelIds.size} model{selectedModelIds.size !== 1 ? 's' : ''}</strong>
-              , {domain.domain_slug} vocabulary is organized around a shared categorical structure
+              {selectedModelIds.size === 0 ? (
+                <>
+                  Consensus baseline (all tested models): <strong>{domain.domain_slug}</strong> vocabulary is organized around a shared categorical structure
+                </>
+              ) : (
+                <>
+                  Across{' '}
+                  <strong>{selectedModelIds.size} model{selectedModelIds.size !== 1 ? 's' : ''}</strong>
+                  , <strong>{domain.domain_slug}</strong> vocabulary is organized around a shared categorical structure
+                </>
+              )}
               {domain.consensus_score != null && (
                 <>
                   {' '}(<strong>Smith&apos;s S = {domain.consensus_score.toFixed(2)}</strong>
@@ -267,6 +279,8 @@ export function ContentArea({
                 cooccurrenceData={cooccurrenceData}
                 selectedModelIds={selectedModelIds}
                 lensEnabled={lensEnabled}
+                onLensToggle={onLensToggle}
+                termUncertainty={domain.term_mds_uncertainty}
               />
             )}
 
@@ -292,6 +306,8 @@ export function ContentArea({
                   centralityScores={domain.cultural_centrality_scores ?? {}}
                   models={domain.models}
                   selectedModelIds={selectedModelIds}
+                  consensusType={domain.consensus_type}
+                  domainSlug={domain.domain_slug}
                 />
               </div>
             )}

@@ -219,7 +219,7 @@ export function Focus1RunDistribution({
   const nRuns = runIds.length || n_runs;
 
   // Run heatmap rendering
-  const CELL_SIZE = Math.max(14, Math.min(28, Math.floor(360 / Math.max(nRuns, 1))));
+  const CELL_SIZE = Math.max(14, Math.min(28, Math.floor(480 / Math.max(nRuns, 1))));
   const HEADER_SIZE = 70;
   const ROW_LABEL_WIDTH = 52;
   const PAD = 2;
@@ -296,7 +296,7 @@ export function Focus1RunDistribution({
                               strokeWidth={0.5}
                               aria-label={`Run ${ri + 1} vs Run ${ci + 1}: ${sim.toFixed(2)}`}
                             />
-                            {CELL_SIZE >= 18 && (
+                            {CELL_SIZE >= 14 && (
                               <text
                                 x={cx + CELL_SIZE / 2}
                                 y={ry + CELL_SIZE / 2}
@@ -304,9 +304,9 @@ export function Focus1RunDistribution({
                                 textAnchor="middle"
                                 fill={textColor}
                                 className="similarity-heatmap__cell-value"
-                                fontSize={Math.min(8, CELL_SIZE - 5)}
+                                fontSize={Math.min(9, CELL_SIZE - 7)}
                               >
-                                {sim.toFixed(2)}
+                                {sim === 1 ? '1.0' : sim.toFixed(2).replace(/^0/, '')}
                               </text>
                             )}
                           </g>

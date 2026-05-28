@@ -22,9 +22,14 @@ interface MDSPlotProps {
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
-  anthropic: '#d97706', openai: '#10a37f', google: '#4285f4',
-  meta: '#0668e1', xai: '#1d1d1f', mistral: '#f97316',
-  deepseek: '#0ea5e9', microsoft: '#00a4ef',
+  anthropic: 'var(--color-provider-anthropic)',
+  openai: 'var(--color-provider-openai)',
+  google: 'var(--color-provider-google)',
+  meta: 'var(--color-provider-meta)',
+  xai: 'var(--color-provider-xai)',
+  mistral: 'var(--color-provider-mistral)',
+  deepseek: 'var(--color-provider-deepseek)',
+  microsoft: 'var(--color-provider-microsoft)',
 };
 
 function displayProvider(model: { provider: string; family: string }): string {
@@ -83,6 +88,94 @@ export function MDSPlot({
     const sx = (v: number) => pad.l + ((v - xMin) / (xMax - xMin)) * pw;
     const sy = (v: number) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * ph;
 
+    // Greedy compass label offset algorithm to prevent overlaps
+    const labelLayouts: { x: number; y: number; anchor: string }[] = [];
+    const placedBoxes: { x1: number; x2: number; y1: number; y2: number }[] = [];
+
+    const DIRECTIONS: {
+      anchor: string;
+      dx: number;
+      dy: number;
+      bx: (cx: number, w: number) => number;
+      by: (cy: number, h: number) => number;
+    }[] = [
+      { anchor: 'start',  dx: 9,   dy: 4,   bx: (cx) => cx + 9,          by: (cy) => cy - 6 },      // E
+      { anchor: 'start',  dx: 7,   dy: 10,  bx: (cx) => cx + 7,          by: (cy) => cy },          // SE
+      { anchor: 'middle', dx: 0,   dy: 14,  bx: (cx, w) => cx - w / 2,   by: (cy) => cy + 4 },      // S
+      { anchor: 'end',    dx: -7,  dy: 10,  bx: (cx, w) => cx - 7 - w,   by: (cy) => cy },          // SW
+      { anchor: 'end',    dx: -9,  dy: 4,   bx: (cx, w) => cx - 9 - w,   by: (cy) => cy - 6 },      // W
+      { anchor: 'end',    dx: -7,  dy: -2,  bx: (cx, w) => cx - 7 - w,   by: (cy) => cy - 12 },     // NW
+      { anchor: 'middle', dx: 0,   dy: -8,  bx: (cx, w) => cx - w / 2,   by: (cy) => cy - 18 },     // N
+      { anchor: 'start',  dx: 7,   dy: -2,  bx: (cx) => cx + 7,          by: (cy) => cy - 12 },     // NE
+    ];
+
+    visibleModels.forEach((m) => {
+      const [x, y] = mdsCoordinates[m.model_id];
+      const cx = sx(x);
+      const cy = sy(y);
+      const name = shortName(m.model_id);
+      const w = name.length * 6.2; // approx char width for 12px font
+      const h = 12; // label height
+
+      let bestDirIdx = 0;
+      let minPenalty = Infinity;
+
+      for (let k = 0; k < 8; k++) {
+        const dir = DIRECTIONS[k];
+        const bx1 = dir.bx(cx, w);
+        const bx2 = bx1 + w;
+        const by1 = dir.by(cy, h);
+        const by2 = by1 + h;
+
+        let penalty = 0;
+
+        // Penalty 1: overlap with already placed label boxes
+        for (let j = 0; j < placedBoxes.length; j++) {
+          const pb = placedBoxes[j];
+          const xOverlap = Math.max(0, Math.min(bx2, pb.x2) - Math.max(bx1, pb.x1));
+          const yOverlap = Math.max(0, Math.min(by2, pb.y2) - Math.max(by1, pb.y1));
+          if (xOverlap > 0 && yOverlap > 0) {
+            penalty += xOverlap * yOverlap * 8;
+          }
+        }
+
+        // Penalty 2: overlap with other dots
+        visibleModels.forEach((otherM) => {
+          if (otherM.model_id === m.model_id) return;
+          const [ox, oy] = mdsCoordinates[otherM.model_id];
+          const ocx = sx(ox);
+          const ocy = sy(oy);
+          if (ocx >= bx1 - 5 && ocx <= bx2 + 5 && ocy >= by1 - 5 && ocy <= by2 + 5) {
+            penalty += 200;
+          }
+        });
+
+        // Penalty 3: out of bounds
+        if (bx1 < pad.l || bx2 > W - pad.r || by1 < pad.t || by2 > H - pad.b) {
+          penalty += 300;
+        }
+
+        // Slight preference for East (original standard)
+        penalty += k * 0.5;
+
+        if (penalty < minPenalty) {
+          minPenalty = penalty;
+          bestDirIdx = k;
+        }
+      }
+
+      const bestDir = DIRECTIONS[bestDirIdx];
+      const lx = cx + bestDir.dx;
+      const ly = cy + bestDir.dy;
+      labelLayouts.push({ x: lx, y: ly, anchor: bestDir.anchor });
+      placedBoxes.push({
+        x1: bestDir.bx(cx, w),
+        x2: bestDir.bx(cx, w) + w,
+        y1: bestDir.by(cy, h),
+        y2: bestDir.by(cy, h) + h,
+      });
+    });
+
     let svg = '';
 
     // Grid
@@ -107,13 +200,14 @@ export function MDSPlot({
     });
 
     // Points + labels
-    visibleModels.forEach((m) => {
+    visibleModels.forEach((m, idx) => {
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x), cy = sy(y);
       const color = PROVIDER_COLORS[displayProvider(m)] || '#888';
       const name = shortName(m.model_id);
+      const layout = labelLayouts[idx];
       svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="#fff" stroke-width="1.5" data-model="${m.model_id}" style="cursor:pointer"/>`;
-      svg += `<text x="${cx + 9}" y="${cy + 4}" font-family="var(--font-body)" font-size="12" fill="#4a4a4a" style="pointer-events:none">${name}</text>`;
+      svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="12" fill="#4a4a4a" style="pointer-events:none">${name}</text>`;
     });
 
     // Axis labels
