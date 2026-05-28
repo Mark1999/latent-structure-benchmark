@@ -809,10 +809,83 @@ body {
 }
 
 .pile-group__terms {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-1) var(--space-2);
+  margin-top: var(--space-1);
+}
+
+.pile-group--highlight {
+  box-shadow: var(--shadow-sm);
+  background-color: var(--color-surface-hover) !important;
+}
+
+.pile-comparison__pill {
   font-size: 11px;
+  padding: 2px 6px;
+  border-radius: var(--border-radius-sm);
+  display: inline-block;
+  white-space: nowrap;
+  transition: all 0.15s ease;
+  user-select: none;
+}
+
+/* stability >= 0.80: solid pill */
+.pile-comparison__pill--stability-high {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  color: var(--color-text-primary);
+}
+
+/* 0.60 <= stability < 0.80: dashed border */
+.pile-comparison__pill--stability-medium {
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-primary);
+}
+
+/* stability < 0.60: dashed border + muted text */
+.pile-comparison__pill--stability-low {
+  background: transparent;
+  border: 1px dashed var(--color-text-secondary);
+  color: var(--color-text-caption);
+}
+
+/* Cross-column hover highlight */
+.pile-comparison__pill--highlight {
+  background-color: var(--color-surface-hover) !important;
+  border: 1px solid var(--color-text-secondary) !important;
+}
+
+/* Absent placeholder pill */
+.pile-comparison__pill--absent {
+  background: transparent;
+  border: 1px dashed var(--color-text-muted);
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+.pile-legend {
+  display: flex;
+  flex-wrap: wrap;
+  gap: var(--space-4);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  padding: var(--space-4) var(--space-3);
+  border-top: var(--border-width) solid var(--color-border);
+  width: 100%;
+  margin-top: var(--space-4);
+}
+
+.pile-legend__title {
+  font-weight: var(--font-weight-bold);
   color: var(--color-text-secondary);
-  line-height: var(--line-height-body);
-  word-break: break-word;
+}
+
+.pile-legend__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-2);
 }
 
 .pile-empty,
