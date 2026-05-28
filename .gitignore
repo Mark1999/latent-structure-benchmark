@@ -60,6 +60,10 @@ HARDWARE.md
 
 # Local screenshots used as Claude-Code debugging aids — not canonical docs
 docs/screenshots/
+screenshots/
+
+# Playwright test artifacts (local-only)
+apps/dashboard/test-results/
 
 # Social publishing pipeline runtime directories (queue and state are
 # operator-local runtime artifacts; only out/social/README.md is tracked)

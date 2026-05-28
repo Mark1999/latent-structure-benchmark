@@ -33984,7 +33984,10 @@
         "074633fc1b3c6458": 0.4474600394686462
       },
       "centroid_run_id": "f5dc719bc14c48c1",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "claude-sonnet-4-6",
@@ -34004,7 +34007,10 @@
         "ade75aeafc6ae202": 0.449588123542276
       },
       "centroid_run_id": "5bcd635606256743",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "deepseek/deepseek-v3.2",
@@ -34024,7 +34030,10 @@
         "c1eaa3dc3bd3b5c8": 0.45771480971577416
       },
       "centroid_run_id": "02fbfd57b1564c48",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "google/gemini-2.5-pro",
@@ -34044,7 +34053,10 @@
         "ed2858354d3817a7": 0.4481453819162031
       },
       "centroid_run_id": "3e94c8a39548a310",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "meta-llama/llama-4-maverick",
@@ -34063,7 +34075,10 @@
         "bca62c08cb9a1d87": 0.5061104940436736
       },
       "centroid_run_id": "bca62c08cb9a1d87",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "mistralai/mistral-large-2512",
@@ -34083,7 +34098,10 @@
         "7d9e707209fbb894": 0.45050403872261285
       },
       "centroid_run_id": "040d211bb717a9ac",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "mistralai/mistral-small-2603",
@@ -34099,7 +34117,10 @@
         "85574fb621c0d68a": 0.0
       },
       "centroid_run_id": "85574fb621c0d68a",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "openai/gpt-5.4",
@@ -34119,7 +34140,10 @@
         "0b3125a54392475f": 0.44978966708813994
       },
       "centroid_run_id": "0b3125a54392475f",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "openai/gpt-5.4-mini",
@@ -34138,7 +34162,10 @@
         "154489295d188e24": 0.5325421702364433
       },
       "centroid_run_id": "5fd4d3bae2685be6",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     }
   ],
   "g1_salience_stability": null,

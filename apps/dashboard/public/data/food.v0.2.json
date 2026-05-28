@@ -27536,7 +27536,10 @@
         "d14245027d65edfb": 0.4441415284389002
       },
       "centroid_run_id": "575dd027b2c7aea1",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "claude-opus-4-6",
@@ -27554,7 +27557,10 @@
         "f89c9fbf1ce8240f": 0.5778713619102687
       },
       "centroid_run_id": "f89c9fbf1ce8240f",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "claude-sonnet-4-6",
@@ -27574,7 +27580,10 @@
         "12266b348f35145d": 0.44783927584485567
       },
       "centroid_run_id": "f04cf3382a184a49",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "google/gemini-2.5-flash",
@@ -27593,7 +27602,10 @@
         "1d2f0267bf23747f": 0.5071264775185386
       },
       "centroid_run_id": "1d2f0267bf23747f",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "mistralai/mistral-small-2603",
@@ -27609,7 +27621,10 @@
         "8abac36fc844e9b7": 0.0
       },
       "centroid_run_id": "8abac36fc844e9b7",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "openai/gpt-5.2",
@@ -27629,7 +27644,10 @@
         "5c87913711d278a4": 0.4463213043896297
       },
       "centroid_run_id": "ced7afbfbebef688",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "openai/gpt-5.4",
@@ -27648,7 +27666,10 @@
         "cb42a309753457ac": 0.49563460752538147
       },
       "centroid_run_id": "143dfb1659ed8252",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     },
     {
       "model_id": "openai/gpt-5.4-mini",
@@ -27665,7 +27686,10 @@
         "6dd10a8eaa995154": 0.7071067811865475
       },
       "centroid_run_id": "46cde2de9f7ea050",
-      "mds_within_model": []
+      "mds_within_model": [],
+      "within_model_mds_stress": null,
+      "run_agreement_matrix": [],
+      "run_summaries": []
     }
   ],
   "g1_salience_stability": null,
