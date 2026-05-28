@@ -43,8 +43,6 @@ interface SidebarProps {
   onTogglePin: (provider: string) => void;
   openWeightsOnly: boolean;
   onOpenWeightsToggle: () => void;
-  lensEnabled: boolean;
-  onLensToggle: () => void;
   /** Current focus level — used to hide model selection in Focus 1/2 */
   activeFocus?: ActiveFocus;
   /** Selected provider family for Focus 2 */
@@ -65,8 +63,6 @@ export function Sidebar({
   onTogglePin,
   openWeightsOnly,
   onOpenWeightsToggle,
-  lensEnabled,
-  onLensToggle,
   activeFocus,
   selectedProvider,
   onSelectProvider,
@@ -225,20 +221,6 @@ export function Sidebar({
                 role="switch"
                 aria-checked={openWeightsOnly}
                 aria-labelledby="open-weights-label"
-              >
-                <span className="toggle__thumb" />
-              </button>
-            </div>
-            <div className="toggle-row">
-              <span className="toggle-label" id="lens-label">
-                Magnifying lens
-              </span>
-              <button
-                className={`toggle${lensEnabled ? ' toggle--on' : ''}`}
-                onClick={onLensToggle}
-                role="switch"
-                aria-checked={lensEnabled}
-                aria-labelledby="lens-label"
               >
                 <span className="toggle__thumb" />
               </button>

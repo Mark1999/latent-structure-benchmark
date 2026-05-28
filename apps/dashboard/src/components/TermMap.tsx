@@ -145,6 +145,8 @@ interface TermMapProps {
   selectedModelIds?: Set<string>;
   /** When true, a cursor-following magnifying lens spreads overlapping terms apart */
   lensEnabled?: boolean;
+  /** Callback to toggle magnifying lens */
+  onLensToggle?: () => void;
   /** 95% bootstrap confidence ellipses for each term */
   termUncertainty?: Record<string, EllipseParams | null>;
 }
@@ -157,6 +159,7 @@ export function TermMap({
   cooccurrenceData,
   selectedModelIds,
   lensEnabled = false,
+  onLensToggle,
   termUncertainty,
 }: TermMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -970,7 +973,7 @@ export function TermMap({
       <div className="term-map-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <label className="term-map-controls__label" htmlFor="pile-label-select">
-            Pile labels from:
+            Overlay category names from:
           </label>
           <select
             id="pile-label-select"
@@ -1009,6 +1012,18 @@ export function TermMap({
               style={{ cursor: 'pointer' }}
             />
             Show cluster labels
+          </label>
+          <label 
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)', userSelect: 'none' }}
+            title="Hover to magnify and separate crowded term labels"
+          >
+            <input
+              type="checkbox"
+              checked={lensEnabled}
+              onChange={onLensToggle}
+              style={{ cursor: 'pointer' }}
+            />
+            Magnifying lens
           </label>
         </div>
       </div>

@@ -96,6 +96,8 @@ interface ContentAreaProps {
   cooccurrenceData?: CooccurrenceData | null;
   /** When true, TermMap shows a cursor-following magnifying lens */
   lensEnabled?: boolean;
+  /** Callback to toggle magnifying lens */
+  onLensToggle?: () => void;
   /** Active domain slug — needed for Focus 1 data loading */
   activeDomain: string;
 }
@@ -118,6 +120,7 @@ export function ContentArea({
   onSelectProvider,
   cooccurrenceData,
   lensEnabled,
+  onLensToggle,
   activeDomain,
 }: ContentAreaProps) {
   // Build selection bar chips
@@ -245,9 +248,17 @@ export function ContentArea({
         {!loading && !error && !isFocus1 && !isFocus2 && domain && (
           <>
             <p className="chart-lede" aria-live="polite">
-              Across{' '}
-              <strong>{selectedModelIds.size} model{selectedModelIds.size !== 1 ? 's' : ''}</strong>
-              , {domain.domain_slug} vocabulary is organized around a shared categorical structure
+              {selectedModelIds.size === 0 ? (
+                <>
+                  Consensus baseline (all tested models): <strong>{domain.domain_slug}</strong> vocabulary is organized around a shared categorical structure
+                </>
+              ) : (
+                <>
+                  Across{' '}
+                  <strong>{selectedModelIds.size} model{selectedModelIds.size !== 1 ? 's' : ''}</strong>
+                  , <strong>{domain.domain_slug}</strong> vocabulary is organized around a shared categorical structure
+                </>
+              )}
               {domain.consensus_score != null && (
                 <>
                   {' '}(<strong>Smith&apos;s S = {domain.consensus_score.toFixed(2)}</strong>
@@ -268,6 +279,7 @@ export function ContentArea({
                 cooccurrenceData={cooccurrenceData}
                 selectedModelIds={selectedModelIds}
                 lensEnabled={lensEnabled}
+                onLensToggle={onLensToggle}
                 termUncertainty={domain.term_mds_uncertainty}
               />
             )}

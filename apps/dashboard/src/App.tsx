@@ -258,8 +258,6 @@ export default function App() {
           onTogglePin={handleTogglePin}
           openWeightsOnly={openWeightsOnly}
           onOpenWeightsToggle={() => setOpenWeightsOnly((v) => !v)}
-          lensEnabled={lensEnabled}
-          onLensToggle={() => setLensEnabled((v) => !v)}
           activeFocus={activeFocus}
           selectedProvider={selectedProvider}
           onSelectProvider={setSelectedProvider}
@@ -280,6 +278,7 @@ export default function App() {
           onSelectProvider={setSelectedProvider}
           cooccurrenceData={cooccurrenceData}
           lensEnabled={lensEnabled}
+          onLensToggle={() => setLensEnabled((v) => !v)}
           activeDomain={activeDomain}
         />
       </div>
