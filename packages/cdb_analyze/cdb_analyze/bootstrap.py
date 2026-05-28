@@ -14,12 +14,21 @@ Term-level bootstrap functions (Phase 9a T4):
 - bootstrap_branch_stability(): per-internal-node bootstrap proportion (BP)
   for the term AHC dendrogram. B=200.
 
+Cultural centrality bootstrap (Remedy B T1):
+
+- bootstrap_centrality_ci(): per-model 95% CI on cultural centrality scores,
+  resampling MODELS with replacement (Register 2). B=500. Reference-vector
+  sign alignment per CDA SME Q1 ruling. See docs/BOOTSTRAP_DESIGN.md §3.1
+  and docs/status/2026-05-28-remedy-b-cda-sme-verdict.md.
+
 CIs reflect between-model structural variance only (not within-model run
 variance, which is absorbed into each model's consensus matrix). Per CDA
 SME M4a (2026-05-24-phase9a-cda-sme-verdict.md).
 """
 
 from __future__ import annotations
+
+import logging
 
 import numpy as np
 from cdb_core import BootstrapEllipse, CooccurrenceMatrix, InformantRecord
@@ -28,8 +37,11 @@ from scipy.cluster.hierarchy import linkage as scipy_linkage
 from scipy.spatial import procrustes
 from scipy.spatial.distance import squareform
 
+from cdb_analyze.consensus import compute_centrality_scores  # noqa: E402
 from cdb_analyze.cooccurrence import build_cooccurrence_matrix
 from cdb_analyze.mds import compute_cross_model_similarity, run_item_mds, run_mds
+
+logger = logging.getLogger(__name__)
 
 
 def bootstrap_mds_ellipses(
@@ -158,6 +170,160 @@ def _fit_ellipse(
         rotation_rad=rotation_rad,
         n_bootstrap=n_bootstrap,
     )
+
+
+# ──────────────────────────────────────────────────────────────────────
+# Remedy B T1 — cultural centrality bootstrap (CDA SME Q1–Q4 binding)
+# ──────────────────────────────────────────────────────────────────────
+
+
+def bootstrap_centrality_ci(
+    model_ids: list[str],
+    similarity_matrix: NDArray[np.float64],
+    *,
+    n_bootstrap: int = 500,
+    random_state: int = 42,
+) -> dict[str, tuple[float, float]]:
+    """Bootstrap 95% CI on cultural centrality scores (Register 2, model-resampled).
+
+    Computes per-model (2.5th, 97.5th) percentile confidence intervals on
+    cultural centrality loadings by resampling *models with replacement* (the
+    Register 2 informant unit). Each bootstrap iteration:
+
+    1. Draws M model indices with replacement from the original M models.
+    2. Constructs an M×M resampled similarity matrix by indexing rows and
+       columns of the full-data similarity matrix at the drawn indices.
+    3. Calls ``np.linalg.eigh`` directly on the resampled matrix to obtain the
+       raw first eigenvector (largest eigenvalue).
+    4. Aligns the bootstrap eigenvector sign against the **reference**
+       centrality vector: if ``dot(boot_eigvec, ref_eigvec) < 0``, flips it.
+       This is the Q1 binding convention — reference-vector alignment, NOT the
+       mean-sign convention used inside ``compute_centrality_scores``. The
+       mean-sign convention (consensus.py ~L294) would silently undo reference
+       alignment for bootstrap resamples that over-draw negative-centrality
+       models, producing a sign-incoherent CI.
+    5. Records each drawn model's loading into that model's accumulator.
+
+    After B iterations, returns the 2.5th / 97.5th percentile of each model's
+    accumulated loading distribution.
+
+    **Degenerate-n guard (Q3):** returns ``{}`` when ``len(model_ids) < 3``.
+    At n=2 the centrality eigenvector is mathematically degenerate —
+    any 2×2 symmetric matrix's first eigenvector is ``(1, 1)/√2`` up to sign,
+    so bootstrap loadings are constant and the percentile CI is illusory
+    zero-width. Emitting no CI is the honest answer in this regime.
+    All v1 production domains have n=12; this guard exists for forward
+    compatibility with future low-n domains and fixture tests.
+
+    **Resample contract (BOOTSTRAP_DESIGN.md §3.1):** models with replacement,
+    B=500, percentile method. The CI reflects between-model structural variance
+    only; within-model run variance is already absorbed into each model's
+    pre-computed consensus matrix (Option 2, annotated-uncertainty contract).
+
+    **No LLM calls.** This function is in ``cdb_analyze`` and must not import
+    or invoke any LLM client library (CLAUDE.md §6 rule 11).
+
+    References:
+        docs/BOOTSTRAP_DESIGN.md §3.1
+        docs/status/2026-05-28-remedy-b-cda-sme-verdict.md (Q1–Q4, N1–N7)
+
+    Args:
+        model_ids: Ordered list of model identifiers, corresponding to the
+            rows and columns of ``similarity_matrix``.
+        similarity_matrix: Square (n_models × n_models) inter-model similarity
+            matrix, as produced by ``compute_cross_model_similarity``.
+        n_bootstrap: Number of bootstrap iterations (default 500, per Q2).
+        random_state: RNG seed for reproducibility (default 42). Same
+            ``random_state`` always produces identical output.
+
+    Returns:
+        ``dict[str, tuple[float, float]]`` mapping each model_id to a
+        ``(lo, hi)`` tuple of 2.5th / 97.5th percentile centrality loadings.
+        Returns ``{}`` when ``len(model_ids) < 3`` (degenerate-n guard) or
+        when all bootstrap iterations fail (degenerate similarity matrix).
+    """
+    n_models = len(model_ids)
+
+    # Q3 degenerate-n guard: n < 3 → no CI.
+    if n_models < 3:
+        if n_models == 2:  # noqa: PLR2004
+            logger.warning(
+                "bootstrap_centrality_ci: skipped (n=2); centrality eigenvector is "
+                "degenerate at n=2 — (1,1)/√2 up to sign. No CI emitted."
+            )
+        else:
+            logger.warning(
+                "bootstrap_centrality_ci: skipped (n=%d < 3); need at least 3 models.",
+                n_models,
+            )
+        return {}
+
+    # Compute the reference centrality vector using compute_centrality_scores so
+    # the dashboard-published reference and the bootstrap's reference are the same
+    # object (N1 binding constraint). The result is the mean-sign-flipped
+    # eigenvector; per-iteration alignment builds a reference sub-vector in
+    # sampled_ids order from these scores (see Step 4 in the loop below).
+    ref_scores: dict[str, float] = compute_centrality_scores(model_ids, similarity_matrix)
+
+    rng = np.random.default_rng(random_state)
+
+    # Accumulate per-model bootstrap loadings across iterations.
+    # Each model's list grows by one entry for each draw in each iteration
+    # (a model drawn k times in one iteration contributes k entries).
+    boot_loadings: dict[str, list[float]] = {mid: [] for mid in model_ids}
+
+    sim_np = np.asarray(similarity_matrix, dtype=np.float64)
+
+    for _ in range(n_bootstrap):
+        # Step 1: draw M model indices with replacement.
+        sampled_indices = rng.integers(0, n_models, size=n_models)
+        sampled_ids = [model_ids[int(i)] for i in sampled_indices]
+
+        # Step 2: build the M×M resampled similarity matrix by slicing
+        # rows and columns of the full-data matrix at the drawn indices.
+        boot_sim = sim_np[np.ix_(sampled_indices, sampled_indices)]
+
+        try:
+            # Step 3: eigh directly on the resampled matrix (NOT via
+            # compute_centrality_scores — its internal mean-sign flip would
+            # undo reference-vector alignment for adversarial resamples).
+            eigvals, eigvecs = np.linalg.eigh(boot_sim)
+            # eigh returns ascending order; largest eigenvalue is last.
+            boot_eigvec = eigvecs[:, -1]
+
+            # Step 4: reference-vector sign alignment (Q1 binding convention).
+            # Align the raw bootstrap eigenvector against the reference
+            # (post-mean-sign-convention) centrality vector before recording.
+            # The reference uses model_ids ordering; the boot eigenvector uses
+            # sampled_ids ordering — we need to compare on the shared basis.
+            # Build the reference sub-vector in sampled_ids order:
+            ref_sub = np.array(
+                [ref_scores[mid] for mid in sampled_ids], dtype=np.float64
+            )
+            if float(np.dot(boot_eigvec, ref_sub)) < 0:
+                boot_eigvec = -boot_eigvec
+
+            # Step 5: record each drawn model's loading.
+            for pos, mid in enumerate(sampled_ids):
+                boot_loadings[mid].append(float(boot_eigvec[pos]))
+
+        except (ValueError, np.linalg.LinAlgError):
+            # Degenerate resample (e.g. all-identical rows) — skip iteration.
+            continue
+
+    # Compute 2.5th / 97.5th percentile CIs. A model with no accumulated
+    # loadings (all iterations failed) produces no entry in the result.
+    result: dict[str, tuple[float, float]] = {}
+    for mid in model_ids:
+        samples = boot_loadings[mid]
+        if len(samples) < 2:  # noqa: PLR2004
+            continue
+        arr = np.array(samples, dtype=np.float64)
+        lo = float(np.percentile(arr, 2.5))
+        hi = float(np.percentile(arr, 97.5))
+        result[mid] = (lo, hi)
+
+    return result
 
 
 # ──────────────────────────────────────────────────────────────────────
