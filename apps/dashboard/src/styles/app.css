@@ -621,8 +621,8 @@ body {
 }
 
 .freelist-column {
-  min-width: 200px;
-  flex: 1 0 200px;
+  min-width: 220px;
+  flex: 0 0 220px;
   background: var(--color-background);
   border: var(--border-width) solid var(--color-border);
   border-radius: var(--border-radius-sm);
