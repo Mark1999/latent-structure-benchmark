@@ -190,6 +190,108 @@ function WithinModelTermMds({ items, termStability }: WithinModelTermMdsProps) {
   );
   const labeledTerms = new Set(sortedByStability.slice(0, TOP_LABELED).map((t) => t.item));
 
+  const positionedItems = items.map((item) => ({
+    item: item.item,
+    cx: toSvgX(item.x),
+    cy: toSvgY(item.y),
+    stability: termStability[item.item] ?? 0,
+    showLabel: labeledTerms.has(item.item),
+  }));
+
+  // Greedy compass label offset algorithm to prevent overlaps
+  const labelLayouts: Record<string, { x: number; y: number; anchor: 'start' | 'middle' | 'end' }> = {};
+  const placedBoxes: { x1: number; x2: number; y1: number; y2: number }[] = [];
+
+  const DIRECTIONS: {
+    anchor: 'start' | 'middle' | 'end';
+    dx: number;
+    dy: number;
+    bx: (cx: number, w: number) => number;
+    by: (cy: number, h: number) => number;
+  }[] = [
+    { anchor: 'start',  dx: 5,   dy: 2,   bx: (cx) => cx + 5,      by: (cy) => cy - 4 },    // E
+    { anchor: 'start',  dx: 4,   dy: 6,   bx: (cx) => cx + 4,      by: (cy) => cy },        // SE
+    { anchor: 'middle', dx: 0,   dy: 8,   bx: (cx, w) => cx - w / 2,   by: (cy) => cy + 2 },    // S
+    { anchor: 'end',    dx: -4,  dy: 6,   bx: (cx, w) => cx - 4 - w,   by: (cy) => cy },        // SW
+    { anchor: 'end',    dx: -5,  dy: 2,   bx: (cx, w) => cx - 5 - w,   by: (cy) => cy - 4 },    // W
+    { anchor: 'end',    dx: -4,  dy: -2,  bx: (cx, w) => cx - 4 - w,   by: (cy) => cy - 8 },    // NW
+    { anchor: 'middle', dx: 0,   dy: -5,  bx: (cx, w) => cx - w / 2,   by: (cy) => cy - 11 },   // N
+    { anchor: 'start',  dx: 4,   dy: -2,  bx: (cx) => cx + 4,      by: (cy) => cy - 8 },    // NE
+  ];
+
+  // Sort labeled terms by stability descending to place most stable labels first
+  const sortedLabeledItems = positionedItems
+    .filter((pi) => pi.showLabel)
+    .sort((a, b) => b.stability - a.stability);
+
+  sortedLabeledItems.forEach((pi) => {
+    const { cx, cy, item: name } = pi;
+    const fontSize = 7;
+    const w = name.length * 3.8; // approx char width
+    const h = fontSize;
+
+    let bestDirIdx = 0;
+    let minPenalty = Infinity;
+
+    for (let k = 0; k < DIRECTIONS.length; k++) {
+      const dir = DIRECTIONS[k];
+      const bx1 = dir.bx(cx, w);
+      const bx2 = bx1 + w;
+      const by1 = dir.by(cy, h);
+      const by2 = by1 + h;
+
+      let penalty = 0;
+
+      // Penalty 1: overlap with already placed label boxes
+      for (let j = 0; j < placedBoxes.length; j++) {
+        const pb = placedBoxes[j];
+        const xOverlap = Math.max(0, Math.min(bx2, pb.x2) - Math.max(bx1, pb.x1));
+        const yOverlap = Math.max(0, Math.min(by2, pb.y2) - Math.max(by1, pb.y1));
+        if (xOverlap > 0 && yOverlap > 0) {
+          penalty += xOverlap * yOverlap * 10;
+        }
+      }
+
+      // Penalty 2: overlap with any other dots
+      positionedItems.forEach((other) => {
+        if (other.item === name) return;
+        if (
+          other.cx >= bx1 - 3 &&
+          other.cx <= bx2 + 3 &&
+          other.cy >= by1 - 3 &&
+          other.cy <= by2 + 3
+        ) {
+          penalty += 150;
+        }
+      });
+
+      // Penalty 3: out of bounds
+      if (bx1 < 4 || bx2 > W - 4 || by1 < 4 || by2 > H - 4) {
+        penalty += 200;
+      }
+
+      // Slight preference for first directions
+      penalty += k * 0.5;
+
+      if (penalty < minPenalty) {
+        minPenalty = penalty;
+        bestDirIdx = k;
+      }
+    }
+
+    const bestDir = DIRECTIONS[bestDirIdx];
+    const lx = cx + bestDir.dx;
+    const ly = cy + bestDir.dy;
+
+    labelLayouts[name] = { x: lx, y: ly, anchor: bestDir.anchor };
+    placedBoxes.push({
+      x1: bestDir.bx(cx, w),
+      x2: bestDir.bx(cx, w) + w,
+      y1: bestDir.by(cy, h),
+      y2: bestDir.by(cy, h) + h,
+    });
+  });
+
   return (
     <svg
       width={W}
@@ -199,32 +301,30 @@ function WithinModelTermMds({ items, termStability }: WithinModelTermMdsProps) {
       aria-label="Within-model term MDS positions"
       className="f1-within-mds__svg"
     >
-      {items.map((item) => {
-        const cx = toSvgX(item.x);
-        const cy = toSvgY(item.y);
-        const stability = termStability[item.item] ?? 0;
-        // Opacity scales with stability
-        const opacity = 0.3 + stability * 0.7;
-        const showLabel = labeledTerms.has(item.item);
+      {positionedItems.map((item) => {
+        const layout = labelLayouts[item.item];
+        const opacity = 0.3 + item.stability * 0.7;
 
         return (
           <g key={item.item}>
             <circle
-              cx={cx}
-              cy={cy}
+              cx={item.cx}
+              cy={item.cy}
               r={3}
               fill="var(--color-info)"
               fillOpacity={opacity}
               stroke="none"
-              aria-label={`${item.item}: stability ${(stability * 100).toFixed(0)}%`}
+              aria-label={`${item.item}: stability ${(item.stability * 100).toFixed(0)}%`}
             />
-            {showLabel && (
+            {item.showLabel && layout && (
               <text
-                x={cx + 4}
-                y={cy + 3}
+                x={layout.x.toFixed(1)}
+                y={layout.y.toFixed(1)}
+                textAnchor={layout.anchor}
                 fontSize={7}
                 fill="var(--color-text-secondary)"
                 fillOpacity={opacity}
+                style={{ pointerEvents: 'none' }}
               >
                 {item.item}
               </text>
