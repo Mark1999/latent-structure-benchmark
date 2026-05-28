@@ -9,11 +9,11 @@
 
 // 5-stop discrete color scale per tokens.css --color-scale-seq-*
 const HEATMAP_COLORS = [
-  '#eaf0f8',  // seq-0 — similarity 0.00–0.20
-  '#b8cce4',  // seq-1 — similarity 0.20–0.40
-  '#6b9dc8',  // seq-2 — similarity 0.40–0.60
-  '#2e6da4',  // seq-3 — similarity 0.60–0.80
-  '#1a3a5c',  // seq-4 — similarity 0.80–1.00
+  'var(--color-scale-seq-0)',
+  'var(--color-scale-seq-1)',
+  'var(--color-scale-seq-2)',
+  'var(--color-scale-seq-3)',
+  'var(--color-scale-seq-4)',
 ];
 
 // Per DESIGN_SYSTEM.md §12.8: switch threshold at 0.60
@@ -27,7 +27,7 @@ function simToColor(sim: number): string {
 function simToTextColor(sim: number): string {
   return sim >= HEATMAP_TEXT_SWITCH_THRESHOLD
     ? '#ffffff'
-    : '#000000';
+    : 'var(--color-heatmap-cell-text-dark)';
 }
 
 function shortName(id: string): string {
@@ -64,11 +64,11 @@ export function SimilarityHeatmap({
   const n = filteredModels.length;
 
   const CELL_SIZE = 32;
-  const HEADER_SIZE = 90;  // space for rotated column headers
-  const ROW_LABEL_WIDTH = 110;
+  const HEADER_SIZE = 110;  // space for rotated column headers (adjusted to prevent truncation)
+  const ROW_LABEL_WIDTH = 120; // row label width (adjusted to prevent truncation)
   const PADDING = 4;
 
-  const svgWidth = ROW_LABEL_WIDTH + n * CELL_SIZE + PADDING;
+  const svgWidth = ROW_LABEL_WIDTH + n * CELL_SIZE + 80; // Added 80px right padding for rotated label overhang
   const svgHeight = HEADER_SIZE + n * CELL_SIZE + PADDING;
 
   return (
