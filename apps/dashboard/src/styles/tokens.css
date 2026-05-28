@@ -97,6 +97,16 @@
   --color-origin-eu: #27ae60;  /* EU-origin models */
   --color-origin-cn: #c0392b;  /* China-origin models */
 
+  /* Provider colors */
+  --color-provider-anthropic: #d97706;
+  --color-provider-openai:    #10a37f;
+  --color-provider-google:    #4285f4;
+  --color-provider-meta:      #0668e1;
+  --color-provider-xai:       #1d1d1f;
+  --color-provider-mistral:   #f97316;
+  --color-provider-deepseek:  #0ea5e9;
+  --color-provider-microsoft: #00a4ef;
+
   /* Human baseline markers — retained for archival reference (2026-05-07 amendment) */
   --color-baseline-published:   #2c3e50;
   --color-baseline-researcher:  #7f8c8d;
