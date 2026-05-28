@@ -37,6 +37,7 @@ interface DomainExtended extends DomainResultPublished {
   term_mds_items?: string[];
   /** Bootstrap proportion per internal linkage node (one value per linkage row). */
   term_cluster_bp_values?: number[];
+  term_mds_uncertainty?: Record<string, EllipseParams | null>;
 }
 
 // Provider display color map
@@ -267,6 +268,7 @@ export function ContentArea({
                 cooccurrenceData={cooccurrenceData}
                 selectedModelIds={selectedModelIds}
                 lensEnabled={lensEnabled}
+                termUncertainty={domain.term_mds_uncertainty}
               />
             )}
 

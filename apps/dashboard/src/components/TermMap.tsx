@@ -27,6 +27,7 @@ import { smacof } from '../lib/smacof';
 import { procrustesAlign } from '../lib/procrustes';
 import { poolCooccurrence, cooccurrenceToDistances } from '../lib/cooccurrence';
 import { ahcCluster } from '../lib/ahcCluster';
+import type { EllipseParams } from '../data/types';
 
 /** Shape of the family-cooccurrence.json file */
 export interface CooccurrenceData {
@@ -42,8 +43,14 @@ export interface ModelPileData {
 
 // Cluster color palette from tokens.css / DESIGN_SYSTEM.md §1.2
 const CLUSTER_COLORS = [
-  '#e05c2e', '#2e7d4f', '#b5590a', '#5c3298',
-  '#1d6b8f', '#8f1d55', '#4a6e1a', '#6b3a1f',
+  'var(--color-cluster-1)',
+  'var(--color-cluster-2)',
+  'var(--color-cluster-3)',
+  'var(--color-cluster-4)',
+  'var(--color-cluster-5)',
+  'var(--color-cluster-6)',
+  'var(--color-cluster-7)',
+  'var(--color-cluster-8)',
 ];
 
 function getClusterColor(idx: number): string {
@@ -138,6 +145,8 @@ interface TermMapProps {
   selectedModelIds?: Set<string>;
   /** When true, a cursor-following magnifying lens spreads overlapping terms apart */
   lensEnabled?: boolean;
+  /** 95% bootstrap confidence ellipses for each term */
+  termUncertainty?: Record<string, EllipseParams | null>;
 }
 
 export function TermMap({
@@ -148,10 +157,13 @@ export function TermMap({
   cooccurrenceData,
   selectedModelIds,
   lensEnabled = false,
+  termUncertainty,
 }: TermMapProps) {
   const wrapRef = useRef<HTMLDivElement>(null);
   const [svgContent, setSvgContent] = useState<string>('');
   const [zoomDisplay, setZoomDisplay] = useState(1);
+  const [showUncertainty, setShowUncertainty] = useState(false);
+  const [showClusterLabels, setShowClusterLabels] = useState(true);
 
   // Zoom/pan state (refs to avoid re-render on every wheel tick)
   const zoomRef = useRef({ level: 1, vbX: 0, vbY: 0, vbW: 0, vbH: 0 });
@@ -293,17 +305,105 @@ export function TermMap({
     const ph = H - pad.t - pad.b;
 
     let xMin = Infinity, xMax = -Infinity, yMin = Infinity, yMax = -Infinity;
-    terms.forEach(({ x, y }) => {
-      xMin = Math.min(xMin, x); xMax = Math.max(xMax, x);
-      yMin = Math.min(yMin, y); yMax = Math.max(yMax, y);
+    terms.forEach(({ x, y, term }) => {
+      const u = (showUncertainty && termUncertainty) ? termUncertainty[term] : null;
+      const smaj = u?.semi_major || 0;
+      const smin = u?.semi_minor || 0;
+      xMin = Math.min(xMin, x - smaj); xMax = Math.max(xMax, x + smaj);
+      yMin = Math.min(yMin, y - smin); yMax = Math.max(yMax, y + smin);
     });
 
-    const xP = (xMax - xMin) * 0.08;
-    const yP = (yMax - yMin) * 0.08;
+    const xP = (xMax - xMin) * 0.08 || 0.08;
+    const yP = (yMax - yMin) * 0.08 || 0.08;
     xMin -= xP; xMax += xP; yMin -= yP; yMax += yP;
 
     const sx = (v: number) => pad.l + ((v - xMin) / (xMax - xMin)) * pw;
     const sy = (v: number) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * ph;
+
+    // Compass label offset algorithm to prevent overlaps
+    const labelLayouts: { x: number; y: number; anchor: string }[] = [];
+    const placedBoxes: { x1: number; x2: number; y1: number; y2: number }[] = [];
+
+    const DIRECTIONS: {
+      anchor: string;
+      dx: number;
+      dy: number;
+      bx: (cx: number, w: number) => number;
+      by: (cy: number, h: number) => number;
+    }[] = [
+      { anchor: 'start',  dx: 6,   dy: 3,   bx: (cx) => cx + 6,          by: (cy) => cy - 7 },      // E
+      { anchor: 'start',  dx: 5,   dy: 9,   bx: (cx) => cx + 5,          by: (cy) => cy - 1 },      // SE
+      { anchor: 'middle', dx: 0,   dy: 12,  bx: (cx, w) => cx - w / 2,   by: (cy) => cy + 2 },      // S
+      { anchor: 'end',    dx: -5,  dy: 9,   bx: (cx, w) => cx - 5 - w,   by: (cy) => cy - 1 },      // SW
+      { anchor: 'end',    dx: -6,  dy: 3,   bx: (cx, w) => cx - 6 - w,   by: (cy) => cy - 7 },      // W
+      { anchor: 'end',    dx: -5,  dy: -3,  bx: (cx, w) => cx - 5 - w,   by: (cy) => cy - 13 },     // NW
+      { anchor: 'middle', dx: 0,   dy: -7,  bx: (cx, w) => cx - w / 2,   by: (cy) => cy - 17 },     // N
+      { anchor: 'start',  dx: 5,   dy: -3,  bx: (cx) => cx + 5,          by: (cy) => cy - 13 },     // NE
+    ];
+
+    terms.forEach((t) => {
+      const cx = sx(t.x);
+      const cy = sy(t.y);
+      const w = t.term.length * 5.8; // approximate character width
+      const h = 10;                  // label height
+
+      let bestDirIdx = 0;
+      let minPenalty = Infinity;
+
+      for (let k = 0; k < 8; k++) {
+        const dir = DIRECTIONS[k];
+        const bx1 = dir.bx(cx, w);
+        const bx2 = bx1 + w;
+        const by1 = dir.by(cy, h);
+        const by2 = by1 + h;
+
+        let penalty = 0;
+
+        // Penalty 1: overlap with already placed label boxes
+        for (let j = 0; j < placedBoxes.length; j++) {
+          const pb = placedBoxes[j];
+          const xOverlap = Math.max(0, Math.min(bx2, pb.x2) - Math.max(bx1, pb.x1));
+          const yOverlap = Math.max(0, Math.min(by2, pb.y2) - Math.max(by1, pb.y1));
+          if (xOverlap > 0 && yOverlap > 0) {
+            penalty += xOverlap * yOverlap * 8;
+          }
+        }
+
+        // Penalty 2: overlap with any other dots
+        terms.forEach((otherT) => {
+          if (otherT.term === t.term) return;
+          const ocx = sx(otherT.x);
+          const ocy = sy(otherT.y);
+          if (ocx >= bx1 - 3 && ocx <= bx2 + 3 && ocy >= by1 - 3 && ocy <= by2 + 3) {
+            penalty += 150;
+          }
+        });
+
+        // Penalty 3: out of bounds
+        if (bx1 < pad.l || bx2 > W - pad.r || by1 < pad.t || by2 > H - pad.b) {
+          penalty += 250;
+        }
+
+        // Slight preference for East (original standard)
+        penalty += k * 0.5;
+
+        if (penalty < minPenalty) {
+          minPenalty = penalty;
+          bestDirIdx = k;
+        }
+      }
+
+      const bestDir = DIRECTIONS[bestDirIdx];
+      const lx = cx + bestDir.dx;
+      const ly = cy + bestDir.dy;
+      labelLayouts.push({ x: lx, y: ly, anchor: bestDir.anchor });
+      placedBoxes.push({
+        x1: bestDir.bx(cx, w),
+        x2: bestDir.bx(cx, w) + w,
+        y1: bestDir.by(cy, h),
+        y2: bestDir.by(cy, h) + h,
+      });
+    });
 
     // Group by AHC cluster (for dot color — always computed)
     const clusters: Record<number, TermEntry[]> = {};
@@ -332,7 +432,7 @@ export function TermMap({
     // ── Cluster label rendering ────────────────────────────────────────────
     // If a model is selected in the dropdown, use that model's pile labels.
     // Otherwise (selectedLabelModel === null), no labels are rendered.
-    if (selectedLabelModel && centroidPiles && centroidPiles[selectedLabelModel]) {
+    if (showClusterLabels && selectedLabelModel && centroidPiles && centroidPiles[selectedLabelModel]) {
       const modelPiles = centroidPiles[selectedLabelModel];
 
       // Build term → pile label map for the selected model
@@ -393,7 +493,7 @@ export function TermMap({
           );
         }
       });
-    } else if (!centroidPiles && selectedLabelModel !== null) {
+    } else if (showClusterLabels && !centroidPiles && selectedLabelModel !== null) {
       // Fallback: no centroidPiles available — use aggregate clusterLabels
       Object.entries(clusters).forEach(([cidStr, clusterTerms]) => {
         const cid = parseInt(cidStr, 10);
@@ -427,7 +527,23 @@ export function TermMap({
         }
       });
     }
-    // If selectedLabelModel === null: no cluster label text rendered (user chose "None")
+
+    // ── Ellipses rendering ──────────────────────────────────────────────────
+    if (showUncertainty && termUncertainty) {
+      terms.forEach((t, i) => {
+        const u = termUncertainty[t.term];
+        if (!u || u.semi_major <= 0) return;
+        const cx = sx(t.x);
+        const cy = sy(t.y);
+        const rx = (u.semi_major / (xMax - xMin)) * pw;
+        const ry = (u.semi_minor / (yMax - yMin)) * ph;
+        const deg = -(u.rotation_rad * 180) / Math.PI;
+        const col = getClusterColor(t.cluster);
+        svgParts.push(
+          `<ellipse class="term-ellipse" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" transform="rotate(${deg.toFixed(1)},${cx.toFixed(1)},${cy.toFixed(1)})" fill="${col}" stroke="${col}" fill-opacity="0.08" stroke-opacity="0.25" stroke-width="1" data-idx="${i}" data-ox="${cx.toFixed(1)}" data-oy="${cy.toFixed(1)}" data-deg="${deg.toFixed(1)}" pointer-events="none"/>`
+        );
+      });
+    }
 
     // Term dots — store original coords as data attributes for hover animation
     terms.forEach((t, i) => {
@@ -439,14 +555,14 @@ export function TermMap({
       );
     });
 
-    // Term labels — visible, small, positioned right of each dot
-    // data-ox / data-oy store the label's original position for lens displacement
-    terms.forEach((t) => {
-      const px = (sx(t.x) + 6).toFixed(1);
-      const py = (sy(t.y) + 3).toFixed(1);
+    // Term labels — visible, small, positioned using computed layout offsets
+    terms.forEach((t, i) => {
+      const layout = labelLayouts[i];
+      const px = layout.x.toFixed(1);
+      const py = layout.y.toFixed(1);
       const col = getClusterColor(t.cluster);
       svgParts.push(
-        `<text class="term-label" x="${px}" y="${py}" data-ox="${px}" data-oy="${py}" data-base-size="11" font-family="var(--font-body)" font-size="11" fill="${col}" opacity=".7" pointer-events="none">${escapeXml(t.term)}</text>`
+        `<text class="term-label" x="${px}" y="${py}" data-ox="${px}" data-oy="${py}" data-base-size="11" font-family="var(--font-body)" font-size="11" fill="${col}" opacity=".7" text-anchor="${layout.anchor}" pointer-events="none">${escapeXml(t.term)}</text>`
       );
     });
 
@@ -462,7 +578,7 @@ export function TermMap({
 
     svgParts.push('</svg>');
     setSvgContent(svgParts.join(''));
-  }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds]);
+  }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds, showUncertainty, showClusterLabels, termUncertainty]);
 
   // Re-render on resize or term/coord change
   useEffect(() => {
@@ -596,6 +712,14 @@ export function TermMap({
           lbl.setAttribute('opacity', '0.7');
           lbl.setAttribute('font-weight', 'normal');
         });
+        svg.querySelectorAll<SVGEllipseElement>('.term-ellipse').forEach((ell) => {
+          const ox = ell.getAttribute('data-ox') ?? '0';
+          const oy = ell.getAttribute('data-oy') ?? '0';
+          ell.setAttribute('cx', ox);
+          ell.setAttribute('cy', oy);
+          const deg = ell.getAttribute('data-deg') ?? '0';
+          ell.setAttribute('transform', `rotate(${deg},${ox},${oy})`);
+        });
         if (lensRingRef.current) {
           lensRingRef.current.remove();
           lensRingRef.current = null;
@@ -652,6 +776,31 @@ export function TermMap({
         }
       });
 
+      // Displace ellipses
+      svgEl.querySelectorAll<SVGEllipseElement>('.term-ellipse').forEach((ell) => {
+        const ox = parseFloat(ell.getAttribute('data-ox') ?? '0');
+        const oy = parseFloat(ell.getAttribute('data-oy') ?? '0');
+        const dx = ox - mouseX;
+        const dy = oy - mouseY;
+        const dist = Math.sqrt(dx * dx + dy * dy);
+
+        if (dist < effectiveRadius && dist > 0) {
+          const strength = Math.pow(1 - dist / effectiveRadius, 2) * effectiveDisplacement;
+          const angle = Math.atan2(dy, dx);
+          const nx = ox + Math.cos(angle) * strength;
+          const ny = oy + Math.sin(angle) * strength;
+          ell.setAttribute('cx', String(nx));
+          ell.setAttribute('cy', String(ny));
+          const deg = ell.getAttribute('data-deg') ?? '0';
+          ell.setAttribute('transform', `rotate(${deg},${nx},${ny})`);
+        } else {
+          ell.setAttribute('cx', String(ox));
+          ell.setAttribute('cy', String(oy));
+          const deg = ell.getAttribute('data-deg') ?? '0';
+          ell.setAttribute('transform', `rotate(${deg},${ox},${oy})`);
+        }
+      });
+
       // Displace labels + enlarge inside lens
       svgEl.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
         const ox = parseFloat(lbl.getAttribute('data-ox') ?? '0');
@@ -693,6 +842,14 @@ export function TermMap({
         lbl.setAttribute('font-size', baseSize);
         lbl.setAttribute('opacity', '0.7');
         lbl.setAttribute('font-weight', 'normal');
+      });
+      svgEl.querySelectorAll<SVGEllipseElement>('.term-ellipse').forEach((ell) => {
+        const ox = ell.getAttribute('data-ox') ?? '0';
+        const oy = ell.getAttribute('data-oy') ?? '0';
+        ell.setAttribute('cx', ox);
+        ell.setAttribute('cy', oy);
+        const deg = ell.getAttribute('data-deg') ?? '0';
+        ell.setAttribute('transform', `rotate(${deg},${ox},${oy})`);
       });
       if (lensRingRef.current) {
         lensRingRef.current.remove();
@@ -739,7 +896,64 @@ export function TermMap({
         lensRingRef.current = null;
       }
     };
-  }, [lensEnabled, svgContent]); // re-attach when SVG re-renders (new data-ox/oy in DOM)
+  }, [lensEnabled, svgContent, showUncertainty]);
+
+  // ── Hover highlight interaction ───────────────────────────────────────────
+  useEffect(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+
+    const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
+    if (!svg) return;
+
+    function handleMouseOver(e: MouseEvent) {
+      const target = e.target as SVGElement;
+      if (target.classList.contains('term-dot')) {
+        const idx = target.getAttribute('data-idx');
+        if (idx !== null) {
+          const ell = svg!.querySelector(`.term-ellipse[data-idx="${idx}"]`);
+          if (ell) {
+            ell.setAttribute('fill-opacity', '0.22');
+            ell.setAttribute('stroke-opacity', '0.7');
+            ell.setAttribute('stroke-width', '1.5');
+          }
+          const lbl = svg!.querySelector(`.term-label[data-idx="${idx}"]`);
+          if (lbl) {
+            lbl.setAttribute('opacity', '1');
+            lbl.setAttribute('font-weight', '700');
+          }
+        }
+      }
+    }
+
+    function handleMouseOut(e: MouseEvent) {
+      const target = e.target as SVGElement;
+      if (target.classList.contains('term-dot')) {
+        const idx = target.getAttribute('data-idx');
+        if (idx !== null) {
+          const ell = svg!.querySelector(`.term-ellipse[data-idx="${idx}"]`);
+          if (ell) {
+            ell.setAttribute('fill-opacity', '0.08');
+            ell.setAttribute('stroke-opacity', '0.25');
+            ell.setAttribute('stroke-width', '1');
+          }
+          const lbl = svg!.querySelector(`.term-label[data-idx="${idx}"]`);
+          if (lbl) {
+            lbl.setAttribute('opacity', '0.7');
+            lbl.setAttribute('font-weight', 'normal');
+          }
+        }
+      }
+    }
+
+    wrap.addEventListener('mouseover', handleMouseOver);
+    wrap.addEventListener('mouseout', handleMouseOut);
+
+    return () => {
+      wrap.removeEventListener('mouseover', handleMouseOver);
+      wrap.removeEventListener('mouseout', handleMouseOut);
+    };
+  }, [svgContent]);
 
 
   if (terms.length === 0) {
@@ -753,27 +967,50 @@ export function TermMap({
   return (
     <div className="term-map-container">
       {/* Chart controls row: pile label model selector */}
-      <div className="term-map-controls">
-        <label className="term-map-controls__label" htmlFor="pile-label-select">
-          Pile labels from:
-        </label>
-        <select
-          id="pile-label-select"
-          className="term-map-controls__select"
-          value={selectedLabelModel ?? '__none__'}
-          onChange={(e) => {
-            const v = e.target.value;
-            setUserLabelChoice(v === '__none__' ? null : v);
-          }}
-          aria-label="Choose which model's pile labels to display on the term map"
-        >
-          {pileModelKeys.map((key) => (
-            <option key={key} value={key}>
-              {shortModelDisplayName(key)}
-            </option>
-          ))}
-          <option value="__none__">None</option>
-        </select>
+      <div className="term-map-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+          <label className="term-map-controls__label" htmlFor="pile-label-select">
+            Pile labels from:
+          </label>
+          <select
+            id="pile-label-select"
+            className="term-map-controls__select"
+            value={selectedLabelModel ?? '__none__'}
+            onChange={(e) => {
+              const v = e.target.value;
+              setUserLabelChoice(v === '__none__' ? null : v);
+            }}
+            aria-label="Choose which model's pile labels to display on the term map"
+          >
+            {pileModelKeys.map((key) => (
+              <option key={key} value={key}>
+                {shortModelDisplayName(key)}
+              </option>
+            ))}
+            <option value="__none__">None</option>
+          </select>
+        </div>
+
+        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={showUncertainty}
+              onChange={(e) => setShowUncertainty(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            Show uncertainty
+          </label>
+          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)', userSelect: 'none' }}>
+            <input
+              type="checkbox"
+              checked={showClusterLabels}
+              onChange={(e) => setShowClusterLabels(e.target.checked)}
+              style={{ cursor: 'pointer' }}
+            />
+            Show cluster labels
+          </label>
+        </div>
       </div>
 
       {/* SVG term map */}
