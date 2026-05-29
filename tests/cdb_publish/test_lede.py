@@ -176,35 +176,41 @@ def _build_domain_result(
 # ---------------------------------------------------------------------------
 
 def test_family_real_corpus_strong_consensus_homogeneous() -> None:
-    """Family domain → strong_consensus_homogeneous pattern.
+    """Family domain → strong_consensus_with_low_oci pattern.
 
-    family/0.2.json: n=11, STRONG_CONSENSUS, all models R1-a (oci >> 3.0).
-    Expected substrings per the binding table in the architect plan + T2.
+    family/0.3.json: n=15, STRONG_CONSENSUS, 1 model R1-b (oci < 3.0).
+    Expected substrings reflect the current 15-model corpus (analysis_version 0.3).
+    T4's planned re-baseline will update these assertions again.
+
+    NOTE: the test name retains "homogeneous" for git-blame continuity; the
+    corpus now routes to the with_low_oci pattern due to 1 R1-b model.
     """
-    family_path = _RESULTS_DIR / "family" / "0.2.json"
+    # Current corpus uses analysis_version 0.3; 0.3.json is the latest.
+    family_path = _RESULTS_DIR / "family" / "0.3.json"
     result = DomainResult.model_validate_json(family_path.read_text(encoding="utf-8"))
 
     lede = generate_lede(result)
 
-    # n=11 models on the map
-    assert "11 frontier models" in lede, (
-        f"Expected '11 frontier models' in lede; got: {lede!r}"
+    # n=15 models on the map (was 11; updated to current corpus — T4 will update again)
+    assert "15 frontier models" in lede, (
+        f"Expected '15 frontier models' in lede; got: {lede!r}"
     )
-    # Smith's S = 0.7106... → "0.71"
-    assert "Smith's S = 0.71" in lede, (
-        f"Expected 'Smith's S = 0.71' in lede; got: {lede!r}"
+    # Smith's S = 0.8033... → "0.80" (was 0.71; updated to current corpus)
+    assert "Smith's S = 0.80" in lede, (
+        f"Expected 'Smith's S = 0.80' in lede; got: {lede!r}"
     )
-    # CI [0.5049..., 0.9092...] → "[0.50, 0.91]"
-    assert "[0.50, 0.91]" in lede, (
-        f"Expected '[0.50, 0.91]' in lede; got: {lede!r}"
+    # CI [0.6406..., 0.9433...] → "[0.64, 0.94]" (was [0.50, 0.91]; updated)
+    assert "[0.64, 0.94]" in lede, (
+        f"Expected '[0.64, 0.94]' in lede; got: {lede!r}"
     )
-    # Shared categorical structure language (homogeneous pattern)
+    # Shared categorical structure language (present in both homogeneous and
+    # with_low_oci patterns)
     assert "shared categorical structure" in lede, (
         f"Expected 'shared categorical structure' in lede; got: {lede!r}"
     )
-    # Must NOT mention low output concentration (no R1-b models in family)
-    assert "low output concentration" not in lede, (
-        f"Unexpected 'low output concentration' in family lede: {lede!r}"
+    # 1 R1-b model present → with_low_oci pattern surfaces the count
+    assert "1 of these 15 models produced low output concentration" in lede, (
+        f"Expected R1-b count phrase in family lede; got: {lede!r}"
     )
 
 

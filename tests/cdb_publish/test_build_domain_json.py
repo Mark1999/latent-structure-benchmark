@@ -13,7 +13,7 @@ Test plan (8 tests):
   6. Manifest carries oci_low_concentration_threshold == 3.0.
   7. Append-only invariant: SHA256 of source data/results/{domain}/0.2.json is unchanged.
   8. Real-corpus smoke: build() against actual data/results/ yields non-empty ledes
-     and the correct model counts (11 family, 9 holidays) in r1_states.
+     and the correct model counts (15 family, 14 holidays) in r1_states.
 
 See docs/status/2026-05-09-phase5-architect-plan.md §4 T3.
 """
@@ -366,22 +366,26 @@ def test_real_corpus_smoke(tmp_path: Path) -> None:
     Asserts per acceptance criteria 1–5:
     - Both family and holidays JSON files are written (versioned + unversioned).
     - Both have non-empty generated_lede.
-    - family has 11 models in r1_states; holidays has 9.
+    - family has 15 models in r1_states; holidays has 14.
     - manifest carries oci_low_concentration_threshold == 3.0.
+
+    NOTE: model counts reflect the current corpus as of the 15-model family /
+    14-model holidays re-analysis (analysis_version 0.3).  T4's planned
+    re-baseline will change these counts again and update these assertions.
     """
     if not _RESULTS_DIR.exists():
         pytest.skip("data/results/ not present in this environment")
 
-    family_file = _RESULTS_DIR / "family" / "0.2.json"
-    holidays_file = _RESULTS_DIR / "holidays" / "0.2.json"
+    family_file = _RESULTS_DIR / "family" / "0.3.json"
+    holidays_file = _RESULTS_DIR / "holidays" / "0.3.json"
     if not family_file.exists() or not holidays_file.exists():
-        pytest.skip("data/results/family/0.2.json or holidays/0.2.json not present")
+        pytest.skip("data/results/family/0.3.json or holidays/0.3.json not present")
 
     output_dir = tmp_path / "output"
     manifest = build(_RESULTS_DIR, output_dir)
 
     # --- File existence ---
-    for slug, version in [("family", "0.2"), ("holidays", "0.2")]:
+    for slug, version in [("family", "0.3"), ("holidays", "0.3")]:
         assert (output_dir / f"{slug}.json").exists(), f"{slug}.json not found"
         assert (output_dir / f"{slug}.v{version}.json").exists(), (
             f"{slug}.v{version}.json not found"
@@ -395,16 +399,19 @@ def test_real_corpus_smoke(tmp_path: Path) -> None:
         assert len(lede) > 0, f"{slug}: generated_lede must be non-empty"
 
     # --- r1_states model counts (acceptance criterion 4) ---
+    # Current corpus: family=15 models (analysis_version 0.3),
+    # holidays=14 models (analysis_version 0.3).
+    # T4's re-baseline will update these values.
     family_data = json.loads((output_dir / "family.json").read_text())
     family_r1 = family_data.get("display", {}).get("r1_states", {})
-    assert len(family_r1) == 11, (
-        f"family: expected 11 models in r1_states, got {len(family_r1)}"
+    assert len(family_r1) == 15, (
+        f"family: expected 15 models in r1_states, got {len(family_r1)}"
     )
 
     holidays_data = json.loads((output_dir / "holidays.json").read_text())
     holidays_r1 = holidays_data.get("display", {}).get("r1_states", {})
-    assert len(holidays_r1) == 9, (
-        f"holidays: expected 9 models in r1_states, got {len(holidays_r1)}"
+    assert len(holidays_r1) == 14, (
+        f"holidays: expected 14 models in r1_states, got {len(holidays_r1)}"
     )
 
     # --- manifest threshold (acceptance criterion 5) ---
