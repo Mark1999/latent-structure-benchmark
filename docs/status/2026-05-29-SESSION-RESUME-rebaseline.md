@@ -39,7 +39,10 @@ The original centrality-CI register-error remediation (Remedy B) is **DONE and o
 - Don't run parallel file-writing agents in the same tree (caused a bundled-commit race earlier; sequence or use worktree isolation).
 - Don't use Mark's "Claude in Chrome" extension — it's not reachable from this CLI; use the Playwright MCP for live UI checks.
 
-## AFTER the regen is launched — implement WHILE it runs (Mark approved 2026-05-29)
+## Tier 1–2 capability upgrade — DRAFTED 2026-05-29 (commit e646dd9), INACTIVE
+**Status update:** the artifacts below were DRAFTED (not activated) while Mark traveled, per his instruction. Hooks exist in `.claude/hooks/` but are NOT wired into `settings.json`; the workflow is in `.claude/workflows/` but only runs on explicit invocation; no agent defs changed. **Activation is pending Reviewer gate + Mark sign-off** — the authoritative activation doc is `docs/proposed/2026-05-29-tier1-2-activation-runbook.md`. Do NOT activate unattended. The original plan (below) is retained for reference.
+
+## (original plan) AFTER the regen is launched — implement WHILE it runs (Mark approved 2026-05-29)
 Mark approved a capability upgrade (Opus 4.8 / Claude Code best practices research). Sequencing decision: **launch the regen FIRST**, then build + test these in the background. **Do NOT touch hooks/permissions before the regen is launched** (a misconfigured PreToolUse hook could break the unattended job). Verify every config against official docs and dry-run each before activating. A Bash PreToolUse hook can interfere with my own subsequent commands — scope narrowly and test.
 
 **Tier 1 — guardrail hooks** (mechanize existing CLAUDE.md binding rules; use the `update-config` skill to edit `.claude/settings.json`):
