@@ -38,3 +38,19 @@ The original centrality-CI register-error remediation (Remedy B) is **DONE and o
 - Don't auto-publish the re-baseline; staging until reviewed.
 - Don't run parallel file-writing agents in the same tree (caused a bundled-commit race earlier; sequence or use worktree isolation).
 - Don't use Mark's "Claude in Chrome" extension — it's not reachable from this CLI; use the Playwright MCP for live UI checks.
+
+## AFTER the regen is launched — implement WHILE it runs (Mark approved 2026-05-29)
+Mark approved a capability upgrade (Opus 4.8 / Claude Code best practices research). Sequencing decision: **launch the regen FIRST**, then build + test these in the background. **Do NOT touch hooks/permissions before the regen is launched** (a misconfigured PreToolUse hook could break the unattended job). Verify every config against official docs and dry-run each before activating. A Bash PreToolUse hook can interfere with my own subsequent commands — scope narrowly and test.
+
+**Tier 1 — guardrail hooks** (mechanize existing CLAUDE.md binding rules; use the `update-config` skill to edit `.claude/settings.json`):
+1. `PreToolUse` block on Edit/Write to `packages/cdb_core/cdb_core/schemas.py` without Architect sign-off (binding rule 6).
+2. Forbidden-vocabulary check on Edit/Write content (`worldview`/`believes`/`thinks` re: models, §7) — shift-left from CI.
+3. Append-only guard: block edits that modify pre-existing lines of `data/raw/informants.jsonl`.
+4. no-spend-gate token check mirroring the CI grep.
+
+**Tier 2 — orchestration:**
+5. Author a `Workflow` script encoding Architect→CDA SME→(UI/UX if frontend)→Coder→Reviewer→Tester, with `isolation:"worktree"` for writing agents (prevents the parallel-write race) and read-only tool profiles for Reviewer/SME/UI-UX. Note: the Workflow tool needs explicit opt-in.
+6. Add per-agent tool restrictions in the subagent definitions: reviewer / cda_sme / ui_ux = read-only (no Bash/Edit/Write).
+
+Deferred (not now): Tier 3 (/code-review in loop, effort control, Slack MCP verdict posting) and Tier 4 (package LSB pipeline as a plugin) — recommendations only unless Mark revisits.
+Research basis: Opus 4.8 dynamic-workflows + honesty gains; Claude Code hooks/plugins/permissions docs (May 2026).
