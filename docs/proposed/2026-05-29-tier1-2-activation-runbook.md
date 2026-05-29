@@ -78,7 +78,11 @@ args:{ task:"...", kind:"methodology"|"frontend"|"other", contextFiles:[...] } }
 **VALIDATE** the Workflow API shape (meta literal, `agentType` resolution to `.claude/agents/`,
 schema-forced structured outputs) on a small throwaway task before trusting it on real work.
 
-### Per-agent permission scoping — FLAGGED, do not blindly apply
+### Per-agent permission scoping — DECIDED (Mark accepted 2026-05-29)
+**Finding 1 → NO ACTION.** Agents are already correctly scoped (verified full frontmatter): read-only advisors (architect, ui_ux); read+run gate (reviewer = Bash, no Write); implementers (coder, tester). Do NOT impose blanket read-only.
+**Finding 2 → sync defs to the live registry; keep SME Write.** Only `cda_sme` is out of sync: committed file = `Read/Grep/Glob`, but the live platform/FleetView registry grants it `Write/Edit` (it self-authored verdicts this session). There is no `~/.claude/agents` or `/etc/claude-code` override — the platform registry is the source of truth and the repo file is stale. Accepted plan: (a) sync `.claude/agents/cda_sme.md` UP to add `Write` + `Edit` so the file matches runtime; **keep** the SME's Write (bounded — it has no Bash; self-authored verdicts are useful + low-risk); (b) optionally grant `ui_ux` the same `Write/Edit` so both gates self-author verdicts (removes the manual-transcription friction) — Mark's option, not required. **Make the change in the platform registry (FleetView), not just the file** (file-only edit may be a no-op given the drift), and sync the file to match. **Do this Reviewer-gated AFTER Mark returns — NOT during the regen** (the SME is the escalation path if the food domain trips the threshold guard).
+
+### (superseded) Per-agent permission scoping — original FLAG
 The generic "make Reviewer/SME read-only" advice **does not fit LSB** and would break things:
 - **Reviewer** legitimately runs `pytest`/`ruff`/`npm build` — it NEEDS Bash. Do not remove it.
 - **CDA SME** writes verdict files to `docs/status/` — it NEEDS Write. Do not remove it.
