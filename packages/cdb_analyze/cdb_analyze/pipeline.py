@@ -27,6 +27,7 @@ from cdb_core import (
 
 from cdb_analyze.bootstrap import (
     bootstrap_branch_stability,
+    bootstrap_centrality_ci,
     bootstrap_mds_ellipses,
     bootstrap_term_mds_ellipses,
 )
@@ -774,6 +775,31 @@ def run_pipeline(
         len(cultural_centrality_scores), len(negative_centrality_models),
     )
 
+    # 3b-ii. Cultural centrality bootstrap CI (Remedy B T3).
+    # Wraps bootstrap_centrality_ci in the same try/except style as
+    # bootstrap_term_mds_ellipses. The function self-gates on n < 3 (returns {});
+    # we log distinguishable messages for the two {} paths per N6.
+    centrality_ci: dict[str, tuple[float, float]] = {}
+    if len(model_ids) >= 3:
+        try:
+            centrality_ci = bootstrap_centrality_ci(
+                model_ids, sim_np, n_bootstrap=500, random_state=42,
+            )
+            logger.info(
+                "Cultural centrality CI: %d models, n_bootstrap=%d",
+                len(centrality_ci),
+                500,
+            )
+        except Exception:
+            logger.warning(
+                "Cultural centrality CI: failed, leaving empty.",
+                exc_info=True,
+            )
+    else:
+        logger.info(
+            "Cultural centrality CI: skipped (n=%d < 3)", len(model_ids),
+        )
+
     # 3c. Romney CCM eigenratio (λ₁/λ₂ of the inter-model similarity matrix).
     # Insertion point: immediately after centrality block (commit de6bf73),
     # before clustering. Both consume sim_np; contiguous placement keeps the
@@ -1002,6 +1028,7 @@ def run_pipeline(
         generated_lede="",  # Populated by cdb_publish, not cdb_analyze
         generated_at=datetime.now(UTC),
         cultural_centrality_scores=cultural_centrality_scores,
+        centrality_ci=centrality_ci,
         negative_centrality_flag=negative_centrality_flag,
         negative_centrality_models=negative_centrality_models,
         consensus_type=consensus_type,
