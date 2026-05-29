@@ -3,7 +3,7 @@
 **Why this file exists:** the live session was relaunched inside a zellij session (named `lsb`) on the VPS so the ~10-hour corpus re-baseline can run while Mark travels. If `claude --continue` lost context, READ THIS to pick up exactly where we left off. Mark is a project manager, not an engineer — keep him informed in plain language.
 
 ## One-line state
-The original centrality-CI register-error remediation (Remedy B) is **DONE and on origin/master, deploying**. We are now mid-execution on the follow-on reproducibility/cleanup bundle. The re-baseline script is built but not yet committed or launched.
+The original centrality-CI register-error remediation (Remedy B) is **DONE and on origin/master, deploying**. The reproducibility re-baseline **COMPLETED 2026-05-29 21:33 UTC — all 3 domains PASS the guard, no lede-class changes, staged at `out/rebaseline/`, promotion PENDING Mark's return.** See `docs/status/2026-05-29-rebaseline-completion.md`. Remaining: promote staging→live (Reviewer-gated) + SME provenance paragraph (N1–N3) + footer T5 (UI/UX) — all on return. Drafted-but-inactive Tier 1–2 artifacts also await activation.
 
 ## Exact git state at handoff
 - Local `master` = `b143a25`. **4 commits ahead of `origin/master` (`7fa8ad9`), UNPUSHED:**
