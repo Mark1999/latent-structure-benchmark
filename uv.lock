@@ -110,9 +110,9 @@ dependencies = [
 [package.metadata]
 requires-dist = [
     { name = "cdb-core", editable = "packages/cdb_core" },
-    { name = "numpy", specifier = ">=1.26.0" },
+    { name = "numpy", specifier = "==2.4.4" },
     { name = "scikit-learn", specifier = ">=1.4.0" },
-    { name = "scipy", specifier = ">=1.12.0" },
+    { name = "scipy", specifier = "==1.17.1" },
 ]
 
 [[package]]
