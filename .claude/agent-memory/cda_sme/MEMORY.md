@@ -1,3 +1,4 @@
+- [Re-baseline 2026-05-29 PASS-WITH-NOTES](project_rebaseline_2026_05_29_verdict.md) — corpus regen under pinned NumPy 2.4.4 / SciPy 1.17.1; 6 lede-class threshold guards binding (T-1..T-6); food is load-bearing risk (eigenratio 6.586 near 5.0, OCI 3.74 near 3.0); any crossing halts and re-routes to SME.
 - [QA_Runner check tiers (per-record / aggregate / infrastructure)](project_qa_check_aggregate_pattern.md) — only Tier 1 (Checks 1–7) may mutate qa_passed; Tier 2 (Check 8) and Tier 3 (Check 9, infra) never do. F2-T11 ruling 2026-05-01.
 - [Review rigor on thresholds](feedback_review_rigor_on_thresholds.md) — always stress-test rank/correlation thresholds at small-N before PASS
 - [Romney small-n threshold](project_romney_small_n_threshold.md) — `romney_small_n_warning` is n_models < 15 (reconciled 2026-04-23)
