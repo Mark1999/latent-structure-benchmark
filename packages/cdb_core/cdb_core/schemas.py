@@ -429,6 +429,12 @@ class DomainResult(BaseModel):
                                           # threshold from 2026-04-20.
     consensus_type: ConsensusType | None = None
     cultural_centrality_scores: dict[str, float] = {}  # model_id → score
+    # Register 2 cultural-centrality CI (Remedy B, post-2026-05-28 register-error verdict).
+    # Per-model 95% percentile bootstrap interval on cultural_centrality_scores.
+    # Resample unit: models with replacement (BOOTSTRAP_DESIGN.md §3.1 Option 2).
+    # R2 only — not subject to underestimates_uncertainty. Empty when < 3 models.
+    # Source: cdb_analyze.bootstrap.bootstrap_centrality_ci.
+    centrality_ci: dict[str, tuple[float, float]] = {}
     negative_centrality_flag: bool = False
     negative_centrality_models: list[str] = []
 
