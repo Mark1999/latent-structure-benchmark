@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.8.0  
+**Version:** v0.8.1  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.8.1** (Remedy B T4 copy cleanup, 2026-05-29) corrects §11 `CentralityTable.tsx` column inventory: removes the "Bootstrap N" column (the published `centrality_ci` is a bare `[lo, hi]` tuple; B=500 is a domain-wide quantity stated in the SR summary and table caption, not a per-model column). No new tokens, no visual decisions. Applies CDA SME M1/M2 + Reviewer Item 3 from `docs/status/2026-05-28-remedy-b-t4-cda-sme-verdict.md`.
 - **v0.8.0** (viz-fixes fix-forward, 2026-05-28) adds §15 (Term stability pill tiers, TermMap uncertainty ellipse color, `.term-map-controls` inline-style grandfather, tooltip font-size exception). No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-28-viz-fixes-ui-ux-verdict.md` items 2–4).
 - **v0.7.0** (F2-T1–T7 UI/UX gate, 2026-05-27) adds §14 (Focus 2 — Within-Provider Family Comparison visual decisions). Three-pill focus selector (§14.1), family sidebar single-select (§14.2), family overview cards with pairwise/mean labeling per CDA SME notes (§14.3), mini heatmap (§14.4), MDS ring highlight (§14.5), salience/pile reuse (§14.6), focus ordering rule (§14.7), model color retention (§14.8), Focus 2 tab IDs (§14.9), description paragraphs (§14.10), cite path (§14.11), single-family state (§14.12), forbidden vocabulary (§14.13). No new tokens.
 - **v0.6.0** (F1-T5 through F1-T9 UI/UX gate, 2026-05-27) adds §13 (Focus 1 — Individual Model Consistency visual decisions). Introduces: focus-level selector navigation (§13.1), single-select sidebar mode for Focus 1 (§13.2), ranked-list Self-Consistency Overview layout (§13.3), concentration tier badge vocabulary and color treatment (§13.4, no semantic color — border intensity only), OCI display with CI fallback and underestimation caveat affordance (§13.5), run agreement heatmap color scale assignment (§13.6, reuses existing sequential scale), run MDS specification with CDA SME S3 suppression rule and non-color centroid discriminator (§13.7), term stability dashed-border tier treatment (§13.8, mirrors §12.10), Focus 1 ActiveVizTab extensions (§13.9), journalist description paragraph copy (§13.10), and cite-path SourceAttribution/CSV requirements (§13.11). Two new constants added to `apps/dashboard/src/config/analysis.ts`: `OCI_CONCENTRATED_THRESHOLD`, `OCI_MODERATE_THRESHOLD`. No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-27-F1-T5toT9-uiux-verdict.md`).
@@ -1533,7 +1534,7 @@ All components to be built, in implementation order:
 
 **Phase 9a (visualization gap closure):**
 - `CentralityChart.tsx` — ranked horizontal bar chart of cultural centrality scores with error bars (T10). File: `apps/dashboard/src/components/CentralityChart.tsx`. Uses dark inverted tooltip (`--color-tooltip-dark-bg/text/divider`). Spec: UI/UX verdict `docs/status/2026-05-24-phase9a-T10-ui-ux-verdict.md`.
-- `CentralityTable.tsx` — read-as-table rendering for `CentralityChart` (T10). File: `apps/dashboard/src/components/CentralityTable.tsx`. Columns: Rank, Model, model_id, Centrality score, 95% CI lower/upper, Bootstrap N, Notes.
+- `CentralityTable.tsx` — read-as-table rendering for `CentralityChart` (T10). File: `apps/dashboard/src/components/CentralityTable.tsx`. Columns: Rank, Model, model_id, Centrality score, 95% CI lower/upper, Notes.
 - `apps/dashboard/src/styles/centrality-chart.css` — token-only styles for CentralityChart. Uses `--color-tooltip-dark-bg`, `--color-tooltip-dark-text`, `--color-tooltip-dark-divider`.
 - `PileComparison.tsx` — side-by-side pile structure comparison across models (T9). File: `apps/dashboard/src/components/PileComparison.tsx`. Cross-column hover highlight, stability tiers, mobile model-switcher. No new tokens. Spec: §12.10 and UI/UX verdict `docs/status/2026-05-24-phase9a-T9-ui-ux-verdict.md`.
 - `PileComparisonTable.tsx` — read-as-table rendering for `PileComparison` (T9). File: `apps/dashboard/src/components/PileComparisonTable.tsx`. Columns: Model, Pile label, Term, Stability (%).

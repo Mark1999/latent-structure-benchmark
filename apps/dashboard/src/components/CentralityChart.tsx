@@ -153,7 +153,7 @@ export function CentralityChart({
   const highestEntry = entries[0];
   const lowestEntry = entries[entries.length - 1];
   const ciDesc = hasCi
-    ? ' 95% bootstrap confidence intervals (model-resampling, B=500) are shown as whiskers on each bar.'
+    ? ' Each score is shown with a 95% bootstrap CI (model-resampling with replacement, B=500) as a whisker on its bar.'
     : ' No bootstrap confidence interval is available for this domain (fewer than 3 models).';
   const srSummary = `This chart ranks ${entries.length} models by cultural centrality score on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. ${shortName(highestEntry.model_id)} has the highest centrality at ${highestEntry.score.toFixed(3)}, and ${shortName(lowestEntry.model_id)} has the lowest at ${lowestEntry.score.toFixed(3)}.${ciDesc}`;
 
@@ -343,7 +343,7 @@ export function CentralityChart({
                 [{centralityCi[tooltip.modelId][0].toFixed(3)}, {centralityCi[tooltip.modelId][1].toFixed(3)}]
               </strong>
               {' '}
-              <span style={{ fontSize: '10px', opacity: 0.75 }}>(model-resampled, B=500)</span>
+              <span style={{ fontSize: '10px', opacity: 0.75 }}>(model-resampling with replacement, B=500)</span>
             </div>
           )}
           <div className="centrality-chart__tooltip-explanation">
