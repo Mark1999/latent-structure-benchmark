@@ -8,6 +8,7 @@ import numpy as np
 import pytest
 from cdb_analyze.bootstrap import (
     bootstrap_branch_stability,
+    bootstrap_centrality_ci,
     bootstrap_mds_ellipses,
     bootstrap_term_mds_ellipses,
 )
@@ -518,3 +519,357 @@ def test_branch_stability_values_in_range():
     assert len(bp_values) == len(items) - 1
     for bp in bp_values:
         assert 0.0 <= bp <= 1.0
+
+
+# ──────────────────────────────────────────────────────────────────────
+# bootstrap_centrality_ci tests (Remedy B T5)
+# See docs/status/2026-05-28-remedy-b-cda-sme-verdict.md N7 + T5 test
+# contract (section "T5 test contract" items 1-6).
+# ──────────────────────────────────────────────────────────────────────
+
+
+def _make_consensus_sim_matrix(n_models: int) -> tuple[list[str], np.ndarray]:
+    """Build a high-consensus block-diagonal similarity matrix.
+
+    All n_models models form a single strongly cohesive block: diagonal
+    entries are 1.0, off-diagonal are 0.85.  The first eigenvector of this
+    matrix has all-positive, approximately equal loadings -- a clean fixture
+    for determinism, shape/contract, and coverage tests.
+
+    Returns (model_ids, similarity_matrix).
+    """
+    model_ids = [f"fx-model-{i:02d}" for i in range(n_models)]
+    sim = np.full((n_models, n_models), 0.85)
+    np.fill_diagonal(sim, 1.0)
+    return model_ids, sim
+
+
+def _make_two_cluster_sim_matrix() -> tuple[list[str], np.ndarray]:
+    """Build a two-cluster anti-correlated similarity matrix (N7 fixture).
+
+    Structure:
+      - 5 "majority" models (indices 0-4): high mutual similarity (0.80),
+        strongly negative cross-cluster similarity (-0.30).
+      - 5 "minority" models (indices 5-9): same within-cluster pattern.
+
+    The resulting first eigenvector has large-positive loadings for one
+    cluster and large-negative loadings for the other (the mean-sign
+    convention in compute_centrality_scores determines which cluster gets
+    the positive sign).
+
+    This fixture is the regression guard for N7: WITHOUT reference-vector
+    sign alignment the bootstrap eigenvectors flip sign randomly across
+    iterations (both +v and -v are equally valid), producing a bimodal
+    loading distribution that straddles zero for every model.  WITH correct
+    reference-vector alignment (dot(boot, ref) < 0 -> flip), every
+    bootstrap eigenvector is forced to the same orientation and each
+    model's CI lies entirely on one side of zero.
+
+    Returns (model_ids, similarity_matrix).
+    """
+    n = 10
+    model_ids = [f"maj-{i}" for i in range(5)] + [f"min-{i}" for i in range(5)]
+    sim = np.zeros((n, n))
+
+    np.fill_diagonal(sim, 1.0)
+
+    # Within majority cluster: high similarity
+    for i in range(5):
+        for j in range(5):
+            if i != j:
+                sim[i, j] = 0.80
+
+    # Within minority cluster: high similarity
+    for i in range(5, 10):
+        for j in range(5, 10):
+            if i != j:
+                sim[i, j] = 0.80
+
+    # Cross-cluster: strongly negative (anti-correlated)
+    for i in range(5):
+        for j in range(5, 10):
+            sim[i, j] = -0.30
+            sim[j, i] = -0.30
+
+    return model_ids, sim
+
+
+# ── Test 1: Determinism ─────────────────────────────────────────────────
+
+
+def test_centrality_ci_deterministic():
+    """Same random_state=42 produces bit-identical output on two calls.
+
+    T5 test contract item 1 (mirrors the determinism test pattern
+    used for bootstrap_term_mds_ellipses above).
+    """
+    model_ids, sim = _make_consensus_sim_matrix(6)
+
+    result_a = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=50, random_state=42)
+    result_b = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=50, random_state=42)
+
+    assert result_a == result_b, (
+        "bootstrap_centrality_ci is not deterministic with the same random_state"
+    )
+
+
+def test_centrality_ci_different_seeds_differ():
+    """Different random_state values produce different CIs.
+
+    In a high-consensus block fixture the CIs overlap heavily, but the
+    exact floating-point values will almost certainly differ because the
+    resampled index sequences diverge.
+    """
+    model_ids, sim = _make_consensus_sim_matrix(6)
+
+    r1 = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=50, random_state=1)
+    r2 = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=50, random_state=2)
+
+    assert any(
+        r1[mid] != r2[mid] for mid in model_ids
+    ), "Different seeds produced bit-identical output -- unexpected for stochastic bootstrap"
+
+
+# ── Test 2: Shape / contract ────────────────────────────────────────────
+
+
+def test_centrality_ci_shape_and_contract():
+    """Returned dict has exactly the right keys and lo <= hi per model.
+
+    T5 test contract item 2 (shape/contract).
+    """
+    model_ids, sim = _make_consensus_sim_matrix(8)
+
+    result = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=60, random_state=42)
+
+    assert isinstance(result, dict)
+
+    assert set(result.keys()) == set(model_ids), (
+        f"Returned keys {set(result.keys())} != expected {set(model_ids)}"
+    )
+
+    for mid, (lo, hi) in result.items():
+        assert isinstance(lo, float), f"{mid}: lo is not float"
+        assert isinstance(hi, float), f"{mid}: hi is not float"
+        assert lo <= hi, f"{mid}: lo={lo} > hi={hi} violates CI ordering"
+
+
+def test_centrality_ci_reference_score_bracketed():
+    """Reference centrality score must lie within [lo, hi] for every model.
+
+    T5 test contract item 2 (bracketing sub-check).
+    Per the SME verdict: "Every value satisfies lo <= reference_score <= hi
+    ... If this fails for any model, the bootstrap distribution and the
+    reference point are inconsistent -- either a sign-alignment bug or an
+    eigh ordering bug."
+
+    n_bootstrap=100: small enough to be fast; the bracketing property holds
+    in a high-consensus fixture because the bootstrap distribution is
+    unimodal and centred on the reference loading when sign-alignment is
+    correct.
+    """
+    model_ids, sim = _make_consensus_sim_matrix(6)
+
+    from cdb_analyze.consensus import compute_centrality_scores
+
+    ref_scores = compute_centrality_scores(model_ids, sim)
+    result = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=100, random_state=42)
+
+    for mid in model_ids:
+        lo, hi = result[mid]
+        ref = ref_scores[mid]
+        assert lo <= ref <= hi, (
+            f"{mid}: reference score {ref:.4f} not in CI [{lo:.4f}, {hi:.4f}]. "
+            "Sign-alignment or eigh-ordering bug."
+        )
+
+
+# ── Test 3: Coverage sanity ─────────────────────────────────────────────
+
+
+def test_centrality_ci_outlier_wider_than_inblock():
+    """Outlier model CI is wider than in-block model CIs.
+
+    T5 test contract item 3 (coverage sanity).
+
+    Build a 7-model similarity matrix: 6 models in a tight consensus block
+    (off-diagonal similarity 0.85) plus 1 outlier model (similarity 0.10
+    to all in-block models).  The outlier's loading swings more across
+    resamples because its presence or absence in a given draw shifts the
+    dominant eigenvector more than the in-block models do.
+
+    Tests ordering rather than absolute widths (the latter is fragile to
+    RNG).  n_bootstrap=80 balances speed against detecting the ordering.
+    """
+    n_block = 6
+    model_ids = [f"blk-{i}" for i in range(n_block)] + ["outlier"]
+    n = len(model_ids)
+
+    sim = np.full((n, n), 0.85)
+    np.fill_diagonal(sim, 1.0)
+    sim[-1, :n_block] = 0.10
+    sim[:n_block, -1] = 0.10
+
+    result = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=80, random_state=42)
+
+    outlier_width = result["outlier"][1] - result["outlier"][0]
+    inblock_widths = [result[f"blk-{i}"][1] - result[f"blk-{i}"][0] for i in range(n_block)]
+    median_inblock_width = float(np.median(inblock_widths))
+
+    assert outlier_width > median_inblock_width, (
+        f"Expected outlier CI width ({outlier_width:.4f}) > median in-block width "
+        f"({median_inblock_width:.4f}).  Coverage sanity failed."
+    )
+
+
+# ── Test 4: Degenerate paths ────────────────────────────────────────────
+
+
+def test_centrality_ci_degenerate_n_equals_2():
+    """n=2 models returns {} (Q3 degenerate-n guard).
+
+    T5 test contract item 4 (degenerate paths).
+    At n=2, the centrality eigenvector is (1,1)/sqrt(2) up to sign --
+    constant across all bootstrap draws -- so no CI is emitted.
+    """
+    model_ids = ["m-alpha", "m-beta"]
+    sim = np.array([[1.0, 0.7], [0.7, 1.0]])
+
+    result = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=20, random_state=42)
+
+    assert result == {}, f"Expected {{}} for n=2, got {result}"
+
+
+def test_centrality_ci_degenerate_n_equals_1():
+    """n=1 model returns {} (Q3 degenerate-n guard).
+
+    T5 test contract item 4 (degenerate paths).
+    """
+    model_ids = ["solo-model"]
+    sim = np.array([[1.0]])
+
+    result = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=10, random_state=42)
+
+    assert result == {}, f"Expected {{}} for n=1, got {result}"
+
+
+def test_centrality_ci_degenerate_all_zeros_does_not_raise():
+    """An all-zeros similarity matrix does not raise; returns gracefully.
+
+    T5 test contract item 4 (catastrophic-resample degenerate path).
+    The all-zeros matrix has degenerate eigenstructure; the function must
+    absorb any degenerate-resample exception and return {} or a partial
+    dict -- the key requirement is no unhandled exception.
+    """
+    model_ids = [f"zz-{i}" for i in range(5)]
+    sim = np.zeros((5, 5))
+
+    result = bootstrap_centrality_ci(model_ids, sim, n_bootstrap=20, random_state=42)
+
+    assert isinstance(result, dict)
+    for _mid, ci in result.items():
+        assert len(ci) == 2
+        lo, hi = ci
+        assert lo <= hi
+
+
+# ── Test 5: Sign-alignment falsifiability (N7 -- CRITICAL) ─────────────
+
+
+def test_centrality_ci_sign_alignment_falsifiability():
+    """Bootstrap loadings stay sign-consistent with the reference vector.
+
+    T5 test contract item 5 (sign-alignment, N7 binding requirement).
+
+    REGRESSION GUARD for the original register-error / sign-alignment bug
+    class that motivated Remedy B.  This is the load-bearing test.
+
+    If a future change removes or disables the
+        `if float(np.dot(boot_eigvec, ref_sub)) < 0: boot_eigvec = -boot_eigvec`
+    block in bootstrap_centrality_ci() this test MUST FAIL.  That is the
+    intended behaviour -- the test exists to catch that regression.
+
+    Fixture (_make_two_cluster_sim_matrix):
+      - 10 models in two anti-correlated clusters (5 majority + 5 minority).
+      - Within-cluster similarity 0.80; cross-cluster similarity -0.30.
+      - Without reference-vector alignment: both +v and -v are equally valid
+        eigenvectors.  The bootstrap draws each with ~50% probability,
+        producing a bimodal loading distribution symmetric around zero.
+        Result: every model's CI straddles zero (lo < 0 < hi for positive-
+        reference models; same in mirror for negative-reference models).
+      - With correct Q1 alignment (dot(boot, ref) < 0 -> flip): all
+        bootstrap eigenvectors share the reference orientation.  Loading
+        distributions are unimodal and on one side of zero.  Result: CI
+        lies entirely above zero for majority models, entirely below zero
+        for minority models.
+
+    Assertion:
+      - majority models (reference loading > 0.05): lo > 0
+      - minority models (reference loading < -0.05): hi < 0
+    Either assertion failing means sign-alignment is broken.
+
+    n_bootstrap=200: fast enough (no InformantRecord construction -- this
+    function operates directly on the similarity matrix), large enough that
+    the 2.5th/97.5th tails are well away from zero with the strong
+    anti-correlation structure.  With no alignment the straddling
+    probability approaches 100% regardless of n_bootstrap.
+
+    References:
+        docs/status/2026-05-28-remedy-b-cda-sme-verdict.md
+        section "T5 test contract" item 5, binding note N7.
+    """
+    from cdb_analyze.consensus import compute_centrality_scores
+
+    model_ids, sim = _make_two_cluster_sim_matrix()
+
+    ref_scores = compute_centrality_scores(model_ids, sim)
+
+    # Partition by reference sign (threshold 0.05 avoids near-zero noise).
+    positive_models = [mid for mid in model_ids if ref_scores[mid] > 0.05]
+    negative_models = [mid for mid in model_ids if ref_scores[mid] < -0.05]
+
+    # Both clusters must be populated to make the test meaningful.
+    assert len(positive_models) >= 3, (
+        f"Fixture degenerate: too few positive-loaded models ({positive_models})"
+    )
+    assert len(negative_models) >= 3, (
+        f"Fixture degenerate: too few negative-loaded models ({negative_models})"
+    )
+
+    result = bootstrap_centrality_ci(
+        model_ids, sim, n_bootstrap=200, random_state=42
+    )
+
+    # Every model must have a CI entry (n=10 >> 3, fixture is non-degenerate).
+    for mid in model_ids:
+        assert mid in result, f"Missing CI for model {mid}"
+
+    sign_failures: list[str] = []
+
+    for mid in positive_models:
+        lo, hi = result[mid]
+        # With correct alignment, the entire CI must be positive.
+        # lo <= 0 signals bimodal distribution (sign-alignment is broken).
+        if lo <= 0.0:
+            sign_failures.append(
+                f"{mid}: reference={ref_scores[mid]:.3f} positive but CI lo={lo:.4f} <= 0 "
+                f"(CI [{lo:.4f}, {hi:.4f}])"
+            )
+
+    for mid in negative_models:
+        lo, hi = result[mid]
+        # With correct alignment, the entire CI must be negative.
+        # hi >= 0 signals bimodal distribution (sign-alignment is broken).
+        if hi >= 0.0:
+            sign_failures.append(
+                f"{mid}: reference={ref_scores[mid]:.3f} negative but CI hi={hi:.4f} >= 0 "
+                f"(CI [{lo:.4f}, {hi:.4f}])"
+            )
+
+    assert not sign_failures, (
+        "SIGN ALIGNMENT FAILURE -- bootstrap_centrality_ci is NOT correctly "
+        "applying reference-vector alignment (dot(boot, ref) < 0 -> flip).\n"
+        "This test exists to catch regressions to mean-sign alignment or "
+        "no-alignment in bootstrap.py.\n"
+        "Failing models:\n  " + "\n  ".join(sign_failures)
+    )
