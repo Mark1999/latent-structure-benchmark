@@ -252,4 +252,12 @@ export interface DomainResultPublished {
 
   /** Display sub-object — precomputed UI helpers added by cdb_publish T3. */
   display: DisplayBlock;
+
+  /**
+   * Per-model 95% bootstrap CI on cultural centrality score.
+   * Shape: model_id → [lo, hi] (percentile method, B=500, model-resampling).
+   * Empty dict ({}) when n_models < 3 (degenerate regime).
+   * Added by Remedy B T2/T3. See DATA_DICTIONARY.md §1.1 for full audit trail.
+   */
+  centrality_ci?: Record<string, [number, number]>;
 }

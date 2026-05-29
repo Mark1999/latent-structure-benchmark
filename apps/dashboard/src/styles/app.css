@@ -1155,13 +1155,6 @@ body {
   padding: var(--space-4);
 }
 
-/* Interim R10 annotation — TODO(Remedy B T4): remove when centrality_ci is consumed */
-.centrality-chart__interim-note {
-  font-size: var(--font-size-xs);
-  color: var(--color-text-caption);
-  margin: 0 0 var(--space-2) 0;
-  padding: 0;
-}
 
 .centrality-chart__svg-container {
   position: relative;

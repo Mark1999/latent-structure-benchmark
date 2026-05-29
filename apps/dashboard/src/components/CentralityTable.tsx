@@ -1,5 +1,10 @@
 /**
  * CentralityTable — accessible HTML table rendering of cultural centrality scores.
+ *
+ * When centralityCi is provided, includes 95% CI lower and upper columns.
+ * CIs are sourced from the published domain JSON (percentile bootstrap,
+ * model-resampling, B=500). No per-model bootstrap N column is included
+ * because the published shape is a bare [lo, hi] tuple with no per-model N.
  */
 
 function shortName(id: string): string {
@@ -16,6 +21,8 @@ export interface CentralityTableProps {
   consensusType?: string;
   sortedIds: string[];
   centralityScores: Record<string, number>;
+  /** Per-model 95% bootstrap CI from published domain JSON. model_id → [lo, hi]. */
+  centralityCi?: Record<string, [number, number]>;
 }
 
 export function CentralityTable({
@@ -23,6 +30,7 @@ export function CentralityTable({
   consensusType,
   sortedIds,
   centralityScores,
+  centralityCi,
 }: CentralityTableProps) {
   if (sortedIds.length === 0) {
     return (
@@ -33,7 +41,12 @@ export function CentralityTable({
   }
 
   const consensusPhrase = mapConsensusType(consensusType);
-  const tableCaption = `Cultural centrality scores for models on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. Domain consensus: ${consensusPhrase}.`;
+  const hasCi = Boolean(centralityCi && Object.keys(centralityCi).length > 0);
+
+  const ciCaption = hasCi
+    ? ' 95% CI columns show bootstrap confidence intervals (model-resampling with replacement, B=500, percentile method).'
+    : '';
+  const tableCaption = `Cultural centrality scores for models on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. Domain consensus: ${consensusPhrase}.${ciCaption}`;
 
   return (
     <div className="read-as-table__container">
@@ -45,6 +58,12 @@ export function CentralityTable({
             <th scope="col" className="read-as-table__th">Model</th>
             <th scope="col" className="read-as-table__th read-as-table__th--mono">model_id</th>
             <th scope="col" className="read-as-table__th read-as-table__th--numeric">Centrality score</th>
+            {hasCi && (
+              <>
+                <th scope="col" className="read-as-table__th read-as-table__th--numeric">95% CI lower</th>
+                <th scope="col" className="read-as-table__th read-as-table__th--numeric">95% CI upper</th>
+              </>
+            )}
             <th scope="col" className="read-as-table__th">Notes</th>
           </tr>
         </thead>
@@ -52,6 +71,7 @@ export function CentralityTable({
           {sortedIds.map((modelId, rowIndex) => {
             const score = centralityScores[modelId] ?? 0;
             const isNegative = score < 0;
+            const ci = centralityCi?.[modelId] ?? null;
 
             return (
               <tr key={modelId} className="read-as-table__tr">
@@ -61,6 +81,16 @@ export function CentralityTable({
                 <td className="read-as-table__td read-as-table__td--numeric">
                   {score.toFixed(3)}
                 </td>
+                {hasCi && (
+                  <>
+                    <td className="read-as-table__td read-as-table__td--numeric">
+                      {ci ? ci[0].toFixed(3) : '—'}
+                    </td>
+                    <td className="read-as-table__td read-as-table__td--numeric">
+                      {ci ? ci[1].toFixed(3) : '—'}
+                    </td>
+                  </>
+                )}
                 <td className="read-as-table__td">
                   {isNegative ? "negative centrality" : ""}
                 </td>

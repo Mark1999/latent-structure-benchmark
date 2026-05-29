@@ -29,6 +29,12 @@ interface DomainExtended extends DomainResultPublished {
   centroid_piles?: Record<string, ModelPileData>;
   /** Cultural centrality scores: model_id → score (~0.2–0.3). */
   cultural_centrality_scores?: Record<string, number>;
+  /**
+   * Per-model 95% bootstrap CI on cultural centrality.
+   * Shape: model_id → [lo, hi]. Empty dict when n_models < 3.
+   * Remedy B T2/T3.
+   */
+  centrality_ci?: Record<string, [number, number]>;
   /** Pairwise similarity matrix as a flat 2D array. Model order matches the models array. */
   similarity_matrix_array?: number[][];
   /** Scipy linkage matrix for hierarchical clustering: rows of [idx1, idx2, distance, count]. */
@@ -304,6 +310,7 @@ export function ContentArea({
                 </p>
                 <CentralityChart
                   centralityScores={domain.cultural_centrality_scores ?? {}}
+                  centralityCi={domain.centrality_ci}
                   models={domain.models}
                   selectedModelIds={selectedModelIds}
                   consensusType={domain.consensus_type}

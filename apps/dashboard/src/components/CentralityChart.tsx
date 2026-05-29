@@ -1,5 +1,9 @@
 /**
  * CentralityChart — ranked horizontal bar chart of per-model cultural centrality scores.
+ *
+ * Uncertainty whiskers are sourced from the published `centrality_ci` field
+ * (95% percentile bootstrap, model-resampling, B=500). No client-side CI
+ * computation is performed. Remedy B T4.
  */
 
 import { useState, useMemo, useCallback, useRef } from 'react';
@@ -43,6 +47,8 @@ function shortName(id: string): string {
 
 export interface CentralityChartProps {
   centralityScores: Record<string, number>;
+  /** Per-model 95% bootstrap CI from the published domain JSON. model_id → [lo, hi]. */
+  centralityCi?: Record<string, [number, number]>;
   models: Array<{ model_id: string; provider: string; family: string }>;
   selectedModelIds: Set<string>;
   consensusType?: string;
@@ -66,6 +72,7 @@ const PADDING_BOTTOM = 20;
 
 export function CentralityChart({
   centralityScores,
+  centralityCi,
   models,
   selectedModelIds,
   consensusType = 'UNKNOWN',
@@ -75,6 +82,9 @@ export function CentralityChart({
   const [readAsTable, setReadAsTable] = useState<boolean>(false);
   const [tooltip, setTooltip] = useState<TooltipState | null>(null);
 
+  // Determine whether published CIs are available for display
+  const hasCi = Boolean(centralityCi && Object.keys(centralityCi).length > 0);
+
   // Filter and sort entries
   const entries = useMemo(() => {
     return models
@@ -82,24 +92,32 @@ export function CentralityChart({
       .map((m) => ({
         model_id: m.model_id,
         score: centralityScores[m.model_id],
+        ci: centralityCi?.[m.model_id] ?? null,
         color: PROVIDER_COLORS[resolveProvider(m)] || 'var(--color-text-secondary)',
       }))
       .sort((a, b) => b.score - a.score);
-  }, [models, selectedModelIds, centralityScores]);
+  }, [models, selectedModelIds, centralityScores, centralityCi]);
 
   // SVG dimensions
   const svgHeight = PADDING_TOP + entries.length * BAR_SLOT - BAR_GAP + PADDING_BOTTOM;
   const svgWidth = LABEL_WIDTH + BAR_AREA + SCORE_WIDTH;
 
-  // Determine x domain: always include 0 and score values
+  // Determine x domain: include 0, scores, and CI bounds if present
   const { xMin, xMax } = useMemo(() => {
     const allValues = [0, ...entries.map((e) => e.score)];
+    if (hasCi) {
+      entries.forEach((e) => {
+        if (e.ci) {
+          allValues.push(e.ci[0], e.ci[1]);
+        }
+      });
+    }
     const minVal = Math.min(...allValues);
     const maxVal = Math.max(...allValues);
     const range = maxVal - minVal || 0.01;
     const padding = range * 0.1;
     return { xMin: minVal - padding, xMax: maxVal + padding };
-  }, [entries]);
+  }, [entries, hasCi]);
 
   // Scale functions
   const toSvgX = useCallback((v: number) => {
@@ -134,8 +152,10 @@ export function CentralityChart({
   // Visual text summary for screen readers
   const highestEntry = entries[0];
   const lowestEntry = entries[entries.length - 1];
-  // TODO(Remedy B T4): remove the uncertainty-interval caveat when centrality_ci is consumed
-  const srSummary = `This chart ranks ${entries.length} models by cultural centrality score on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. ${shortName(highestEntry.model_id)} has the highest centrality at ${highestEntry.score.toFixed(3)}, and ${shortName(lowestEntry.model_id)} has the lowest at ${lowestEntry.score.toFixed(3)}. Note: no uncertainty interval is currently shown for these scores — see methodology.`;
+  const ciDesc = hasCi
+    ? ' 95% bootstrap confidence intervals (model-resampling, B=500) are shown as whiskers on each bar.'
+    : ' No bootstrap confidence interval is available for this domain (fewer than 3 models).';
+  const srSummary = `This chart ranks ${entries.length} models by cultural centrality score on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. ${shortName(highestEntry.model_id)} has the highest centrality at ${highestEntry.score.toFixed(3)}, and ${shortName(lowestEntry.model_id)} has the lowest at ${lowestEntry.score.toFixed(3)}.${ciDesc}`;
 
   return (
     <div className="centrality-chart" ref={containerRef} style={{ position: 'relative' }}>
@@ -154,11 +174,6 @@ export function CentralityChart({
           {readAsTable ? 'Show visualization' : 'Read as table'}
         </button>
       </div>
-
-      {/* Interim uncertainty annotation — TODO(Remedy B T4): remove when centrality_ci is consumed */}
-      <p className="centrality-chart__interim-note" aria-hidden="true">
-        No uncertainty interval currently shown — see methodology.
-      </p>
 
       {/* SVG Bar Chart */}
       <div
@@ -191,6 +206,16 @@ export function CentralityChart({
             const barX = Math.min(zeroX, scoreX);
             const barW = Math.abs(scoreX - zeroX);
             const label = shortName(entry.model_id);
+
+            // CI whiskers — sourced from published centrality_ci, not computed here
+            const ci = entry.ci;
+            const loX = ci ? toSvgX(ci[0]) : null;
+            const hiX = ci ? toSvgX(ci[1]) : null;
+
+            // Score label: show [lo–hi] alongside score when CI is available
+            const scoreLabel = ci
+              ? `${entry.score.toFixed(3)} [${ci[0].toFixed(3)}–${ci[1].toFixed(3)}]`
+              : entry.score.toFixed(3);
 
             return (
               <g
@@ -228,8 +253,42 @@ export function CentralityChart({
                   height={BAR_HEIGHT}
                   fill={entry.color}
                   className="centrality-chart__bar"
-                  aria-label={`${label}: ${entry.score.toFixed(3)}`}
+                  aria-label={`${label}: ${scoreLabel}`}
                 />
+
+                {/* Error bar whiskers (95% bootstrap CI from published centrality_ci) */}
+                {loX !== null && hiX !== null && (
+                  <g className="centrality-chart__error-bar" aria-hidden="true">
+                    {/* Horizontal span line */}
+                    <line
+                      x1={loX}
+                      y1={barCenter}
+                      x2={hiX}
+                      y2={barCenter}
+                      stroke={entry.color}
+                      strokeWidth="1.5"
+                      opacity="0.7"
+                    />
+                    {/* Low cap */}
+                    <line
+                      x1={loX}
+                      y1={barCenter - 4}
+                      x2={loX}
+                      y2={barCenter + 4}
+                      stroke={entry.color}
+                      strokeWidth="1.5"
+                    />
+                    {/* High cap */}
+                    <line
+                      x1={hiX}
+                      y1={barCenter - 4}
+                      x2={hiX}
+                      y2={barCenter + 4}
+                      stroke={entry.color}
+                      strokeWidth="1.5"
+                    />
+                  </g>
+                )}
 
                 {/* Score value */}
                 <text
@@ -258,6 +317,7 @@ export function CentralityChart({
           consensusType={consensusType}
           sortedIds={entries.map((e) => e.model_id)}
           centralityScores={centralityScores}
+          centralityCi={centralityCi}
         />
       </div>
 
@@ -276,6 +336,16 @@ export function CentralityChart({
           <div className="centrality-chart__tooltip-score">
             Cultural Centrality: <strong>{centralityScores[tooltip.modelId]?.toFixed(3)}</strong>
           </div>
+          {centralityCi?.[tooltip.modelId] && (
+            <div className="centrality-chart__tooltip-ci">
+              95% bootstrap CI:{' '}
+              <strong>
+                [{centralityCi[tooltip.modelId][0].toFixed(3)}, {centralityCi[tooltip.modelId][1].toFixed(3)}]
+              </strong>
+              {' '}
+              <span style={{ fontSize: '10px', opacity: 0.75 }}>(model-resampled, B=500)</span>
+            </div>
+          )}
           <div className="centrality-chart__tooltip-explanation">
             Cultural centrality measures how closely a model&apos;s categorical structure aligns with the dominant pattern across all models in this domain. Higher scores indicate closer alignment.
           </div>
