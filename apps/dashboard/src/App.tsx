@@ -7,7 +7,6 @@ import { useState, useEffect, useCallback } from 'react';
 import './styles/app.css';
 
 import { NavBar } from './components/NavBar';
-import { ProvenanceFooter } from './components/ProvenanceFooter';
 import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
 import type { PublishedModel } from './data/types';
@@ -226,20 +225,18 @@ export default function App() {
     return (
       <>
         <NavBar activeTab={navTab} onTabChange={setNavTab} />
-        <main style={{
+        <div style={{
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',
-          flex: '1 1 0',
-          minHeight: 0,
+          height: 'calc(100vh - 48px)',
           color: 'var(--color-text-secondary)',
           fontSize: 'var(--font-size-sm)',
           fontStyle: 'italic',
         }}>
           {navTab === 'methodology' && 'Methodology page — coming soon'}
           {navTab === 'data' && 'Data download page — coming soon'}
-        </main>
-        <ProvenanceFooter />
+        </div>
       </>
     );
   }
@@ -247,7 +244,7 @@ export default function App() {
   return (
     <>
       <NavBar activeTab={navTab} onTabChange={setNavTab} />
-      <main className="app-main">
+      <div className="app-main">
         <Sidebar
           activeDomain={activeDomain}
           onDomainChange={(slug) => setActiveDomain(slug as DomainSlug)}
@@ -284,8 +281,7 @@ export default function App() {
           onLensToggle={() => setLensEnabled((v) => !v)}
           activeDomain={activeDomain}
         />
-      </main>
-      <ProvenanceFooter />
+      </div>
     </>
   );
 }
