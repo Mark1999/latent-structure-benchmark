@@ -477,22 +477,13 @@ export function TermMap({
           bestY += (dy / dd) * 14;
         }
 
-        // Use the AHC cluster color of the most common cluster in this group
-        const clusterCounts: Record<number, number> = {};
-        groupTerms.forEach((t) => { clusterCounts[t.cluster] = (clusterCounts[t.cluster] || 0) + 1; });
-        const dominantCluster = parseInt(
-          Object.entries(clusterCounts).sort((a, b) => b[1] - a[1])[0][0],
-          10
-        );
-        const col = getClusterColor(dominantCluster);
-
         if (groupTerms.length >= 3) {
           svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="13" font-weight="700" fill="${col}" opacity=".75" pointer-events="none">${escapeXml(label)}</text>`
+            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="26" font-weight="700" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
           );
         } else {
           svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="10" font-weight="600" fill="${col}" opacity=".6" pointer-events="none">${escapeXml(label)}</text>`
+            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="20" font-weight="600" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
           );
         }
       });
@@ -500,7 +491,6 @@ export function TermMap({
       // Fallback: no centroidPiles available — use aggregate clusterLabels
       Object.entries(clusters).forEach(([cidStr, clusterTerms]) => {
         const cid = parseInt(cidStr, 10);
-        const col = getClusterColor(cid);
         const label = clusterLabels[cid] || `Cluster ${cid + 1}`;
         const cx = clusterTerms.reduce((s, t) => s + sx(t.x), 0) / clusterTerms.length;
         const cy = clusterTerms.reduce((s, t) => s + sy(t.y), 0) / clusterTerms.length;
@@ -521,11 +511,11 @@ export function TermMap({
 
         if (clusterTerms.length >= 3) {
           svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="13" font-weight="700" fill="${col}" opacity=".75" pointer-events="none">${escapeXml(label)}</text>`
+            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="26" font-weight="700" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
           );
         } else if (clusterTerms.length >= 1) {
           svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="10" font-weight="600" fill="${col}" opacity=".6" pointer-events="none">${escapeXml(label)}</text>`
+            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="20" font-weight="600" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
           );
         }
       });
