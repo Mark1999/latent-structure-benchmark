@@ -2,6 +2,17 @@
 
 **Why this file exists:** the live session was relaunched inside a zellij session (named `lsb`) on the VPS so the ~10-hour corpus re-baseline can run while Mark travels. If `claude --continue` lost context, READ THIS to pick up exactly where we left off. Mark is a project manager, not an engineer — keep him informed in plain language.
 
+## ⚠️ STATE AS OF 2026-05-30 (post-revert) — read first
+**Live is now HONEST again.** The premature provenance footer + `provenance.json` were REVERTED in `bc0c9b9` (pushed). Live `origin/master` = old data (family renders 0.80), no provenance claim — internally consistent. What had gone wrong: `ec5ec61` shipped the footer/provenance.json LIVE while the actual re-baselined DATA was never promoted → false provenance claim. Reverted.
+
+**Re-baseline data is STILL STAGED, NOT promoted** (`out/rebaseline/`, untracked, intact). To promote properly (decisions locked with Mark 2026-05-30):
+1. **Scope: FAMILY + HOLIDAYS ONLY.** Food deferred — its staged file adds 12 *populated* structural keys (term-MDS, centroid_piles) = NOT drift-only; needs its own CDA SME review as a separate task.
+2. **CDA SME must re-bless the family 95% CI shift 0.94→0.95** FIRST. The 2026-05-30 promote verdict (`docs/status/2026-05-30-promote-cda-sme-verdict.md`) wrongly claimed the CI was bit-stable; the upper bound actually moves 0.9433→0.9498 (renders [0.64,0.94]→[0.64,0.95]). That's a 2nd visible number change needing blessing alongside the 0.80→0.81.
+3. **Promote ATOMICALLY (one release, per SME note A2):** family+holidays data (update `tests/cdb_publish/test_lede.py` 0.80→0.81 AND CI→[0.64,0.95]) + methodology "Data provenance" paragraph (locked copy in the promote verdict) + re-add footer + provenance.json (now covering family+holidays only). The reverted footer/provenance code is recoverable from `ec5ec61` (cherry-pick the file contents, adjust provenance.json to 2 domains).
+4. Gates already obtained for the surfaces: UI/UX PASS (`2026-05-30-promote-ui-ux-verdict.md`), Architect sign-off for provenance.json (`2026-05-30-provenance-json-architect-signoff.md`). Re-Reviewer the atomic commit; the food deferral means re-confirm family+holidays diffs are drift-only.
+
+**Lesson (orchestration):** that batch over-dispatched — a fresh Architect replan collided with in-flight gate work, agents cited nonexistent commit hashes, and the footer shipped ahead of the data. Promote as ONE sequential unit next time; don't fan out a replan over work already moving.
+
 ## One-line state
 The original centrality-CI register-error remediation (Remedy B) is **DONE and on origin/master, deploying**. The reproducibility re-baseline **COMPLETED 2026-05-29 21:33 UTC — all 3 domains PASS the guard, no lede-class changes, staged at `out/rebaseline/`, promotion PENDING Mark's return.** See `docs/status/2026-05-29-rebaseline-completion.md`. Remaining: promote staging→live (Reviewer-gated) + SME provenance paragraph (N1–N3) + footer T5 (UI/UX) — all on return. Drafted-but-inactive Tier 1–2 artifacts also await activation.
 
