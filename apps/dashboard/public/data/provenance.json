@@ -1,0 +1,31 @@
+{
+  "numpy_version": "2.4.4",
+  "scipy_version": "1.17.1",
+  "python_version": "3.12.3 (main, Mar 23 2026, 19:04:32) [GCC 13.3.0]",
+  "git_sha": "fd6f490",
+  "generated_at_utc": "2026-05-29T14:14:29.345588+00:00",
+  "lsb_analysis_version": "0.1.0",
+  "domains": {
+    "family": {
+      "bootstrap_B": 500,
+      "guard": "pass",
+      "model_count": 15,
+      "new_version": "0.3",
+      "sha256": "fb4d988eec11ef670158eef990a206555e6593522dbdfb3b31825326acce8f78"
+    },
+    "holidays": {
+      "bootstrap_B": 500,
+      "guard": "pass",
+      "model_count": 14,
+      "new_version": "0.3",
+      "sha256": "e9d16361c67b9fdedfd5d630e6be3dc54b4a83f0c08009a49c49d2f2f2fcebb1"
+    },
+    "food": {
+      "bootstrap_B": 500,
+      "guard": "pass",
+      "model_count": 8,
+      "new_version": "0.2",
+      "sha256": "3330f8fa7702c0043c2c796267a545dc4bedc63aa8c9ed61652a240b932ed6b0"
+    }
+  }
+}

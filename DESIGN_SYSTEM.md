@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.8.1  
+**Version:** v0.8.2  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.8.2** (PROMOTE-1 T-D global provenance footer, 2026-05-30) adds §15.5 (global env footer — `<footer>` landmark outside `<main>`, versions fetched from `/data/provenance.json` with render-nothing fallback, every screen). Adds `ProvenanceFooter.tsx` to §11 Component Inventory. No new tokens — uses existing `--font-size-xs`, `--color-text-caption`, `--color-border`. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`).
 - **v0.8.1** (Remedy B T4 copy cleanup, 2026-05-29) corrects §11 `CentralityTable.tsx` column inventory: removes the "Bootstrap N" column (the published `centrality_ci` is a bare `[lo, hi]` tuple; B=500 is a domain-wide quantity stated in the SR summary and table caption, not a per-model column). No new tokens, no visual decisions. Applies CDA SME M1/M2 + Reviewer Item 3 from `docs/status/2026-05-28-remedy-b-t4-cda-sme-verdict.md`.
 - **v0.8.0** (viz-fixes fix-forward, 2026-05-28) adds §15 (Term stability pill tiers, TermMap uncertainty ellipse color, `.term-map-controls` inline-style grandfather, tooltip font-size exception). No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-28-viz-fixes-ui-ux-verdict.md` items 2–4).
 - **v0.7.0** (F2-T1–T7 UI/UX gate, 2026-05-27) adds §14 (Focus 2 — Within-Provider Family Comparison visual decisions). Three-pill focus selector (§14.1), family sidebar single-select (§14.2), family overview cards with pairwise/mean labeling per CDA SME notes (§14.3), mini heatmap (§14.4), MDS ring highlight (§14.5), salience/pile reuse (§14.6), focus ordering rule (§14.7), model color retention (§14.8), Focus 2 tab IDs (§14.9), description paragraphs (§14.10), cite path (§14.11), single-family state (§14.12), forbidden vocabulary (§14.13). No new tokens.
@@ -1552,6 +1553,9 @@ All components to be built, in implementation order:
 - `CitationBlock.tsx` — formatted academic citation component
 - `LimitationCard.tsx` — each known limitation as a card
 
+**Provenance (PROMOTE-1 T-D, 2026-05-30):**
+- `ProvenanceFooter.tsx` — global `<footer>` landmark rendered on every route, outside `<main>`. Fetches `numpy_version` and `scipy_version` from `/data/provenance.json` at runtime. Render-nothing fallback if fetch fails or fields absent. Tokens: `--font-size-xs` / `--color-text-caption`. Top border via `--color-border`. No new tokens. Spec: DESIGN_SYSTEM.md §15.5(b). Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`). File: `apps/dashboard/src/components/ProvenanceFooter.tsx`.
+
 ---
 
 ## 12. Phase 5 Visual Decisions (v0.4 — 2026-05-09)
@@ -2155,8 +2159,32 @@ Inside the dark-inverted tooltip (`.centrality-chart__tooltip`, using `--color-t
 
 This exception does NOT apply anywhere outside the dark-inverted tooltip. Any 10px text outside this context is a WCAG AA violation and must be corrected.
 
+### 15.5 Provenance surfaces (v0.8.2 — PROMOTE-1, 2026-05-30)
+
+Two surfaces expose the analysis toolchain provenance. Both are binding.
+
+**(a) Methodology-page "Data provenance" section** — a `<section>` with `<h2>Data provenance</h2>` placed as the final section on the methodology page (or first among any pre-existing version/changelog blocks). Contains the approved paragraph verbatim from `docs/status/2026-05-30-promote-cda-sme-verdict.md` §Ask2. The inline link `[provenance.json](/data/provenance.json)` uses root-relative href (binding: `target="_blank" rel="noopener noreferrer"` + visible or sr-only "(JSON)" affordance since it opens a non-HTML artifact). Section reuses `.methodology__section` class (or equivalent) for typography and measure to match the existing page. Heading level: `<h2>` (matching other top-level sections). Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md` T-B notes).
+
+**(b) Global environment footer** — `<footer>` landmark rendered once on every route (in `App.tsx`, outside `<main>`, after all main content). Fetches `numpy_version` and `scipy_version` at runtime from `/data/provenance.json`.
+
+**Render-nothing fallback (binding):** if the fetch fails (non-OK response, network error) or the `numpy_version` or `scipy_version` fields are absent or non-string, the component returns `null`. Never renders `"NaN"`, `"undefined"`, a stale hardcoded version string, or a bare unstyled placeholder.
+
+**Visual specification (no new tokens):**
+- Font: `--font-size-xs` (12px)
+- Color: `--color-text-caption` (#6c757d, ~4.60:1 on `--color-background` white). **Contrast rationale (binding):** WCAG AA requires 4.5:1 for 12px regular-weight text. `--color-text-caption` (~4.60:1) clears this bar; `--color-text-secondary` (#7f8c8d, ~3.40:1) does not. `--color-text-caption` is the only correct choice at `--font-size-xs` regular weight.
+- Top border: `var(--border-width) solid var(--color-border)`
+- Height: 32px (fixed; kept compact so it does not compete with the main content area)
+- Padding: `0 var(--space-6)` (matches nav padding)
+- Background: `var(--color-background)` (white)
+
+**Link treatment:** the version text (`"Calculated with NumPy {x} and SciPy {y}"`) is a link to `/data/provenance.json` (`target="_blank" rel="noopener noreferrer"`) with a `.sr-only` span `"(opens provenance JSON in new tab)"`. Link color at rest: `--color-text-caption`. Link color on hover: `--color-text-primary`. Underline on hover only. Focus ring: `2px solid var(--color-info); outline-offset: 2px; border-radius: var(--border-radius-sm)`.
+
+**Optional baseline date (non-binding):** `" · baseline 2026-05-30"` appended in a `<span aria-hidden="true">`. Hidden at `max-width: 600px` via CSS to prevent wrapping on narrow viewports (drop silently, do not wrap).
+
+**Layout integration:** `body` is `display: flex; flex-direction: column`. `<main className="app-main">` uses `flex: 1 1 0; min-height: 0` so it fills remaining viewport space above the footer. The footer is `flex-shrink: 0` (32px fixed).
+
 ---
 
-*End of DESIGN_SYSTEM.md v0.8.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.8.2. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

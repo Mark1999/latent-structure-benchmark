@@ -22,6 +22,8 @@ body {
   color: var(--color-text-primary);
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== Nav Bar (48px) ===== */
@@ -89,7 +91,8 @@ body {
   display: grid;
   grid-template-columns: 260px 1fr;
   grid-template-rows: 1fr;
-  height: calc(100vh - 48px);
+  flex: 1 1 0;
+  min-height: 0;          /* flex child: allow shrink below content size */
   overflow: hidden;
 }
 
@@ -1457,4 +1460,57 @@ body {
   /* SVG renders inside this container; the SVG element sets its own height */
   width: 100%;
   min-height: 200px;
+}
+
+/* ===== Provenance Footer (PROMOTE-1 T-D) ===== */
+/*
+ * Global <footer> landmark outside <main>. Renders on every route.
+ * Tokens: --font-size-xs (12px), --color-text-caption (#6c757d, ~4.60:1 on white — WCAG AA).
+ * --color-text-caption chosen over --color-text-secondary (#7f8c8d, ~3.40:1) because
+ * at --font-size-xs (12px, regular weight) WCAG AA requires 4.5:1; only
+ * --color-text-caption clears that bar (~4.60:1 vs ~3.40:1). See DESIGN_SYSTEM.md §1.2.
+ * No new tokens introduced.
+ * Design-system gate: DESIGN_SYSTEM.md §15.5(b) (v0.8.2).
+ */
+.provenance-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-6);
+  height: 32px;
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  white-space: nowrap;
+  overflow: hidden;
+  gap: 0;
+}
+
+
+.provenance-footer__link {
+  color: var(--color-text-caption);
+  text-decoration: none;
+}
+
+.provenance-footer__link:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+
+.provenance-footer__link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* Baseline date: hide on narrow viewports to prevent wrapping */
+.provenance-footer__date {
+  color: var(--color-text-caption);
+}
+
+@media (max-width: 600px) {
+  .provenance-footer__date {
+    display: none;
+  }
 }

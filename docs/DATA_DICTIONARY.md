@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.24 (aligned with `ARCHITECTURE.md` v0.7.5; see changelog for history)  
+**Version:** v0.1.25 (aligned with `ARCHITECTURE.md` v0.7.5; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.25** (2026-05-30) — PROMOTE-1 T-C: Added §15 documenting the new published artifact `apps/dashboard/public/data/provenance.json`. This is a read-only static artifact sourced from `out/rebaseline/baseline_manifest.json` at promotion time. It carries the analysis toolchain provenance (numpy_version, scipy_version, python_version, git_sha, generated_at_utc, lsb_analysis_version, per-domain integrity fields) used by the dashboard's `ProvenanceFooter` component (DESIGN_SYSTEM.md §15.5(b)) and the methodology-page Data Provenance paragraph link (DESIGN_SYSTEM.md §15.5(a)). No changes to `cdb_core/schemas.py` or any `InformantRecord`/`GroundingRef` schema. Architect sign-off: `docs/status/2026-05-30-provenance-json-architect-signoff.md`. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-30-promote-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`).
 - **v0.1.24** (2026-05-29) — Remedy B T2: Added `centrality_ci: dict[str, tuple[float, float]] = {}` to `DomainResult` (§2 table updated; §2.10 new). This is the Register 2 model-resampling bootstrap CI for `cultural_centrality_scores`. The field was added to resolve the register error documented in `docs/status/2026-05-28-viz-fixes-cda-sme-verdict.md` F2 — the pre-Remedy-B dashboard displayed a normal-approximation R1 CI mislabeled as "bootstrap". Under Remedy B, `centrality_ci` is computed by `bootstrap_centrality_ci()` in `cdb_analyze.bootstrap` (T1) and populated by `pipeline.py` (T3). Non-breaking addition — field is optional with falsy default. Architect sign-off: `docs/status/2026-05-28-remedy-b-architect-plan.md` §3 schema sign-off (conditional on CDA SME PASS, now obtained). CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-28-remedy-b-cda-sme-verdict.md` Q4, N4, N5).
 - **v0.1.23** (2026-05-27) — Focus 1 (Individual Model Consistency) schema additions: Added `RunSummary` Pydantic model to `cdb_core/schemas.py` (§2.9 new). Added three new optional fields to `WithinModelResult` (§2.1 table updated): `within_model_mds_stress` (`float | None`, default `None`), `run_agreement_matrix` (`list[list[float]]`, default `[]`), `run_summaries` (`list[RunSummary]`, default `[]`). The existing `salience_stability_rho` field (already in schema, previously null) will be populated by F1-T2. All additions are optional with falsy defaults — no breaking changes. The run agreement matrix was previously computed and discarded after OCI extraction in `two_level.py`; it is now retained for the Focus 1 dashboard view and open data bundle. `RunSummary` carries lightweight per-run metadata (not full pile memberships — those remain in `informants.jsonl`). Architect sign-off: Focus 1 plan (2026-05-27). CDA SME verdict: PASS-WITH-NOTES (2026-05-27; binding notes S1–S6, S8 applied).
 - **v0.1.22** (2026-05-24) — Phase 9a term-truncation task: Added `compute_cross_model_term_frequency()` to `cdb_analyze/cooccurrence.py`. Added `item_subset: list[str] | None = None` parameter to `build_pooled_cooccurrence_matrix()`. Added truncation step in `cdb_analyze/pipeline.py` `run_pipeline()` between step 2 (per-model matrices) and step 2b (pooled matrix): computes cross-model term frequency, pre-filters terms with f_models < 2, applies `find_salience_elbow()` (min_items=15, max_items=300) to the frequency curve, passes the truncated item list to the pooled matrix builder. Added four new optional fields to `DomainResult` in `cdb_core/schemas.py` (§2 table updated): `term_truncation_method` (`str`, default `""`), `term_truncation_params` (`dict[str, Any]`, default `{}`), `term_n_total_before_truncation` (`int`, default `0`), `term_n_after_truncation` (`int`, default `0`). All additions are optional with falsy defaults — no breaking changes. Added §2.8 to this document. Per-model item MDS (Register 1) is NOT truncated — each model's matrix uses its full vocabulary per CDA SME T4. CDA SME ruling: PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-term-truncation-sme-ruling.md` T1–T6). Architect sign-off in SME ruling document.
@@ -1683,4 +1684,50 @@ The builder is stdlib-only (`tarfile`, `hashlib`, `subprocess`, `argparse`, `pat
 
 ---
 
-*End of `docs/DATA_DICTIONARY.md` v0.1.17. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
+## 15. Published provenance artifact — `apps/dashboard/public/data/provenance.json`
+
+Added in PROMOTE-1 T-C (2026-05-30). Architect sign-off: `docs/status/2026-05-30-provenance-json-architect-signoff.md`.
+
+### 15.1 Purpose
+
+`provenance.json` is a read-only published artifact that records the analysis toolchain used to produce the currently deployed corpus. It has two dashboard consumers:
+
+1. **`ProvenanceFooter` component** (DESIGN_SYSTEM.md §15.5(b)): reads `numpy_version` and `scipy_version` to render the footer on every route.
+2. **Methodology-page Data Provenance paragraph** (DESIGN_SYSTEM.md §15.5(a)): linked inline to give readers a one-click path from the methodology page to the canonical provenance record.
+
+### 15.2 Source of truth
+
+`out/rebaseline/baseline_manifest.json` — generated by `scripts/rebaseline_corpus.py` at the end of a successful re-baseline run. Promotion to `apps/dashboard/public/data/provenance.json` is a manual copy step performed by Mark at publish time.
+
+### 15.3 Field inventory
+
+| Field | Type | Description |
+|---|---|---|
+| `numpy_version` | `str` | NumPy version used for all bootstrap and MDS computations (e.g., `"2.4.4"`). |
+| `scipy_version` | `str` | SciPy version used for all bootstrap and MDS computations (e.g., `"1.17.1"`). |
+| `python_version` | `str` | Full Python version string as returned by `sys.version` (e.g., `"3.12.3 (main, ...)"`). |
+| `git_sha` | `str` | Short git commit SHA of the LSB codebase at re-baseline time (e.g., `"fd6f490"`). Provides a second, independent audit path through the git log. |
+| `generated_at_utc` | `str` | ISO 8601 UTC timestamp of when the re-baseline script completed (e.g., `"2026-05-29T14:14:29.345588+00:00"`). |
+| `lsb_analysis_version` | `str` | Semantic version of the `cdb_analyze` package at re-baseline time (e.g., `"0.1.0"`). |
+| `domains` | `object` | Per-domain integrity and version fields. Keys are domain slugs (`"family"`, `"holidays"`, `"food"`). Each entry carries the fields in §15.4 below. |
+
+### 15.4 Per-domain entry fields (`domains.{slug}`)
+
+| Field | Type | Description |
+|---|---|---|
+| `bootstrap_B` | `int` | Bootstrap resampling count used for this domain's analysis (e.g., `500`). |
+| `guard` | `str` | Guard outcome for this domain: `"pass"` if no threshold crossing detected; `"halted"` if a crossing was detected and the re-baseline was stopped. A `"pass"` value on all domains is required before promotion. |
+| `model_count` | `int` | Number of models included in this domain's analysis at re-baseline time. |
+| `new_version` | `str` | Version string of the domain JSON artifact after re-baseline (e.g., `"0.3"`). |
+| `sha256` | `str` | SHA256 hex digest of the produced domain JSON artifact. Allows integrity verification of the published `{slug}.json`. |
+
+### 15.5 Stability and update policy
+
+- This artifact is **not** part of the `InformantRecord` / open-data-bundle schema. It is dashboard-layer provenance only.
+- The file is regenerated at the end of every successful re-baseline run and promoted manually. It does **not** auto-update on collection runs or publish runs.
+- The dashboard reads this file at runtime via `fetch('/data/provenance.json')`. Render-nothing fallback applies if the fetch fails or the required fields (`numpy_version`, `scipy_version`) are absent.
+- Future re-baselines will update the version strings. The footer will reflect the new values without code changes (source-of-truth mechanism per A8 of the CDA SME verdict).
+
+---
+
+*End of `docs/DATA_DICTIONARY.md` v0.1.25. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
