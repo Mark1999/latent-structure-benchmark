@@ -1,5 +1,5 @@
 {
-  "built_at": "2026-05-27T18:40:11.827521Z",
+  "built_at": "2026-05-30T17:05:50.243624Z",
   "domains": [
     {
       "slug": "family",
@@ -22,7 +22,7 @@
         "x-ai/grok-4",
         "x-ai/grok-4.20"
       ],
-      "generated_at": "2026-05-27T18:28:07.572646Z"
+      "generated_at": "2026-05-29T17:25:14.741467Z"
     },
     {
       "slug": "food",
@@ -60,7 +60,7 @@
         "x-ai/grok-4",
         "x-ai/grok-4.20"
       ],
-      "generated_at": "2026-05-27T18:39:58.440967Z"
+      "generated_at": "2026-05-29T21:23:29.620727Z"
     }
   ],
   "oci_low_concentration_threshold": 3.0,

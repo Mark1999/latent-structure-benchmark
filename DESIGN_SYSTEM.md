@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.8.1  
+**Version:** v0.9.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.9.0** (PROMOTE-2 provenance surfaces, 2026-05-30) adds `ProvenanceFooter.tsx` and `MethodologyPage.tsx` to §11 Component Inventory; adds §16 (provenance surfaces: §15.5(a) methodology "Data provenance" section, §15.5(b) global per-domain conditional footer). `body` CSS gains `display: flex; flex-direction: column`; `.app-main` changes from `height: calc(100vh - 48px)` to `flex: 1 1 0; min-height: 0`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-30-promote2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`); Architect sign-off (`docs/status/2026-05-30-provenance-json-architect-signoff.md`).
 - **v0.8.1** (Remedy B T4 copy cleanup, 2026-05-29) corrects §11 `CentralityTable.tsx` column inventory: removes the "Bootstrap N" column (the published `centrality_ci` is a bare `[lo, hi]` tuple; B=500 is a domain-wide quantity stated in the SR summary and table caption, not a per-model column). No new tokens, no visual decisions. Applies CDA SME M1/M2 + Reviewer Item 3 from `docs/status/2026-05-28-remedy-b-t4-cda-sme-verdict.md`.
 - **v0.8.0** (viz-fixes fix-forward, 2026-05-28) adds §15 (Term stability pill tiers, TermMap uncertainty ellipse color, `.term-map-controls` inline-style grandfather, tooltip font-size exception). No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-28-viz-fixes-ui-ux-verdict.md` items 2–4).
 - **v0.7.0** (F2-T1–T7 UI/UX gate, 2026-05-27) adds §14 (Focus 2 — Within-Provider Family Comparison visual decisions). Three-pill focus selector (§14.1), family sidebar single-select (§14.2), family overview cards with pairwise/mean labeling per CDA SME notes (§14.3), mini heatmap (§14.4), MDS ring highlight (§14.5), salience/pile reuse (§14.6), focus ordering rule (§14.7), model color retention (§14.8), Focus 2 tab IDs (§14.9), description paragraphs (§14.10), cite path (§14.11), single-family state (§14.12), forbidden vocabulary (§14.13). No new tokens.
@@ -1548,9 +1549,12 @@ All components to be built, in implementation order:
 - `apps/dashboard/src/styles/dendrogram.css` — token-only styles for Dendrogram.
 
 **Methodology page (Phase 6, Mark writes prose):**
-- `MethodologyPage.tsx` — long-form article template
+- `MethodologyPage.tsx` — long-form article template; includes "Data provenance" final section (PROMOTE-2, 2026-05-30). File: `apps/dashboard/src/components/MethodologyPage.tsx`. Spec: §15.5(a) and §6.
 - `CitationBlock.tsx` — formatted academic citation component
 - `LimitationCard.tsx` — each known limitation as a card
+
+**Provenance surfaces (PROMOTE-2, 2026-05-30):**
+- `ProvenanceFooter.tsx` — global `<footer>` landmark; reads versions and domains from `/data/provenance.json`; `--font-size-xs` / `--color-text-caption`; per-domain conditional (renders nothing if active domain is not in provenance.json's `domains` block); every screen. File: `apps/dashboard/src/components/ProvenanceFooter.tsx`. Spec: §15.5(b) and §16.
 
 ---
 
@@ -2157,6 +2161,37 @@ This exception does NOT apply anywhere outside the dark-inverted tooltip. Any 10
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.8.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 16. Provenance surfaces (v0.9.0 — PROMOTE-2, 2026-05-30)
+
+Visual decisions and component specifications for the two provenance surfaces shipped with the family+holidays re-baseline promotion. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-30-promote2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`); Architect sign-off (`docs/status/2026-05-30-provenance-json-architect-signoff.md`). No new tokens.
+
+### §15.5(a) Methodology "Data provenance" section
+
+The `MethodologyPage.tsx` component contains a final `<section>` with its own `<h2 id="data-provenance-heading">Data provenance</h2>`. The paragraph text is verbatim from CDA SME PROMOTE-2 verdict §3 Option 1 (byte-locked; do not paraphrase). The link to `/data/provenance.json` is:
+
+- `href="/data/provenance.json"` (root-relative — prevents 404 from the `/methodology` route)
+- `target="_blank" rel="noopener noreferrer"`
+- Link text: "provenance.json" followed by "(JSON)" as a visible affordance (outside the `<a>` but adjacent), since the target is a raw JSON file, not HTML
+- `aria-label` via `<span class="sr-only">` inside the `<a>`: "(opens data provenance manifest in new tab)"
+
+No new tokens. Section container reuses `.methodology-page__section` CSS class. Heading reuses `.methodology-page__heading`. Paragraph reuses `.methodology-page__text`. Link uses `.methodology-page__link` (color: `--color-info`).
+
+### §15.5(b) Global provenance footer landmark
+
+The `ProvenanceFooter.tsx` component renders a `<footer>` landmark in the global shell (outside `<main>`, after both the explore and non-explore branches in `App.tsx`). Properties:
+
+- Fetches `/data/provenance.json` at mount; renders nothing on fetch failure or absent fields (render-nothing fallback — never renders stale strings or "NaN").
+- Versions (`numpy_version`, `scipy_version`) are sourced from the fetched file — not hardcoded. One-click link to `/data/provenance.json` (A6/A8 from PROMOTE-1, carried forward).
+- **Per-domain conditional behavior (CDA SME PROMOTE-2 B5b):** accepts an `activeDomain` prop. If `activeDomain` is a non-null/non-undefined string that is NOT present in `provenance.json`'s `domains` block, the component renders `null`. This prevents a false provenance claim on the food domain (not yet promoted under the pinned toolchain). When `activeDomain` is `null` (non-explore routes such as methodology), the footer renders if versions are available.
+- Single line, `height: 32px`, `flex-shrink: 0`.
+- Tokens: `--font-size-xs` (12px), `--color-text-caption` (~4.60:1 on white — WCAG AA at 12px regular), `--color-border` (top border), `--color-background`. No new tokens.
+- "· baseline 2026-05-30" date suffix hidden at `max-width: 600px` (avoids wrapping on mobile).
+- `body` CSS is `display: flex; flex-direction: column` and `.app-main` is `flex: 1 1 0; min-height: 0` (replaces the previous `height: calc(100vh - 48px)`) so the footer occupies its natural 32px and the main content flexes to fill the remaining space.
+
+**Note:** Footer vitest tests deferred to T7 (per task acceptance). The render-nothing fallback on food is mechanically enforced by the `activeDomain` prop check at runtime.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.9.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

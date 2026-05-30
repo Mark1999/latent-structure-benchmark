@@ -9,6 +9,8 @@ import './styles/app.css';
 import { NavBar } from './components/NavBar';
 import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
+import { MethodologyPage } from './components/MethodologyPage';
+import { ProvenanceFooter } from './components/ProvenanceFooter';
 import type { PublishedModel } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
 import type { ActiveVizTab, ActiveFocus } from './components/VizTabs';
@@ -220,23 +222,28 @@ export default function App() {
     });
   }, []);
 
-  // Non-explore tabs: simple placeholder
+  // Non-explore tabs
   if (navTab !== 'explore') {
     return (
       <>
         <NavBar activeTab={navTab} onTabChange={setNavTab} />
-        <div style={{
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          height: 'calc(100vh - 48px)',
-          color: 'var(--color-text-secondary)',
-          fontSize: 'var(--font-size-sm)',
-          fontStyle: 'italic',
-        }}>
-          {navTab === 'methodology' && 'Methodology page — coming soon'}
-          {navTab === 'data' && 'Data download page — coming soon'}
-        </div>
+        {navTab === 'methodology' && <MethodologyPage />}
+        {navTab === 'data' && (
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            flex: '1 1 0',
+            minHeight: 0,
+            color: 'var(--color-text-secondary)',
+            fontSize: 'var(--font-size-sm)',
+            fontStyle: 'italic',
+          }}>
+            Data download page — coming soon
+          </div>
+        )}
+        {/* Footer on non-explore routes: activeDomain=null → always renders if versions present */}
+        <ProvenanceFooter activeDomain={null} />
       </>
     );
   }
@@ -282,6 +289,8 @@ export default function App() {
           activeDomain={activeDomain}
         />
       </div>
+      {/* Per-domain conditional footer: renders nothing on food (not in provenance.json) */}
+      <ProvenanceFooter activeDomain={activeDomain} />
     </>
   );
 }

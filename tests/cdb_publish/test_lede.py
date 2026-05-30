@@ -195,13 +195,15 @@ def test_family_real_corpus_strong_consensus_homogeneous() -> None:
     assert "15 frontier models" in lede, (
         f"Expected '15 frontier models' in lede; got: {lede!r}"
     )
-    # Smith's S = 0.8033... → "0.80" (was 0.71; updated to current corpus)
-    assert "Smith's S = 0.80" in lede, (
-        f"Expected 'Smith's S = 0.80' in lede; got: {lede!r}"
+    # Smith's S = 0.8052... → "0.81" (was 0.80 pre-rebaseline; updated under
+    # pinned NumPy 2.4.4 / SciPy 1.17.1, 2026-05-30)
+    assert "Smith's S = 0.81" in lede, (
+        f"Expected 'Smith's S = 0.81' in lede; got: {lede!r}"
     )
-    # CI [0.6406..., 0.9433...] → "[0.64, 0.94]" (was [0.50, 0.91]; updated)
-    assert "[0.64, 0.94]" in lede, (
-        f"Expected '[0.64, 0.94]' in lede; got: {lede!r}"
+    # CI [0.6449..., 0.9498...] → "[0.64, 0.95]" (was [0.64, 0.94] pre-rebaseline;
+    # updated under pinned NumPy 2.4.4 / SciPy 1.17.1, 2026-05-30)
+    assert "[0.64, 0.95]" in lede, (
+        f"Expected '[0.64, 0.95]' in lede; got: {lede!r}"
     )
     # Shared categorical structure language (present in both homogeneous and
     # with_low_oci patterns)

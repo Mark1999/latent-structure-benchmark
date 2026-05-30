@@ -22,6 +22,8 @@ body {
   color: var(--color-text-primary);
   height: 100vh;
   overflow: hidden;
+  display: flex;
+  flex-direction: column;
 }
 
 /* ===== Nav Bar (48px) ===== */
@@ -89,7 +91,8 @@ body {
   display: grid;
   grid-template-columns: 260px 1fr;
   grid-template-rows: 1fr;
-  height: calc(100vh - 48px);
+  flex: 1 1 0;
+  min-height: 0;          /* flex child: allow shrink below content size */
   overflow: hidden;
 }
 
@@ -1457,4 +1460,104 @@ body {
   /* SVG renders inside this container; the SVG element sets its own height */
   width: 100%;
   min-height: 200px;
+}
+
+/* ===== Provenance Footer ===== */
+/* DESIGN_SYSTEM.md §11 + §15.5(b) */
+/* Tokens: --font-size-xs (12px), --color-text-caption (~4.60:1 WCAG AA), --color-border. No new tokens. */
+.provenance-footer {
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 var(--space-6);
+  height: 32px;
+  border-top: var(--border-width) solid var(--color-border);
+  background: var(--color-background);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  white-space: nowrap;
+  overflow: hidden;
+  gap: 0;
+}
+
+.provenance-footer__link {
+  color: var(--color-text-caption);
+  text-decoration: none;
+}
+
+.provenance-footer__link:hover {
+  color: var(--color-text-primary);
+  text-decoration: underline;
+}
+
+.provenance-footer__link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
+}
+
+/* Baseline date: hide on narrow viewports to prevent wrapping */
+.provenance-footer__date {
+  color: var(--color-text-caption);
+}
+
+@media (max-width: 600px) {
+  .provenance-footer__date {
+    display: none;
+  }
+}
+
+/* ===== Methodology Page ===== */
+/* DESIGN_SYSTEM.md §6 + §15.5(a). Flex child that fills remaining height below nav. */
+.methodology-page {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  background: var(--color-background);
+}
+
+.methodology-page__container {
+  max-width: 720px;
+  margin: 0 auto;
+  padding: var(--space-8) var(--space-6);
+}
+
+.methodology-page__section {
+  margin-bottom: var(--space-8);
+}
+
+.methodology-page__heading {
+  font-size: var(--font-size-lg);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  margin-bottom: var(--space-4);
+  padding-bottom: var(--space-2);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+.methodology-page__text {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: 1.65;
+  max-width: 65ch;
+}
+
+.methodology-page__text--placeholder {
+  color: var(--color-text-secondary);
+  font-style: italic;
+}
+
+.methodology-page__link {
+  color: var(--color-info);
+  text-decoration: none;
+}
+
+.methodology-page__link:hover {
+  text-decoration: underline;
+}
+
+.methodology-page__link:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+  border-radius: var(--border-radius-sm);
 }
