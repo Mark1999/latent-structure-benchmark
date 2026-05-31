@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.9.0  
+**Version:** v0.10.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.10.0** (TermMap layout+zoom Stage 1, 2026-05-31) adds §17 (TermMap container height bounding, Ctrl+wheel zoom gate, keyboard +/−/Reset zoom buttons, hint text, aria-live). Two new CSS classes: `.term-map-controls__zoom-btn`, `.term-map-controls__zoom-reset`. No new tokens. Stage 2 scrollbar model reserved (§17.4). Gate verdicts: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-layout-zoom-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`).
 - **v0.9.0** (PROMOTE-2 provenance surfaces, 2026-05-30) adds `ProvenanceFooter.tsx` and `MethodologyPage.tsx` to §11 Component Inventory; adds §16 (provenance surfaces: §15.5(a) methodology "Data provenance" section, §15.5(b) global per-domain conditional footer). `body` CSS gains `display: flex; flex-direction: column`; `.app-main` changes from `height: calc(100vh - 48px)` to `flex: 1 1 0; min-height: 0`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-30-promote2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`); Architect sign-off (`docs/status/2026-05-30-provenance-json-architect-signoff.md`).
 - **v0.8.1** (Remedy B T4 copy cleanup, 2026-05-29) corrects §11 `CentralityTable.tsx` column inventory: removes the "Bootstrap N" column (the published `centrality_ci` is a bare `[lo, hi]` tuple; B=500 is a domain-wide quantity stated in the SR summary and table caption, not a per-model column). No new tokens, no visual decisions. Applies CDA SME M1/M2 + Reviewer Item 3 from `docs/status/2026-05-28-remedy-b-t4-cda-sme-verdict.md`.
 - **v0.8.0** (viz-fixes fix-forward, 2026-05-28) adds §15 (Term stability pill tiers, TermMap uncertainty ellipse color, `.term-map-controls` inline-style grandfather, tooltip font-size exception). No new color tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-28-viz-fixes-ui-ux-verdict.md` items 2–4).
@@ -2192,6 +2193,104 @@ The `ProvenanceFooter.tsx` component renders a `<footer>` landmark in the global
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.9.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 17. TermMap layout + zoom interaction (v0.10.0 — Stage 1, 2026-05-31)
+
+Visual decisions for the TermMap container height fix, Ctrl+wheel zoom gate, and keyboard zoom controls. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-layout-zoom-uiux-verdict.md`). Architect plan: `docs/status/2026-05-31-termmap-redesign-architect-plan.md`.
+
+### 17.1 Container height bounding (Stage 1 — layout fix)
+
+**The bug:** `render()` sizes the SVG from `wrapRef.getBoundingClientRect().height` and emits `<svg height=H>`. The container chain (`.chart-area` overflow-y:auto, `.chart-wrap` overflow:visible) had no height bound, so the SVG's output grew the parent, the ResizeObserver re-fired `render()`, and height compounded (observed: 23k → 26k px).
+
+**Fix (binding):**
+
+- `.term-map-container` CSS: `display:flex; flex-direction:column; flex:1 1 320px; min-height:0; height:100%`. The `flex-basis:320px` provides the 320px floor for small screens; `min-height:0` enables the flex-shrink path. Do NOT combine a separate `min-height:320px` with `min-height:0` — use flex-basis only.
+- `.term-map-container > .chart-wrap` CSS: `flex:1 1 0; min-height:0; overflow:hidden`. This scopes the overflow containment to the term-map path only, so sibling tabs (Free Lists, Similarity, Centrality, Pile Structure, Cluster Tree) retain their `overflow-y:auto` scrolling via the parent `.chart-area`.
+- `.chart-area` CSS: retains `overflow-y:auto; overflow-x:hidden` unchanged — do NOT change to `overflow:hidden` globally, as that would break sibling tab scrolling.
+- `render()` defensive cap: `H = Math.min(Math.max(rect.height || 400, 400), window.innerHeight)`. Makes the growth loop impossible even if CSS regresses.
+
+**Why `.chart-wrap` overflow is scoped, not global:** the generic `.chart-wrap` class is used by Centrality, Similarity, and Cluster Tree wrappers that use `position:absolute` tooltips and overflow-visible SVGs; changing global `.chart-wrap` to `overflow:hidden` would clip those tooltips. The CSS selector `.term-map-container > .chart-wrap` targets only the TermMap's chart-wrap.
+
+### 17.2 Ctrl+wheel zoom gate (WCAG Level-A scroll-trap fix)
+
+Plain `wheel` events on the term map must **not** call `preventDefault()` and must **not** zoom. Native page scrolling passes through. Zoom only fires when `e.ctrlKey === true` (which browsers also set for trackpad pinch gestures).
+
+The `passive: false` listener registration is retained so that the Ctrl+wheel path can still call `preventDefault()` (preventing the browser's native Ctrl+scroll page-zoom behavior while applying the chart-level viewBox zoom instead).
+
+**Binding implementation:**
+
+```ts
+function handleWheel(e: WheelEvent) {
+  if (!e.ctrlKey) return;   // plain scroll → pass through; no preventDefault
+  e.preventDefault();
+  // … existing zoom logic …
+}
+```
+
+### 17.3 Keyboard zoom controls (WCAG 2.1.1 compliance)
+
+**Zoom step constant:** `ZOOM_STEP = 1.25` (multiplicative). Same file as `MIN_ZOOM` / `MAX_ZOOM`.
+
+**− button:** class `.term-map-controls__zoom-btn`. Multiplies zoom by `1 / ZOOM_STEP`. Disabled when `zoomDisplay <= MIN_ZOOM + 0.01`. `aria-label="Zoom out"`.
+
+**+ button:** class `.term-map-controls__zoom-btn`. Multiplies zoom by `ZOOM_STEP`. Disabled when `zoomDisplay >= MAX_ZOOM - 0.01`. `aria-label="Zoom in"`.
+
+Both buttons zoom toward the **viewport center** of the current viewBox (not a cursor point — keyboard users have no cursor anchor). Logic:
+
+```ts
+const centerX = z.vbX + z.vbW / 2;
+const centerY = z.vbY + z.vbH / 2;
+const newX = centerX - newW / 2;
+const newY = centerY - newH / 2;
+```
+
+**Reset zoom button:** class `.term-map-controls__zoom-reset`. Shown only when `zoomDisplay > 1.02`. Sets viewBox back to `0 0 W H` and `zoomDisplay` to `1`. `aria-label="Reset zoom to 100%"`. Double-click also calls the same reset logic (shared `resetZoom` callback).
+
+**"Ctrl + scroll to zoom" hint:** static text in the `.term-map-stress` bar. Token: `--color-text-caption` / `--font-size-xs`.
+
+**aria-live:** the `.term-map-stress` div carries `aria-live="polite"` so zoom level changes are announced to AT users. `aria-label="Map controls: stress statistic and zoom level"`.
+
+**Mount location:** −/+ buttons and Reset button are in the right-side group of the `.term-map-stress` bar (not inside `.term-map-controls`). The hint text is inline in the `.term-map-stress` bar alongside the stress statistic.
+
+### 17.4 Scrollbar zoom model (Stage 2 — reserved)
+
+**Reserved — Stage 2.** Mark overrode the UI/UX gate recommendation to retain drag-pan and instead requires native scrollbars when zoomed (scale-content + container overflow:auto). This requires reworking the viewBox-based zoom model and the lens/label/ellipse coordinate math. Stage 2 requires a fresh UI/UX re-spec before any Coder work begins. See Architect plan Stage 2 in `docs/status/2026-05-31-termmap-redesign-architect-plan.md` and UI/UX verdict §17.4 in `docs/status/2026-05-31-termmap-layout-zoom-uiux-verdict.md`.
+
+### 17.5 CSS class rules for zoom buttons (binding, Stage 1)
+
+Added to `apps/dashboard/src/styles/app.css`. Classes use tokens exclusively — no hardcoded values. Summary:
+
+**`.term-map-controls__zoom-btn`:**
+- `font-family: var(--font-body)` / `font-size: var(--font-size-xs)` / `font-weight: var(--font-weight-medium)`
+- `color: var(--color-text-primary)` / `background: var(--color-background)`
+- `border: var(--border-width) solid var(--color-border)` / `border-radius: var(--border-radius-sm)`
+- `padding: 2px 7px` / `min-width: 24px` / `line-height: 1.4` / `cursor: pointer`
+- Hover: `background: var(--color-surface-hover)` / `border-color: var(--color-text-secondary)`
+- Focus-visible: `outline: 2px solid var(--color-info)` / `outline-offset: 1px`
+- Disabled: `opacity: 0.4` / `cursor: default`
+
+**`.term-map-controls__zoom-reset`:**
+- `font-family: var(--font-body)` / `font-size: var(--font-size-xs)` / `font-weight: var(--font-weight-regular)`
+- `color: var(--color-info)` / `background: none` / `border: none`
+- `padding: 2px var(--space-2)` / `cursor: pointer` / `text-decoration: underline` / `line-height: 1.4`
+- Hover: `color: var(--color-text-primary)`
+- Focus-visible: `outline: 2px solid var(--color-info)` / `outline-offset: 1px` / `border-radius: var(--border-radius-sm)`
+
+**`.term-map-controls__zoom-group`:**
+- Groups the −, +, and Reset buttons in a flex row without inline styles
+- `display: flex` / `align-items: center` / `gap: var(--space-1)`
+
+**No inline styles for these buttons** (enforced by §15.3 freeze on `.term-map-controls`). The "Ctrl + scroll to zoom" hint uses `style` attributes inline because it is supplementary text within an existing layout element, consistent with the §15.3 grandfather of inline styles for values that map to existing tokens.
+
+### 17.6 No new tokens (Stage 1)
+
+Stage 1 introduces no new design tokens. All styling uses existing tokens from `tokens.css`. The `--color-text-caption`, `--font-size-xs`, `--color-info`, `--color-border`, `--color-background`, `--color-surface-hover`, `--color-text-primary`, `--border-width`, `--border-radius-sm`, `--font-body`, `--font-weight-medium`, `--font-weight-regular`, `--space-2` tokens are all defined in `tokens.css`.
+
+### 17.7 Stage 1 automated test deferral
+
+Task 1.5 (regression tests: layout no-grow, ctrl-wheel gate, keyboard zoom) is deferred to T7 when the vitest harness is established. Manual browser verification by Mark is the acceptance gate for Stage 1.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.10.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

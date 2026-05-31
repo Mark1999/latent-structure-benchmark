@@ -119,6 +119,7 @@ const LENS_FONT_SIZE = 13;
 // Zoom constants
 const MIN_ZOOM = 1;
 const MAX_ZOOM = 8;
+const ZOOM_STEP = 1.25;       // multiplicative step for +/- keyboard buttons (§17.3)
 const ZOOM_SENSITIVITY = 0.0015;
 
 function clientToSVGCoords(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
@@ -295,11 +296,56 @@ export function TermMap({
     [effectiveCoords, effectiveClusters]
   );
 
+  // ── Keyboard zoom helpers (§17.3) ────────────────────────────────────────
+  // Zoom toward the viewport center of the SVG (not cursor — keyboard users
+  // have no cursor position to anchor to).
+  const zoomByStep = useCallback((factor: number) => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
+    if (!svg) return;
+    const z = zoomRef.current;
+    const { w: baseW, h: baseH } = baseVBRef.current;
+    if (baseW === 0) return;
+
+    const newLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z.level * factor));
+    if (newLevel === z.level) return; // already at limit — no-op
+
+    const newW = baseW / newLevel;
+    const newH = baseH / newLevel;
+
+    // Anchor zoom to viewport center of the current viewBox
+    const centerX = z.vbX + z.vbW / 2;
+    const centerY = z.vbY + z.vbH / 2;
+    const newX = centerX - newW / 2;
+    const newY = centerY - newH / 2;
+
+    zoomRef.current = { level: newLevel, vbX: newX, vbY: newY, vbW: newW, vbH: newH };
+    svg.setAttribute('viewBox', `${newX} ${newY} ${newW} ${newH}`);
+    setZoomDisplay(newLevel);
+  }, []);
+
+  const resetZoom = useCallback(() => {
+    const wrap = wrapRef.current;
+    if (!wrap) return;
+    const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
+    if (!svg) return;
+    const { w, h } = baseVBRef.current;
+    zoomRef.current = { level: 1, vbX: 0, vbY: 0, vbW: w, vbH: h };
+    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    setZoomDisplay(1);
+    wrap.style.cursor = '';
+  }, []);
+
   const render = useCallback(() => {
     if (!wrapRef.current) return;
     const rect = wrapRef.current.getBoundingClientRect();
     const W = Math.max(rect.width || 600, 600);
-    const H = Math.max(rect.height || 400, 400);
+    // §17.1 defensive cap: H can never exceed the viewport even if CSS regresses.
+    // This breaks the ResizeObserver loop at the source: if overflow leaks and the
+    // container reports a height larger than the viewport, we clamp it here so the
+    // SVG cannot grow the parent further.
+    const H = Math.min(Math.max(rect.height || 400, 400), window.innerHeight);
 
     if (terms.length === 0) return;
 
@@ -587,7 +633,12 @@ export function TermMap({
     if (!wrap) return;
 
     function handleWheel(e: WheelEvent) {
+      // §17.2 WCAG Level-A scroll-trap fix: only zoom on Ctrl+wheel (or trackpad
+      // pinch, which browsers also report as ctrlKey=true). Plain wheel scroll
+      // passes through to native page scrolling — no preventDefault.
+      if (!e.ctrlKey) return;
       e.preventDefault();
+
       const svg = wrap!.querySelector<SVGSVGElement>('#term-svg');
       if (!svg) return;
 
@@ -654,13 +705,7 @@ export function TermMap({
     }
 
     function handleDblClick() {
-      const svg = wrap!.querySelector<SVGSVGElement>('#term-svg');
-      if (!svg) return;
-      const { w, h } = baseVBRef.current;
-      zoomRef.current = { level: 1, vbX: 0, vbY: 0, vbW: w, vbH: h };
-      svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
-      setZoomDisplay(1);
-      wrap!.style.cursor = '';
+      resetZoom();
     }
 
     wrap.addEventListener('wheel', handleWheel, { passive: false });
@@ -676,7 +721,7 @@ export function TermMap({
       window.removeEventListener('mouseup', handleMouseUp);
       wrap.removeEventListener('dblclick', handleDblClick);
     };
-  }, [svgContent, lensEnabled]);
+  }, [svgContent, lensEnabled, resetZoom]);
 
   // ── Magnifying lens interaction ───────────────────────────────────────────
   // rafRef: pending requestAnimationFrame id (used to cancel on cleanup)
@@ -1027,13 +1072,12 @@ export function TermMap({
         </div>
       </div>
 
-      {/* SVG term map */}
+      {/* SVG term map — flex/overflow handled by .term-map-container > .chart-wrap CSS (§17.1) */}
       <div
         ref={wrapRef}
         className="chart-wrap"
         role="img"
         aria-label={termMapAriaLabel}
-        style={{ flex: '1', overflow: 'hidden' }}
       >
         <div
           style={{ width: '100%', height: '100%' }}
@@ -1041,18 +1085,58 @@ export function TermMap({
         />
       </div>
 
-      {/* Stress + zoom annotation */}
-      <div className="term-map-stress" aria-label="MDS goodness-of-fit statistic">
+      {/* Stress + zoom annotation (§17.3: aria-live so zoom level is announced to AT) */}
+      <div
+        className="term-map-stress"
+        aria-live="polite"
+        aria-label="Map controls: stress statistic and zoom level"
+      >
         <span>
           {liveCoords !== null && liveStress !== null
             ? `Kruskal's stress: ${liveStress.toFixed(3)} · Lower = better fit`
             : 'Stress: computed at analysis time'}
-        </span>
-        {zoomDisplay > 1.02 && (
-          <span className="term-map-stress__zoom">
-            {Math.round(zoomDisplay * 100)}% · double-click to reset
+          {' '}
+          <span style={{ color: 'var(--color-text-caption)', fontSize: 'var(--font-size-xs)' }}>
+            Ctrl + scroll to zoom
           </span>
-        )}
+        </span>
+        <span className="term-map-controls__zoom-group">
+          {/* §17.3: keyboard −/+ zoom buttons */}
+          <button
+            type="button"
+            className="term-map-controls__zoom-btn"
+            onClick={() => zoomByStep(1 / ZOOM_STEP)}
+            disabled={zoomDisplay <= MIN_ZOOM + 0.01}
+            aria-label="Zoom out"
+          >
+            −
+          </button>
+          <button
+            type="button"
+            className="term-map-controls__zoom-btn"
+            onClick={() => zoomByStep(ZOOM_STEP)}
+            disabled={zoomDisplay >= MAX_ZOOM - 0.01}
+            aria-label="Zoom in"
+          >
+            +
+          </button>
+          {/* §17.3: Reset zoom — shown only when zoomed in */}
+          {zoomDisplay > 1.02 && (
+            <button
+              type="button"
+              className="term-map-controls__zoom-reset"
+              onClick={resetZoom}
+              aria-label="Reset zoom to 100%"
+            >
+              Reset zoom
+            </button>
+          )}
+          {zoomDisplay > 1.02 && (
+            <span className="term-map-stress__zoom">
+              {Math.round(zoomDisplay * 100)}%
+            </span>
+          )}
+        </span>
       </div>
     </div>
   );

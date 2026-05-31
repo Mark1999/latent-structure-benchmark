@@ -26,6 +26,24 @@ body {
   flex-direction: column;
 }
 
+/*
+ * React mount node: must be a flex child that fills body so height flows
+ * body(100vh) → #root(flex:1) → .app-main(flex:1) → chart-area → term-map.
+ * Regression fix: body was made flex-column (provenance-footer edits 2026-05-30)
+ * but #root was left display:block / flex-grow:0, collapsing the whole app to
+ * content height (~591px) and starving .term-map-container of its viewport share.
+ * display:flex + flex-direction:column here is safe for all return branches in
+ * App.tsx: the explore branch renders NavBar+app-main+ProvenanceFooter as direct
+ * children; the non-explore branches render NavBar+MethodologyPage|data-div+
+ * ProvenanceFooter, which already carry flex:1 1 0 and align top-to-bottom.
+ */
+#root {
+  flex: 1 1 0;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
 /* ===== Nav Bar (48px) ===== */
 .nav {
   display: flex;
@@ -567,6 +585,19 @@ body {
   min-width: 0;
 }
 
+/*
+ * Term Map: overflow gating scoped to the term-map path only.
+ * .chart-area retains overflow-y:auto so sibling tabs (Free Lists, Similarity,
+ * Centrality, Pile Structure, Cluster Tree) can still scroll their content.
+ * The term-map chart-wrap gets overflow:hidden here so the SVG's explicit
+ * height cannot propagate upward and re-trigger the ResizeObserver growth loop.
+ */
+.term-map-container > .chart-wrap {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow: hidden;
+}
+
 .chart-lede {
   font-size: 13px;
   line-height: 1.55;
@@ -900,11 +931,19 @@ body {
 }
 
 /* ===== TermMap container + controls ===== */
+/*
+ * §17.1 (Stage 1): flex:1 1 320px gives a 320px floor on small screens while
+ * allowing the container to grow to fill all remaining viewport height.
+ * height:100% lets the child .chart-wrap fill the available space.
+ * min-height:0 is required for the flex shrink path to work correctly.
+ * NOTE: do NOT write both min-height:320px AND min-height:0 — use flex-basis.
+ */
 .term-map-container {
   display: flex;
   flex-direction: column;
-  flex: 1;
+  flex: 1 1 320px;
   min-height: 0;
+  height: 100%;
 }
 
 .term-map-controls {
@@ -959,6 +998,67 @@ body {
 .term-map-stress__zoom {
   color: var(--color-info);
   font-weight: var(--font-weight-medium);
+}
+
+/* §17.5 (Stage 1): keyboard zoom buttons — exactly as specified in UI/UX §17.5 draft */
+.term-map-controls__zoom-btn {
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: 2px 7px;
+  cursor: pointer;
+  min-width: 24px;
+  line-height: 1.4;
+}
+
+.term-map-controls__zoom-btn:hover {
+  background: var(--color-surface-hover);
+  border-color: var(--color-text-secondary);
+}
+
+.term-map-controls__zoom-btn:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 1px;
+}
+
+.term-map-controls__zoom-btn:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+/* §17.5 (Stage 1): zoom-group wrapper — groups −, +, Reset buttons without inline styles */
+.term-map-controls__zoom-group {
+  display: flex;
+  align-items: center;
+  gap: var(--space-1);
+}
+
+/* §17.5 (Stage 1): Reset zoom button — shown only when zoomDisplay > 1.02 */
+.term-map-controls__zoom-reset {
+  font-family: var(--font-body);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-info);
+  background: none;
+  border: none;
+  padding: 2px var(--space-2);
+  cursor: pointer;
+  text-decoration: underline;
+  line-height: 1.4;
+}
+
+.term-map-controls__zoom-reset:hover {
+  color: var(--color-text-primary);
+}
+
+.term-map-controls__zoom-reset:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 1px;
+  border-radius: var(--border-radius-sm);
 }
 
 /* ===== Tooltip ===== */
