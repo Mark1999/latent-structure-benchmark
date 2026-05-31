@@ -28,3 +28,8 @@ Labels/ellipses/hover live inside the scaled `<g>` → mostly NO rework (they sc
 - Q1: at zoom>1 does everything scale (labels/strokes grow — OWID style) OR positions-only (text/stroke constant on screen — scatterplot best practice)?
 - Q2: lens at high zoom — keep+tune / auto-disable when zoomed / drop? Architect rec: auto-disable when k>1.
 - Q3: touch/pinch behaviour.
+
+## MARK'S DECISIONS (2026-05-31)
+- Staging: **ship Stage 1 now**; Stage 2 after its UI/UX re-spec.
+- Stage 1 tests: **manual browser-verify now**, automated vitest deferred to T7 (no harness yet). Task 1.5 deferred.
+- Q1 (Stage 2 zoom scaling): **everything scales (OWID-style)** — at 2x, labels/dots/strokes all 2x. (Q2 lens, Q3 touch still open for Stage 2 kickoff.)
