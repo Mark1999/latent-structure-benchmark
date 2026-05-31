@@ -1061,6 +1061,60 @@ body {
   border-radius: var(--border-radius-sm);
 }
 
+/* ===== TermMap pan-viewport (Stage 2 — §17.4 + §17.8 + §17.9) ===== */
+/*
+ * .term-map-pan-viewport: inner scrolling container inside .chart-wrap.
+ * At k=1: overflow:hidden → pixel-identical to Stage 1, no scrollbars.
+ * At k>1: --scrollable modifier adds overflow:auto so native scrollbars appear.
+ * Controls bar (.term-map-controls) and stress footer (.term-map-stress) are
+ * siblings of .chart-wrap in .term-map-container, not inside .chart-wrap,
+ * so they stay fixed regardless of scroll state (DOM order, no position:sticky).
+ */
+.term-map-pan-viewport {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  /* §17.9 forward-guard: no transitions on this element (scroll/scale are
+     instantaneous). If a future version adds animation, it must be gated by
+     prefers-reduced-motion. */
+}
+
+/* §17.4 + §17.8: scrollable state when k > 1.02 */
+.term-map-pan-viewport--scrollable {
+  overflow: auto;
+  /* Scroll-shadow: inset box-shadow at 0.06 opacity signals scrollable edges */
+  box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.06);
+}
+
+/* §17.8: thin scrollbars — WebKit (Chrome, Safari, Edge) */
+.term-map-pan-viewport--scrollable::-webkit-scrollbar {
+  width: 4px;
+  height: 4px;
+}
+
+.term-map-pan-viewport--scrollable::-webkit-scrollbar-thumb {
+  background: var(--color-border);
+  border-radius: 2px;
+}
+
+/* §17.8: thin scrollbars — Firefox */
+.term-map-pan-viewport--scrollable {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* §17.9: prefers-reduced-motion forward-guard.
+   Currently no motion is applied here; guard retained so any future
+   transition added to the pan-viewport is automatically suppressed
+   for users who prefer reduced motion. */
+@media (prefers-reduced-motion: reduce) {
+  .term-map-pan-viewport,
+  .term-map-pan-viewport--scrollable {
+    transition: none;
+    animation: none;
+  }
+}
+
 /* ===== Tooltip ===== */
 .chart-tooltip {
   position: absolute;

@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.10.0  
+**Version:** v0.11.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.11.0** (TermMap Stage 2 scrollbar zoom model, 2026-05-31) replaces §17.4 "reserved" placeholder with the full Stage 2 spec; adds §17.8 (pan-viewport scrollbar CSS) and §17.9 (prefers-reduced-motion forward-guard). New CSS classes: `.term-map-pan-viewport`, `.term-map-pan-viewport--scrollable`. Drag-pan handlers removed; viewBox-zoom → content-scale model (SVG viewBox frozen, `<g id="term-content" transform="scale(k)">`). Lens auto-disabled at k>1.02 (Q2 LOCKED). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-stage2-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`). Stage 2 automated tests deferred to T7 (no vitest harness).
 - **v0.10.0** (TermMap layout+zoom Stage 1, 2026-05-31) adds §17 (TermMap container height bounding, Ctrl+wheel zoom gate, keyboard +/−/Reset zoom buttons, hint text, aria-live). Two new CSS classes: `.term-map-controls__zoom-btn`, `.term-map-controls__zoom-reset`. No new tokens. Stage 2 scrollbar model reserved (§17.4). Gate verdicts: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-layout-zoom-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`).
 - **v0.9.0** (PROMOTE-2 provenance surfaces, 2026-05-30) adds `ProvenanceFooter.tsx` and `MethodologyPage.tsx` to §11 Component Inventory; adds §16 (provenance surfaces: §15.5(a) methodology "Data provenance" section, §15.5(b) global per-domain conditional footer). `body` CSS gains `display: flex; flex-direction: column`; `.app-main` changes from `height: calc(100vh - 48px)` to `flex: 1 1 0; min-height: 0`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-30-promote2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`); Architect sign-off (`docs/status/2026-05-30-provenance-json-architect-signoff.md`).
 - **v0.8.1** (Remedy B T4 copy cleanup, 2026-05-29) corrects §11 `CentralityTable.tsx` column inventory: removes the "Bootstrap N" column (the published `centrality_ci` is a bare `[lo, hi]` tuple; B=500 is a domain-wide quantity stated in the SR summary and table caption, not a per-model column). No new tokens, no visual decisions. Applies CDA SME M1/M2 + Reviewer Item 3 from `docs/status/2026-05-28-remedy-b-t4-cda-sme-verdict.md`.
@@ -2251,9 +2252,50 @@ const newY = centerY - newH / 2;
 
 **Mount location:** −/+ buttons and Reset button are in the right-side group of the `.term-map-stress` bar (not inside `.term-map-controls`). The hint text is inline in the `.term-map-stress` bar alongside the stress statistic.
 
-### 17.4 Scrollbar zoom model (Stage 2 — reserved)
+### 17.4 Scrollbar zoom model (Stage 2 — shipped v0.11.0)
 
-**Reserved — Stage 2.** Mark overrode the UI/UX gate recommendation to retain drag-pan and instead requires native scrollbars when zoomed (scale-content + container overflow:auto). This requires reworking the viewBox-based zoom model and the lens/label/ellipse coordinate math. Stage 2 requires a fresh UI/UX re-spec before any Coder work begins. See Architect plan Stage 2 in `docs/status/2026-05-31-termmap-redesign-architect-plan.md` and UI/UX verdict §17.4 in `docs/status/2026-05-31-termmap-layout-zoom-uiux-verdict.md`.
+**Shipped Stage 2.** Mark overrode the UI/UX gate recommendation to retain drag-pan and instead requires native scrollbars when zoomed. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-stage2-uiux-verdict.md`).
+
+**DOM structure (binding):**
+```
+.term-map-container
+  .term-map-controls        ← outside pan-viewport (stays fixed via DOM order)
+  .chart-wrap               ← outer border container; ResizeObserver target
+    .term-map-pan-viewport  ← scroll container (overflow:hidden at k=1)
+      svg#term-svg          ← viewBox frozen "0 0 W H"; width/height = W*k × H*k
+        g#term-content      ← transform="scale(k)"; ALL visual content here
+  .term-map-stress          ← outside pan-viewport (stays fixed via DOM order)
+```
+
+**Zoom model:**
+- SVG `viewBox` is **frozen** at `"0 0 W H"` and **never mutated** by zoom.
+- Zoom changes `k` (the scale factor). The `<g id="term-content">` `transform` attribute is set to `scale(k)`. The SVG `width`/`height` attributes are set to `W*k` and `H*k`.
+- Pan-viewport base class: `overflow:hidden`. When `k > 1.02`, the `.term-map-pan-viewport--scrollable` modifier is added → `overflow:auto` → native scrollbars appear.
+- At `k=1`: pan-viewport has `overflow:hidden` → pixel-identical to Stage 1, no scrollbars.
+
+**Scroll-anchor zoom math (ctrl+wheel):** keep the content point under the cursor fixed:
+```ts
+const vpOffsetX = e.clientX - panVp.getBoundingClientRect().left;
+const logicalX  = (panVp.scrollLeft + vpOffsetX) / oldK;
+panVp.scrollLeft = logicalX * newK - vpOffsetX;
+// (same for Y)
+```
+
+**Keyboard zoom (buttons):** anchors to viewport center:
+```ts
+const logicalX = (panVp.scrollLeft + panVp.clientWidth / 2) / oldK;
+panVp.scrollLeft = logicalX * newK - panVp.clientWidth / 2;
+```
+
+**Double-click reset + Reset button:** `scrollTo(0,0)` FIRST, then `k←1`, then remove `--scrollable` modifier. Order is binding — removing the modifier before scrolling would hide the stale scroll offset under `overflow:hidden`.
+
+**Drag-pan REMOVED.** `handleMouseDown` / `handleMouseMovePan` / `handleMouseUp` handlers and grab/grabbing cursor styles are gone. Native scrollbars replace drag-pan entirely.
+
+**FREEZE RULE (binding):** label layout (compass positions, `data-ox`/`data-oy`) is computed once at `k=1` inside `render()` and frozen. The zoom path (`applyScale`) mutates ONLY the `<g transform>` attribute and the SVG `width`/`height` attributes. It must NOT call `render()` or re-run the compass label algorithm.
+
+**Q2 LOCKED — Lens auto-disable at k>1.02:** The magnifying lens checkbox is rendered `disabled` with `title="Zoom out to 100% to use the magnifying lens"` when `k > 1.02`. If the lens was active when the user zooms in, the parent's `onLensToggle` callback is called automatically to deactivate it. The lens coordinate math (via `clientToSVGCoords`/`getScreenCTM`) is only correct at k=1; making it work under content-scale would require inverting the `/z` compensation (TermMap.tsx ~775–777) with a real "lens collapse / explosion" hazard (WCAG 2.3.1 motion). The disable-when-zoomed approach is the LOCKED decision.
+
+**Q3 — Touch/pinch:** Native pinch gesture → browsers synthesize `ctrlKey=true` wheel events → the existing ctrl+wheel handler covers it. Two-finger drag → native pan-viewport scroll. Keyboard +/−/Reset buttons are the a11y path. No extra touch handlers required.
 
 ### 17.5 CSS class rules for zoom buttons (binding, Stage 1)
 
@@ -2289,8 +2331,44 @@ Stage 1 introduces no new design tokens. All styling uses existing tokens from `
 
 Task 1.5 (regression tests: layout no-grow, ctrl-wheel gate, keyboard zoom) is deferred to T7 when the vitest harness is established. Manual browser verification by Mark is the acceptance gate for Stage 1.
 
+### 17.8 Pan-viewport scrollbar CSS (Stage 2, binding)
+
+Added to `apps/dashboard/src/styles/app.css` after the existing zoom-button CSS block.
+
+**`.term-map-pan-viewport` (base):**
+- `width: 100%; height: 100%; overflow: hidden`
+- No transitions (scroll/scale are instantaneous; see §17.9)
+
+**`.term-map-pan-viewport--scrollable` (k>1.02 modifier):**
+- `overflow: auto`
+- `box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.06)` — scroll-shadow at 0.06 opacity signals scrollable edges
+- `scrollbar-width: thin` — Firefox thin scrollbar
+- `scrollbar-color: var(--color-border) transparent` — Firefox scrollbar color
+- `::-webkit-scrollbar { width: 4px; height: 4px }` — WebKit thin scrollbar (mirrors `.sidebar` precedent, 4px vs sidebar's 3px)
+- `::-webkit-scrollbar-thumb { background: var(--color-border); border-radius: 2px }` — border token for thumb, consistent with sidebar
+
+**No new tokens.** Uses only `--color-border` (existing token, defined in `tokens.css`).
+
+### 17.9 prefers-reduced-motion forward-guard (Stage 2, binding)
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  .term-map-pan-viewport,
+  .term-map-pan-viewport--scrollable {
+    transition: none;
+    animation: none;
+  }
+}
+```
+
+No motion is currently applied to these elements; the guard is forward-looking so any future transition added to the pan-viewport is automatically suppressed for users who have `prefers-reduced-motion: reduce` set. Required by WCAG 2.3.1 (Motion from Animations, Level AAA — also best practice at AA).
+
+### 17.10 Stage 2 automated test deferral
+
+Stage 2 automated tests (content-scale correctness, scroll-anchor math, lens disable gate) are deferred to T7 when the vitest harness is established. Manual browser verification by Mark is the acceptance gate for Stage 2.
+
 ---
 
-*End of DESIGN_SYSTEM.md v0.10.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.11.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

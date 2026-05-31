@@ -20,9 +20,20 @@
  * Magnifying lens: when lensEnabled=true, a circular lens follows the mouse.
  * Terms inside the lens radius are displaced outward using a quadratic falloff
  * repulsion so overlapping labels spread apart and become readable.
+ * The lens is only active at k=1 (auto-disabled when zoomed — §17 Stage 2
+ * Q2 LOCKED decision).
+ *
+ * Stage 2 zoom model (§17.4): SVG content is wrapped in a
+ * <g id="term-content" transform="scale(k)"> inside a .term-map-pan-viewport
+ * div. The SVG viewBox is frozen at "0 0 W H" and never mutated. When k>1
+ * the pan-viewport gains .term-map-pan-viewport--scrollable (overflow:auto)
+ * and native scrollbars provide panning. Drag-pan handlers removed.
+ * FREEZE RULE: label layout is computed once at k=1 and frozen; zoom only
+ * mutates the <g transform> and the SVG width/height attrs — render() is
+ * never called from the zoom path.
  */
 
-import { useRef, useEffect, useState, useCallback, useMemo } from 'react';
+import { useRef, useEffect, useLayoutEffect, useState, useCallback, useMemo } from 'react';
 import { smacof } from '../lib/smacof';
 import { procrustesAlign } from '../lib/procrustes';
 import { poolCooccurrence, cooccurrenceToDistances } from '../lib/cooccurrence';
@@ -122,6 +133,11 @@ const MAX_ZOOM = 8;
 const ZOOM_STEP = 1.25;       // multiplicative step for +/- keyboard buttons (§17.3)
 const ZOOM_SENSITIVITY = 0.0015;
 
+/**
+ * clientToSVGCoords — used exclusively by the lens (only active at k=1).
+ * At k=1 the SVG viewBox is "0 0 W H" with no content-group scale in play
+ * for the CTM, so getScreenCTM gives correct SVG-space coordinates.
+ */
 function clientToSVGCoords(svg: SVGSVGElement, clientX: number, clientY: number): { x: number; y: number } {
   const pt = svg.createSVGPoint();
   pt.x = clientX;
@@ -163,17 +179,34 @@ export function TermMap({
   onLensToggle,
   termUncertainty,
 }: TermMapProps) {
+  // wrapRef: the .chart-wrap div — ResizeObserver target and render() W×H source.
   const wrapRef = useRef<HTMLDivElement>(null);
+  // panVpRef: the .term-map-pan-viewport div inside .chart-wrap — scroll/zoom target.
+  const panVpRef = useRef<HTMLDivElement>(null);
+  // svgContent: INNER content of the <g id="term-content"> only — no <svg> or <g> wrapper.
+  // The <svg> and <g> are real React elements whose attributes are bound to state,
+  // so re-renders driven by setZoomDisplay() re-assert the correct transform instead
+  // of wiping it (fixes the dangerouslySetInnerHTML-rebuild/imperative-reset race).
   const [svgContent, setSvgContent] = useState<string>('');
+  // svgBaseDims: the un-scaled logical W×H from the most recent render() call.
+  // SVG width/height = baseDims × zoomDisplay; updated by render(), never by zoom.
+  const [svgBaseDims, setSvgBaseDims] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [zoomDisplay, setZoomDisplay] = useState(1);
   const [showUncertainty, setShowUncertainty] = useState(false);
   const [showClusterLabels, setShowClusterLabels] = useState(true);
 
-  // Zoom/pan state (refs to avoid re-render on every wheel tick)
-  const zoomRef = useRef({ level: 1, vbX: 0, vbY: 0, vbW: 0, vbH: 0 });
+  // Stage 2 zoom state: k = content scale factor.
+  // viewBox is ALWAYS frozen at "0 0 W H" — never mutated.
+  // FREEZE RULE: zoom path must never call render() or touch label layout.
+  const kRef = useRef<number>(1);
   const baseVBRef = useRef({ w: 0, h: 0 });
-  const isPanningRef = useRef(false);
-  const lastPanRef = useRef({ x: 0, y: 0 });
+  // pendingScrollRef: deferred scroll-anchor target for keyboard zoom (+/−).
+  // After setZoomDisplay(k) the SVG grows asynchronously via React re-render;
+  // scroll must be applied AFTER the new SVG dimensions are committed to the DOM
+  // or the browser will clamp scrollLeft/Top to the old (smaller) range.
+  // handleWheel sets scroll synchronously (SVG already sized by applyScale in
+  // old code) — but with Option A, handleWheel also needs deferred scroll.
+  const pendingScrollRef = useRef<{ left: number; top: number } | null>(null);
 
   // ── Per-model pile label selector state ──────────────────────────────────
   // Sorted list of model keys available for pile label selection
@@ -296,46 +329,70 @@ export function TermMap({
     [effectiveCoords, effectiveClusters]
   );
 
-  // ── Keyboard zoom helpers (§17.3) ────────────────────────────────────────
-  // Zoom toward the viewport center of the SVG (not cursor — keyboard users
-  // have no cursor position to anchor to).
-  const zoomByStep = useCallback((factor: number) => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
-    if (!svg) return;
-    const z = zoomRef.current;
-    const { w: baseW, h: baseH } = baseVBRef.current;
-    if (baseW === 0) return;
+  // ── Stage 2: manage pan-viewport scroll class only (FREEZE RULE) ──────────
+  // The <g id="term-content"> transform and SVG width/height are now React-state-
+  // driven (bound to zoomDisplay and svgBaseDims via JSX attributes), so this
+  // helper no longer touches DOM transform or SVG sizing. It only manages the
+  // overflow class so scrollbars appear/disappear correctly.
+  // FREEZE RULE: this helper must NOT call render() or re-run label layout.
+  const applyScale = useCallback((k: number) => {
+    const panVp = panVpRef.current;
+    if (!panVp) return;
 
-    const newLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z.level * factor));
-    if (newLevel === z.level) return; // already at limit — no-op
-
-    const newW = baseW / newLevel;
-    const newH = baseH / newLevel;
-
-    // Anchor zoom to viewport center of the current viewBox
-    const centerX = z.vbX + z.vbW / 2;
-    const centerY = z.vbY + z.vbH / 2;
-    const newX = centerX - newW / 2;
-    const newY = centerY - newH / 2;
-
-    zoomRef.current = { level: newLevel, vbX: newX, vbY: newY, vbW: newW, vbH: newH };
-    svg.setAttribute('viewBox', `${newX} ${newY} ${newW} ${newH}`);
-    setZoomDisplay(newLevel);
+    // Toggle scrollable modifier — overflow:auto appears at k > 1.02
+    if (k > 1.02) {
+      panVp.classList.add('term-map-pan-viewport--scrollable');
+    } else {
+      panVp.classList.remove('term-map-pan-viewport--scrollable');
+    }
   }, []);
+
+  // ── Keyboard zoom helpers (§17.3) ────────────────────────────────────────
+  // Zoom toward the viewport center (keyboard users have no cursor anchor).
+  const zoomByStep = useCallback((factor: number) => {
+    const panVp = panVpRef.current;
+    if (!panVp) return;
+    // Guard: don't zoom if there is no SVG in the pan-viewport yet.
+    if (!panVp.querySelector('#term-svg')) return;
+
+    const oldK = kRef.current;
+    const newK = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldK * factor));
+    if (newK === oldK) return;
+
+    // Anchor to viewport center: the content point currently at center stays centered
+    const vpW = panVp.clientWidth;
+    const vpH = panVp.clientHeight;
+    const centerContentX = (panVp.scrollLeft + vpW / 2);
+    const centerContentY = (panVp.scrollTop + vpH / 2);
+    // Content coordinate (in logical SVG units) at center
+    const logicalX = centerContentX / oldK;
+    const logicalY = centerContentY / oldK;
+
+    kRef.current = newK;
+    applyScale(newK);
+
+    // Defer scroll until after the React re-render expands the SVG to W×newK.
+    // Setting scrollLeft before the SVG is sized would be clamped by the browser.
+    pendingScrollRef.current = {
+      left: logicalX * newK - vpW / 2,
+      top:  logicalY * newK - vpH / 2,
+    };
+
+    setZoomDisplay(newK);
+  }, [applyScale]);
 
   const resetZoom = useCallback(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
-    const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
-    if (!svg) return;
-    const { w, h } = baseVBRef.current;
-    zoomRef.current = { level: 1, vbX: 0, vbY: 0, vbW: w, vbH: h };
-    svg.setAttribute('viewBox', `0 0 ${w} ${h}`);
+    const panVp = panVpRef.current;
+    if (!panVp) return;
+    // Cancel any pending deferred scroll (we're going back to origin).
+    pendingScrollRef.current = null;
+    // §17.4 binding: scrollTo(0,0) BEFORE removing --scrollable modifier
+    // so the stale scroll offset cannot hide under overflow:hidden.
+    panVp.scrollTo(0, 0);
+    kRef.current = 1;
+    applyScale(1);
     setZoomDisplay(1);
-    wrap.style.cursor = '';
-  }, []);
+  }, [applyScale]);
 
   const render = useCallback(() => {
     if (!wrapRef.current) return;
@@ -461,11 +518,20 @@ export function TermMap({
       clusters[t.cluster].push(t);
     });
 
+    // Store base logical dimensions so zoom math works even if baseDims state
+    // hasn't updated yet (e.g., applyScale called mid-render).
+    // kRef.current stays at its current value; render() may be called on resize
+    // (which resets zoom to 1 implicitly via setSvgBaseDims + setZoomDisplay).
     baseVBRef.current = { w: W, h: H };
-    zoomRef.current = { level: 1, vbX: 0, vbY: 0, vbW: W, vbH: H };
+    // Reset zoom to 1 on every render (re-layout).
+    kRef.current = 1;
 
+    // svgParts: INNER content of the <g id="term-content"> only.
+    // The <svg> and <g> are emitted as real React elements in JSX — their
+    // transform/width/height attributes are bound to zoomDisplay/svgBaseDims
+    // state, so React re-renders driven by setZoomDisplay() will RE-ASSERT
+    // the correct scale(k) instead of resetting to scale(1).
     const svgParts: string[] = [];
-    svgParts.push(`<svg width="${W}" height="${H}" viewBox="0 0 ${W} ${H}" id="term-svg">`);
 
     // Light grid
     for (let i = 0; i <= 4; i++) {
@@ -615,8 +681,13 @@ export function TermMap({
       `<text x="${(pad.l + pw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="#a0a098">${modelNote}${nTerms} shared terms · ${nClusters} clusters from pile-sort co-occurrence</text>`
     );
 
-    svgParts.push('</svg>');
+    // svgParts is the INNER content of <g id="term-content"> only.
+    // The outer <svg> and <g> are rendered as real React elements in JSX.
     setSvgContent(svgParts.join(''));
+    // Update base dimensions → drives SVG width/height in JSX (W×k, H×k).
+    // Also reset zoom display to 1 since render() always produces a k=1 layout.
+    setSvgBaseDims({ w: W, h: H });
+    setZoomDisplay(1);
   }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds, showUncertainty, showClusterLabels, termUncertainty]);
 
   // Re-render on resize or term/coord change
@@ -627,101 +698,104 @@ export function TermMap({
     return () => observer.disconnect();
   }, [render]);
 
-  // ── Zoom & pan interaction ────────────────────────────────────────────────
+  // Note: the post-injection applyScale effect is intentionally removed.
+  // The <g id="term-content"> transform and SVG width/height are now React-state-
+  // driven (zoomDisplay, svgBaseDims), so no imperative DOM patch is needed after
+  // React reconciles svgContent. render() calls setZoomDisplay(1) + setSvgBaseDims
+  // to reset the zoom state atomically with the new inner content.
+
+  // ── Zoom & pan interaction (Stage 2) ─────────────────────────────────────
+  // viewBox is never mutated. Zoom changes k → scales <g> → scrollbars pan.
+  // Drag-pan handlers REMOVED (§17.4 Stage 2 decision).
   useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
+    const panVp = panVpRef.current;
+    if (!panVp) return;
 
     function handleWheel(e: WheelEvent) {
       // §17.2 WCAG Level-A scroll-trap fix: only zoom on Ctrl+wheel (or trackpad
       // pinch, which browsers also report as ctrlKey=true). Plain wheel scroll
-      // passes through to native page scrolling — no preventDefault.
+      // passes through to native page/viewport scrolling when k=1, and to native
+      // pan-viewport scrolling when k>1 — no preventDefault on plain scroll.
       if (!e.ctrlKey) return;
       e.preventDefault();
 
-      const svg = wrap!.querySelector<SVGSVGElement>('#term-svg');
-      if (!svg) return;
+      // Guard: don't zoom if there is no SVG in the pan-viewport yet.
+      if (!panVp!.querySelector('#term-svg')) return;
 
-      const z = zoomRef.current;
-      const { w: baseW, h: baseH } = baseVBRef.current;
-      if (baseW === 0) return;
-
-      const svgPt = clientToSVGCoords(svg, e.clientX, e.clientY);
-      const rect = svg.getBoundingClientRect();
-
+      const oldK = kRef.current;
       const delta = -e.deltaY * ZOOM_SENSITIVITY;
-      const newLevel = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, z.level * (1 + delta)));
+      const newK = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, oldK * (1 + delta)));
+      if (newK === oldK) return;
 
-      const newW = baseW / newLevel;
-      const newH = baseH / newLevel;
+      // Scroll-anchor: keep the content point under the cursor fixed.
+      // viewportOffsetX/Y: cursor position relative to the pan-viewport's top-left.
+      const vpRect = panVp!.getBoundingClientRect();
+      const vpOffsetX = e.clientX - vpRect.left;
+      const vpOffsetY = e.clientY - vpRect.top;
 
-      // Keep point under cursor fixed
-      const ratioX = (e.clientX - rect.left) / rect.width;
-      const ratioY = (e.clientY - rect.top) / rect.height;
-      const newX = svgPt.x - ratioX * newW;
-      const newY = svgPt.y - ratioY * newH;
+      // Content pixel position under cursor (in scaled-px coords at oldK)
+      const contentPxX = panVp!.scrollLeft + vpOffsetX;
+      const contentPxY = panVp!.scrollTop  + vpOffsetY;
 
-      zoomRef.current = { level: newLevel, vbX: newX, vbY: newY, vbW: newW, vbH: newH };
-      svg.setAttribute('viewBox', `${newX} ${newY} ${newW} ${newH}`);
-      setZoomDisplay(newLevel);
-    }
+      // Logical SVG coordinate under cursor (invariant to k)
+      const logicalX = contentPxX / oldK;
+      const logicalY = contentPxY / oldK;
 
-    function handleMouseDown(e: MouseEvent) {
-      if (zoomRef.current.level <= 1.02) return;
-      if (lensEnabled) return;
-      isPanningRef.current = true;
-      lastPanRef.current = { x: e.clientX, y: e.clientY };
-      wrap!.style.cursor = 'grabbing';
-      e.preventDefault();
-    }
+      kRef.current = newK;
+      applyScale(newK);
 
-    function handleMouseMovePan(e: MouseEvent) {
-      if (!isPanningRef.current) return;
-      const svg = wrap!.querySelector<SVGSVGElement>('#term-svg');
-      if (!svg) return;
+      // Defer scroll until after the React re-render expands the SVG to W×newK.
+      // Setting scrollLeft synchronously would be clamped to the old smaller range.
+      pendingScrollRef.current = {
+        left: logicalX * newK - vpOffsetX,
+        top:  logicalY * newK - vpOffsetY,
+      };
 
-      const rect = svg.getBoundingClientRect();
-      const z = zoomRef.current;
-      const dx = ((e.clientX - lastPanRef.current.x) / rect.width) * z.vbW;
-      const dy = ((e.clientY - lastPanRef.current.y) / rect.height) * z.vbH;
-
-      z.vbX -= dx;
-      z.vbY -= dy;
-      zoomRef.current = { ...z };
-      svg.setAttribute('viewBox', `${z.vbX} ${z.vbY} ${z.vbW} ${z.vbH}`);
-
-      lastPanRef.current = { x: e.clientX, y: e.clientY };
-    }
-
-    function handleMouseUp() {
-      if (isPanningRef.current) {
-        isPanningRef.current = false;
-        if (wrap && zoomRef.current.level > 1.02 && !lensEnabled) {
-          wrap.style.cursor = 'grab';
-        } else {
-          wrap!.style.cursor = '';
-        }
-      }
+      setZoomDisplay(newK);
     }
 
     function handleDblClick() {
       resetZoom();
     }
 
-    wrap.addEventListener('wheel', handleWheel, { passive: false });
-    wrap.addEventListener('mousedown', handleMouseDown);
-    wrap.addEventListener('mousemove', handleMouseMovePan);
-    window.addEventListener('mouseup', handleMouseUp);
-    wrap.addEventListener('dblclick', handleDblClick);
+    panVp.addEventListener('wheel', handleWheel, { passive: false });
+    panVp.addEventListener('dblclick', handleDblClick);
 
     return () => {
-      wrap.removeEventListener('wheel', handleWheel);
-      wrap.removeEventListener('mousedown', handleMouseDown);
-      wrap.removeEventListener('mousemove', handleMouseMovePan);
-      window.removeEventListener('mouseup', handleMouseUp);
-      wrap.removeEventListener('dblclick', handleDblClick);
+      panVp.removeEventListener('wheel', handleWheel);
+      panVp.removeEventListener('dblclick', handleDblClick);
     };
-  }, [svgContent, lensEnabled, resetZoom]);
+  }, [svgContent, applyScale, resetZoom]);
+
+  // ── Deferred scroll-anchor flush (Option A companion) ───────────────────
+  // After React commits the SVG at W×zoomDisplay, apply the pending scroll
+  // target so the anchor point (cursor or viewport-center) stays fixed.
+  // useLayoutEffect fires synchronously after DOM mutations, before paint —
+  // the SVG is at its new size when this runs, so scrollLeft is not clamped.
+  useLayoutEffect(() => {
+    const pending = pendingScrollRef.current;
+    if (!pending) return;
+    pendingScrollRef.current = null;
+    const panVp = panVpRef.current;
+    if (!panVp) return;
+    panVp.scrollLeft = pending.left;
+    panVp.scrollTop  = pending.top;
+  }, [zoomDisplay]);
+
+  // ── Q2 LOCKED: auto-disable lens when k > 1.02 ───────────────────────────
+  // When the user zooms in, deactivate the lens immediately.
+  // The lens only runs its coordinate math at k=1 where clientToSVGCoords
+  // via getScreenCTM is correct. At k>1 the lens checkbox is rendered
+  // disabled with a tooltip explaining why.
+  const lensDisabledByZoom = zoomDisplay > 1.02;
+
+  useEffect(() => {
+    // If lens was on and user zoomed in, trigger the parent's onLensToggle
+    // to deactivate it (parent owns the lensEnabled state).
+    if (lensDisabledByZoom && lensEnabled && onLensToggle) {
+      onLensToggle();
+    }
+  }, [lensDisabledByZoom, lensEnabled, onLensToggle]);
 
   // ── Magnifying lens interaction ───────────────────────────────────────────
   // rafRef: pending requestAnimationFrame id (used to cancel on cleanup)
@@ -730,13 +804,13 @@ export function TermMap({
   const lensRingRef = useRef<SVGCircleElement | null>(null);
 
   useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
+    const panVp = panVpRef.current;
+    if (!panVp) return;
 
     // Create / remove lens ring element whenever lensEnabled changes
     if (!lensEnabled) {
       // Reset all displaced elements back to their original positions
-      const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
+      const svg = panVp.querySelector<SVGSVGElement>('#term-svg');
       if (svg) {
         svg.querySelectorAll<SVGCircleElement>('.term-dot').forEach((dot) => {
           dot.setAttribute('cx', dot.getAttribute('data-ox') ?? '0');
@@ -766,15 +840,21 @@ export function TermMap({
       return;
     }
 
+    // Lens only runs at k=1 (Q2 LOCKED). The lensDisabledByZoom guard above
+    // ensures lensEnabled becomes false before k>1 takes effect. We add a
+    // defensive early-return here in case the disable callback is async.
     function applyLens(svgEl: SVGSVGElement, clientX: number, clientY: number) {
+      // Q2 safety guard: skip lens math if k > 1 (should not happen given the
+      // auto-disable above, but defensive against race conditions)
+      if (kRef.current > 1.02) return;
+
       const svgPt = clientToSVGCoords(svgEl, clientX, clientY);
       const mouseX = svgPt.x;
       const mouseY = svgPt.y;
 
-      // Scale lens radius to maintain consistent screen size at any zoom
-      const z = zoomRef.current.level;
-      const effectiveRadius = LENS_RADIUS / z;
-      const effectiveDisplacement = MAX_DISPLACEMENT / z;
+      // At k=1 the lens radius/displacement are in unscaled SVG units.
+      const effectiveRadius = LENS_RADIUS;
+      const effectiveDisplacement = MAX_DISPLACEMENT;
 
       // Ensure lens ring exists
       if (!lensRingRef.current) {
@@ -782,18 +862,18 @@ export function TermMap({
         ring.setAttribute('class', 'lens-ring');
         ring.setAttribute('fill', 'none');
         ring.setAttribute('stroke', 'rgba(0,0,0,0.15)');
-        ring.setAttribute('stroke-width', String(1 / z));
-        ring.setAttribute('stroke-dasharray', `${4 / z} ${2 / z}`);
+        ring.setAttribute('stroke-width', '1');
+        ring.setAttribute('stroke-dasharray', '4 2');
         ring.setAttribute('pointer-events', 'none');
-        svgEl.appendChild(ring);
+        // Append to the content group so it scales with the rest (at k=1 this is a no-op)
+        const contentG = svgEl.querySelector<SVGGElement>('#term-content');
+        (contentG ?? svgEl).appendChild(ring);
         lensRingRef.current = ring;
       }
 
       lensRingRef.current.setAttribute('cx', String(mouseX));
       lensRingRef.current.setAttribute('cy', String(mouseY));
       lensRingRef.current.setAttribute('r', String(effectiveRadius));
-      lensRingRef.current.setAttribute('stroke-width', String(1 / z));
-      lensRingRef.current.setAttribute('stroke-dasharray', `${4 / z} ${2 / z}`);
 
       // Displace dots
       svgEl.querySelectorAll<SVGCircleElement>('.term-dot').forEach((dot) => {
@@ -895,15 +975,15 @@ export function TermMap({
       }
     }
 
-    // `wrap` is const and was narrowed to HTMLDivElement by the guard above;
-    // the non-null assertion below is safe since wrap cannot be reassigned.
-    const safeWrap: HTMLDivElement = wrap;
+    // `panVp` is const and was narrowed to HTMLDivElement by the guard above;
+    // the non-null assertion below is safe since panVp cannot be reassigned.
+    const safePanVp: HTMLDivElement = panVp;
 
     function handleMouseMove(e: MouseEvent) {
       if (rafRef.current !== null) return;
       rafRef.current = requestAnimationFrame(() => {
         rafRef.current = null;
-        const svg = safeWrap.querySelector<SVGSVGElement>('#term-svg');
+        const svg = safePanVp.querySelector<SVGSVGElement>('#term-svg');
         if (!svg) return;
         applyLens(svg, e.clientX, e.clientY);
       });
@@ -914,16 +994,16 @@ export function TermMap({
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
       }
-      const svg = safeWrap.querySelector<SVGSVGElement>('#term-svg');
+      const svg = safePanVp.querySelector<SVGSVGElement>('#term-svg');
       if (svg) resetLens(svg);
     }
 
-    safeWrap.addEventListener('mousemove', handleMouseMove);
-    safeWrap.addEventListener('mouseleave', handleMouseLeave);
+    safePanVp.addEventListener('mousemove', handleMouseMove);
+    safePanVp.addEventListener('mouseleave', handleMouseLeave);
 
     return () => {
-      safeWrap.removeEventListener('mousemove', handleMouseMove);
-      safeWrap.removeEventListener('mouseleave', handleMouseLeave);
+      safePanVp.removeEventListener('mousemove', handleMouseMove);
+      safePanVp.removeEventListener('mouseleave', handleMouseLeave);
       if (rafRef.current !== null) {
         cancelAnimationFrame(rafRef.current);
         rafRef.current = null;
@@ -938,10 +1018,10 @@ export function TermMap({
 
   // ── Hover highlight interaction ───────────────────────────────────────────
   useEffect(() => {
-    const wrap = wrapRef.current;
-    if (!wrap) return;
+    const panVp = panVpRef.current;
+    if (!panVp) return;
 
-    const svg = wrap.querySelector<SVGSVGElement>('#term-svg');
+    const svg = panVp.querySelector<SVGSVGElement>('#term-svg');
     if (!svg) return;
 
     function handleMouseOver(e: MouseEvent) {
@@ -984,12 +1064,12 @@ export function TermMap({
       }
     }
 
-    wrap.addEventListener('mouseover', handleMouseOver);
-    wrap.addEventListener('mouseout', handleMouseOut);
+    panVp.addEventListener('mouseover', handleMouseOver);
+    panVp.addEventListener('mouseout', handleMouseOut);
 
     return () => {
-      wrap.removeEventListener('mouseover', handleMouseOver);
-      wrap.removeEventListener('mouseout', handleMouseOut);
+      panVp.removeEventListener('mouseover', handleMouseOver);
+      panVp.removeEventListener('mouseout', handleMouseOut);
     };
   }, [svgContent]);
 
@@ -1013,7 +1093,7 @@ export function TermMap({
 
   return (
     <div className="term-map-container">
-      {/* Chart controls row: pile label model selector */}
+      {/* Controls bar — OUTSIDE the pan-viewport so it stays fixed when scrolling (DOM order, §17.4) */}
       <div className="term-map-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <label className="term-map-controls__label" htmlFor="pile-label-select">
@@ -1057,35 +1137,67 @@ export function TermMap({
             />
             Show cluster labels
           </label>
-          <label 
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)', userSelect: 'none' }}
-            title="Hover to magnify and separate crowded term labels"
+          {/* Q2 LOCKED: lens checkbox disabled when zoomed in (§17 Stage 2) */}
+          <label
+            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: lensDisabledByZoom ? 'default' : 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: lensDisabledByZoom ? 'var(--color-text-caption)' : 'var(--color-text-primary)', userSelect: 'none' }}
+            title={lensDisabledByZoom ? 'Zoom out to 100% to use the magnifying lens' : 'Hover to magnify and separate crowded term labels'}
           >
             <input
               type="checkbox"
-              checked={lensEnabled}
+              checked={lensEnabled && !lensDisabledByZoom}
               onChange={onLensToggle}
-              style={{ cursor: 'pointer' }}
+              disabled={lensDisabledByZoom}
+              style={{ cursor: lensDisabledByZoom ? 'default' : 'pointer' }}
             />
             Magnifying lens
           </label>
         </div>
       </div>
 
-      {/* SVG term map — flex/overflow handled by .term-map-container > .chart-wrap CSS (§17.1) */}
+      {/* chart-wrap: outer border container — ResizeObserver target.
+          Overflow hidden (scoped via .term-map-container > .chart-wrap in CSS).
+          This is the stable bounding box that render() measures W×H from. */}
       <div
         ref={wrapRef}
         className="chart-wrap"
         role="img"
         aria-label={termMapAriaLabel}
       >
+        {/* Pan-viewport: clips and scrolls the scaled SVG (§17.4 Stage 2).
+            At k=1: overflow:hidden (base class) — pixel-identical to Stage 1.
+            At k>1: .term-map-pan-viewport--scrollable adds overflow:auto.
+            Controls bar + stress footer are OUTSIDE chart-wrap in DOM order
+            so they stay fixed regardless of scroll state.
+
+            Option A (architectural fix for zoom-wipe bug):
+            - <svg> and <g id="term-content"> are real React elements.
+            - transform on <g> is bound to `zoomDisplay` state.
+            - SVG width/height are bound to svgBaseDims × zoomDisplay state.
+            - Only the children of <g> come from the svgContent string.
+            - A setZoomDisplay() re-render now RE-ASSERTS scale(k) instead
+              of rebuilding from the hardcoded "scale(1)" string. */}
         <div
-          style={{ width: '100%', height: '100%' }}
-          dangerouslySetInnerHTML={{ __html: svgContent }}
-        />
+          ref={panVpRef}
+          className="term-map-pan-viewport"
+        >
+          {svgBaseDims.w > 0 && (
+            <svg
+              id="term-svg"
+              width={Math.round(svgBaseDims.w * zoomDisplay)}
+              height={Math.round(svgBaseDims.h * zoomDisplay)}
+              viewBox={`0 0 ${svgBaseDims.w} ${svgBaseDims.h}`}
+            >
+              <g
+                id="term-content"
+                transform={`scale(${zoomDisplay})`}
+                dangerouslySetInnerHTML={{ __html: svgContent }}
+              />
+            </svg>
+          )}
+        </div>
       </div>
 
-      {/* Stress + zoom annotation (§17.3: aria-live so zoom level is announced to AT) */}
+      {/* Stress + zoom annotation — OUTSIDE pan-viewport (DOM order keeps it fixed, §17.4) */}
       <div
         className="term-map-stress"
         aria-live="polite"
