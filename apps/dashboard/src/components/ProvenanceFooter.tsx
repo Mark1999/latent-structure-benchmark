@@ -2,24 +2,29 @@
  * ProvenanceFooter — global <footer> landmark.
  *
  * Renders on every route, outside <main>, once in the global shell.
- * Fetches numpy_version, scipy_version, and domains from /data/provenance.json.
+ * Fetches numpy_version, scipy_version, generated_at_utc, and domains
+ * from /data/provenance.json.
  *
  * Per-domain conditional behavior (DESIGN_SYSTEM.md §15.5(b); CDA SME PROMOTE-2 B5b):
  *   - Renders the "Calculated with NumPy X and SciPy Y" line only when:
  *     (a) the active domain is absent (i.e., we are on a non-domain view like
  *         methodology), OR
  *     (b) the active domain slug is present in provenance.json's `domains` block.
- *   - Renders nothing on domain views whose slug is NOT in provenance.json
- *     (e.g., food, which has not yet been rebaselined under the pinned toolchain).
+ *   - Renders nothing on domain views whose slug is NOT in provenance.json.
  *   - Render-nothing fallback: if fetch fails or required fields are absent,
- *     renders null. Never renders "NaN" or stale strings.
+ *     renders null. Never renders "NaN", "undefined", or stale strings.
+ *
+ * Baseline date: sourced from provenance.json top-level `generated_at_utc`
+ * (display `.slice(0,10)`). If absent, the date span is not rendered.
+ * DESIGN_SYSTEM.md §15.5(b) amendment v0.12.0.
  *
  * Design tokens: --font-size-xs + --color-text-caption (~4.60:1 on white — WCAG AA).
  * Top border via --color-border. No new tokens introduced.
  *
- * DESIGN_SYSTEM.md §11 inventory + §15.5(b).
+ * DESIGN_SYSTEM.md §11 inventory + §15.5(b) + §16.
  * Gate: UI/UX PASS-WITH-NOTES (docs/status/2026-05-30-promote-ui-ux-verdict.md).
  * SME: CDA SME PROMOTE-2 PASS-WITH-NOTES (docs/status/2026-05-30-promote2-cda-sme-verdict.md).
+ * Food-promote: UI/UX PASS-WITH-NOTES F2 (docs/status/2026-05-31-food-promote-ui-ux-verdict.md).
  */
 
 import { useState, useEffect } from 'react';
@@ -34,6 +39,7 @@ interface ProvenanceDomainEntry {
 interface ProvenanceData {
   numpy_version?: string;
   scipy_version?: string;
+  generated_at_utc?: string;
   domains?: Record<string, ProvenanceDomainEntry>;
 }
 
@@ -94,9 +100,11 @@ export function ProvenanceFooter({ activeDomain }: ProvenanceFooterProps) {
         Calculated with NumPy {data.numpy_version} and SciPy {data.scipy_version}
         <span className="sr-only"> (opens provenance JSON in new tab)</span>
       </a>
-      <span className="provenance-footer__date" aria-hidden="true">
-        {' · baseline 2026-05-30'}
-      </span>
+      {data.generated_at_utc && (
+        <span className="provenance-footer__date" aria-hidden="true">
+          {' · baseline ' + data.generated_at_utc.slice(0, 10)}
+        </span>
+      )}
     </footer>
   );
 }

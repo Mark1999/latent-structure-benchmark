@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.11.0  
+**Version:** v0.12.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.12.0** (food promotion provenance surfaces, 2026-05-31) amends §15.5(b): `ProvenanceFooter.tsx` date suffix now sourced from `provenance.json` top-level `generated_at_utc` (`.slice(0,10)`); `generated_at_utc?: string` added to `ProvenanceData` interface; date span render-nothing when field absent. Adds §16.2 (term-MDS disclosure placement: stub section in MethodologyPage.tsx with M4a sentence + C3 n-count disclosure). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`); CDA SME PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-cda-sme-verdict.md`).
 - **v0.11.0** (TermMap Stage 2 scrollbar zoom model, 2026-05-31) replaces §17.4 "reserved" placeholder with the full Stage 2 spec; adds §17.8 (pan-viewport scrollbar CSS) and §17.9 (prefers-reduced-motion forward-guard). New CSS classes: `.term-map-pan-viewport`, `.term-map-pan-viewport--scrollable`. Drag-pan handlers removed; viewBox-zoom → content-scale model (SVG viewBox frozen, `<g id="term-content" transform="scale(k)">`). Lens auto-disabled at k>1.02 (Q2 LOCKED). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-stage2-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`). Stage 2 automated tests deferred to T7 (no vitest harness).
 - **v0.10.0** (TermMap layout+zoom Stage 1, 2026-05-31) adds §17 (TermMap container height bounding, Ctrl+wheel zoom gate, keyboard +/−/Reset zoom buttons, hint text, aria-live). Two new CSS classes: `.term-map-controls__zoom-btn`, `.term-map-controls__zoom-reset`. No new tokens. Stage 2 scrollbar model reserved (§17.4). Gate verdicts: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-layout-zoom-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`).
 - **v0.9.0** (PROMOTE-2 provenance surfaces, 2026-05-30) adds `ProvenanceFooter.tsx` and `MethodologyPage.tsx` to §11 Component Inventory; adds §16 (provenance surfaces: §15.5(a) methodology "Data provenance" section, §15.5(b) global per-domain conditional footer). `body` CSS gains `display: flex; flex-direction: column`; `.app-main` changes from `height: calc(100vh - 48px)` to `flex: 1 1 0; min-height: 0`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-30-promote2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`); Architect sign-off (`docs/status/2026-05-30-provenance-json-architect-signoff.md`).
@@ -2187,10 +2188,25 @@ The `ProvenanceFooter.tsx` component renders a `<footer>` landmark in the global
 - **Per-domain conditional behavior (CDA SME PROMOTE-2 B5b):** accepts an `activeDomain` prop. If `activeDomain` is a non-null/non-undefined string that is NOT present in `provenance.json`'s `domains` block, the component renders `null`. This prevents a false provenance claim on the food domain (not yet promoted under the pinned toolchain). When `activeDomain` is `null` (non-explore routes such as methodology), the footer renders if versions are available.
 - Single line, `height: 32px`, `flex-shrink: 0`.
 - Tokens: `--font-size-xs` (12px), `--color-text-caption` (~4.60:1 on white — WCAG AA at 12px regular), `--color-border` (top border), `--color-background`. No new tokens.
-- "· baseline 2026-05-30" date suffix hidden at `max-width: 600px` (avoids wrapping on mobile).
+- Baseline date suffix: sourced from `provenance.json` top-level `generated_at_utc` field (display `.slice(0,10)` — e.g., `"2026-05-29"`). If the field is absent, the date span is not rendered (render-nothing; never "baseline undefined"). `generated_at_utc?: string` is added to the `ProvenanceData` interface. **Amendment v0.12.0:** replaces the v0.9.0 hardcoded `"· baseline 2026-05-30"` string; sourcing from the manifest ensures all promoted domains show the correct rebaseline date without future hardcoding. Gate verdict: UI/UX PASS-WITH-NOTES F2 (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`).
+- Date suffix hidden at `max-width: 600px` (avoids wrapping on mobile).
 - `body` CSS is `display: flex; flex-direction: column` and `.app-main` is `flex: 1 1 0; min-height: 0` (replaces the previous `height: calc(100vh - 48px)`) so the footer occupies its natural 32px and the main content flexes to fill the remaining space.
 
-**Note:** Footer vitest tests deferred to T7 (per task acceptance). The render-nothing fallback on food is mechanically enforced by the `activeDomain` prop check at runtime.
+**Note:** Footer vitest tests deferred to T7 (per task acceptance). Per-domain conditional rendering is mechanically enforced by the `activeDomain` prop check at runtime.
+
+### §16.2 Term-MDS methodology disclosure placement (v0.12.0 — food-promote, 2026-05-31)
+
+A stub `<section aria-labelledby="term-mds-heading">` with heading "Cross-model term map and uncertainty" is added to `MethodologyPage.tsx` to carry two binding disclosures required before food's term-MDS ships:
+
+1. **M4a sentence (Phase 9a binding, CDA SME C4):** "Term position confidence reflects agreement across models, not within-model sampling variance." This sentence was a carry-forward obligation from Phase 9a sign-off and must be present for all three domains (family, holidays, food).
+
+2. **C3 n-count sentence (CDA SME C3):** "The cross-model term map is computed from 15 model informants on family, 14 on holidays, and 8 on food; ellipse widths and branch-probability values are derived from model-resample bootstrap (B=200), so a sparser informant pool produces a different bootstrap envelope shape than a denser one even when the per-model agreement is similar." This closes the audience-translation gap: readers who notice food's bootstrap ellipse shapes may otherwise incorrectly attribute the difference to consensus strength rather than informant-pool size.
+
+**Placement:** immediately before the "Data provenance" section in MethodologyPage.tsx. Both sentences reuse `.methodology-page__section`, `.methodology-page__heading`, and `.methodology-page__text` CSS classes — no new visual decisions. No new tokens. Full methodology prose deferred (section carries a placeholder structure only; Mark fills prose in a later task).
+
+**Researcher cite-path requirement (UI/UX F3a):** this stub section is the minimum viable cite path for food's term-MDS. Without it, a researcher citing the food term-MDS has no methods-page anchor to reference for the model-resample bootstrap framing. The stub satisfies the cite-path floor; full methods prose is a separate task.
+
+Gate verdict: UI/UX PASS-WITH-NOTES F3a (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`); CDA SME PASS-WITH-NOTES C3/C4 (`docs/status/2026-05-31-food-promote-cda-sme-verdict.md`).
 
 ---
 
@@ -2369,6 +2385,6 @@ Stage 2 automated tests (content-scale correctness, scroll-anchor math, lens dis
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.11.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.12.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

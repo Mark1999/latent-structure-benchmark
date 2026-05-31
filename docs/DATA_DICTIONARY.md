@@ -1708,6 +1708,12 @@ The builder is stdlib-only (`tarfile`, `hashlib`, `subprocess`, `argparse`, `pat
       "sha256": "fb4d988eec11ef670158eef990a206555e6593522dbdfb3b31825326acce8f78",
       "guard": "pass"
     },
+    "food": {
+      "version": "0.2",
+      "model_count": 8,
+      "sha256": "3330f8fa7702c0043c2c796267a545dc4bedc63aa8c9ed61652a240b932ed6b0",
+      "guard": "pass"
+    },
     "holidays": {
       "version": "0.3",
       "model_count": 14,
@@ -1736,14 +1742,14 @@ The builder is stdlib-only (`tarfile`, `hashlib`, `subprocess`, `argparse`, `pat
 
 ### 15.3 Dashboard use
 
-The ProvenanceFooter component (`apps/dashboard/src/components/ProvenanceFooter.tsx`) fetches this file at runtime to render the per-domain conditional footer ("Calculated with NumPy X and SciPy Y"). The footer renders only on domain views whose slug appears in the `domains` block. On domain views not listed (e.g., food, pending its own rebaseline), the footer renders nothing. Render-nothing fallback also applies if the fetch fails or required fields are absent.
+The ProvenanceFooter component (`apps/dashboard/src/components/ProvenanceFooter.tsx`) fetches this file at runtime to render the per-domain conditional footer ("Calculated with NumPy X and SciPy Y"). The footer renders only on domain views whose slug appears in the `domains` block. Render-nothing fallback also applies if the fetch fails or required fields are absent.
 
 The methodology page links to this file at `/data/provenance.json` (root-relative, `target="_blank" rel="noopener"`).
 
 ### 15.4 Update cadence
 
-When a domain is promoted under a new rebaseline, this file is updated in the same atomic commit as the data promotion, test updates, and any methodology-page copy changes. The `domains` block grows monotonically — domains are never removed once added, only updated to a new version. The food domain will be added when its separate CDA SME review completes and it is promoted under the pinned toolchain.
+When a domain is promoted under a new rebaseline, this file is updated in the same atomic commit as the data promotion, test updates, and any methodology-page copy changes. The `domains` block grows monotonically — domains are never removed once added, only updated to a new version. As of 2026-05-31, all three published domains (family, holidays, food) are promoted under the pinned toolchain and listed in the `domains` block.
 
 ---
 
-*End of `docs/DATA_DICTIONARY.md` v0.1.18. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*
+*End of `docs/DATA_DICTIONARY.md` v0.1.19. This is a living document; it will move forward as the schema evolves. The Reviewer agent enforces co-update with `cdb_core/schemas.py`.*

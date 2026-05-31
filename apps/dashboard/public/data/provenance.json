@@ -12,6 +12,12 @@
       "sha256": "fb4d988eec11ef670158eef990a206555e6593522dbdfb3b31825326acce8f78",
       "guard": "pass"
     },
+    "food": {
+      "version": "0.2",
+      "model_count": 8,
+      "sha256": "3330f8fa7702c0043c2c796267a545dc4bedc63aa8c9ed61652a240b932ed6b0",
+      "guard": "pass"
+    },
     "holidays": {
       "version": "0.3",
       "model_count": 14,
