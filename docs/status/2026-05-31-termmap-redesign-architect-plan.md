@@ -33,3 +33,8 @@ Labels/ellipses/hover live inside the scaled `<g>` → mostly NO rework (they sc
 - Staging: **ship Stage 1 now**; Stage 2 after its UI/UX re-spec.
 - Stage 1 tests: **manual browser-verify now**, automated vitest deferred to T7 (no harness yet). Task 1.5 deferred.
 - Q1 (Stage 2 zoom scaling): **everything scales (OWID-style)** — at 2x, labels/dots/strokes all 2x. (Q2 lens, Q3 touch still open for Stage 2 kickoff.)
+
+## STAGE 2 DECISIONS LOCKED (2026-05-31)
+- Q2: **auto-disable lens when k>1.02** (grey checkbox + tooltip). Do NOT rework lens math for high zoom.
+- Q3: **native pinch + two-finger scroll**; keyboard buttons = a11y path. No extra touch handlers.
+- UI/UX Stage 2 re-spec PASS-WITH-NOTES: docs/status/2026-05-31-termmap-stage2-uiux-verdict.md (§17.4/17.8/17.9 to apply).
