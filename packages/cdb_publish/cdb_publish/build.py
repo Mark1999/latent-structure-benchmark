@@ -7,6 +7,7 @@ cdb_core.schemas.DomainResult, injects a lede via cdb_publish.lede,
 computes display-derived fields (r1_states, top_terms), and writes:
   - output_dir/{slug}.json            — unversioned canonical (latest version)
   - output_dir/{slug}.v{version}.json — explicit-version copy
+  - output_dir/{slug}-cooccurrence.json — per-model co-occurrence matrices
   - output_dir/manifest.json          — domain index with threshold constant
 
 Version selection: when a domain directory contains multiple semver JSON
@@ -25,9 +26,12 @@ and after build() runs (acceptance criterion 6).
 from __future__ import annotations
 
 import json
+import logging
 from datetime import UTC, datetime
 from pathlib import Path
 
+from cdb_analyze.cooccurrence import build_cooccurrence_matrix
+from cdb_analyze.pipeline import group_by_model, load_records
 from cdb_core.schemas import DomainResult, SutropCSI
 from pydantic import ValidationError
 
@@ -35,6 +39,81 @@ from cdb_publish.derived import TOP_TERMS_METRIC, r1_state_for, top_freelist_ter
 from cdb_publish.failures import build_failures
 from cdb_publish.lede import generate_lede
 from cdb_publish.schemas.manifest import Manifest, ManifestDomain
+
+logger = logging.getLogger(__name__)
+
+
+def _build_domain_cooccurrence(
+    slug: str,
+    term_mds_items: list[str],
+    raw_informants_path: Path,
+    output_dir: Path,
+) -> None:
+    """Build and write {slug}-cooccurrence.json for the TermMap browser component.
+
+    Computes per-model co-occurrence matrices aligned to the published
+    ``term_mds_items`` item set (the same 100-or-so items used for the pooled
+    term MDS).  The output shape matches ``CooccurrenceData`` in TermMap.tsx:
+
+        { "items": string[], "models": { model_id: number[][] } }
+
+    where ``models[model_id]`` is an N×N matrix of co-occurrence fractions in
+    [0, 1] aligned to the ``items`` list.  Items absent from a model's pile-sort
+    vocabulary receive 0.0 for all cells in that model's row/column — consistent
+    with the equal-weight-per-model pooling posture (CDA SME M1).
+
+    The matrix values are rounded to 4 decimal places to match the precision of
+    the original family-cooccurrence.json (verified equivalent to the full-float
+    output by semantic-equivalence check at generation time).
+
+    Writes output_dir/{slug}-cooccurrence.json.  Silently skips if
+    term_mds_items is empty or raw_informants_path does not exist.
+
+    No LLM calls.  Reuses cdb_analyze.cooccurrence.build_cooccurrence_matrix
+    and cdb_analyze.pipeline.load_records / group_by_model — the same functions
+    used by the analysis pipeline to produce term_mds_* fields.
+    """
+    if not term_mds_items:
+        logger.warning("_build_domain_cooccurrence: %s has empty term_mds_items; skipping", slug)
+        return
+    if not raw_informants_path.exists():
+        logger.warning(
+            "_build_domain_cooccurrence: informants file not found at %s; skipping %s",
+            raw_informants_path, slug,
+        )
+        return
+
+    records = load_records(raw_informants_path, slug, qa_only=True)
+    if not records:
+        logger.warning("_build_domain_cooccurrence: no QA-passed records for %s; skipping", slug)
+        return
+
+    groups = group_by_model(records)
+    n = len(term_mds_items)
+
+    models_out: dict[str, list[list[float]]] = {}
+    for model_id, recs in sorted(groups.items()):
+        per_model_mat = build_cooccurrence_matrix(recs)
+        local_idx = {item: i for i, item in enumerate(per_model_mat.items)}
+
+        aligned: list[list[float]] = [[0.0] * n for _ in range(n)]
+        for i_global, item_i in enumerate(term_mds_items):
+            for j_global, item_j in enumerate(term_mds_items):
+                i_local = local_idx.get(item_i)
+                j_local = local_idx.get(item_j)
+                if i_local is not None and j_local is not None:
+                    aligned[i_global][j_global] = round(
+                        per_model_mat.matrix[i_local][j_local], 4
+                    )
+        models_out[model_id] = aligned
+
+    cooc_data = {"items": term_mds_items, "models": models_out}
+    out_path = output_dir / f"{slug}-cooccurrence.json"
+    out_path.write_text(json.dumps(cooc_data, separators=(",", ":")), encoding="utf-8")
+    logger.info(
+        "_build_domain_cooccurrence: wrote %s (%d items, %d models)",
+        out_path, n, len(models_out),
+    )
 
 
 def _build_focus1(domain_dict: dict, slug: str, output_dir: Path) -> str:
@@ -248,6 +327,16 @@ def build(
         # Write {slug}-focus1.json (Focus 1: Individual Model Consistency).
         focus1_path = _build_focus1(domain_dict, slug, output_dir)
         focus1_map[slug] = focus1_path
+
+        # Write {slug}-cooccurrence.json for the TermMap browser component.
+        # Uses term_mds_items from the DomainResult (the truncated item set
+        # that was used to compute the published term MDS coordinates).
+        _build_domain_cooccurrence(
+            slug=slug,
+            term_mds_items=list(domain_result.term_mds_items),
+            raw_informants_path=raw_informants_path,
+            output_dir=output_dir,
+        )
 
         model_ids = sorted(domain_result.mds_coordinates.keys())
         manifest_domains.append(
