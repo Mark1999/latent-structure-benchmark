@@ -13,3 +13,6 @@ UI/UX §17.4 DECLINED scrollbars — substituted retaining drag-to-pan. Reason g
 - DESIGN_SYSTEM §17 (full text in the dispatch transcript / to be placed by Coder).
 
 ## Required-before-merge: items 1-10 in the verdict body (layout CSS, ctrl-key gate, zoom buttons, reset button, hint, aria-live, CSS classes not inline, manual verify).
+
+## MARK'S OVERRIDE (2026-05-31)
+Mark overrode UI/UX §17.4: **scrollbars ARE required** (the original spec). Navigate-when-zoomed = native scrollbars (scale-content + container overflow:auto), NOT the drag-pan substitute the gate recommended. This is a redesign of the zoom model (away from viewBox) and requires reworking the lens/label/ellipse coordinate math the gate flagged. Per CLAUDE.md only Mark can override a gate; he has. Routed to Architect to decompose the redesign. UI/UX to re-spec the scrollbar/zoom-model visual details it previously declined, as part of that plan.
