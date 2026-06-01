@@ -13,6 +13,8 @@ tools:
   - Read
   - Grep
   - Glob
+  - Write
+  - Edit
 effort: xhigh
 memory: project
 ---
