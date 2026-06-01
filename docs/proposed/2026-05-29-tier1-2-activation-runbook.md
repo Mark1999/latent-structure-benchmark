@@ -1,8 +1,26 @@
-# Tier 1–2 capability upgrade — ACTIVATION RUNBOOK (drafted 2026-05-29, INACTIVE)
+# Tier 1–2 capability upgrade — ACTIVATION RUNBOOK (drafted 2026-05-29, VALIDATED 2026-06-01, INACTIVE)
 
-**Status:** Artifacts are drafted and committed but **NOT active**. Nothing here changes
-runtime behavior until the steps in §"Activation" are done. Drafted while Mark traveled
-and the re-baseline regen ran; per Mark's instruction "draft without activating."
+**Status:** Artifacts are drafted, committed, and **VALIDATED — but NOT active.** Nothing here
+changes runtime behavior until the steps in §"Activation" are done. Drafted while Mark traveled;
+per Mark's instruction "draft without activating," then validated 2026-06-01 (Mark: "prep C, don't
+activate"). Activation deferred to a clean session start (PreToolUse hooks intercept every edit;
+activating mid-session — especially with the flaky shell seen 2026-05-31/06-01 — risks blocking
+in-flight work).
+
+**Validation run 2026-06-01 (all PASS, artifacts ready to activate):**
+- `check_forbidden_vocab.py`: blocks "the model believes" (exit 2); allows "I think this loop"
+  (exit 0, no false positive). ✓
+- `check_informants_append_only.py`: blocks Edit to data/raw/informants.jsonl (exit 2). ✓
+- `check_spend_gate.py`: blocks CDB_MAX_SPEND_USD content (exit 2); its own regex line carries
+  `# noqa: spend-gate-check` so it doesn't trip CI; `.claude/` is now ruff-excluded (pyproject). ✓
+- `check_schema_edit.py`: soft-ask on schemas.py edit (exit 0 + permissionDecision ask JSON). ✓
+- `.claude/workflows/lsb-pipeline.js`: `node --check` parses OK. ✓
+- `.claude/settings.json`: confirmed NO `hooks` key (only `enabledPlugins`) — hooks remain INACTIVE. ✓
+
+**To activate (when ready, at a session boundary):** wire the four hooks into `.claude/settings.json`
+`hooks.PreToolUse` per the "Proposed settings.json wiring" section below, restart the session, re-run
+the dry-runs live, then Reviewer-gate + commit. The `cda_sme` agent-def sync (Finding 2) is already
+DONE (committed 2026-06-01).
 
 **Before activating anything:** route through the **Reviewer** (these are guardrails that
 gate the whole team) and get Mark's OK. Each hook must be **dry-run tested** with sample
