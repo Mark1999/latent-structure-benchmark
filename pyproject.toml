@@ -55,6 +55,7 @@ line-length = 100
 exclude = [
     "main.py",
     "tests/test_smoke.py",
+    ".claude",
 ]
 
 [tool.ruff.lint]
