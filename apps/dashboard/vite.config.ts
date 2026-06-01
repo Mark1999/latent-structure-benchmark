@@ -7,9 +7,11 @@ export default defineConfig({
     outDir: "dist",
   },
   test: {
-    // Use node environment for unit tests that don't need DOM.
-    // Component rendering tests are integration tests; T4 tests focus on logic.
-    environment: "node",
-    globals: false,
+    environment: "jsdom",
+    globals: true,
+    setupFiles: ["./src/setupTests.ts"],
+    typecheck: {
+      tsconfig: "./tsconfig.test.json",
+    },
   },
 });
