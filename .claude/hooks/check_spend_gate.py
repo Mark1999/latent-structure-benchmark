@@ -21,7 +21,7 @@ import sys
 
 # Keep identical to ci.yml `no-spend-gate-check` FORBIDDEN regex:
 FORBIDDEN = re.compile(
-    r"CDB_MAX_SPEND_USD|MAX_SPEND_USD|DEFAULT_MAX_SPEND|spend_cap|cost_cap|cost-cap-usd|--max-spend"
+    r"CDB_MAX_SPEND_USD|MAX_SPEND_USD|DEFAULT_MAX_SPEND|spend_cap|cost_cap|cost-cap-usd|--max-spend"  # noqa: spend-gate-check
 )
 NOQA = "noqa: spend-gate-check"
 
