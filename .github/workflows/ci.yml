@@ -24,6 +24,7 @@ jobs:
             ':(exclude)docs/INCIDENTS/' \
             ':(exclude)docs/3rdpartyreviews/' \
             ':(exclude)docs/proposals/' \
+            ':(exclude)docs/proposed/' \
             ':(exclude)docs/PROMPT_EVOLUTION_LOG.md' \
             ':(exclude).github/workflows/ci.yml' \
             | grep -v 'noqa: spend-gate-check' \
