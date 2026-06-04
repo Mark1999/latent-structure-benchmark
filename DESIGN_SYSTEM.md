@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.12.0  
+**Version:** v0.13.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.13.0** (term-map drag-pan re-add + bottom-clipping fix, 2026-06-04) amends §17.4 (replaces "Drag-pan REMOVED" paragraph with re-added drag-pan spec); adds §17.11 (updateScrollableModifier + useLayoutEffect k=1 overflow fix + drag-pan handler contract) and §17.12 (cursor CSS: `grab`/`grabbing` + `--dragging` class + reduced-motion guard). No new tokens. `pad.b` raised from 40 → 52; SVG footer annotation `y=H-6` → `y=H-14`. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-06-04-drag-pan-clipping-uiux-verdict.md`).
 - **v0.12.0** (food promotion provenance surfaces, 2026-05-31) amends §15.5(b): `ProvenanceFooter.tsx` date suffix now sourced from `provenance.json` top-level `generated_at_utc` (`.slice(0,10)`); `generated_at_utc?: string` added to `ProvenanceData` interface; date span render-nothing when field absent. Adds §16.2 (term-MDS disclosure placement: stub section in MethodologyPage.tsx with M4a sentence + C3 n-count disclosure). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`); CDA SME PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-cda-sme-verdict.md`).
 - **v0.11.0** (TermMap Stage 2 scrollbar zoom model, 2026-05-31) replaces §17.4 "reserved" placeholder with the full Stage 2 spec; adds §17.8 (pan-viewport scrollbar CSS) and §17.9 (prefers-reduced-motion forward-guard). New CSS classes: `.term-map-pan-viewport`, `.term-map-pan-viewport--scrollable`. Drag-pan handlers removed; viewBox-zoom → content-scale model (SVG viewBox frozen, `<g id="term-content" transform="scale(k)">`). Lens auto-disabled at k>1.02 (Q2 LOCKED). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-stage2-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`). Stage 2 automated tests deferred to T7 (no vitest harness).
 - **v0.10.0** (TermMap layout+zoom Stage 1, 2026-05-31) adds §17 (TermMap container height bounding, Ctrl+wheel zoom gate, keyboard +/−/Reset zoom buttons, hint text, aria-live). Two new CSS classes: `.term-map-controls__zoom-btn`, `.term-map-controls__zoom-reset`. No new tokens. Stage 2 scrollbar model reserved (§17.4). Gate verdicts: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-layout-zoom-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`).
@@ -2305,7 +2306,7 @@ panVp.scrollLeft = logicalX * newK - panVp.clientWidth / 2;
 
 **Double-click reset + Reset button:** `scrollTo(0,0)` FIRST, then `k←1`, then remove `--scrollable` modifier. Order is binding — removing the modifier before scrolling would hide the stale scroll offset under `overflow:hidden`.
 
-**Drag-pan REMOVED.** `handleMouseDown` / `handleMouseMovePan` / `handleMouseUp` handlers and grab/grabbing cursor styles are gone. Native scrollbars replace drag-pan entirely.
+**Drag-pan RE-ADDED (§17.11 — 2026-06-04).** `handleMouseDown` / `handleMouseMovePan` / `handleMouseUpPan` / `handleMouseLeavePan` handlers are present; grab/grabbing cursor styles are active. Drag-pan coexists with native scrollbars (additive). See §17.11 for the full contract.
 
 **FREEZE RULE (binding):** label layout (compass positions, `data-ox`/`data-oy`) is computed once at `k=1` inside `render()` and frozen. The zoom path (`applyScale`) mutates ONLY the `<g transform>` attribute and the SVG `width`/`height` attributes. It must NOT call `render()` or re-run the compass label algorithm.
 
@@ -2383,8 +2384,85 @@ No motion is currently applied to these elements; the guard is forward-looking s
 
 Stage 2 automated tests (content-scale correctness, scroll-anchor math, lens disable gate) are deferred to T7 when the vitest harness is established. Manual browser verification by Mark is the acceptance gate for Stage 2.
 
+### 17.11 Drag-pan re-add + bottom-clipping fix (v0.13.0 — 2026-06-04)
+
+Root cause: at k=1 the `.term-map-pan-viewport` had `overflow:hidden` AND Stage 2 removed drag-pan → content below the viewport bottom (e.g., "Foster family", "Step-family relations", SVG footer at `y=H-6`) was unreachable. Two independent fixes:
+
+**Fix A — `updateScrollableModifier(k)` helper** replaces the old `applyScale` class-toggle:
+
+```ts
+function updateScrollableModifier(k: number) {
+  // k>1.02: always scrollable
+  if (k > 1.02) {
+    panVp.classList.add('term-map-pan-viewport--scrollable');
+    return;
+  }
+  // k=1: scrollable only if SVG actually overflows the viewport
+  const svg = panVp.querySelector<SVGSVGElement>('#term-svg');
+  if (svg && (svg.scrollWidth > panVp.clientWidth || svg.scrollHeight > panVp.clientHeight)) {
+    panVp.classList.add('term-map-pan-viewport--scrollable');
+  } else {
+    panVp.classList.remove('term-map-pan-viewport--scrollable');
+  }
+}
+```
+
+`applyScale` is kept as an alias for all existing call sites.
+
+**Fix B — `useLayoutEffect` after `svgContent` changes** re-checks for k=1 overflow once React commits the new SVG to the DOM (so `svg.scrollWidth/scrollHeight` are accurate):
+
+```ts
+useLayoutEffect(() => {
+  updateScrollableModifier(kRef.current);
+}, [svgContent, updateScrollableModifier]);
+```
+
+**Fix C — Bottom padding and footer position:**
+- `pad.b`: 40 → 52 (more bottom margin for the compass label penalty zone)
+- SVG footer annotation: `y="${H - 6}"` → `y="${H - 14}"` (keeps text inside the padded bounds)
+
+**Drag-pan handler contract (binding):**
+- Active only when `.term-map-pan-viewport--scrollable` class is present.
+- Left button only (`e.button !== 0` → return).
+- Guard: `if (target.classList.contains('term-dot')) return` — don't drag from a dot; preserves click/hover on dots.
+- `e.preventDefault()` on mousedown to suppress text-select during drag.
+- Drag translates `scrollLeft/scrollTop` by `-Δx/-Δy` from drag-start scroll position.
+- `window` listeners for `mousemove` and `mouseup` so fast drags outside the viewport don't leave drag state stuck.
+- `panVp` listeners for `mousedown` and `mouseleave`.
+- Toggle `.term-map-pan-viewport--dragging` on the viewport during drag.
+- All four listeners removed in useEffect cleanup.
+
+**Coexistence with Stage 2 scroll model:** drag-pan and native scrollbars both translate `scrollLeft/scrollTop` — they operate on the same property, so they coexist without conflict. The lens and drag-pan operate on independent props (lens = SVG coordinate displacement; drag-pan = scrollLeft/scrollTop) — no conflict.
+
+### 17.12 Cursor CSS for drag-pan (v0.13.0 — 2026-06-04)
+
+Added to `apps/dashboard/src/styles/app.css`:
+
+```css
+/* §17.11: grab cursor signals that drag-pan is available */
+.term-map-pan-viewport--scrollable {
+  cursor: grab;
+}
+
+/* §17.12: dragging state — applied imperatively during drag-pan */
+.term-map-pan-viewport--dragging {
+  cursor: grabbing;
+  user-select: none;
+}
+
+/* prefers-reduced-motion guard for dragging state */
+@media (prefers-reduced-motion: reduce) {
+  .term-map-pan-viewport--dragging {
+    transition: none;
+    animation: none;
+  }
+}
+```
+
+`cursor: grab` is added to the existing `.term-map-pan-viewport--scrollable` rule (the `overflow: auto` + `box-shadow` rule from §17.8). The `--dragging` class is new. No new tokens.
+
 ---
 
-*End of DESIGN_SYSTEM.md v0.12.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.13.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

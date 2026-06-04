@@ -1079,11 +1079,19 @@ body {
      prefers-reduced-motion. */
 }
 
-/* §17.4 + §17.8: scrollable state when k > 1.02 */
+/* §17.4 + §17.8 + §17.11: scrollable state when k > 1.02 or k=1 overflow */
 .term-map-pan-viewport--scrollable {
   overflow: auto;
   /* Scroll-shadow: inset box-shadow at 0.06 opacity signals scrollable edges */
   box-shadow: inset 0 0 12px rgba(0, 0, 0, 0.06);
+  /* §17.11: grab cursor signals that drag-pan is available */
+  cursor: grab;
+}
+
+/* §17.12: dragging state — applied imperatively during drag-pan */
+.term-map-pan-viewport--dragging {
+  cursor: grabbing;
+  user-select: none;
 }
 
 /* §17.8: thin scrollbars — WebKit (Chrome, Safari, Edge) */
@@ -1110,6 +1118,17 @@ body {
 @media (prefers-reduced-motion: reduce) {
   .term-map-pan-viewport,
   .term-map-pan-viewport--scrollable {
+    transition: none;
+    animation: none;
+  }
+}
+
+/* §17.12: prefers-reduced-motion guard for dragging state.
+   The --dragging class does not itself produce motion, but guards against
+   any future transition on this state class being applied to
+   prefers-reduced-motion users. */
+@media (prefers-reduced-motion: reduce) {
+  .term-map-pan-viewport--dragging {
     transition: none;
     animation: none;
   }

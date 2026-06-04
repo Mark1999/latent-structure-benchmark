@@ -25,9 +25,12 @@
  *
  * Stage 2 zoom model (§17.4): SVG content is wrapped in a
  * <g id="term-content" transform="scale(k)"> inside a .term-map-pan-viewport
- * div. The SVG viewBox is frozen at "0 0 W H" and never mutated. When k>1
- * the pan-viewport gains .term-map-pan-viewport--scrollable (overflow:auto)
- * and native scrollbars provide panning. Drag-pan handlers removed.
+ * div. The SVG viewBox is frozen at "0 0 W H" and never mutated. When k>1.02
+ * OR at k=1 when SVG overflows the viewport, the pan-viewport gains
+ * .term-map-pan-viewport--scrollable (overflow:auto) and native scrollbars
+ * appear. Drag-pan is re-added (§17.11 — 2026-06-04) coexisting with native
+ * scrollbars; active only when --scrollable is present; term-dot guard keeps
+ * click/hover on dots working.
  * FREEZE RULE: label layout is computed once at k=1 and frozen; zoom only
  * mutates the <g transform> and the SVG width/height attrs — render() is
  * never called from the zoom path.
@@ -329,23 +332,33 @@ export function TermMap({
     [effectiveCoords, effectiveClusters]
   );
 
-  // ── Stage 2: manage pan-viewport scroll class only (FREEZE RULE) ──────────
-  // The <g id="term-content"> transform and SVG width/height are now React-state-
-  // driven (bound to zoomDisplay and svgBaseDims via JSX attributes), so this
-  // helper no longer touches DOM transform or SVG sizing. It only manages the
-  // overflow class so scrollbars appear/disappear correctly.
+  // ── Stage 2: manage pan-viewport scroll class (FREEZE RULE) ─────────────
+  // Replaces the old applyScale class-toggle. In addition to the k>1.02 check,
+  // also adds --scrollable at k=1 when the SVG overflows the viewport (§17.11 Fix B).
+  // This makes bottom-clipped content reachable via scroll + drag-pan at k=1.
   // FREEZE RULE: this helper must NOT call render() or re-run label layout.
-  const applyScale = useCallback((k: number) => {
+  const updateScrollableModifier = useCallback((k: number) => {
     const panVp = panVpRef.current;
     if (!panVp) return;
 
-    // Toggle scrollable modifier — overflow:auto appears at k > 1.02
+    // k>1.02: always scrollable
     if (k > 1.02) {
+      panVp.classList.add('term-map-pan-viewport--scrollable');
+      return;
+    }
+
+    // k=1: scrollable only if SVG actually overflows the viewport (bottom-clipping fix)
+    const svg = panVp.querySelector<SVGSVGElement>('#term-svg');
+    if (svg && (svg.scrollWidth > panVp.clientWidth || svg.scrollHeight > panVp.clientHeight)) {
       panVp.classList.add('term-map-pan-viewport--scrollable');
     } else {
       panVp.classList.remove('term-map-pan-viewport--scrollable');
     }
   }, []);
+
+  // Keep applyScale as an alias so existing call sites (zoomByStep, resetZoom,
+  // handleWheel) continue to work without renaming them all.
+  const applyScale = updateScrollableModifier;
 
   // ── Keyboard zoom helpers (§17.3) ────────────────────────────────────────
   // Zoom toward the viewport center (keyboard users have no cursor anchor).
@@ -406,7 +419,7 @@ export function TermMap({
 
     if (terms.length === 0) return;
 
-    const pad = { t: 30, r: 80, b: 40, l: 50 };
+    const pad = { t: 30, r: 80, b: 52, l: 50 };
     const pw = W - pad.l - pad.r;
     const ph = H - pad.t - pad.b;
 
@@ -678,7 +691,7 @@ export function TermMap({
       ? `${selectedModelIds.size} model${selectedModelIds.size !== 1 ? 's' : ''} · `
       : '';
     svgParts.push(
-      `<text x="${(pad.l + pw / 2).toFixed(1)}" y="${H - 6}" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="#a0a098">${modelNote}${nTerms} shared terms · ${nClusters} clusters from pile-sort co-occurrence</text>`
+      `<text x="${(pad.l + pw / 2).toFixed(1)}" y="${H - 14}" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="#a0a098">${modelNote}${nTerms} shared terms · ${nClusters} clusters from pile-sort co-occurrence</text>`
     );
 
     // svgParts is the INNER content of <g id="term-content"> only.
@@ -703,10 +716,17 @@ export function TermMap({
   // driven (zoomDisplay, svgBaseDims), so no imperative DOM patch is needed after
   // React reconciles svgContent. render() calls setZoomDisplay(1) + setSvgBaseDims
   // to reset the zoom state atomically with the new inner content.
+  // §17.11: the svgContent useLayoutEffect below re-checks for k=1 overflow
+  // (bottom-clipping fix) after React commits the new SVG.
 
   // ── Zoom & pan interaction (Stage 2) ─────────────────────────────────────
   // viewBox is never mutated. Zoom changes k → scales <g> → scrollbars pan.
-  // Drag-pan handlers REMOVED (§17.4 Stage 2 decision).
+  // Drag-pan re-added per §17.11 (UI/UX verdict 2026-06-04):
+  //   - Active only when --scrollable class is present on the pan-viewport.
+  //   - Left button only; term-dot guard preserves click/hover on dots.
+  //   - window listeners for mousemove/mouseup so fast drags outside the
+  //     viewport don't leave drag state stuck.
+  //   - Cleanup removes all new listeners (including window ones).
   useEffect(() => {
     const panVp = panVpRef.current;
     if (!panVp) return;
@@ -758,12 +778,70 @@ export function TermMap({
       resetZoom();
     }
 
+    // ── Drag-pan handlers (§17.11) ────────────────────────────────────────
+    // State for drag-pan: start scroll position and start mouse position.
+    let isDragging = false;
+    let dragStartScrollLeft = 0;
+    let dragStartScrollTop = 0;
+    let dragStartMouseX = 0;
+    let dragStartMouseY = 0;
+
+    function handleMouseDown(e: MouseEvent) {
+      // Only when --scrollable is present (k>1.02 or k=1-overflow)
+      if (!panVp!.classList.contains('term-map-pan-viewport--scrollable')) return;
+      // Left button only
+      if (e.button !== 0) return;
+      // Don't drag from a dot — preserves click/hover on term dots
+      const target = e.target as Element;
+      if (target.classList.contains('term-dot')) return;
+
+      e.preventDefault();
+      isDragging = true;
+      dragStartScrollLeft = panVp!.scrollLeft;
+      dragStartScrollTop = panVp!.scrollTop;
+      dragStartMouseX = e.clientX;
+      dragStartMouseY = e.clientY;
+      panVp!.classList.add('term-map-pan-viewport--dragging');
+    }
+
+    function handleMouseMovePan(e: MouseEvent) {
+      if (!isDragging) return;
+      const dx = e.clientX - dragStartMouseX;
+      const dy = e.clientY - dragStartMouseY;
+      panVp!.scrollLeft = dragStartScrollLeft - dx;
+      panVp!.scrollTop = dragStartScrollTop - dy;
+    }
+
+    function handleMouseUpPan() {
+      if (!isDragging) return;
+      isDragging = false;
+      panVp!.classList.remove('term-map-pan-viewport--dragging');
+    }
+
+    function handleMouseLeavePan() {
+      // mouseleave on panVp: cancel drag so a slow leave doesn't leave stuck state.
+      // Fast drags are caught by window mouseup; this handles the slow/keyboard case.
+      if (isDragging) {
+        isDragging = false;
+        panVp!.classList.remove('term-map-pan-viewport--dragging');
+      }
+    }
+
     panVp.addEventListener('wheel', handleWheel, { passive: false });
     panVp.addEventListener('dblclick', handleDblClick);
+    panVp.addEventListener('mousedown', handleMouseDown);
+    panVp.addEventListener('mouseleave', handleMouseLeavePan);
+    // window listeners so fast drags outside the viewport don't stick
+    window.addEventListener('mousemove', handleMouseMovePan);
+    window.addEventListener('mouseup', handleMouseUpPan);
 
     return () => {
       panVp.removeEventListener('wheel', handleWheel);
       panVp.removeEventListener('dblclick', handleDblClick);
+      panVp.removeEventListener('mousedown', handleMouseDown);
+      panVp.removeEventListener('mouseleave', handleMouseLeavePan);
+      window.removeEventListener('mousemove', handleMouseMovePan);
+      window.removeEventListener('mouseup', handleMouseUpPan);
     };
   }, [svgContent, applyScale, resetZoom]);
 
@@ -781,6 +859,15 @@ export function TermMap({
     panVp.scrollLeft = pending.left;
     panVp.scrollTop  = pending.top;
   }, [zoomDisplay]);
+
+  // ── §17.11 Fix B: re-check scrollable modifier after SVG content commits ──
+  // When svgContent changes (new render), the SVG may overflow at k=1 — call
+  // updateScrollableModifier so the --scrollable class is added if needed.
+  // This makes bottom-clipped content reachable at k=1 without zooming in.
+  // Must run after DOM paint so svg.scrollWidth/scrollHeight are available.
+  useLayoutEffect(() => {
+    updateScrollableModifier(kRef.current);
+  }, [svgContent, updateScrollableModifier]);
 
   // ── Q2 LOCKED: auto-disable lens when k > 1.02 ───────────────────────────
   // When the user zooms in, deactivate the lens immediately.
