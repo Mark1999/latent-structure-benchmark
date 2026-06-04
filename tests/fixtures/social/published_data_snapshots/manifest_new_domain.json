@@ -1,14 +1,24 @@
 {
   "description": "Manifest with a new domain 'kinship' added — triggers detect_new_domain.",
-  "domains": {
-    "family": {
-      "models": ["claude-opus-4-6", "gpt-4o"]
+  "built_at": "2026-05-18T12:00:00Z",
+  "domains": [
+    {
+      "slug": "family",
+      "analysis_version": "0.3",
+      "n_models": 2,
+      "model_ids": ["claude-opus-4-6", "gpt-4o"]
     },
-    "food": {
-      "models": ["claude-opus-4-6", "gpt-4o"]
+    {
+      "slug": "food",
+      "analysis_version": "0.2",
+      "n_models": 2,
+      "model_ids": ["claude-opus-4-6", "gpt-4o"]
     },
-    "kinship": {
-      "models": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"]
+    {
+      "slug": "kinship",
+      "analysis_version": "0.3",
+      "n_models": 3,
+      "model_ids": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"]
     }
-  }
+  ]
 }

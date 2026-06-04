@@ -126,10 +126,21 @@ def _write_state(state_dir: Path, filename: str, data: dict) -> None:
 
 def _base_manifest() -> dict:
     return {
-        "domains": {
-            "family": {"models": ["claude-opus-4-6", "gpt-4o"]},
-            "food": {"models": ["claude-opus-4-6", "gpt-4o"]},
-        }
+        "built_at": "2026-05-17T12:00:00Z",
+        "domains": [
+            {
+                "slug": "family",
+                "analysis_version": "0.3",
+                "n_models": 2,
+                "model_ids": ["claude-opus-4-6", "gpt-4o"],
+            },
+            {
+                "slug": "food",
+                "analysis_version": "0.2",
+                "n_models": 2,
+                "model_ids": ["claude-opus-4-6", "gpt-4o"],
+            },
+        ],
     }
 
 
@@ -401,10 +412,21 @@ class TestBootstrapAndStateSentinel:
         bootstrap_state(tmp_path, manifest, drs)
 
         new_manifest = {
-            "domains": {
-                "family": {"models": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"]},
-                "food": {"models": ["claude-opus-4-6", "gpt-4o"]},
-            }
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 3,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.2",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+            ],
         }
         triggers = detect_new_model(new_manifest, tmp_path)
         assert len(triggers) == 1
@@ -418,11 +440,27 @@ class TestBootstrapAndStateSentinel:
         bootstrap_state(tmp_path, manifest, drs)
 
         new_manifest = {
-            "domains": {
-                "family": {"models": ["claude-opus-4-6", "gpt-4o"]},
-                "food": {"models": ["claude-opus-4-6", "gpt-4o"]},
-                "kinship": {"models": ["claude-opus-4-6"]},
-            }
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.2",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+                {
+                    "slug": "kinship",
+                    "analysis_version": "0.3",
+                    "n_models": 1,
+                    "model_ids": ["claude-opus-4-6"],
+                },
+            ],
         }
         triggers = detect_new_domain(new_manifest, tmp_path)
         assert len(triggers) == 1
@@ -568,10 +606,21 @@ class TestDedupeKey:
         bootstrap_state(tmp_path, manifest, drs)
 
         new_manifest = {
-            "domains": {
-                "family": {"models": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"]},
-                "food": {"models": ["claude-opus-4-6", "gpt-4o"]},
-            }
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 3,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.2",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+            ],
         }
         triggers = detect_new_model(new_manifest, tmp_path)
         assert all(len(t.dedupe_key) == 16 for t in triggers)
@@ -858,10 +907,21 @@ class TestDetectNewModel:
             },
         })
         manifest = {
-            "domains": {
-                "family": {"models": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"]},
-                "food": {"models": ["claude-opus-4-6", "gpt-4o"]},
-            }
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 3,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o", "gemini-2-flash"],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.2",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+            ],
         }
         triggers = detect_new_model(manifest, tmp_path)
         assert len(triggers) == 3  # gpt-4o in family, gemini in family, gpt-4o in food
@@ -872,7 +932,17 @@ class TestDetectNewModel:
             "bootstrapped_at": "2026-05-17T12:00:00+00:00",
             "domains": {"family": ["claude-opus-4-6"]},
         })
-        manifest = {"domains": {"family": {"models": ["claude-opus-4-6", "gpt-4o"]}}}
+        manifest = {
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+            ],
+        }
         detect_new_model(manifest, tmp_path)
 
         state = json.loads((tmp_path / "seen_models.json").read_text())
@@ -884,7 +954,17 @@ class TestDetectNewModel:
             "bootstrapped_at": "2026-05-17T12:00:00+00:00",
             "domains": {"family": ["claude-opus-4-6"]},
         })
-        manifest = {"domains": {"family": {"models": ["claude-opus-4-6", "gpt-4o"]}}}
+        manifest = {
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+            ],
+        }
         detect_new_model(manifest, tmp_path)
         triggers2 = detect_new_model(manifest, tmp_path)
         assert triggers2 == []
@@ -895,7 +975,17 @@ class TestDetectNewModel:
             "bootstrapped_at": "2026-05-17T12:00:00+00:00",
             "domains": {"family": []},
         })
-        manifest = {"domains": {"family": {"models": ["claude-opus-4-6"]}}}
+        manifest = {
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 1,
+                    "model_ids": ["claude-opus-4-6"],
+                },
+            ],
+        }
         triggers = detect_new_model(manifest, tmp_path)
         assert len(triggers) == 1
         assert triggers[0].evidence["first_seen_in_domain"] == "family"
@@ -913,10 +1003,21 @@ class TestDetectNewDomain:
             "domains": ["family"],
         })
         manifest = {
-            "domains": {
-                "family": {"models": ["claude-opus-4-6"]},
-                "food": {"models": ["claude-opus-4-6", "gpt-4o"]},
-            }
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 1,
+                    "model_ids": ["claude-opus-4-6"],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.2",
+                    "n_models": 2,
+                    "model_ids": ["claude-opus-4-6", "gpt-4o"],
+                },
+            ],
         }
         triggers = detect_new_domain(manifest, tmp_path)
         assert len(triggers) == 1
@@ -930,10 +1031,21 @@ class TestDetectNewDomain:
             "domains": ["family", "food"],
         })
         manifest = {
-            "domains": {
-                "family": {"models": []},
-                "food": {"models": []},
-            }
+            "built_at": "2026-05-18T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 0,
+                    "model_ids": [],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.2",
+                    "n_models": 0,
+                    "model_ids": [],
+                },
+            ],
         }
         triggers = detect_new_domain(manifest, tmp_path)
         assert triggers == []
