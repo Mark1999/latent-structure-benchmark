@@ -491,7 +491,17 @@ def _drafter_version_for_platform(platform: Platform) -> str:
 def _load_domain_result_for_trigger(trigger: SocialTrigger) -> Any:
     """Load DomainResult for the trigger's domain_slug from the published data dir.
 
-    Returns a minimal stub DomainResult if the domain file cannot be loaded.
+    Derives the analysis_version from the manifest entry for the domain
+    (was hardcoded ``"0.2.json"``; manifest now carries per-entry versions).
+    Falls back to a minimal stub DomainResult when the manifest is absent,
+    the slug is not found, or the domain file cannot be loaded.
+
+    Manifest shape consulted::
+
+        {"domains": [
+            {"slug": "family", "analysis_version": "0.3", ...},
+            {"slug": "food",   "analysis_version": "0.2", ...},
+        ]}
     """
     import logging  # noqa: PLC0415
 
@@ -502,7 +512,20 @@ def _load_domain_result_for_trigger(trigger: SocialTrigger) -> Any:
     if not domain_slug:
         return _make_stub_domain_result(domain_slug)
 
-    domain_file = data_dir / domain_slug / "0.2.json"
+    # Derive analysis_version from manifest
+    analysis_version = "0.2"  # safe fallback if manifest is absent or slug not found
+    manifest_path = data_dir / "manifest.json"
+    if manifest_path.exists():
+        try:
+            manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+            for entry in manifest.get("domains", []):
+                if isinstance(entry, dict) and entry.get("slug") == domain_slug:
+                    analysis_version = entry.get("analysis_version", analysis_version)
+                    break
+        except Exception as exc:
+            logger.warning("Failed to read manifest for analysis_version lookup: %s", exc)
+
+    domain_file = data_dir / domain_slug / f"{analysis_version}.json"
     if not domain_file.exists():
         logger.warning(
             "Domain file not found: %s — using stub DomainResult", domain_file

@@ -112,15 +112,46 @@ def _load_manifest(data_dir: Path) -> dict[str, Any]:
 def _load_domain_results(data_dir: Path, manifest: dict[str, Any]) -> list[Any]:
     """Load DomainResult objects from published data files.
 
-    For each domain in manifest, attempts to load data/{domain}/0.2.json.
-    Silently skips domains whose file is absent or unparseable.
+    Iterates ``manifest["domains"]`` as a LIST of dicts, each with keys
+    ``slug`` and ``analysis_version``.  For each entry, loads
+    ``data_dir/{slug}/{analysis_version}.json``.  Silently skips entries
+    whose file is absent or unparseable.
+
+    Manifest shape (current)::
+
+        {"domains": [
+            {"slug": "family", "analysis_version": "0.3", "model_ids": [...], ...},
+            {"slug": "food",   "analysis_version": "0.2", "model_ids": [...], ...},
+        ]}
+
+    Defensive handling:
+    - If ``domains`` is not a list, logs a warning and returns ``[]``.
+    - If an entry is missing ``slug`` or ``analysis_version``, logs a warning
+      and skips that entry (no crash).
+    - Missing file → debug-log + skip.
+    - Unparseable file → warning-log + skip.
     """
     from cdb_core.schemas import DomainResult  # noqa: PLC0415
 
     domain_results: list[DomainResult] = []
-    domains: dict[str, Any] = manifest.get("domains", {})
-    for domain_slug in domains:
-        domain_file = data_dir / domain_slug / "0.2.json"
+    domains_raw = manifest.get("domains", [])
+    if not isinstance(domains_raw, list):
+        logger.warning(
+            "manifest 'domains' field is not a list (got %s) — skipping domain load",
+            type(domains_raw).__name__,
+        )
+        return domain_results
+
+    for entry in domains_raw:
+        domain_slug = entry.get("slug") if isinstance(entry, dict) else None
+        analysis_version = entry.get("analysis_version") if isinstance(entry, dict) else None
+        if not domain_slug or not analysis_version:
+            logger.warning(
+                "manifest domains entry missing 'slug' or 'analysis_version': %r — skipping",
+                entry,
+            )
+            continue
+        domain_file = data_dir / domain_slug / f"{analysis_version}.json"
         if not domain_file.exists():
             logger.debug("Domain file not found: %s", domain_file)
             continue

@@ -231,8 +231,13 @@ def bootstrap_state(
     Args:
         state_dir:      Path to ``out/social/state/``.
         manifest:       The current ``apps/dashboard/public/data/manifest.json``
-                        as a dict.  Expected shape:
-                        ``{"domains": {domain_slug: {"models": [model_id, ...]}}}``
+                        as a dict.  Expected shape (list of dicts)::
+
+                            {"domains": [
+                                {"slug": "family", "analysis_version": "0.3",
+                                 "model_ids": [...], ...},
+                            ]}
+
         domain_results: All current DomainResult objects from the published
                         results store.  Used to seed divergence_highs.json.
     """
@@ -240,10 +245,15 @@ def bootstrap_state(
     state_dir.mkdir(parents=True, exist_ok=True)
 
     # ── seen_models.json ──────────────────────────────────────────────────────
-    domains_map: dict[str, Any] = manifest.get("domains", {})
+    domains_list: list[Any] = manifest.get("domains", [])
     seen_models: dict[str, list[str]] = {}
-    for domain_slug, domain_info in domains_map.items():
-        seen_models[domain_slug] = list(domain_info.get("models", []))
+    for entry in domains_list:
+        if not isinstance(entry, dict):
+            continue
+        slug = entry.get("slug")
+        if not slug:
+            continue
+        seen_models[slug] = list(entry.get("model_ids", []))
     _atomic_write_json(
         state_dir / "seen_models.json",
         {"bootstrapped_at": now_iso, "domains": seen_models},
@@ -252,7 +262,10 @@ def bootstrap_state(
     # ── seen_domains.json ─────────────────────────────────────────────────────
     _atomic_write_json(
         state_dir / "seen_domains.json",
-        {"bootstrapped_at": now_iso, "domains": list(domains_map.keys())},
+        {
+            "bootstrapped_at": now_iso,
+            "domains": [e["slug"] for e in domains_list if isinstance(e, dict) and e.get("slug")],
+        },
     )
 
     # ── divergence_highs.json ─────────────────────────────────────────────────
@@ -305,8 +318,13 @@ def detect_new_model(
 
     Args:
         manifest:   The current ``apps/dashboard/public/data/manifest.json``
-                    as a dict.  Expected shape:
-                    ``{"domains": {domain_slug: {"models": [model_id, ...]}}}``
+                    as a dict.  Expected shape (list of dicts)::
+
+                        {"domains": [
+                            {"slug": "family", "analysis_version": "0.3",
+                             "model_ids": [...], ...},
+                        ]}
+
         state_dir:  Path to ``out/social/state/``.
 
     Returns:
@@ -317,6 +335,10 @@ def detect_new_model(
         EvidenceContractError: if evidence construction fails the contract.
 
     Evidence payload per trigger: ``{"first_seen_in_domain": domain_slug}``.
+
+    Note: the INTERNAL state-file format under ``seen_models.json`` is
+    unchanged — ``{"domains": {slug: [model_ids]}}`` dict-keyed.  Only
+    the manifest READ changes (list → per-entry ``model_ids`` field).
     """
     state_path = state_dir / "seen_models.json"
     state = _read_state_file(state_path)
@@ -325,9 +347,14 @@ def detect_new_model(
     triggers: list[SocialTrigger] = []
     new_seen = {k: list(v) for k, v in seen.items()}
 
-    domains_in_manifest: dict[str, Any] = manifest.get("domains", {})
-    for domain_slug, domain_info in domains_in_manifest.items():
-        current_models: list[str] = list(domain_info.get("models", []))
+    domains_in_manifest: list[Any] = manifest.get("domains", [])
+    for entry in domains_in_manifest:
+        if not isinstance(entry, dict):
+            continue
+        domain_slug = entry.get("slug")
+        if not domain_slug:
+            continue
+        current_models: list[str] = list(entry.get("model_ids", []))
         prior_models: set[str] = set(seen.get(domain_slug, []))
         for model_id in current_models:
             if model_id not in prior_models:
@@ -370,7 +397,13 @@ def detect_new_domain(
 
     Args:
         manifest:   The current ``apps/dashboard/public/data/manifest.json``
-                    as a dict.
+                    as a dict.  Expected shape (list of dicts)::
+
+                        {"domains": [
+                            {"slug": "family", "analysis_version": "0.3",
+                             "n_models": 15, "model_ids": [...], ...},
+                        ]}
+
         state_dir:  Path to ``out/social/state/``.
 
     Returns:
@@ -390,10 +423,15 @@ def detect_new_domain(
     triggers: list[SocialTrigger] = []
     new_seen = list(seen_domains)
 
-    domains_in_manifest: dict[str, Any] = manifest.get("domains", {})
-    for domain_slug, domain_info in domains_in_manifest.items():
+    domains_in_manifest: list[Any] = manifest.get("domains", [])
+    for entry in domains_in_manifest:
+        if not isinstance(entry, dict):
+            continue
+        domain_slug = entry.get("slug")
+        if not domain_slug:
+            continue
         if domain_slug not in seen_domains:
-            n_models = len(domain_info.get("models", []))
+            n_models = entry.get("n_models") or len(entry.get("model_ids", []))
             evidence: dict[str, Any] = {
                 "domain_slug": domain_slug,
                 "n_models": n_models,
