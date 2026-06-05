@@ -733,21 +733,20 @@ class TestLoadDomainResultsListShape:
     def test_loads_two_domains_on_different_versions(self, tmp_path: Path) -> None:
         """Anti-recurrence: two entries with DIFFERENT analysis_versions both load.
 
-        This proves per-entry version derivation.  If Task A is reverted to
-        a hardcoded '0.2.json' path, the family domain (version '0.3') will
-        not load, causing this assertion to fail.
+        This proves per-entry version derivation.  The publisher writes flat
+        versioned files: {slug}.v{version}.json (not nested {slug}/{version}.json).
+        If the loader reverts to the old nested form, the flat files will not
+        be found and this assertion will fail.
         """
         data_dir = tmp_path / "data"
         data_dir.mkdir()
 
-        # Write matching domain result files
-        (data_dir / "family").mkdir()
-        (data_dir / "family" / "0.3.json").write_text(
+        # Write flat versioned files matching the publisher output (build.py:322-323)
+        (data_dir / "family.v0.3.json").write_text(
             _make_domain_result_json("family", "0.3", "fixture-alpha"),
             encoding="utf-8",
         )
-        (data_dir / "food").mkdir()
-        (data_dir / "food" / "0.2.json").write_text(
+        (data_dir / "food.v0.2.json").write_text(
             _make_domain_result_json("food", "0.2", "fixture-beta"),
             encoding="utf-8",
         )
@@ -816,8 +815,7 @@ class TestLoadDomainResultsListShape:
         """Entry missing 'slug' key is skipped without crashing."""
         data_dir = tmp_path / "data"
         data_dir.mkdir()
-        (data_dir / "family").mkdir()
-        (data_dir / "family" / "0.3.json").write_text(
+        (data_dir / "family.v0.3.json").write_text(
             _make_domain_result_json("family", "0.3"),
             encoding="utf-8",
         )
@@ -840,6 +838,140 @@ class TestLoadDomainResultsListShape:
         results = _load_domain_results(data_dir, manifest)
         assert len(results) == 1
         assert results[0].domain_slug == "family"
+
+
+class TestLoadDomainResultsFlatFilenames:
+    """Unit tests for the T1 flat-filename fix in _load_domain_results.
+
+    The publisher writes ``{slug}.v{version}.json`` and ``{slug}.json`` to a flat
+    directory.  The old nested ``{slug}/{version}.json`` path was never produced
+    by the publisher and has been removed.  These tests confirm the flat form is
+    required, the unversioned fallback works, and the startup INFO log fires.
+    """
+
+    def test_versioned_flat_file_loads(self, tmp_path: Path) -> None:
+        """Primary path: {slug}.v{version}.json is loaded."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        (data_dir / "family.v0.3.json").write_text(
+            _make_domain_result_json("family", "0.3"),
+            encoding="utf-8",
+        )
+        manifest = {
+            "domains": [
+                {"slug": "family", "analysis_version": "0.3", "model_ids": ["m"]},
+            ]
+        }
+        results = _load_domain_results(data_dir, manifest)
+        assert len(results) == 1
+        assert results[0].domain_slug == "family"
+        assert results[0].analysis_version == "0.3"
+
+    def test_nested_file_not_found(self, tmp_path: Path) -> None:
+        """Old nested form {slug}/{version}.json is NOT loaded (returns empty)."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # Write OLD nested form — loader must NOT find it
+        nested = data_dir / "family"
+        nested.mkdir()
+        (nested / "0.3.json").write_text(
+            _make_domain_result_json("family", "0.3"),
+            encoding="utf-8",
+        )
+        manifest = {
+            "domains": [
+                {"slug": "family", "analysis_version": "0.3", "model_ids": ["m"]},
+            ]
+        }
+        results = _load_domain_results(data_dir, manifest)
+        assert results == [], (
+            "Nested {slug}/{version}.json must NOT be loaded; "
+            "loader should only read flat files."
+        )
+
+    def test_unversioned_fallback_loads_and_warns(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """When versioned file absent, falls back to {slug}.json + logs WARNING."""
+        import logging
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        # Only unversioned canonical
+        (data_dir / "family.json").write_text(
+            _make_domain_result_json("family", "0.3"),
+            encoding="utf-8",
+        )
+        manifest = {
+            "domains": [
+                {"slug": "family", "analysis_version": "0.3", "model_ids": ["m"]},
+            ]
+        }
+        with caplog.at_level(logging.WARNING, logger="cdb_social.cli"):
+            results = _load_domain_results(data_dir, manifest)
+
+        assert len(results) == 1, "Fallback to unversioned file must succeed"
+        assert results[0].domain_slug == "family"
+        assert any(
+            "falling back to unversioned" in r.message for r in caplog.records
+        ), "Expected WARNING about falling back to unversioned file"
+
+    def test_both_absent_skipped(self, tmp_path: Path) -> None:
+        """Both versioned and unversioned absent → entry skipped, returns []."""
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+        manifest = {
+            "domains": [
+                {"slug": "family", "analysis_version": "0.3", "model_ids": ["m"]},
+            ]
+        }
+        results = _load_domain_results(data_dir, manifest)
+        assert results == []
+
+    def test_startup_info_log_fires_in_cmd_detect(
+        self,
+        tmp_path: Path,
+        monkeypatch: pytest.MonkeyPatch,
+        caplog: pytest.LogCaptureFixture,
+    ) -> None:
+        """cmd_detect logs 'loaded N domain result(s) from <data_dir>' at INFO level.
+
+        This is the operational guard against the green-but-empty failure mode:
+        if the log shows 'loaded 0 domain result(s)' the operator knows loading
+        silently failed even though cron returned 0.
+        """
+        import logging
+
+        state_dir = _setup_state_dir(tmp_path)
+        data_dir = _setup_data_dir(tmp_path)
+        queue_root = _setup_queue_root(tmp_path)
+
+        # Write the flat versioned file that _setup_data_dir's manifest references
+        (data_dir / "family.v0.3.json").write_text(
+            _make_domain_result_json("family", "0.3"),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        with caplog.at_level(logging.INFO, logger="cdb_social.cli"), \
+             patch("cdb_social.cli.detect_new_model", return_value=[]), \
+             patch("cdb_social.cli.detect_new_domain", return_value=[]), \
+             patch("cdb_social.cli.detect_drift", return_value=[]), \
+             patch("cdb_social.cli.detect_divergence", return_value=[]), \
+             patch("cdb_social.cli.detect_monthly_roundup", return_value=[]):
+            result = main(["detect", "--dry-run"])
+
+        assert result == 0
+        assert any(
+            "loaded" in r.message and "domain result" in r.message
+            for r in caplog.records
+        ), (
+            "Expected INFO log 'loaded N domain result(s) from <dir>'. "
+            "This is the anti-silent-failure guard introduced in T1."
+        )
 
 
 class TestDetectNewModelReadsModelIds:
@@ -948,7 +1080,11 @@ class TestE2EManifestListShapeDetect:
     """
 
     def _build_data_dir(self, tmp_path: Path) -> Path:
-        """Write production-shaped manifest + two domain result files."""
+        """Write production-shaped manifest + two domain result files.
+
+        Files are written in the flat versioned form the publisher produces:
+        {slug}.v{version}.json (not the old nested {slug}/{version}.json).
+        """
         data_dir = tmp_path / "data"
         data_dir.mkdir()
 
@@ -974,13 +1110,12 @@ class TestE2EManifestListShapeDetect:
             json.dumps(manifest), encoding="utf-8"
         )
 
-        (data_dir / "family").mkdir()
-        (data_dir / "family" / "0.3.json").write_text(
+        # Flat versioned filenames — matches publisher output (build.py lines 322-323)
+        (data_dir / "family.v0.3.json").write_text(
             _make_domain_result_json("family", "0.3", "fixture-alpha"),
             encoding="utf-8",
         )
-        (data_dir / "food").mkdir()
-        (data_dir / "food" / "0.2.json").write_text(
+        (data_dir / "food.v0.2.json").write_text(
             _make_domain_result_json("food", "0.2", "fixture-beta"),
             encoding="utf-8",
         )

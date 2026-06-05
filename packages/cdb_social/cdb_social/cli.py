@@ -113,9 +113,22 @@ def _load_domain_results(data_dir: Path, manifest: dict[str, Any]) -> list[Any]:
     """Load DomainResult objects from published data files.
 
     Iterates ``manifest["domains"]`` as a LIST of dicts, each with keys
-    ``slug`` and ``analysis_version``.  For each entry, loads
-    ``data_dir/{slug}/{analysis_version}.json``.  Silently skips entries
-    whose file is absent or unparseable.
+    ``slug`` and ``analysis_version``.  For each entry, attempts to load the
+    FLAT versioned file written by the publisher:
+
+        ``data_dir/{slug}.v{analysis_version}.json``
+
+    If the versioned file is absent, falls back to the unversioned canonical
+    alias the publisher also writes:
+
+        ``data_dir/{slug}.json``
+
+    and logs a WARNING (versioned form missing — old publish without versioned
+    copy).  Silently skips entries whose files are both absent or unparseable.
+
+    The publisher (``cdb_publish/build.py`` lines 319-323) writes exactly these
+    two forms; the old nested ``data_dir/{slug}/{analysis_version}.json`` path
+    was never produced by the publisher and has been removed.
 
     Manifest shape (current)::
 
@@ -128,7 +141,8 @@ def _load_domain_results(data_dir: Path, manifest: dict[str, Any]) -> list[Any]:
     - If ``domains`` is not a list, logs a warning and returns ``[]``.
     - If an entry is missing ``slug`` or ``analysis_version``, logs a warning
       and skips that entry (no crash).
-    - Missing file → debug-log + skip.
+    - Versioned file absent + unversioned absent → debug-log + skip.
+    - Versioned file absent + unversioned present → warning-log + load unversioned.
     - Unparseable file → warning-log + skip.
     """
     from cdb_core.schemas import DomainResult  # noqa: PLC0415
@@ -151,10 +165,31 @@ def _load_domain_results(data_dir: Path, manifest: dict[str, Any]) -> list[Any]:
                 entry,
             )
             continue
-        domain_file = data_dir / domain_slug / f"{analysis_version}.json"
-        if not domain_file.exists():
-            logger.debug("Domain file not found: %s", domain_file)
+
+        # Primary: flat versioned filename (publisher canonical form)
+        versioned_file = data_dir / f"{domain_slug}.v{analysis_version}.json"
+        # Fallback: unversioned canonical alias
+        unversioned_file = data_dir / f"{domain_slug}.json"
+
+        if versioned_file.exists():
+            domain_file = versioned_file
+        elif unversioned_file.exists():
+            logger.warning(
+                "Versioned domain file not found: %s — "
+                "falling back to unversioned %s (publish may pre-date versioned output)",
+                versioned_file,
+                unversioned_file,
+            )
+            domain_file = unversioned_file
+        else:
+            logger.debug(
+                "Domain files not found for %r (tried %s and %s)",
+                domain_slug,
+                versioned_file,
+                unversioned_file,
+            )
             continue
+
         try:
             raw = json.loads(domain_file.read_text(encoding="utf-8"))
             domain_results.append(DomainResult.model_validate(raw))
@@ -303,6 +338,11 @@ def cmd_detect(args: argparse.Namespace) -> int:
     # Step 1: load data
     manifest = _load_manifest(data_dir)
     domain_results = _load_domain_results(data_dir, manifest)
+    logger.info(
+        "loaded %d domain result(s) from %s",
+        len(domain_results),
+        data_dir,
+    )
 
     # Step 2: run detectors
     # detect_new_model MUST run before detect_divergence (ordering constraint)
