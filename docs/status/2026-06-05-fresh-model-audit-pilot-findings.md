@@ -9,8 +9,8 @@ First run of the process in `docs/proposed/2026-06-05-fresh-model-audit-runbook.
 
 ## Triaged backlog
 **P0 — fix now:**
-- **T1** complete the social-cron fix. Read FLAT: `cli.py:154` → `data_dir/f"{slug}.v{version}.json"`, fallback `{slug}.json`+warn, add "loaded N domains" startup log. Do NOT point at `data/results/` (analyst intermediate). Gates: Reviewer+Tester. Writer contract: `build.py:316-323`.
-- **T2** admin trigger source. The file read never held triggers. **DECISION NEEDED (Mark):** Option A (read from `queue/triggered/` via queue.py helpers — recommended, also retires T13/M6) vs Option B (cron writes a new `triggers.json`). Gates: Reviewer+Tester (UI/UX only if empty-state copy changes).
+- **T1 — DONE (`cabc036`, Reviewer PASS-WITH-NOTES).** completed the social-cron fix. Reads FLAT `data_dir/{slug}.v{version}.json` (fallback `{slug}.json`+warn), added "loaded N domain result(s)" startup guard log. Verified live: `detect --dry-run` logs "loaded 3 domain result(s)" (was silently 0).
+- **T2 — DONE (`2cd8bf5`, Reviewer PASS-WITH-NOTES).** admin trigger source. Investigation found the trigger DICTS were never persisted at all (cmd_detect emailed them, saved only dedupe-key strings) and there was no `queue/triggered/` dir — so the Architect's Option A rested on a non-existent path. **Mark chose: cron persists `detected_triggers.json`** (the post-dedupe `new_triggers`, on email-success path only — not dry-run; cleared to `{"triggers":[]}` on zero-trigger days); admin reads that. ALSO fixed the same flat-vs-nested path bug in `routes.py:_load_domain_result_for_trigger` (was loading a STUB) via a shared `published_domain_file()` helper. Verified: admin trigger now loads real family data (15 models), was empty stub.
 
 **P1 — next batch:**
 - **T3** fix `--font-size-md` → UI/UX picks token (likely base/lg) → Coder. Add audit grep `var(--font-size-(?!xs|sm|base|lg|xl|2xl|3xl)`.
