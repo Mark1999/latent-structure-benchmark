@@ -39,6 +39,7 @@ from flask import (
     url_for,
 )
 
+from cdb_social.cli import published_domain_file
 from cdb_social.digest import format_trigger_summary
 from cdb_social.drafters.base import DrafterRejectedException
 from cdb_social.drafters.bluesky import BlueskyDrafter
@@ -134,13 +135,21 @@ def _get_queue_counts(queue_root: Path) -> dict[str, int]:
 
 
 def _load_detected_triggers(state_dir: Path) -> list[SocialTrigger]:
-    """Load detected triggers from emailed_dedupe_keys.json + queue state.
+    """Load detected triggers from detected_triggers.json.
 
-    Detected triggers are those in emailed_dedupe_keys.json that have not yet
-    been drafted (i.e., not yet in the posted_dedupe_keys.json and not already
-    in the queue as a pending/approved draft).
+    The file is written by ``cmd_detect`` in ``cdb_social/cli.py`` after a
+    successful digest email send.  Shape::
+
+        {"triggers": [<SocialTrigger model_dump>, ...]}
+
+    Returns an empty list if the file is absent (no detect run yet) or
+    unparseable (defensive — never crash the admin console on bad state).
+
+    Note: ``emailed_dedupe_keys.json`` stores only dedupe-key strings
+    (``{"keys": [...]}``) — it never held trigger dicts.  The source of truth
+    for displayable trigger objects is ``detected_triggers.json``.
     """
-    triggers_path = state_dir / "emailed_dedupe_keys.json"
+    triggers_path = state_dir / "detected_triggers.json"
     if not triggers_path.exists():
         return []
 
@@ -149,9 +158,6 @@ def _load_detected_triggers(state_dir: Path) -> list[SocialTrigger]:
     except (json.JSONDecodeError, OSError):
         return []
 
-    # emailed_dedupe_keys.json has the shape {"keys": [..., ...]} where each
-    # entry is a dedupe_key string, OR a list of trigger dicts.
-    # T6a stores it as a list of trigger dicts for display purposes.
     raw_triggers = data.get("triggers", [])
     triggers: list[SocialTrigger] = []
     for raw in raw_triggers:
@@ -493,8 +499,16 @@ def _load_domain_result_for_trigger(trigger: SocialTrigger) -> Any:
 
     Derives the analysis_version from the manifest entry for the domain
     (was hardcoded ``"0.2.json"``; manifest now carries per-entry versions).
-    Falls back to a minimal stub DomainResult when the manifest is absent,
-    the slug is not found, or the domain file cannot be loaded.
+    Delegates path resolution to :func:`cdb_social.cli.published_domain_file`
+    which checks flat paths only:
+
+    1. ``data_dir/{slug}.v{version}.json``  — primary (publisher canonical)
+    2. ``data_dir/{slug}.json``             — fallback (unversioned alias)
+
+    The old nested ``data_dir/{slug}/{version}.json`` path is never checked —
+    the publisher never wrote it.  Falls back to a minimal stub DomainResult
+    when the manifest is absent, the slug is not found, both flat files are
+    absent, or the domain file cannot be parsed.
 
     Manifest shape consulted::
 
@@ -525,10 +539,16 @@ def _load_domain_result_for_trigger(trigger: SocialTrigger) -> Any:
         except Exception as exc:
             logger.warning("Failed to read manifest for analysis_version lookup: %s", exc)
 
-    domain_file = data_dir / domain_slug / f"{analysis_version}.json"
-    if not domain_file.exists():
+    # Resolve using the same flat-path logic as cli._load_domain_results.
+    # Primary: data_dir/{slug}.v{version}.json  (publisher canonical form)
+    # Fallback: data_dir/{slug}.json            (unversioned alias, warns if used)
+    # Never the old nested data_dir/{slug}/{version}.json — publisher never wrote it.
+    domain_file = published_domain_file(data_dir, domain_slug, analysis_version)
+    if domain_file is None:
         logger.warning(
-            "Domain file not found: %s — using stub DomainResult", domain_file
+            "Domain file not found for %r (version %s) — using stub DomainResult",
+            domain_slug,
+            analysis_version,
         )
         return _make_stub_domain_result(domain_slug)
 

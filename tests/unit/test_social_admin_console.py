@@ -102,13 +102,18 @@ def _make_draft(
     )
 
 
-def _write_emailed_keys(state_dir: Path, triggers: list[SocialTrigger]) -> None:
-    """Write emailed_dedupe_keys.json with trigger data."""
+def _write_detected_triggers(state_dir: Path, triggers: list[SocialTrigger]) -> None:
+    """Write detected_triggers.json — the source read by _load_detected_triggers.
+
+    cmd_detect writes this file after a successful digest send.  Tests use this
+    helper to pre-populate the admin console's trigger list without running
+    cmd_detect (which would need state files and email config).
+    """
     state_dir.mkdir(parents=True, exist_ok=True)
     data = {
         "triggers": [json.loads(t.model_dump_json()) for t in triggers],
     }
-    (state_dir / "emailed_dedupe_keys.json").write_text(
+    (state_dir / "detected_triggers.json").write_text(
         json.dumps(data, indent=2), encoding="utf-8"
     )
 
@@ -243,7 +248,7 @@ class TestTriggersList:
         self, client, tmp_state_dir: Path
     ) -> None:
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get("/triggers")
         html = rv.data.decode("utf-8")
         assert "Draft via LLM" in html
@@ -252,7 +257,7 @@ class TestTriggersList:
         self, client, tmp_state_dir: Path
     ) -> None:
         trigger = _make_trigger(trigger_type=TriggerType.DIVERGENCE)
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get("/triggers")
         html = rv.data.decode("utf-8")
         # DIVERGENCE summary uses "max pairwise distance" (binding wording)
@@ -262,7 +267,7 @@ class TestTriggersList:
         self, client, tmp_state_dir: Path
     ) -> None:
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get("/triggers")
         html = rv.data.decode("utf-8").lower()
         assert "state of cultural alignment" not in html
@@ -281,7 +286,7 @@ class TestDraftRequestFlow:
         self, client, tmp_state_dir: Path
     ) -> None:
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get(
             f"/triggers/{trigger.dedupe_key}/draft?platform=bluesky"
         )
@@ -298,7 +303,7 @@ class TestDraftRequestFlow:
     ) -> None:
         """Confirmation page must not display token count per R14."""
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get(
             f"/triggers/{trigger.dedupe_key}/draft?platform=bluesky"
         )
@@ -311,7 +316,7 @@ class TestDraftRequestFlow:
         self, client, tmp_state_dir: Path, tmp_queue_root: Path
     ) -> None:
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
 
         draft = _make_draft(trigger=trigger)
         mock_drafter = MagicMock()
@@ -346,7 +351,7 @@ class TestDraftRequestFlow:
         self, client, tmp_state_dir: Path, tmp_queue_root: Path
     ) -> None:
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         draft = _make_draft(trigger=trigger)
         mock_drafter = MagicMock()
         mock_drafter.draft.return_value = draft
@@ -374,7 +379,7 @@ class TestDraftRequestFlow:
     def test_post_unknown_trigger_returns_404(
         self, client, tmp_state_dir: Path
     ) -> None:
-        _write_emailed_keys(tmp_state_dir, [])
+        _write_detected_triggers(tmp_state_dir, [])
         rv = client.get("/triggers/nonexistent0000/draft?platform=bluesky")
         assert rv.status_code == 404
 
@@ -393,7 +398,7 @@ class TestDraftRequestWithDrafterReject:
         from cdb_social.drafters.base import DrafterRejectedException
 
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         mock_drafter = MagicMock()
         mock_drafter.draft.side_effect = DrafterRejectedException(
             "Draft rejected: forbidden vocab",
@@ -432,7 +437,7 @@ class TestDraftRequestWithDrafterReject:
         from cdb_social.drafters.base import DrafterRejectedException
 
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         mock_drafter = MagicMock()
         mock_drafter.draft.side_effect = DrafterRejectedException(
             "rejected",
@@ -468,7 +473,7 @@ class TestDraftRequestWithDrafterReject:
         from cdb_social.drafters.base import DrafterRejectedException
 
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         mock_drafter = MagicMock()
         mock_drafter.draft.side_effect = DrafterRejectedException(
             "rejected",
@@ -873,7 +878,7 @@ class TestCSRFProtection:
         self, client, tmp_state_dir: Path
     ) -> None:
         trigger = _make_trigger()
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.post(
             f"/triggers/{trigger.dedupe_key}/draft?platform=bluesky",
             data={},
@@ -931,7 +936,7 @@ class TestForbiddenVocabAbsent:
                 "date_pair": ["2026-04-01", "2026-05-01"],
             }, dedupe_key="driftkey12345678"),
         ]
-        _write_emailed_keys(tmp_state_dir, triggers)
+        _write_detected_triggers(tmp_state_dir, triggers)
         rv = client.get("/triggers")
         self._check_html(rv.data.decode("utf-8"))
 
@@ -988,7 +993,7 @@ class TestBindingWordingPresent:
             },
             dedupe_key="divrgkey12345678",
         )
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get("/triggers")
         html = rv.data.decode("utf-8")
         assert "max pairwise distance" in html
@@ -1006,7 +1011,7 @@ class TestBindingWordingPresent:
             },
             dedupe_key="driftkey123456789",
         )
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get("/triggers")
         html = rv.data.decode("utf-8")
         assert "Procrustes distance" in html
@@ -1024,7 +1029,7 @@ class TestBindingWordingPresent:
             },
             dedupe_key="driftkey1234abcde",
         )
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get("/triggers")
         html = rv.data.decode("utf-8")
         assert "threshold 0.15 placeholder" in html
@@ -1039,7 +1044,7 @@ class TestBindingWordingPresent:
             evidence={"month": "2026-05"},
             dedupe_key="monthlykey1234567",
         )
-        _write_emailed_keys(tmp_state_dir, [trigger])
+        _write_detected_triggers(tmp_state_dir, [trigger])
         rv = client.get("/triggers")
         html = rv.data.decode("utf-8")
         assert "Monthly cross-domain categorical-structure roundup" in html
@@ -1056,3 +1061,266 @@ class TestBindingWordingPresent:
         assert "cognition_attribution" in html
         assert "bare_numeric_without_ci" in html
         assert "register_boundary" in html
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestLoadDomainResultForTrigger (T2 nested-path fix)
+#
+# _load_domain_result_for_trigger previously constructed a NESTED path:
+#   data_dir / domain_slug / f"{analysis_version}.json"
+# The publisher never writes that form; it writes flat versioned files:
+#   data_dir / f"{slug}.v{version}.json"     (primary)
+#   data_dir / f"{slug}.json"                (unversioned fallback)
+# So the old code always fell through to _make_stub_domain_result, meaning
+# every admin draft was based on stub data rather than real domain results.
+#
+# These tests call _load_domain_result_for_trigger directly (no Flask client,
+# no drafter mocks) to confirm it now loads the real flat-published file.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _make_minimal_domain_result_json(domain_slug: str, analysis_version: str) -> str:
+    """Return a minimal DomainResult JSON string for test fixtures."""
+    from datetime import date  # noqa: PLC0415
+
+    from cdb_core.schemas import BootstrapEllipse, DomainResult, FreeList, ModelRef  # noqa: PLC0415
+
+    model_id = "fixture-routes-model"
+    m = ModelRef(
+        provider="anthropic",
+        model_id=model_id,
+        family="fixture",
+        origin="us",
+        open_weights=False,
+        collection_method="anthropic_api",
+        quantization=None,
+        release_date=date(2026, 1, 1),
+        version_label="1.0",
+    )
+    dr = DomainResult(
+        domain_slug=domain_slug,
+        analysis_version=analysis_version,
+        models=[m],
+        free_lists={
+            model_id: FreeList(
+                run_id="fixture_run_routes",
+                model=m,
+                domain_slug=domain_slug,
+                items=["item-a", "item-b", "item-c"],
+                raw_order=["item-a", "item-b", "item-c"],
+            )
+        },
+        mds_coordinates={model_id: (0.1, 0.2)},
+        mds_uncertainty={
+            model_id: BootstrapEllipse(
+                center=(0.1, 0.2),
+                semi_major=0.12,
+                semi_minor=0.06,
+                rotation_rad=0.0,
+                n_bootstrap=100,
+            )
+        },
+        similarity_matrix=[[1.0]],
+        similarity_ci=[[(0.9, 1.0)]],
+        consensus_score=3.5,
+        consensus_ci=(2.5, 4.5),
+        groundings=[],
+        selected_baseline_id=None,
+        generated_lede="Routes fixture lede.",
+        generated_at=datetime(2026, 5, 17, 12, 0, 0),
+    )
+    return dr.model_dump_json()
+
+
+class TestLoadDomainResultForTrigger:
+    """Unit tests for routes._load_domain_result_for_trigger — T2 flat-path fix.
+
+    Anti-recurrence gate: the old code built ``data_dir / slug / version.json``
+    (nested) which the publisher never writes.  These tests confirm that the
+    function now loads real data from the flat publisher paths and returns a
+    DomainResult with actual model content, not the stub's empty lists.
+    """
+
+    def test_loads_real_versioned_flat_file(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Primary path: {slug}.v{version}.json is loaded; result has real models.
+
+        If the nested-path bug is re-introduced, the flat file will not be found,
+        the function will fall back to the stub, and result.models == [] will fail.
+        """
+        from cdb_social.admin_console.routes import _load_domain_result_for_trigger  # noqa: PLC0415
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        # Write manifest so analysis_version is derived correctly
+        (data_dir / "manifest.json").write_text(
+            json.dumps({
+                "built_at": "2026-05-17T12:00:00Z",
+                "domains": [
+                    {
+                        "slug": "family",
+                        "analysis_version": "0.3",
+                        "model_ids": ["fixture-routes-model"],
+                    },
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        # Write FLAT versioned file — the only form the publisher produces
+        (data_dir / "family.v0.3.json").write_text(
+            _make_minimal_domain_result_json("family", "0.3"),
+            encoding="utf-8",
+        )
+
+        # Confirm old nested form does NOT exist (anti-recurrence context)
+        assert not (data_dir / "family" / "0.3.json").exists()
+
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+
+        trigger = _make_trigger(
+            trigger_type=TriggerType.DIVERGENCE,
+            domain_slug="family",
+            dedupe_key="routest001routes01",
+        )
+        result = _load_domain_result_for_trigger(trigger)
+
+        # Real file has one model; stub has models=[]
+        assert len(result.models) == 1, (
+            f"Expected 1 model from real domain file; got {len(result.models)}. "
+            "If this fails, _load_domain_result_for_trigger is still using "
+            "the old nested path and returning the stub."
+        )
+        assert result.domain_slug == "family"
+        assert result.analysis_version == "0.3"
+        assert result.models[0].model_id == "fixture-routes-model"
+
+    def test_nested_path_not_loaded(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Old nested form data_dir/{slug}/{version}.json is NOT loaded — returns stub.
+
+        Writing only the nested form (never produced by publisher) must result
+        in stub (models=[]), confirming the loader ignores the nested path.
+        """
+        from cdb_social.admin_console.routes import _load_domain_result_for_trigger  # noqa: PLC0415
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        (data_dir / "manifest.json").write_text(
+            json.dumps({
+                "built_at": "2026-05-17T12:00:00Z",
+                "domains": [
+                    {
+                        "slug": "family",
+                        "analysis_version": "0.3",
+                        "model_ids": ["fixture-routes-model"],
+                    },
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        # Write ONLY nested form — should be invisible to the fixed loader
+        nested = data_dir / "family"
+        nested.mkdir()
+        (nested / "0.3.json").write_text(
+            _make_minimal_domain_result_json("family", "0.3"),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+
+        trigger = _make_trigger(
+            trigger_type=TriggerType.DIVERGENCE,
+            domain_slug="family",
+            dedupe_key="routest002routes02",
+        )
+        result = _load_domain_result_for_trigger(trigger)
+
+        # Stub has models=[] — confirms nested path ignored
+        assert result.models == [], (
+            "Expected stub (models=[]) when only nested form exists; "
+            "if this fails, the loader is reading the nested path — "
+            "the T2 flat-path fix may have been reverted."
+        )
+
+    def test_unversioned_fallback_returns_real_data(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """Fallback: {slug}.json (no versioned form) still loads real data, not stub."""
+        from cdb_social.admin_console.routes import _load_domain_result_for_trigger  # noqa: PLC0415
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        (data_dir / "manifest.json").write_text(
+            json.dumps({
+                "built_at": "2026-05-17T12:00:00Z",
+                "domains": [
+                    {
+                        "slug": "family",
+                        "analysis_version": "0.3",
+                        "model_ids": ["fixture-routes-model"],
+                    },
+                ],
+            }),
+            encoding="utf-8",
+        )
+
+        # Write ONLY unversioned alias — versioned absent
+        (data_dir / "family.json").write_text(
+            _make_minimal_domain_result_json("family", "0.3"),
+            encoding="utf-8",
+        )
+
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+
+        trigger = _make_trigger(
+            trigger_type=TriggerType.DIVERGENCE,
+            domain_slug="family",
+            dedupe_key="routest003routes03",
+        )
+        result = _load_domain_result_for_trigger(trigger)
+
+        assert len(result.models) == 1, (
+            "Expected 1 model from unversioned fallback file; "
+            "got stub (models=[])."
+        )
+        assert result.models[0].model_id == "fixture-routes-model"
+
+    def test_both_absent_returns_stub(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """When both flat files are absent, stub DomainResult is returned."""
+        from cdb_social.admin_console.routes import _load_domain_result_for_trigger  # noqa: PLC0415
+
+        data_dir = tmp_path / "data"
+        data_dir.mkdir()
+
+        (data_dir / "manifest.json").write_text(
+            json.dumps({
+                "built_at": "2026-05-17T12:00:00Z",
+                "domains": [
+                    {"slug": "family", "analysis_version": "0.3", "model_ids": []},
+                ],
+            }),
+            encoding="utf-8",
+        )
+        # No domain file written — both versioned and unversioned absent
+
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+
+        trigger = _make_trigger(
+            trigger_type=TriggerType.DIVERGENCE,
+            domain_slug="family",
+            dedupe_key="routest004routes04",
+        )
+        result = _load_domain_result_for_trigger(trigger)
+
+        # Stub: models=[], analysis_version="0.2"
+        assert result.models == []
+        assert result.domain_slug == "family"

@@ -1187,3 +1187,186 @@ class TestE2EManifestListShapeDetect:
             "Both analysis_versions must be honoured (per-entry derivation). "
             "If this fails, _load_domain_results is using a hardcoded version."
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# TestDetectedTriggersFile (T2 fix)
+#
+# cmd_detect must persist trigger dicts to detected_triggers.json after a
+# successful email send so the admin console can display them and the
+# /triggers/{key}/draft route (sole pitfall-#17 LLM-call site) can find
+# the trigger object by dedupe_key.
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+from cdb_social.cli import _save_detected_triggers  # noqa: E402
+
+
+class TestSaveDetectedTriggers:
+    """Unit tests for _save_detected_triggers: round-trip + atomic write."""
+
+    def test_write_and_read_back_single_trigger(self, tmp_path: Path) -> None:
+        """Round-trip: written trigger dict is readable as SocialTrigger."""
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        trigger = _make_trigger(dedupe_key="t2test001t2test01")
+
+        _save_detected_triggers(state_dir, [trigger])
+
+        path = state_dir / "detected_triggers.json"
+        assert path.exists()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert "triggers" in data
+        raw_list = data["triggers"]
+        assert len(raw_list) == 1
+        rt = SocialTrigger.model_validate(raw_list[0])
+        assert rt.dedupe_key == trigger.dedupe_key
+        assert rt.trigger_type == trigger.trigger_type
+        assert rt.domain_slug == trigger.domain_slug
+        assert rt.model_id == trigger.model_id
+
+    def test_write_empty_list(self, tmp_path: Path) -> None:
+        """Empty trigger list writes {'triggers': []}."""
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        _save_detected_triggers(state_dir, [])
+
+        path = state_dir / "detected_triggers.json"
+        assert path.exists()
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert data == {"triggers": []}
+
+    def test_write_multiple_triggers(self, tmp_path: Path) -> None:
+        """Multiple triggers are all persisted and round-trip correctly."""
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        triggers = [
+            _make_trigger(dedupe_key="t2multi001t2m001a", model_id="model-a"),
+            _make_trigger(dedupe_key="t2multi002t2m002b", model_id="model-b"),
+            _make_trigger(
+                trigger_type=TriggerType.NEW_DOMAIN,
+                dedupe_key="t2multi003t2m003c",
+                domain_slug="holidays",
+                model_id=None,
+            ),
+        ]
+        _save_detected_triggers(state_dir, triggers)
+
+        path = state_dir / "detected_triggers.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert len(data["triggers"]) == 3
+        keys = {SocialTrigger.model_validate(r).dedupe_key for r in data["triggers"]}
+        assert keys == {t.dedupe_key for t in triggers}
+
+    def test_no_tmp_file_remains(self, tmp_path: Path) -> None:
+        """No .tmp file left after successful write (atomic write pattern)."""
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        _save_detected_triggers(state_dir, [_make_trigger()])
+        assert list(state_dir.glob("*.tmp")) == []
+
+    def test_overwrites_previous_file(self, tmp_path: Path) -> None:
+        """Second write replaces first (detected_triggers is always current run)."""
+        state_dir = tmp_path / "state"
+        state_dir.mkdir()
+        _save_detected_triggers(state_dir, [_make_trigger(dedupe_key="first1111first111")])
+        _save_detected_triggers(state_dir, [_make_trigger(dedupe_key="secon2222secon222")])
+
+        path = state_dir / "detected_triggers.json"
+        data = json.loads(path.read_text(encoding="utf-8"))
+        assert len(data["triggers"]) == 1
+        assert SocialTrigger.model_validate(data["triggers"][0]).dedupe_key == "secon2222secon222"
+
+
+class TestCmdDetectWritesDetectedTriggersFile:
+    """Integration tests: cmd_detect writes detected_triggers.json correctly."""
+
+    def test_detected_triggers_written_after_email_send(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """After a successful send, detected_triggers.json contains trigger dicts."""
+        state_dir = _setup_state_dir(tmp_path)
+        data_dir = _setup_data_dir(tmp_path)
+        queue_root = _setup_queue_root(tmp_path)
+
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+        monkeypatch.setenv("LSB_SMTP_USERNAME", "u@example.com")
+        monkeypatch.setenv("LSB_SMTP_PASSWORD", "pw")
+        monkeypatch.setenv("LSB_DIGEST_RECIPIENT", "r@example.com")
+
+        trigger = _make_trigger(dedupe_key="t2integ01t2integ1")
+
+        with patch("cdb_social.cli.detect_new_model", return_value=[trigger]), \
+             patch("cdb_social.cli.detect_new_domain", return_value=[]), \
+             patch("cdb_social.cli.detect_drift", return_value=[]), \
+             patch("cdb_social.cli.detect_divergence", return_value=[]), \
+             patch("cdb_social.cli.detect_monthly_roundup", return_value=[]), \
+             patch("cdb_social.cli.send_digest"):
+            result = main(["detect"])
+
+        assert result == 0
+        triggers_path = state_dir / "detected_triggers.json"
+        assert triggers_path.exists(), "detected_triggers.json not written after send"
+        data = json.loads(triggers_path.read_text(encoding="utf-8"))
+        assert "triggers" in data
+        assert len(data["triggers"]) == 1
+        rt = SocialTrigger.model_validate(data["triggers"][0])
+        assert rt.dedupe_key == trigger.dedupe_key
+
+    def test_dry_run_does_not_write_detected_triggers(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """--dry-run must NOT write detected_triggers.json (no side effects)."""
+        state_dir = _setup_state_dir(tmp_path)
+        data_dir = _setup_data_dir(tmp_path)
+        queue_root = _setup_queue_root(tmp_path)
+
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        trigger = _make_trigger(dedupe_key="t2dryrun1t2dryrn1")
+
+        with patch("cdb_social.cli.detect_new_model", return_value=[trigger]), \
+             patch("cdb_social.cli.detect_new_domain", return_value=[]), \
+             patch("cdb_social.cli.detect_drift", return_value=[]), \
+             patch("cdb_social.cli.detect_divergence", return_value=[]), \
+             patch("cdb_social.cli.detect_monthly_roundup", return_value=[]):
+            main(["detect", "--dry-run"])
+
+        triggers_path = state_dir / "detected_triggers.json"
+        assert not triggers_path.exists(), (
+            "detected_triggers.json must NOT be written on --dry-run"
+        )
+
+    def test_zero_trigger_day_clears_detected_triggers(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """On zero-trigger runs (no email sent), detected_triggers.json is cleared."""
+        state_dir = _setup_state_dir(tmp_path)
+        data_dir = _setup_data_dir(tmp_path)
+        queue_root = _setup_queue_root(tmp_path)
+
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        # Pre-populate detected_triggers.json with a stale trigger
+        _save_detected_triggers(state_dir, [_make_trigger(dedupe_key="stalekey00stale0")])
+
+        with patch("cdb_social.cli.detect_new_model", return_value=[]), \
+             patch("cdb_social.cli.detect_new_domain", return_value=[]), \
+             patch("cdb_social.cli.detect_drift", return_value=[]), \
+             patch("cdb_social.cli.detect_divergence", return_value=[]), \
+             patch("cdb_social.cli.detect_monthly_roundup", return_value=[]):
+            result = main(["detect"])
+
+        assert result == 0
+        triggers_path = state_dir / "detected_triggers.json"
+        assert triggers_path.exists()
+        data = json.loads(triggers_path.read_text(encoding="utf-8"))
+        assert data["triggers"] == [], (
+            "Zero-trigger run must clear detected_triggers.json"
+        )

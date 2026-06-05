@@ -109,26 +109,50 @@ def _load_manifest(data_dir: Path) -> dict[str, Any]:
         return {}
 
 
+def published_domain_file(data_dir: Path, slug: str, version: str) -> Path | None:
+    """Return the first existing published domain file path for *slug* / *version*.
+
+    The publisher (``cdb_publish/build.py`` lines 319-323) writes exactly two
+    flat forms to *data_dir*:
+
+    1. ``{slug}.v{version}.json``  — versioned canonical (primary)
+    2. ``{slug}.json``             — unversioned alias (fallback)
+
+    The old nested ``data_dir/{slug}/{version}.json`` path was never produced
+    by the publisher and is intentionally not checked here.
+
+    Returns the first path that exists, or ``None`` if both are absent.  Logs a
+    WARNING when the versioned form is absent but the unversioned fallback is
+    used (so operators notice old publishes without the versioned copy).
+
+    This helper is the single source of path-construction logic.  Both
+    ``_load_domain_results`` (cli.py) and
+    ``_load_domain_result_for_trigger`` (admin_console/routes.py) call it so
+    the flat-path rule is never duplicated.
+    """
+    versioned = data_dir / f"{slug}.v{version}.json"
+    unversioned = data_dir / f"{slug}.json"
+
+    if versioned.exists():
+        return versioned
+    if unversioned.exists():
+        logger.warning(
+            "Versioned domain file not found: %s — "
+            "falling back to unversioned %s (publish may pre-date versioned output)",
+            versioned,
+            unversioned,
+        )
+        return unversioned
+    return None
+
+
 def _load_domain_results(data_dir: Path, manifest: dict[str, Any]) -> list[Any]:
     """Load DomainResult objects from published data files.
 
     Iterates ``manifest["domains"]`` as a LIST of dicts, each with keys
-    ``slug`` and ``analysis_version``.  For each entry, attempts to load the
-    FLAT versioned file written by the publisher:
-
-        ``data_dir/{slug}.v{analysis_version}.json``
-
-    If the versioned file is absent, falls back to the unversioned canonical
-    alias the publisher also writes:
-
-        ``data_dir/{slug}.json``
-
-    and logs a WARNING (versioned form missing — old publish without versioned
-    copy).  Silently skips entries whose files are both absent or unparseable.
-
-    The publisher (``cdb_publish/build.py`` lines 319-323) writes exactly these
-    two forms; the old nested ``data_dir/{slug}/{analysis_version}.json`` path
-    was never produced by the publisher and has been removed.
+    ``slug`` and ``analysis_version``.  For each entry, delegates path
+    resolution to :func:`published_domain_file` (flat versioned primary, flat
+    unversioned fallback — never the old nested form).
 
     Manifest shape (current)::
 
@@ -166,27 +190,14 @@ def _load_domain_results(data_dir: Path, manifest: dict[str, Any]) -> list[Any]:
             )
             continue
 
-        # Primary: flat versioned filename (publisher canonical form)
-        versioned_file = data_dir / f"{domain_slug}.v{analysis_version}.json"
-        # Fallback: unversioned canonical alias
-        unversioned_file = data_dir / f"{domain_slug}.json"
-
-        if versioned_file.exists():
-            domain_file = versioned_file
-        elif unversioned_file.exists():
-            logger.warning(
-                "Versioned domain file not found: %s — "
-                "falling back to unversioned %s (publish may pre-date versioned output)",
-                versioned_file,
-                unversioned_file,
-            )
-            domain_file = unversioned_file
-        else:
+        domain_file = published_domain_file(data_dir, domain_slug, analysis_version)
+        if domain_file is None:
             logger.debug(
-                "Domain files not found for %r (tried %s and %s)",
+                "Domain files not found for %r (tried %s.v%s.json and %s.json)",
                 domain_slug,
-                versioned_file,
-                unversioned_file,
+                data_dir / domain_slug,
+                analysis_version,
+                data_dir / domain_slug,
             )
             continue
 
@@ -306,6 +317,51 @@ def _save_emailed_dedupe_keys(state_dir: Path, keys: set[str]) -> None:
 
 
 # ─────────────────────────────────────────────────────────────────────────────
+# Detected-triggers persistence (T2 fix)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+def _save_detected_triggers(state_dir: Path, triggers: list[SocialTrigger]) -> None:
+    """Atomically write detected_triggers.json for the admin console.
+
+    Persists the post-dedupe set of new triggers so the admin console's
+    ``/triggers`` route can display them and so the ``/triggers/{key}/draft``
+    route (the sole sanctioned LLM-call site — pitfall #17) can find the
+    trigger object by dedupe_key.
+
+    File shape::
+
+        {"triggers": [<SocialTrigger model_dump>, ...]}
+
+    Written on the normal (non-dry-run) path only — dry-run produces no
+    side effects.  On zero-trigger days the caller writes ``{"triggers": []}``
+    so the admin console reflects the cleared state.
+
+    Uses the same tempfile.mkstemp + os.replace atomic pattern as the other
+    state-file writers.
+    """
+    import contextlib  # noqa: PLC0415
+    import tempfile  # noqa: PLC0415
+
+    state_dir.mkdir(parents=True, exist_ok=True)
+    path = state_dir / "detected_triggers.json"
+    payload = json.dumps(
+        {"triggers": [json.loads(t.model_dump_json()) for t in triggers]},
+        indent=2,
+        ensure_ascii=False,
+    )
+    fd, tmp = tempfile.mkstemp(dir=state_dir, suffix=".tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(payload)
+        os.replace(tmp, path)
+    except Exception:
+        with contextlib.suppress(OSError):
+            os.unlink(tmp)
+        raise
+
+
+# ─────────────────────────────────────────────────────────────────────────────
 # detect subcommand (Phase 7 T6a)
 # ─────────────────────────────────────────────────────────────────────────────
 
@@ -320,12 +376,13 @@ def cmd_detect(args: argparse.Namespace) -> int:
     1. Load manifest.json and domain result files.
     2. Run all detectors (drift disabled per kickoff §2 item 1).
     3. Load emailed_dedupe_keys.json; filter to triggers not already emailed.
-    4. If no new triggers: print "No new triggers since last digest." and exit 0.
+    4. If no new triggers: write detected_triggers.json({triggers:[]}) + exit 0.
     5. Compute queue counts.
     6. Format digest via cdb_social.digest.format_digest.
-    7. If --dry-run: print to stdout, return 0.
+    7. If --dry-run: print to stdout, return 0 (no state writes).
     8. Otherwise: send email via cdb_social.email_sender.send_digest.
-    9. On success: atomically append dedupe_keys to emailed_dedupe_keys.json.
+    9. On success: atomically persist dedupe_keys to emailed_dedupe_keys.json
+       AND persist trigger dicts to detected_triggers.json (admin console source).
     10. Return 0.
 
     Returns the exit code (0 on success).
@@ -404,6 +461,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
     # Step 4: idempotent silence on zero-trigger days (§11.9.4)
     if not new_triggers:
         print("No new triggers since last digest.")
+        # Clear detected_triggers.json so the admin console reflects no pending
+        # triggers (not a dry-run guard — zero-trigger days always write the
+        # cleared state so the admin console is never stale from a prior run).
+        if not dry_run:
+            try:
+                _save_detected_triggers(state_dir, [])
+            except Exception as e:
+                logger.warning("Failed to write detected_triggers.json (empty): %s", e)
         return 0
 
     # Step 5: compute queue counts
@@ -435,6 +500,14 @@ def cmd_detect(args: argparse.Namespace) -> int:
     # Step 9: atomically persist the new dedupe keys
     updated_keys = emailed_keys | {t.dedupe_key for t in new_triggers}
     _save_emailed_dedupe_keys(state_dir, updated_keys)
+
+    # Persist trigger dicts for the admin console (T2 fix — sole sanctioned LLM
+    # call site at /triggers/{key}/draft requires trigger objects to be findable
+    # by dedupe_key; cmd_detect is the only producer of SocialTrigger objects).
+    try:
+        _save_detected_triggers(state_dir, new_triggers)
+    except Exception as e:
+        logger.warning("Failed to write detected_triggers.json: %s", e)
 
     n = len(new_triggers)
     print(f"Digest sent: {n} new trigger(s) in email to {_recipient_hint()}.")
