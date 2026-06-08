@@ -7,6 +7,8 @@
  * Responds to selectedModelIds — only shows rows/columns for selected models.
  */
 
+import { displayModel } from '../lib/familyUtils';
+
 // 5-stop discrete color scale per tokens.css --color-scale-seq-*
 const HEATMAP_COLORS = [
   'var(--color-scale-seq-0)',
@@ -28,10 +30,6 @@ function simToTextColor(sim: number): string {
   return sim >= HEATMAP_TEXT_SWITCH_THRESHOLD
     ? '#ffffff'
     : 'var(--color-heatmap-cell-text-dark)';
-}
-
-function shortName(id: string): string {
-  return id.split('/').pop() || id;
 }
 
 export interface SimilarityHeatmapProps {
@@ -84,7 +82,7 @@ export function SimilarityHeatmap({
         {filteredModels.map((colModel, ci) => {
           const cx = ROW_LABEL_WIDTH + ci * CELL_SIZE + CELL_SIZE / 2;
           const cy = HEADER_SIZE - 4;
-          const label = shortName(colModel.model_id);
+          const label = displayModel(colModel.model_id);
           return (
             <text
               key={`col-header-${colModel.model_id}`}
@@ -103,7 +101,7 @@ export function SimilarityHeatmap({
         {/* Rows */}
         {filteredModels.map((rowModel, ri) => {
           const ry = HEADER_SIZE + ri * CELL_SIZE;
-          const rowLabel = shortName(rowModel.model_id);
+          const rowLabel = displayModel(rowModel.model_id);
 
           return (
             <g key={`row-${rowModel.model_id}`}>
@@ -139,7 +137,7 @@ export function SimilarityHeatmap({
                       stroke="var(--color-border)"
                       strokeWidth={0.5}
                       className="similarity-heatmap__cell"
-                      aria-label={`${rowLabel} vs ${shortName(colModel.model_id)}: ${sim.toFixed(2)}`}
+                      aria-label={`${rowModel.model_id} vs ${colModel.model_id}: ${sim.toFixed(2)}`}
                     />
                     <text
                       x={cx + CELL_SIZE / 2}

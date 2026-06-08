@@ -2,7 +2,7 @@
  * familyUtils.ts — provider grouping and within-family similarity utilities
  * for Focus 2 (Within-Provider Family Comparison).
  *
- * DESIGN_SYSTEM.md §14
+ * DESIGN_SYSTEM.md §14, §18
  */
 
 import type { PublishedModel } from '../data/types';
@@ -23,6 +23,35 @@ export const PROVIDER_DISPLAY_COLORS: Record<string, string> = {
 const PROVIDER_ORDER = [
   'anthropic', 'openai', 'google', 'meta', 'xai', 'mistral', 'deepseek', 'microsoft',
 ];
+
+/**
+ * Canonical model display label. DESIGN_SYSTEM.md §18 (v0.14.0 — T8, 2026-06-08).
+ *
+ * Transform (pure, never throws):
+ * 1. Org-prefix strip: if modelId contains '/', discard everything up to and
+ *    including the LAST '/'.
+ * 2. House-prefix strip: if the result starts with 'claude-', remove that
+ *    prefix. Only 'claude-' is stripped — no other family token is removed
+ *    (gpt-/gemini-/grok-/phi-/mistral-/deepseek-/llama-) so that single-token
+ *    model names remain distinct and no two models collide on the same label.
+ * 3. Empty guard: if the result is empty, return the original modelId.
+ *
+ * No component may define a local shortName / shortModelName / equivalent.
+ * See §18.2 enforcement and the T8 vitest re-drift grep guards.
+ */
+export function displayModel(modelId: string): string {
+  if (modelId === '') return '';
+  // Step 1: strip everything up to and including the last '/'
+  const slashIdx = modelId.lastIndexOf('/');
+  let result = slashIdx !== -1 ? modelId.slice(slashIdx + 1) : modelId;
+  // Step 2: strip the 'claude-' house prefix only
+  if (result.startsWith('claude-')) {
+    result = result.slice('claude-'.length);
+  }
+  // Step 3: empty guard
+  if (result === '') return modelId;
+  return result;
+}
 
 /**
  * Map OpenRouter models to their logical provider (mirrors App.tsx displayProvider).

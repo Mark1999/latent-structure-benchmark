@@ -14,6 +14,7 @@ import {
   groupModelsByProvider,
   PROVIDER_DISPLAY_COLORS,
   displayProvider,
+  displayModel,
 } from '../lib/familyUtils';
 import {
   FOCUS2_SIMILARITY_DESCRIPTION,
@@ -26,10 +27,6 @@ interface Focus2FamilySimilarityProps {
   mdsCoordinates: Record<string, [number, number]>;
   mdsUncertainty: Record<string, EllipseParams | null>;
   selectedProvider: string | null;
-}
-
-function shortName(id: string): string {
-  return id.split('/').pop() || id;
 }
 
 // Build inline SVG for MDS with family highlight (§14.5)
@@ -95,7 +92,7 @@ function buildMdsSvg(
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x);
       const cy = sy(y);
-      const name = shortName(m.model_id);
+      const name = displayModel(m.model_id);
       const isFamily = familyIds.has(m.model_id);
       const fontSize = isFamily ? 12 : 11;
       const w = name.length * (fontSize * 0.52); // approx char width
@@ -194,7 +191,7 @@ function buildMdsSvg(
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x), cy = sy(y);
       const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || '#888';
-      const name = shortName(m.model_id);
+      const name = displayModel(m.model_id);
       const layout = labelLayouts.find((l) => l.model_id === m.model_id)!;
       svg += `<g opacity="0.45">`;
       svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="#fff" stroke-width="1.5"/>`;
@@ -207,7 +204,7 @@ function buildMdsSvg(
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x), cy = sy(y);
       const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || '#888';
-      const name = shortName(m.model_id);
+      const name = displayModel(m.model_id);
       const layout = labelLayouts.find((l) => l.model_id === m.model_id)!;
       // Inner filled circle
       svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="#fff" stroke-width="1.5"/>`;

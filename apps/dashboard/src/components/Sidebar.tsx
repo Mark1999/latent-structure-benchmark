@@ -8,7 +8,7 @@
 import { ProviderTree } from './ProviderTree';
 import type { PublishedModel } from '../data/types';
 import type { ActiveFocus } from './VizTabs';
-import { groupModelsByProvider, getMultiModelFamilies, getSingleModelFamilies } from '../lib/familyUtils';
+import { groupModelsByProvider, getMultiModelFamilies, getSingleModelFamilies, displayModel } from '../lib/familyUtils';
 
 type DomainSlug = 'family' | 'holidays' | 'food';
 
@@ -125,7 +125,7 @@ export function Sidebar({
               <div className="sidebar__f2-model-list">
                 {(grouping[selectedProvider] || []).map((m) => (
                   <div key={m.model_id} className="sidebar__f2-model-item">
-                    {m.model_id.split('/').pop() || m.model_id}
+                    {displayModel(m.model_id)}
                   </div>
                 ))}
               </div>

@@ -10,6 +10,7 @@
 import { useMemo } from 'react';
 import '../styles/focus1.css';
 import { useFocus1Data } from '../hooks/useFocus1Data';
+import { displayModel } from '../lib/familyUtils';
 import {
   RUN_DISTRIBUTION_DESCRIPTION,
   EMPTY_NO_MODEL_SELECTED,
@@ -173,16 +174,6 @@ interface Focus1RunDistributionProps {
   selectedModelId: string | null;
 }
 
-function shortModelName(modelId: string): string {
-  return modelId
-    .replace(/^claude-/, '')
-    .replace(/^gpt-/, 'gpt-')
-    .replace(/^gemini-/, 'gemini-')
-    .replace(/^meta-llama\//, '')
-    .replace(/^mistralai\//, '')
-    .split('/').pop() || modelId;
-}
-
 export function Focus1RunDistribution({
   domainSlug,
   selectedModelId,
@@ -228,7 +219,7 @@ export function Focus1RunDistribution({
 
   return (
     <div className="f1-container">
-      <h3 className="f1-model-heading">{shortModelName(selectedModelId)}</h3>
+      <h3 className="f1-model-heading">{displayModel(selectedModelId)}</h3>
       <p className="f1-desc">{RUN_DISTRIBUTION_DESCRIPTION}</p>
 
       <div className="f1-run-layout">

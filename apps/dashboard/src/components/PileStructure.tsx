@@ -7,6 +7,7 @@
 
 import { useState } from 'react';
 import type { PublishedModel } from '../data/types';
+import { displayModel } from '../lib/familyUtils';
 
 interface ExtendedModelPileData {
   piles: string[][];
@@ -45,16 +46,6 @@ function displayProvider(model: PublishedModel): string {
   return model.provider;
 }
 
-function shortModelName(modelId: string): string {
-  return modelId
-    .replace(/^claude-/, '')
-    .replace(/^google\//, '')
-    .replace(/^meta-llama\//, '')
-    .replace(/^mistralai\//, '')
-    .replace(/^microsoft\//, '')
-    .split('/').pop() || modelId;
-}
-
 export function PileStructure({
   centroidPiles,
   models,
@@ -82,7 +73,7 @@ export function PileStructure({
           const providerKey = displayProvider(model);
           const providerColor = PROVIDER_COLORS[providerKey] || '#888';
           const pileData = centroidPiles[model.model_id];
-          const displayName = shortModelName(model.model_id);
+          const displayName = displayModel(model.model_id);
 
           if (!pileData) {
             return (

@@ -3,6 +3,7 @@
  */
 
 import { useState } from 'react';
+import { displayModel } from '../lib/familyUtils';
 
 // Provider color map (matches ProviderTree)
 const PROVIDER_COLORS: Record<string, string> = {
@@ -43,7 +44,7 @@ function buildStops(
   if (modelIds.length === 0) return [];
   if (modelIds.length === 1) {
     return [{
-      name: modelIds[0].replace(/^[a-z]+-/, ''),
+      name: displayModel(modelIds[0]),
       date: releaseDates[modelIds[0]] || '',
       position: '50%',
       isLatest: true,
@@ -59,7 +60,7 @@ function buildStops(
 
   const n = sorted.length;
   return sorted.map((id, i) => ({
-    name: id.split('/').pop()?.replace(/^[a-z]+-/, '') || id,
+    name: displayModel(id),
     date: releaseDates[id] || '',
     position: n === 1 ? '50%' : `${(i / (n - 1)) * 80 + 10}%`,
     isLatest: i === n - 1,

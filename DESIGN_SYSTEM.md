@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.13.1  
+**Version:** v0.14.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,10 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.14.0** (displayModel canonical label — T8, 2026-06-08) adds §18. Single canonical
+  export `displayModel(modelId)` in familyUtils.ts; bans component-local re-implementation;
+  collapses the 16 drifted shortName/shortModelName/shortModelDisplayName helpers. Strip rule (Mark's ruling):
+  org prefix + `claude-` only. No new tokens. UI/UX PASS-WITH-NOTES.
 - **v0.13.1** (T3 undefined `--font-size-md` token fix, 2026-06-08) amends §1.1 to add a clarifying note that there is deliberately no `--font-size-md` token (the scale steps base 16px → lg 18px; pitfall #15 silent-fallback guard). Adds §13.12 binding `.f1-model-heading` typography spec: `--font-size-base` (16px) + `--font-weight-bold` (700) + `--color-text-primary`. No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-T3-font-size-md-uiux-verdict.md`). Recurrence-guard CI check deferred (out of scope per UI/UX gate — Architect backlog item).
 - **v0.13.0** (term-map drag-pan re-add + bottom-clipping fix, 2026-06-04) amends §17.4 (replaces "Drag-pan REMOVED" paragraph with re-added drag-pan spec); adds §17.11 (updateScrollableModifier + useLayoutEffect k=1 overflow fix + drag-pan handler contract) and §17.12 (cursor CSS: `grab`/`grabbing` + `--dragging` class + reduced-motion guard). No new tokens. `pad.b` raised from 40 → 52; SVG footer annotation `y=H-6` → `y=H-14`. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-06-04-drag-pan-clipping-uiux-verdict.md`).
 - **v0.12.0** (food promotion provenance surfaces, 2026-05-31) amends §15.5(b): `ProvenanceFooter.tsx` date suffix now sourced from `provenance.json` top-level `generated_at_utc` (`.slice(0,10)`); `generated_at_utc?: string` added to `ProvenanceData` interface; date span render-nothing when field absent. Adds §16.2 (term-MDS disclosure placement: stub section in MethodologyPage.tsx with M4a sentence + C3 n-count disclosure). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`); CDA SME PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-cda-sme-verdict.md`).
@@ -2487,6 +2491,75 @@ Added to `apps/dashboard/src/styles/app.css`:
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.13.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 18. Model display label canonical form (v0.14.0 — T8, 2026-06-08)
+
+### 18.1 Problem
+The dashboard previously computed a model's short label via 13 copy-pasted local helpers
+(`shortName` ×6, `shortModelName` ×7) that had drifted — `claude-opus-4-5` rendered as
+`claude-opus-4-5` on some tabs and `opus-4-5` on others. This section is binding.
+
+### 18.2 Single canonical export
+`export function displayModel(modelId: string): string` lives ONLY in
+`apps/dashboard/src/lib/familyUtils.ts`. No component may define a local `shortName` /
+`shortModelName` / equivalent. The Reviewer rejects any new component that reintroduces one
+(enforced by the T8 vitest re-drift grep guards).
+
+### 18.3 The transform (pure, never throws)
+1. **Org-prefix strip:** if the id contains `/`, discard everything up to and including the
+   last `/`.
+2. **House-prefix strip:** if the result starts with `claude-`, remove that prefix. Only
+   `claude-` is stripped — no other model-family token (`gpt-`, `gemini-`, `grok-`, `phi-`,
+   `mistral-`, `deepseek-`, `llama-`) is removed, so single-token model names remain
+   distinct and no two models collide on the same label.
+3. **Empty guard:** if the result is empty, return the original input.
+
+### 18.4 Worked examples (binding)
+`claude-opus-4-5`→`opus-4-5`; `claude-sonnet-4-6`→`sonnet-4-6`; `openai/gpt-5.2`→`gpt-5.2`;
+`google/gemini-2.5-pro`→`gemini-2.5-pro`; `meta-llama/llama-4-maverick`→`llama-4-maverick`;
+`x-ai/grok-4`→`grok-4`; `mistralai/mistral-large-2512`→`mistral-large-2512`;
+`deepseek/deepseek-v3.2`→`deepseek-v3.2`; `microsoft/phi-4`→`phi-4`;
+`unknown-model`→`unknown-model`; `org/unknown-model`→`unknown-model`; `""`→`""`.
+
+### 18.5 Accessibility
+The visual chip uses `displayModel(modelId)`. Two surfaces use a more verbose form:
+1. **SimilarityHeatmap per-cell `aria-label`** uses the full `model_id` for both row and
+   column (cell-by-cell SR navigation has no spatial context).
+2. **CentralityChart SR summary sentence** uses `displayModel(id) (id)` on first mention of
+   each model, then `displayModel(id)` after.
+All other aria-labels / tooltips / chips use `displayModel(modelId)` directly.
+
+### 18.6 Notable visible change
+ProviderTree previously abbreviated `deepseek-`→`ds-`. Under this rule
+`deepseek/deepseek-v3.2`→`deepseek-v3.2` (label changes `ds-v3.2`→`deepseek-v3.2`).
+Deliberate correction.
+TermMap previously used a local `shortModelDisplayName` helper that produced Title-Case
+branded labels (`Claude Opus 4 5`, `Grok 4`). That helper was removed (round 2 of T8,
+2026-06-08) in favour of canonical `displayModel`. TermMap pile-label dropdown now renders
+`opus-4-5`, `grok-4` etc. — consistent with all other tabs. Mark's ruling.
+
+### 18.7 New providers
+If a provider whose id carries a different house-prefix convention is added (e.g. a future
+case where the org token IS the display identity), route a new UI/UX gate pass before it
+appears on any surface. Do not invent a component-local workaround.
+
+### 18.8 Sites using displayModel (all import from familyUtils.ts, none define a local copy)
+Total: 16 sites (13 from round 1 + 3 added in round 2 of T8, 2026-06-08).
+
+shortName family (6): MDSPlot:43, CentralityTable:10, CentralityChart:44,
+Focus2FamilySimilarity:31, SimilarityHeatmap:33, Focus1SelfConsistencyOverview:35.
+shortModelName family (7): Focus2FamilyOverview:36, PileStructure:48, FreeListCompare:49,
+ContentArea:50, Focus1RunDistribution:176, Focus1TermStability:18, ProviderTree:47.
+ContentArea:113 special case: `shortName: shortModelName(...)` → `shortName: displayModel(...)`
+(the SelectionBar.ModelInfo `shortName` FIELD name is preserved — it is a typed field).
+Round-2 additions (3):
+- Sidebar.tsx:128 — inline `m.model_id.split('/').pop() || m.model_id` (showed full id bug).
+- Timeline.tsx:47+63 — inline `id.split('/').pop()?.replace(/^[a-z]+-/, '')` (grok-4→4,
+  phi-4→4 COLLISIONS removed; both the single-model path and the sorted-list path fixed).
+- TermMap.tsx — `shortModelDisplayName` (Title-Case branded form, third helper-function name)
+  removed entirely; call site at ~line 1201 now uses `displayModel`. Per Mark's 2026-06-08 ruling.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.14.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

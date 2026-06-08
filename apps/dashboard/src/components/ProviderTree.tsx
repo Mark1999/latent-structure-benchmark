@@ -4,6 +4,7 @@
 
 import { useState } from 'react';
 import type { PublishedModel } from '../data/types';
+import { displayModel } from '../lib/familyUtils';
 
 // Provider display mapping
 const PROVIDER_META: Record<string, { name: string; color: string }> = {
@@ -42,21 +43,6 @@ function shortDate(d: string): string {
                    'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const parts = d.split('-');
   return `${months[parseInt(parts[1], 10) - 1]} '${parts[0].slice(2)}`;
-}
-
-function shortModelName(modelId: string): string {
-  // Strip common provider prefixes for display
-  return modelId
-    .replace(/^claude-/, '')
-    .replace(/^gpt-/, 'gpt-')
-    .replace(/^gemini-/, 'gemini-')
-    .replace(/^llama-/, 'llama-')
-    .replace(/^grok-/, 'grok-')
-    .replace(/^mistral-/, '')
-    .replace(/^deepseek-/, 'ds-')
-    .replace(/^phi-/, 'phi-')
-    .replace(/^meta-llama\//, '')
-    .replace(/^mistralai\//, '');
 }
 
 // SVG icons
@@ -198,7 +184,7 @@ export function ProviderTree({
                           {isSel && CHECK_SVG}
                         </div>
                         <span className="model-row__name" title={m.model_id}>
-                          {shortModelName(m.model_id)}
+                          {displayModel(m.model_id)}
                         </span>
                         {m.open_weights && (
                           <span className="model-row__badge">Open</span>

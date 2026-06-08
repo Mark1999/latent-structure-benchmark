@@ -20,6 +20,7 @@ import {
 } from '../copy/focus1';
 import { PROVIDER_COLORS } from './ContentArea';
 import type { PublishedModel } from '../data/types';
+import { displayModel } from '../lib/familyUtils';
 
 // Build provider color map from model list
 function getModelColor(model: PublishedModel): string {
@@ -30,16 +31,6 @@ function getModelColor(model: PublishedModel): string {
       )
     : model.provider;
   return PROVIDER_COLORS[provider] || '#888';
-}
-
-function shortName(modelId: string): string {
-  return modelId
-    .replace(/^claude-/, '')
-    .replace(/^gpt-/, 'gpt-')
-    .replace(/^gemini-/, 'gemini-')
-    .replace(/^meta-llama\//, '')
-    .replace(/^mistralai\//, '')
-    .split('/').pop() || modelId;
 }
 
 type ConcentrationTier = 'concentrated' | 'moderate' | 'diffuse';
@@ -95,7 +86,7 @@ export function Focus1SelfConsistencyOverview({
               role="button"
               tabIndex={0}
               aria-pressed={isSelected}
-              aria-label={`${shortName(modelData.model_id)}, rank ${idx + 1}, OCI ${modelData.oci.toFixed(2)}, ${tier}`}
+              aria-label={`${displayModel(modelData.model_id)}, rank ${idx + 1}, OCI ${modelData.oci.toFixed(2)}, ${tier}`}
               className={`f1-model-card${isSelected ? ' f1-model-card--selected' : ''}`}
               onClick={() => onSelectModel(modelData.model_id)}
               onKeyDown={(e) => {
@@ -114,7 +105,7 @@ export function Focus1SelfConsistencyOverview({
                   aria-hidden="true"
                 />
                 <span className="f1-model-card__name">
-                  {shortName(modelData.model_id)}
+                  {displayModel(modelData.model_id)}
                 </span>
                 <span
                   className={`f1-tier-badge f1-tier-badge--${tier}`}

@@ -6,6 +6,7 @@
  */
 
 import type { PublishedModel } from '../data/types';
+import { displayModel } from '../lib/familyUtils';
 
 export interface SutropCsiEntry {
   item: string;
@@ -46,16 +47,6 @@ function displayProvider(model: PublishedModel): string {
   return model.provider;
 }
 
-function shortModelName(modelId: string): string {
-  return modelId
-    .replace(/^claude-/, '')
-    .replace(/^google\//, '')
-    .replace(/^meta-llama\//, '')
-    .replace(/^mistralai\//, '')
-    .replace(/^microsoft\//, '')
-    .split('/').pop() || modelId;
-}
-
 const MAX_TERMS = 20;
 
 export function FreeListCompare({
@@ -84,7 +75,7 @@ export function FreeListCompare({
         const providerColor = PROVIDER_COLORS[providerKey] || '#888';
         const entries: SutropCsiEntry[] = sutropCsi[model.model_id] ?? [];
         const sorted = [...entries].sort((a, b) => b.csi - a.csi).slice(0, MAX_TERMS);
-        const displayName = shortModelName(model.model_id);
+        const displayName = displayModel(model.model_id);
 
         return (
           <div

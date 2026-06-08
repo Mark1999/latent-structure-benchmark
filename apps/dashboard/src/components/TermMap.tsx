@@ -41,6 +41,7 @@ import { smacof } from '../lib/smacof';
 import { procrustesAlign } from '../lib/procrustes';
 import { poolCooccurrence, cooccurrenceToDistances } from '../lib/cooccurrence';
 import { ahcCluster } from '../lib/ahcCluster';
+import { displayModel } from '../lib/familyUtils';
 import type { EllipseParams } from '../data/types';
 
 /** Shape of the family-cooccurrence.json file */
@@ -71,51 +72,6 @@ function getClusterColor(idx: number): string {
   return CLUSTER_COLORS[idx % CLUSTER_COLORS.length];
 }
 
-/**
- * Convert a raw model_id to a short human-readable display name for the
- * dropdown. Examples:
- *   "claude-opus-4-6"              → "Claude Opus 4.6"
- *   "openai/gpt-5.4"               → "GPT-5.4"
- *   "google/gemini-2.5-pro"        → "Gemini 2.5 Pro"
- *   "meta-llama/llama-4-maverick"  → "Llama 4 Maverick"
- *   "mistralai/mistral-large-2512" → "Mistral Large 2512"
- *   "x-ai/grok-4"                  → "Grok 4"
- *   "deepseek/deepseek-v3.2"       → "DeepSeek V3.2"
- *   "microsoft/phi-4"              → "Phi 4"
- */
-function shortModelDisplayName(modelId: string): string {
-  // Strip provider prefix (everything up to and including the last '/')
-  const base = modelId.includes('/') ? modelId.split('/').pop()! : modelId;
-
-  // Known prefix → brand capitalisations
-  const prefixMap: [string, string][] = [
-    ['claude-',     'Claude '],
-    ['gpt-',        'GPT-'],
-    ['gemini-',     'Gemini '],
-    ['llama-',      'Llama '],
-    ['mistral-',    'Mistral '],
-    ['grok-',       'Grok '],
-    ['deepseek-',   'DeepSeek '],
-    ['phi-',        'Phi '],
-  ];
-
-  for (const [prefix, brand] of prefixMap) {
-    if (base.startsWith(prefix)) {
-      const rest = base.slice(prefix.length);
-      // Capitalise each hyphen-separated word in the remainder
-      const formatted = rest
-        .split('-')
-        .map((w) => w.charAt(0).toUpperCase() + w.slice(1))
-        .join(' ');
-      // For GPT keep the dash: "GPT-5.4" not "GPT 5.4"
-      if (brand === 'GPT-') return `${brand}${formatted}`;
-      return `${brand}${formatted}`;
-    }
-  }
-
-  // Fallback: title-case the base name, replacing hyphens with spaces
-  return base.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase());
-}
 
 interface TermEntry {
   term: string;
@@ -1198,7 +1154,7 @@ export function TermMap({
           >
             {pileModelKeys.map((key) => (
               <option key={key} value={key}>
-                {shortModelDisplayName(key)}
+                {displayModel(key)}
               </option>
             ))}
             <option value="__none__">None</option>

@@ -20,6 +20,7 @@ import { Focus2FamilySimilarity } from './Focus2FamilySimilarity';
 import { Focus2FamilySalience } from './Focus2FamilySalience';
 import { Focus2FamilyPiles } from './Focus2FamilyPiles';
 import type { DomainExtended, PublishedModel } from '../data/types';
+import { displayModel } from '../lib/familyUtils';
 
 // Provider display color map
 const PROVIDER_COLORS: Record<string, string> = {
@@ -45,16 +46,6 @@ function displayProvider(model: PublishedModel): string {
     return map[model.family] || model.provider;
   }
   return model.provider;
-}
-
-function shortModelName(modelId: string): string {
-  return modelId
-    .replace(/^claude-/, '')
-    .replace(/^gpt-/, 'gpt-')
-    .replace(/^gemini-/, 'gemini-')
-    .replace(/^meta-llama\//, '')
-    .replace(/^mistralai\//, '')
-    .split('/').pop() || modelId;
 }
 
 interface ContentAreaProps {
@@ -110,7 +101,7 @@ export function ContentArea({
         .filter((m) => selectedModelIds.has(m.model_id))
         .map((m) => ({
           id: m.model_id,
-          shortName: shortModelName(m.model_id),
+          shortName: displayModel(m.model_id),
           providerColor: PROVIDER_COLORS[displayProvider(m)] || '#888',
         }))
     : [];

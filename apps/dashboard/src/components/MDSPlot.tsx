@@ -5,6 +5,7 @@
  */
 
 import { useMemo, useState, useCallback, useRef } from 'react';
+import { displayModel } from '../lib/familyUtils';
 
 interface MDSPlotProps {
   mdsCoordinates: Record<string, [number, number]>;
@@ -38,10 +39,6 @@ function displayProvider(model: { provider: string; family: string }): string {
     return map[model.family] || model.provider;
   }
   return model.provider;
-}
-
-function shortName(id: string): string {
-  return id.split('/').pop() || id;
 }
 
 export function MDSPlot({
@@ -113,7 +110,7 @@ export function MDSPlot({
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x);
       const cy = sy(y);
-      const name = shortName(m.model_id);
+      const name = displayModel(m.model_id);
       const w = name.length * 6.2; // approx char width for 12px font
       const h = 12; // label height
 
@@ -204,7 +201,7 @@ export function MDSPlot({
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x), cy = sy(y);
       const color = PROVIDER_COLORS[displayProvider(m)] || '#888';
-      const name = shortName(m.model_id);
+      const name = displayModel(m.model_id);
       const layout = labelLayouts[idx];
       svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="#fff" stroke-width="1.5" data-model="${m.model_id}" style="cursor:pointer"/>`;
       svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="12" fill="#4a4a4a" style="pointer-events:none">${name}</text>`;
@@ -262,7 +259,7 @@ export function MDSPlot({
       </div>
       {tooltip && tooltipModel && (
         <div className="chart-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
-          <div className="chart-tooltip__name">{shortName(tooltip.id)}</div>
+          <div className="chart-tooltip__name">{displayModel(tooltip.id)}</div>
           <div className="chart-tooltip__sub">{tooltip.id}</div>
           {tooltipCentrality != null && (
             <div>Centrality: <span className="chart-tooltip__mono">{tooltipCentrality.toFixed(3)}</span></div>

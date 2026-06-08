@@ -8,6 +8,7 @@
 
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { CentralityTable } from './CentralityTable';
+import { displayModel } from '../lib/familyUtils';
 
 const PROVIDER_COLORS: Record<string, string> = {
   anthropic:  'var(--color-provider-anthropic)',
@@ -39,10 +40,6 @@ function resolveProvider(model: ModelRef): string {
     return FAMILY_TO_PROVIDER[model.family] || model.provider;
   }
   return model.provider;
-}
-
-function shortName(id: string): string {
-  return id.split('/').pop() || id;
 }
 
 export interface CentralityChartProps {
@@ -155,7 +152,7 @@ export function CentralityChart({
   const ciDesc = hasCi
     ? ' Each score is shown with a 95% bootstrap CI (model-resampling with replacement, B=500) as a whisker on its bar.'
     : ' No bootstrap confidence interval is available for this domain (fewer than 3 models).';
-  const srSummary = `This chart ranks ${entries.length} models by cultural centrality score on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. ${shortName(highestEntry.model_id)} has the highest centrality at ${highestEntry.score.toFixed(3)}, and ${shortName(lowestEntry.model_id)} has the lowest at ${lowestEntry.score.toFixed(3)}.${ciDesc}`;
+  const srSummary = `This chart ranks ${entries.length} models by cultural centrality score on the ${domainSlug} domain. Higher scores indicate closer alignment with the group's dominant categorical pattern. ${displayModel(highestEntry.model_id)} (${highestEntry.model_id}) has the highest centrality at ${highestEntry.score.toFixed(3)}, and ${displayModel(lowestEntry.model_id)} (${lowestEntry.model_id}) has the lowest at ${lowestEntry.score.toFixed(3)}.${ciDesc}`;
 
   return (
     <div className="centrality-chart" ref={containerRef} style={{ position: 'relative' }}>
@@ -205,7 +202,7 @@ export function CentralityChart({
             const scoreX = toSvgX(entry.score);
             const barX = Math.min(zeroX, scoreX);
             const barW = Math.abs(scoreX - zeroX);
-            const label = shortName(entry.model_id);
+            const label = displayModel(entry.model_id);
 
             // CI whiskers — sourced from published centrality_ci, not computed here
             const ci = entry.ci;
@@ -331,7 +328,7 @@ export function CentralityChart({
             top: tooltip.screenY - 10,
           }}
         >
-          <div className="centrality-chart__tooltip-name">{shortName(tooltip.modelId)}</div>
+          <div className="centrality-chart__tooltip-name">{displayModel(tooltip.modelId)}</div>
           <div className="centrality-chart__tooltip-id">{tooltip.modelId}</div>
           <div className="centrality-chart__tooltip-score">
             Cultural Centrality: <strong>{centralityScores[tooltip.modelId]?.toFixed(3)}</strong>

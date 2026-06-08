@@ -7,9 +7,7 @@
  * because the published shape is a bare [lo, hi] tuple with no per-model N.
  */
 
-function shortName(id: string): string {
-  return id.split('/').pop() || id;
-}
+import { displayModel } from '../lib/familyUtils';
 
 function mapConsensusType(type: string | undefined): string {
   if (!type) return 'no consensus data';
@@ -76,7 +74,7 @@ export function CentralityTable({
             return (
               <tr key={modelId} className="read-as-table__tr">
                 <td className="read-as-table__td read-as-table__td--numeric">{rowIndex + 1}</td>
-                <td className="read-as-table__td">{shortName(modelId)}</td>
+                <td className="read-as-table__td">{displayModel(modelId)}</td>
                 <td className="read-as-table__td read-as-table__td--mono">{modelId}</td>
                 <td className="read-as-table__td read-as-table__td--numeric">
                   {score.toFixed(3)}

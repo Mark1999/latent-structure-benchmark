@@ -20,6 +20,7 @@ import {
   getPairs,
   getPairCI,
   PROVIDER_DISPLAY_COLORS,
+  displayModel,
 } from '../lib/familyUtils';
 import {
   FOCUS2_OVERVIEW_DESCRIPTION,
@@ -31,10 +32,6 @@ interface Focus2FamilyOverviewProps {
   similarityMatrix: number[][];
   similarityCi: Array<Array<[number, number] | null>>;
   onSelectProvider: (provider: string) => void;
-}
-
-function shortModelName(modelId: string): string {
-  return modelId.split('/').pop() || modelId;
 }
 
 export function Focus2FamilyOverview({
@@ -155,7 +152,7 @@ export function Focus2FamilyOverview({
                 {card.pairs.map(({ a, b, similarity, ci }) => (
                   <div key={`${a}--${b}`} className="f2-card__pair-row">
                     <span className="f2-card__pair-names">
-                      {shortModelName(a)} × {shortModelName(b)}
+                      {displayModel(a)} × {displayModel(b)}
                     </span>
                     <span className="f2-card__pair-value">
                       {similarity !== null ? similarity.toFixed(3) : '—'}
@@ -195,7 +192,7 @@ export function Focus2FamilyOverview({
                 </div>
                 <p className="f2-card__single-note">
                   {familyModels[0]?.model_id && (
-                    <span>{shortModelName(familyModels[0].model_id)} — </span>
+                    <span>{displayModel(familyModels[0].model_id)} — </span>
                   )}
                   {FOCUS2_SINGLE_MODEL_NOTE}
                 </p>
