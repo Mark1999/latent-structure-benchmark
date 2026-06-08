@@ -3,7 +3,8 @@
   "compilerOptions": {
     "types": ["vitest/globals", "@testing-library/jest-dom"],
     "noUnusedLocals": false,
-    "noUnusedParameters": false
+    "noUnusedParameters": false,
+    "resolveJsonModule": true
   },
   "include": ["src", "src/__tests__"]
 }

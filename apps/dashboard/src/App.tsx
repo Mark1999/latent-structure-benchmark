@@ -11,34 +11,9 @@ import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
 import { MethodologyPage } from './components/MethodologyPage';
 import { ProvenanceFooter } from './components/ProvenanceFooter';
-import type { PublishedModel } from './data/types';
+import type { PublishedModel, DomainExtended } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
 import type { ActiveVizTab, ActiveFocus } from './components/VizTabs';
-
-// Extended type for fields present in published JSON beyond base DomainResultPublished
-interface DomainExtended {
-  domain_slug: string;
-  analysis_version: string;
-  models: PublishedModel[];
-  free_lists: Record<string, string[]>;
-  mds_coordinates: Record<string, [[number, number]]>;
-  mds_uncertainty: Record<string, import('./data/types').EllipseParams | null>;
-  similarity_matrix: Record<string, Record<string, number>>;
-  similarity_ci: Record<string, Record<string, [number, number] | null>>;
-  consensus_score: number;
-  consensus_ci: [number, number];
-  consensus_type: import('./data/types').ConsensusType;
-  sutrop_csi: Record<string, Record<string, number>>;
-  within_model_results: import('./data/types').WithinModelResult[];
-  groundings: unknown[];
-  generated_lede: string;
-  generated_at: string;
-  romney_small_n_warning: boolean;
-  display: import('./data/types').DisplayBlock;
-  term_mds_coordinates?: Record<string, [number, number]>;
-  term_cluster_assignments?: Record<string, number>;
-  term_cluster_labels?: string[];
-}
 
 type NavTab = 'explore' | 'methodology' | 'data';
 type DomainSlug = 'family' | 'holidays' | 'food';

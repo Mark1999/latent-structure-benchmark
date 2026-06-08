@@ -70,11 +70,11 @@ export interface WithinModelResult {
  * Fields may be null for R1-b (low concentration) and R1-c (deterministic) models.
  */
 export interface EllipseParams {
+  center: [number, number];
   semi_major: number;
   semi_minor: number;
   rotation_rad: number;
   n_bootstrap: number;
-  ci_level: number;
 }
 
 /**
@@ -207,17 +207,23 @@ export interface DomainResultPublished {
   /** Free-list term lists per model_id. */
   free_lists: Record<string, string[]>;
 
-  /** MDS 2D coordinates per model_id. Each value is a [x, y] pair wrapped in an outer array. */
-  mds_coordinates: Record<string, [[number, number]]>;
+  /** MDS 2D coordinates per model_id. Each value is a flat [x, y] pair. */
+  mds_coordinates: Record<string, [number, number]>;
 
   /** Bootstrap ellipse parameters per model_id. Null values for R1-b / R1-c. */
   mds_uncertainty: Record<string, EllipseParams | null>;
 
-  /** Pairwise similarity matrix as a nested object. */
-  similarity_matrix: Record<string, Record<string, number>>;
+  /**
+   * Model × model similarity, ordered by `models`.
+   * Source: DATA_DICTIONARY.md §1.1 field `similarity_matrix`.
+   */
+  similarity_matrix: number[][];
 
-  /** Pairwise similarity confidence intervals. */
-  similarity_ci: Record<string, Record<string, [number, number] | null>>;
+  /**
+   * Per-cell 95% CI from the bootstrap, ordered by `models`.
+   * Source: DATA_DICTIONARY.md §1.1 field `similarity_ci`.
+   */
+  similarity_ci: ([number, number] | null)[][];
 
   /** Cultural consensus score (0–1). */
   consensus_score: number;
@@ -228,8 +234,18 @@ export interface DomainResultPublished {
   /** Consensus classification. */
   consensus_type: ConsensusType;
 
-  /** Sutrop CSI salience scores per model_id per term. */
-  sutrop_csi: Record<string, Record<string, number>>;
+  /**
+   * Sutrop CSI salience ranking per model_id.
+   * Each value is a list of SutropCsiEntry sorted descending by CSI.
+   */
+  sutrop_csi: Record<string, SutropCsiEntry[]>;
+
+  /**
+   * Per-model centrality scores from the first eigenvector of the
+   * inter-model similarity matrix (Caulkins 1999).
+   * Source: DATA_DICTIONARY.md §1.1 field `cultural_centrality_scores`.
+   */
+  cultural_centrality_scores: Record<string, number>;
 
   /** Within-model results array (one entry per model). */
   within_model_results: WithinModelResult[];
@@ -260,4 +276,34 @@ export interface DomainResultPublished {
    * Added by Remedy B T2/T3. See DATA_DICTIONARY.md §1.1 for full audit trail.
    */
   centrality_ci?: Record<string, [number, number]>;
+}
+
+/**
+ * Extended domain result carrying optional fields present in published JSON
+ * beyond the base DomainResultPublished interface.  Exported so App.tsx and
+ * ContentArea.tsx can share a single authoritative definition.
+ *
+ * All extended fields are optional because they are only populated by some
+ * analysis pipeline variants (e.g. term-MDS, centroid piles).
+ */
+export interface DomainExtended extends DomainResultPublished {
+  /** Term-level MDS coordinates: term → [x, y]. */
+  term_mds_coordinates?: Record<string, [number, number]>;
+  /** Cluster assignment per term (index into term_cluster_labels). */
+  term_cluster_assignments?: Record<string, number>;
+  /** Human-readable label per cluster index. */
+  term_cluster_labels?: string[];
+  /**
+   * Centroid pile groups per model_id.
+   * Shape mirrors TermMap's ModelPileData: { piles: string[][]; labels: string[] }.
+   */
+  centroid_piles?: Record<string, { piles: string[][]; labels: string[] }>;
+  /** Scipy linkage matrix: rows of [idx1, idx2, distance, count]. */
+  term_cluster_linkage?: number[][];
+  /** Ordered term names corresponding to leaf indices 0..n-1 in the linkage matrix. */
+  term_mds_items?: string[];
+  /** Bootstrap proportion per internal linkage node (one value per linkage row). */
+  term_cluster_bp_values?: number[];
+  /** Bootstrap ellipse params for term-level MDS points. */
+  term_mds_uncertainty?: Record<string, EllipseParams | null>;
 }

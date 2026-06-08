@@ -5,11 +5,11 @@
 import { VizTabs, type ActiveVizTab, type ActiveFocus } from './VizTabs';
 import { FocusSelector } from './FocusSelector';
 import { SelectionBar } from './SelectionBar';
-import { TermMap, type CooccurrenceData, type ModelPileData } from './TermMap';
+import { TermMap, type CooccurrenceData } from './TermMap';
 import { MDSPlot } from './MDSPlot';
 import { CentralityChart } from './CentralityChart';
 import { SimilarityHeatmap } from './SimilarityHeatmap';
-import { FreeListCompare, type SutropCsiEntry } from './FreeListCompare';
+import { FreeListCompare } from './FreeListCompare';
 import { PileStructure } from './PileStructure';
 import { ClusterTree } from './ClusterTree';
 import { Focus1SelfConsistencyOverview } from './Focus1SelfConsistencyOverview';
@@ -19,32 +19,7 @@ import { Focus2FamilyOverview } from './Focus2FamilyOverview';
 import { Focus2FamilySimilarity } from './Focus2FamilySimilarity';
 import { Focus2FamilySalience } from './Focus2FamilySalience';
 import { Focus2FamilyPiles } from './Focus2FamilyPiles';
-import type { DomainResultPublished, PublishedModel, EllipseParams } from '../data/types';
-
-// Extended domain fields present in published JSON but not yet in DomainResultPublished type
-interface DomainExtended extends DomainResultPublished {
-  term_mds_coordinates?: Record<string, [number, number]>;
-  term_cluster_assignments?: Record<string, number>;
-  term_cluster_labels?: string[];
-  centroid_piles?: Record<string, ModelPileData>;
-  /** Cultural centrality scores: model_id → score (~0.2–0.3). */
-  cultural_centrality_scores?: Record<string, number>;
-  /**
-   * Per-model 95% bootstrap CI on cultural centrality.
-   * Shape: model_id → [lo, hi]. Empty dict when n_models < 3.
-   * Remedy B T2/T3.
-   */
-  centrality_ci?: Record<string, [number, number]>;
-  /** Pairwise similarity matrix as a flat 2D array. Model order matches the models array. */
-  similarity_matrix_array?: number[][];
-  /** Scipy linkage matrix for hierarchical clustering: rows of [idx1, idx2, distance, count]. */
-  term_cluster_linkage?: number[][];
-  /** Ordered list of term names corresponding to leaf indices 0..n-1 in the linkage matrix. */
-  term_mds_items?: string[];
-  /** Bootstrap proportion per internal linkage node (one value per linkage row). */
-  term_cluster_bp_values?: number[];
-  term_mds_uncertainty?: Record<string, EllipseParams | null>;
-}
+import type { DomainExtended, PublishedModel } from '../data/types';
 
 // Provider display color map
 const PROVIDER_COLORS: Record<string, string> = {
@@ -174,12 +149,8 @@ export function ContentArea({
             {activeVizTab === 'f2-overview' && (
               <Focus2FamilyOverview
                 models={domain.models}
-                similarityMatrix={
-                  (domain as unknown as { similarity_matrix: number[][] }).similarity_matrix ?? []
-                }
-                similarityCi={
-                  (domain as unknown as { similarity_ci: Array<Array<[number, number] | null>> }).similarity_ci ?? []
-                }
+                similarityMatrix={domain.similarity_matrix ?? []}
+                similarityCi={domain.similarity_ci ?? []}
                 onSelectProvider={(provider) => {
                   onSelectProvider?.(provider);
                   onVizTabChange('f2-similarity');
@@ -189,22 +160,16 @@ export function ContentArea({
             {activeVizTab === 'f2-similarity' && (
               <Focus2FamilySimilarity
                 models={domain.models}
-                similarityMatrix={
-                  (domain as unknown as { similarity_matrix: number[][] }).similarity_matrix ?? []
-                }
-                mdsCoordinates={
-                  domain.mds_coordinates as unknown as Record<string, [number, number]>
-                }
-                mdsUncertainty={
-                  domain.mds_uncertainty as unknown as Record<string, EllipseParams | null>
-                }
+                similarityMatrix={domain.similarity_matrix ?? []}
+                mdsCoordinates={domain.mds_coordinates}
+                mdsUncertainty={domain.mds_uncertainty}
                 selectedProvider={selectedProvider}
               />
             )}
             {activeVizTab === 'f2-salience' && (
               <Focus2FamilySalience
                 models={domain.models}
-                sutropCsi={domain.sutrop_csi as unknown as Record<string, SutropCsiEntry[]>}
+                sutropCsi={domain.sutrop_csi}
                 selectedProvider={selectedProvider}
               />
             )}
@@ -292,12 +257,12 @@ export function ContentArea({
 
             {activeVizTab === 'mds-plot' && domain.mds_coordinates && (
               <MDSPlot
-                mdsCoordinates={domain.mds_coordinates as unknown as Record<string, [number, number]>}
-                mdsUncertainty={domain.mds_uncertainty as unknown as Record<string, { semi_major: number; semi_minor: number; rotation_rad: number; center: [number, number]; n_bootstrap: number } | null>}
+                mdsCoordinates={domain.mds_coordinates}
+                mdsUncertainty={domain.mds_uncertainty}
                 models={domain.models}
                 selectedModelIds={selectedModelIds}
-                topTerms={(domain.display as unknown as { top_terms: Record<string, string[]> })?.top_terms ?? {}}
-                centralityScores={(domain as unknown as { cultural_centrality_scores: Record<string, number> }).cultural_centrality_scores ?? {}}
+                topTerms={domain.display?.top_terms ?? {}}
+                centralityScores={domain.cultural_centrality_scores ?? {}}
               />
             )}
 
@@ -327,9 +292,7 @@ export function ContentArea({
                   structures.
                 </p>
                 <SimilarityHeatmap
-                  similarityMatrix={
-                    (domain as unknown as { similarity_matrix: number[][] }).similarity_matrix ?? []
-                  }
+                  similarityMatrix={domain.similarity_matrix ?? []}
                   models={domain.models}
                   selectedModelIds={selectedModelIds}
                 />
@@ -338,7 +301,7 @@ export function ContentArea({
 
             {activeVizTab === 'free-lists' && (
               <FreeListCompare
-                sutropCsi={domain.sutrop_csi as unknown as Record<string, SutropCsiEntry[]>}
+                sutropCsi={domain.sutrop_csi}
                 models={domain.models}
                 selectedModelIds={selectedModelIds}
               />
