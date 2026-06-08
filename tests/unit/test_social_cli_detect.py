@@ -1278,6 +1278,287 @@ class TestSaveDetectedTriggers:
         assert SocialTrigger.model_validate(data["triggers"][0]).dedupe_key == "secon2222secon222"
 
 
+# ─────────────────────────────────────────────────────────────────────────────
+# TestDetectCmdDryRunNoStatePersist — T4 regression tests
+#
+# Must NOT mock the detector functions: mocking them is exactly why this bug
+# shipped.  DO mock send_digest (no SMTP; CLAUDE.md §6 rule 9).
+#
+# Plan §6 tests 1–5:
+#   1. dry-run leaves seen_models.json byte-identical (new model in manifest)
+#   2. dry-run leaves seen_domains.json byte-identical (new domain)
+#   3. dry-run leaves divergence_highs.json byte-identical (gap exceeds baseline)
+#   4. dry-run leaves monthly_roundup.json byte-identical EVEN WHEN firing
+#   5. dry-run-then-real-run round-trip: baselines not consumed, real run emails
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestDetectCmdDryRunNoStatePersist:
+    """T4 — detect --dry-run must not write any detector state files.
+
+    Detectors are NOT mocked: this class is the anti-recurrence guard proving
+    the fix (dry_run kwarg) actually prevents the write at the source.
+    """
+
+    def _setup_manifests_and_state(self, tmp_path: Path) -> tuple[Path, Path, Path]:
+        """Set up state and data dirs so all four detector types would fire."""
+        state_dir = tmp_path / "state"
+        state_dir.mkdir(parents=True)
+        data_dir = tmp_path / "data"
+        data_dir.mkdir(parents=True)
+        queue_root = _setup_queue_root(tmp_path)
+
+        # seen_models.json — family known with existing-model only; food unknown
+        (state_dir / "seen_models.json").write_text(json.dumps({
+            "bootstrapped_at": "2026-05-17T14:00:00+00:00",
+            "domains": {"family": ["existing-model"]},
+        }))
+        # seen_domains.json — only family known; food will be new
+        (state_dir / "seen_domains.json").write_text(json.dumps({
+            "bootstrapped_at": "2026-05-17T14:00:00+00:00",
+            "domains": ["family"],
+        }))
+        # divergence_highs.json — family high=0.3; will produce gap=0.6 (trigger)
+        (state_dir / "divergence_highs.json").write_text(json.dumps({
+            "bootstrapped_at": "2026-05-17T14:00:00+00:00",
+            "highs": {"family": 0.3},
+        }))
+        # monthly_roundup.json — last_fired_month=2026-04 → fires for 2026-05
+        (state_dir / "monthly_roundup.json").write_text(json.dumps({
+            "bootstrapped_at": "2026-05-17T14:00:00+00:00",
+            "last_fired_month": "2026-04",
+        }))
+
+        # manifest: family (existing + new model), food (new domain)
+        manifest = {
+            "built_at": "2026-06-08T14:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 2,
+                    "model_ids": ["existing-model", "new-model-t4"],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.1",
+                    "n_models": 1,
+                    "model_ids": ["existing-model"],
+                },
+            ],
+        }
+        (data_dir / "manifest.json").write_text(json.dumps(manifest))
+
+        # domain result for family with two models and high divergence gap
+        # similarity=0.4 → gap=0.6, exceeds stored high 0.3 by 0.3 (≥ MIN_DIVERGENCE_DELTA)
+        m1 = _make_model_ref("existing-model")
+        m2 = _make_model_ref("new-model-t4")
+        dr = DomainResult(
+            domain_slug="family",
+            analysis_version="0.3",
+            models=[m1, m2],
+            free_lists={
+                "existing-model": FreeList(
+                    run_id="t4_run",
+                    model=m1,
+                    domain_slug="family",
+                    items=["item-a", "item-b"],
+                    raw_order=["item-a", "item-b"],
+                ),
+                "new-model-t4": FreeList(
+                    run_id="t4_run",
+                    model=m2,
+                    domain_slug="family",
+                    items=["item-a", "item-b"],
+                    raw_order=["item-a", "item-b"],
+                ),
+            },
+            mds_coordinates={
+                "existing-model": (0.0, 0.0),
+                "new-model-t4": (0.5, 0.0),
+            },
+            mds_uncertainty={
+                "existing-model": BootstrapEllipse(
+                    center=(0.0, 0.0), semi_major=0.1, semi_minor=0.05,
+                    rotation_rad=0.0, n_bootstrap=100,
+                ),
+                "new-model-t4": BootstrapEllipse(
+                    center=(0.5, 0.0), semi_major=0.1, semi_minor=0.05,
+                    rotation_rad=0.0, n_bootstrap=100,
+                ),
+            },
+            similarity_matrix=[[1.0, 0.4], [0.4, 1.0]],
+            similarity_ci=[[(0.9, 1.0), (0.3, 0.5)], [(0.3, 0.5), (0.9, 1.0)]],
+            consensus_score=4.0,
+            consensus_ci=(3.0, 5.0),
+            groundings=[],
+            selected_baseline_id=None,
+            generated_lede="T4 fixture lede.",
+            generated_at=datetime(2026, 6, 8, 12, 0, 0),
+        )
+        (data_dir / "family.v0.3.json").write_text(dr.model_dump_json())
+
+        # food domain result (single model — just enough to load)
+        (data_dir / "food.v0.1.json").write_text(
+            _make_domain_result_json("food", "0.1", "existing-model")
+        )
+
+        return state_dir, data_dir, queue_root
+
+    # ── Test 1: seen_models.json byte-identical ───────────────────────────────
+
+    def test_dry_run_seen_models_byte_identical(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """T4 test 1 — dry-run leaves seen_models.json byte-identical (new model in manifest)."""
+        state_dir, data_dir, queue_root = self._setup_manifests_and_state(tmp_path)
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        snapshot = (state_dir / "seen_models.json").read_bytes()
+
+        with patch("cdb_social.cli.send_digest"):
+            main(["detect", "--dry-run"])
+
+        assert (state_dir / "seen_models.json").read_bytes() == snapshot, (
+            "seen_models.json must be byte-identical after --dry-run"
+        )
+
+    # ── Test 2: seen_domains.json byte-identical ──────────────────────────────
+
+    def test_dry_run_seen_domains_byte_identical(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """T4 test 2 — dry-run leaves seen_domains.json byte-identical (new domain in manifest)."""
+        state_dir, data_dir, queue_root = self._setup_manifests_and_state(tmp_path)
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        snapshot = (state_dir / "seen_domains.json").read_bytes()
+
+        with patch("cdb_social.cli.send_digest"):
+            main(["detect", "--dry-run"])
+
+        assert (state_dir / "seen_domains.json").read_bytes() == snapshot, (
+            "seen_domains.json must be byte-identical after --dry-run"
+        )
+
+    # ── Test 3: divergence_highs.json byte-identical ─────────────────────────
+
+    def test_dry_run_divergence_highs_byte_identical(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """T4 test 3 — dry-run leaves divergence_highs.json byte-identical.
+
+        Setup: gap exceeds stored baseline → trigger would fire on real run.
+        """
+        state_dir, data_dir, queue_root = self._setup_manifests_and_state(tmp_path)
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        snapshot = (state_dir / "divergence_highs.json").read_bytes()
+
+        with patch("cdb_social.cli.send_digest"):
+            main(["detect", "--dry-run"])
+
+        assert (state_dir / "divergence_highs.json").read_bytes() == snapshot, (
+            "divergence_highs.json must be byte-identical after --dry-run"
+        )
+
+    # ── Test 4: monthly_roundup.json byte-identical EVEN WHEN firing ─────────
+
+    def test_dry_run_monthly_roundup_byte_identical_when_firing(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """T4 test 4 (highest priority) — dry-run leaves monthly_roundup.json byte-identical
+        EVEN WHEN the monthly detector fires.
+
+        Patches cdb_social.cli.datetime so datetime.now(UTC) returns 2026-06-08 14:00 UTC
+        (on/after the 1st, with last_fired_month=2026-04 → fires for 2026-05).
+        """
+        state_dir, data_dir, queue_root = self._setup_manifests_and_state(tmp_path)
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        snapshot = (state_dir / "monthly_roundup.json").read_bytes()
+
+        # Patch datetime in cli module so datetime.now(UTC) returns a firing datetime
+        firing_dt = datetime(2026, 6, 8, 14, 0, 0, tzinfo=UTC)
+
+        class _MockDatetime:
+            @staticmethod
+            def now(tz=None):  # noqa: ANN001
+                return firing_dt
+
+        with patch("cdb_social.cli.datetime", _MockDatetime), \
+             patch("cdb_social.cli.send_digest"):
+            main(["detect", "--dry-run"])
+
+        assert (state_dir / "monthly_roundup.json").read_bytes() == snapshot, (
+            "monthly_roundup.json must be byte-identical after --dry-run even when firing — "
+            "the poison-pill case (T4, 2026-06-08)"
+        )
+
+    # ── Test 5: dry-run-then-real-run round-trip ──────────────────────────────
+
+    def test_dry_run_then_real_run_baselines_not_consumed(
+        self, tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+    ) -> None:
+        """T4 test 5 — dry-run-then-real-run round-trip.
+
+        After a --dry-run, the subsequent real run still fires all four trigger
+        types and sends the email.  Proves that the dry-run did not consume
+        any baselines.
+        """
+        state_dir, data_dir, queue_root = self._setup_manifests_and_state(tmp_path)
+        monkeypatch.setenv("LSB_SOCIAL_STATE_DIR", str(state_dir))
+        monkeypatch.setenv("LSB_SOCIAL_DATA_DIR", str(data_dir))
+        monkeypatch.setenv("LSB_SOCIAL_QUEUE_ROOT", str(queue_root))
+
+        # Step 1: dry-run — should produce no state changes
+        firing_dt = datetime(2026, 6, 8, 14, 0, 0, tzinfo=UTC)
+
+        class _MockDatetime:
+            @staticmethod
+            def now(tz=None):  # noqa: ANN001
+                return firing_dt
+
+        with patch("cdb_social.cli.datetime", _MockDatetime), \
+             patch("cdb_social.cli.send_digest") as mock_send_dry:
+            result_dry = main(["detect", "--dry-run"])
+
+        assert result_dry == 0
+        mock_send_dry.assert_not_called()
+
+        # Step 2: real run — all four triggers should still fire
+        with patch("cdb_social.cli.datetime", _MockDatetime), \
+             patch("cdb_social.cli.send_digest") as mock_send_real:
+            result_real = main(["detect"])
+
+        assert result_real == 0, (
+            f"Real run after dry-run returned {result_real}; "
+            "expected 0.  If non-zero, baselines may have been consumed by dry-run."
+        )
+        mock_send_real.assert_called_once(), (
+            "Real run must send the email digest — if send_digest was not called, "
+            "the dry-run consumed a baseline and the real run saw no new triggers."
+        )
+
+        # Verify that the real run produced triggers of all four types
+        emailed_path = state_dir / "emailed_dedupe_keys.json"
+        assert emailed_path.exists(), "emailed_dedupe_keys.json must exist after real run"
+        emailed = json.loads(emailed_path.read_text())
+        assert len(emailed["keys"]) >= 4, (
+            f"Expected at least 4 dedupe keys (one per trigger type); "
+            f"got {len(emailed['keys'])}.  "
+            "This suggests the dry-run consumed one or more baselines."
+        )
+
+
 class TestCmdDetectWritesDetectedTriggersFile:
     """Integration tests: cmd_detect writes detected_triggers.json correctly."""
 

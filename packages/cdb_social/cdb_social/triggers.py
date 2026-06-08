@@ -310,6 +310,8 @@ def bootstrap_state(
 def detect_new_model(
     manifest: dict[str, Any],
     state_dir: Path,
+    *,
+    dry_run: bool = False,
 ) -> list[SocialTrigger]:
     """Detect models that appear in manifest but not in seen_models.json.
 
@@ -326,6 +328,8 @@ def detect_new_model(
                         ]}
 
         state_dir:  Path to ``out/social/state/``.
+        dry_run:    Keyword-only.  When True, the state file is NOT written;
+                    the returned trigger list is unchanged.
 
     Returns:
         List of SocialTrigger objects (possibly empty).
@@ -377,8 +381,8 @@ def detect_new_model(
                 if model_id not in new_seen[domain_slug]:
                     new_seen[domain_slug].append(model_id)
 
-    # Atomic state update — only on new triggers
-    if triggers:
+    # Atomic state update — only on new triggers, suppressed under dry_run
+    if triggers and not dry_run:
         updated_state = dict(state)
         updated_state["domains"] = new_seen
         _atomic_write_json(state_path, updated_state)
@@ -389,6 +393,8 @@ def detect_new_model(
 def detect_new_domain(
     manifest: dict[str, Any],
     state_dir: Path,
+    *,
+    dry_run: bool = False,
 ) -> list[SocialTrigger]:
     """Detect domains that appear in manifest but not in seen_domains.json.
 
@@ -405,6 +411,8 @@ def detect_new_domain(
                         ]}
 
         state_dir:  Path to ``out/social/state/``.
+        dry_run:    Keyword-only.  When True, the state file is NOT written;
+                    the returned trigger list is unchanged.
 
     Returns:
         List of SocialTrigger objects (possibly empty).
@@ -450,8 +458,8 @@ def detect_new_domain(
             triggers.append(trigger)
             new_seen.append(domain_slug)
 
-    # Atomic state update — only on new triggers
-    if triggers:
+    # Atomic state update — only on new triggers, suppressed under dry_run
+    if triggers and not dry_run:
         updated_state = dict(state)
         updated_state["domains"] = new_seen
         _atomic_write_json(state_path, updated_state)
@@ -658,6 +666,7 @@ def detect_divergence(
     state_dir: Path,
     *,
     new_models_this_run: dict[str, list[str]] | None = None,
+    dry_run: bool = False,
 ) -> list[SocialTrigger]:
     """Detect when the maximum pairwise divergence gap in a domain sets a new high.
 
@@ -681,6 +690,8 @@ def detect_divergence(
         new_models_this_run:  Dict mapping domain_slug → list of new model_ids
                               just added (from detect_new_model output).
                               If None, treated as empty (no exclusion).
+        dry_run:              Keyword-only.  When True, the state file is NOT
+                              written; the returned trigger list is unchanged.
 
     Returns:
         List of SocialTrigger objects (possibly empty).
@@ -745,8 +756,8 @@ def detect_divergence(
             # Update the baseline only when the trigger fires
             updated_highs[domain_slug] = gap_excl
 
-    # Atomic state update — only on new triggers
-    if triggers:
+    # Atomic state update — only on new triggers, suppressed under dry_run
+    if triggers and not dry_run:
         updated_state = dict(state)
         updated_state["highs"] = updated_highs
         _atomic_write_json(state_path, updated_state)
@@ -758,6 +769,7 @@ def detect_monthly_roundup(
     state_dir: Path,
     *,
     now: datetime,
+    dry_run: bool = False,
 ) -> list[SocialTrigger]:
     """Fire a monthly-roundup trigger on the first cron run on/after the 1st
     of each calendar month at 14:00 UTC.
@@ -773,6 +785,11 @@ def detect_monthly_roundup(
         state_dir:  Path to ``out/social/state/``.
         now:        The current datetime (should be UTC-aware).  Injected
                     for deterministic testing.
+        dry_run:    Keyword-only.  When True, the state file is NOT written;
+                    the returned trigger list is unchanged.  CRITICAL: this
+                    guard is NOT gated on ``triggers`` — the write is
+                    unconditional when the detector fires, so only suppressing
+                    the disk write under dry_run is correct.
 
     Returns:
         List containing one SocialTrigger, or [].
@@ -810,9 +827,14 @@ def detect_monthly_roundup(
     )
     validate_evidence_for_trigger_type(trigger)
 
-    # Update state file atomically
-    updated_state = dict(state)
-    updated_state["last_fired_month"] = target_month
-    _atomic_write_json(state_path, updated_state)
+    # Update state file atomically — suppressed under dry_run.
+    # NOTE: guard is NOT gated on triggers (unlike the other detectors).
+    # The write is unconditional when the detector fires; a dry-run on/after
+    # the 1st would otherwise mark the month fired and suppress the real run —
+    # the most insidious poison-pill case (T4, 2026-06-08).
+    if not dry_run:
+        updated_state = dict(state)
+        updated_state["last_fired_month"] = target_month
+        _atomic_write_json(state_path, updated_state)
 
     return [trigger]

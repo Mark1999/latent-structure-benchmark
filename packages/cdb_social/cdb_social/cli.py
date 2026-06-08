@@ -405,17 +405,19 @@ def cmd_detect(args: argparse.Namespace) -> int:
     # detect_new_model MUST run before detect_divergence (ordering constraint)
     new_model_triggers: list[SocialTrigger] = []
     try:
-        new_model_triggers = detect_new_model(manifest, state_dir)
+        new_model_triggers = detect_new_model(manifest, state_dir, dry_run=dry_run)
     except Exception as e:
         logger.warning("detect_new_model failed: %s", e)
 
     new_domain_triggers: list[SocialTrigger] = []
     try:
-        new_domain_triggers = detect_new_domain(manifest, state_dir)
+        new_domain_triggers = detect_new_domain(manifest, state_dir, dry_run=dry_run)
     except Exception as e:
         logger.warning("detect_new_domain failed: %s", e)
 
-    # Drift: explicitly disabled per kickoff §2 item 1
+    # Drift: explicitly disabled per kickoff §2 item 1.
+    # No dry_run param needed: detect_drift(enable=False) early-returns at
+    # triggers.py:512–513 before any state-file access — verified 2026-06-08, T4.
     drift_triggers: list[SocialTrigger] = detect_drift(
         domain_results, state_dir, enable=False
     )
@@ -431,14 +433,16 @@ def cmd_detect(args: argparse.Namespace) -> int:
     divergence_triggers: list[SocialTrigger] = []
     try:
         divergence_triggers = detect_divergence(
-            domain_results, state_dir, new_models_this_run=new_models_this_run
+            domain_results, state_dir, new_models_this_run=new_models_this_run,
+            dry_run=dry_run,
         )
     except Exception as e:
         logger.warning("detect_divergence failed: %s", e)
 
     monthly_triggers: list[SocialTrigger] = []
     try:
-        monthly_triggers = detect_monthly_roundup(state_dir, now=datetime.now(UTC))
+        monthly_triggers = detect_monthly_roundup(state_dir, now=datetime.now(UTC),
+                                                   dry_run=dry_run)
     except Exception as e:
         logger.warning("detect_monthly_roundup failed: %s", e)
 

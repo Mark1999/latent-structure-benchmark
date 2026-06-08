@@ -1098,3 +1098,241 @@ def test_no_data_raw_writes_in_triggers():
         assert forbidden_pattern not in source, (
             f"triggers.py must not write to {forbidden_pattern!r} (boundary rule)"
         )
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# T4 — dry_run=True: state-file byte-identical, trigger list identical
+#
+# Direct detector tests (plan §6 items 6–7).  Must NOT mock the detectors.
+# Verifies that dry_run=True:
+#   (a) returns the SAME trigger list as dry_run=False
+#   (b) leaves each state file byte-identical (no write occurred)
+# ─────────────────────────────────────────────────────────────────────────────
+
+
+class TestDetectNewModelDryRun:
+    """T4 §6 item 6a — detect_new_model dry_run=True guard."""
+
+    def _setup(self, tmp_path: Path) -> tuple[dict, Path]:
+        """State: family has existing-model; manifest adds new-model-x."""
+        _write_state(tmp_path, "seen_models.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "domains": {"family": ["existing-model"]},
+        })
+        manifest = {
+            "built_at": "2026-06-08T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 2,
+                    "model_ids": ["existing-model", "new-model-x"],
+                },
+            ],
+        }
+        return manifest, tmp_path / "seen_models.json"
+
+    def test_dry_run_trigger_list_identical(self, tmp_path: Path) -> None:
+        """dry_run=True returns same trigger list as dry_run=False."""
+        manifest, _ = self._setup(tmp_path)
+        # Reset state after first call
+        _write_state(tmp_path, "seen_models.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "domains": {"family": ["existing-model"]},
+        })
+        triggers_real = detect_new_model(manifest, tmp_path, dry_run=False)
+
+        # Restore state so dry_run sees identical inputs
+        _write_state(tmp_path, "seen_models.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "domains": {"family": ["existing-model"]},
+        })
+        triggers_dry = detect_new_model(manifest, tmp_path, dry_run=True)
+
+        assert len(triggers_dry) == len(triggers_real)
+        assert [t.dedupe_key for t in triggers_dry] == [t.dedupe_key for t in triggers_real]
+        assert [t.trigger_type for t in triggers_dry] == [t.trigger_type for t in triggers_real]
+
+    def test_dry_run_state_file_byte_identical(self, tmp_path: Path) -> None:
+        """dry_run=True leaves seen_models.json byte-identical to pre-call snapshot."""
+        manifest, state_path = self._setup(tmp_path)
+        snapshot = state_path.read_bytes()
+
+        detect_new_model(manifest, tmp_path, dry_run=True)
+
+        assert state_path.read_bytes() == snapshot, (
+            "seen_models.json must not be written when dry_run=True"
+        )
+
+    def test_real_run_state_file_updated(self, tmp_path: Path) -> None:
+        """Baseline: dry_run=False DOES update the state file (proves guard is one-sided)."""
+        manifest, state_path = self._setup(tmp_path)
+        snapshot = state_path.read_bytes()
+
+        detect_new_model(manifest, tmp_path, dry_run=False)
+
+        assert state_path.read_bytes() != snapshot, (
+            "seen_models.json must be written on a real run (dry_run=False)"
+        )
+
+
+class TestDetectNewDomainDryRun:
+    """T4 §6 item 6b — detect_new_domain dry_run=True guard."""
+
+    def _setup(self, tmp_path: Path) -> tuple[dict, Path]:
+        """State: only family seen; manifest adds food."""
+        _write_state(tmp_path, "seen_domains.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "domains": ["family"],
+        })
+        manifest = {
+            "built_at": "2026-06-08T12:00:00Z",
+            "domains": [
+                {
+                    "slug": "family",
+                    "analysis_version": "0.3",
+                    "n_models": 1,
+                    "model_ids": ["m1"],
+                },
+                {
+                    "slug": "food",
+                    "analysis_version": "0.2",
+                    "n_models": 2,
+                    "model_ids": ["m1", "m2"],
+                },
+            ],
+        }
+        return manifest, tmp_path / "seen_domains.json"
+
+    def test_dry_run_trigger_list_identical(self, tmp_path: Path) -> None:
+        """dry_run=True returns same trigger list as dry_run=False."""
+        manifest, _ = self._setup(tmp_path)
+        triggers_real = detect_new_domain(manifest, tmp_path, dry_run=False)
+
+        _write_state(tmp_path, "seen_domains.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "domains": ["family"],
+        })
+        triggers_dry = detect_new_domain(manifest, tmp_path, dry_run=True)
+
+        assert len(triggers_dry) == len(triggers_real)
+        assert [t.dedupe_key for t in triggers_dry] == [t.dedupe_key for t in triggers_real]
+
+    def test_dry_run_state_file_byte_identical(self, tmp_path: Path) -> None:
+        """dry_run=True leaves seen_domains.json byte-identical to pre-call snapshot."""
+        manifest, state_path = self._setup(tmp_path)
+        snapshot = state_path.read_bytes()
+
+        detect_new_domain(manifest, tmp_path, dry_run=True)
+
+        assert state_path.read_bytes() == snapshot, (
+            "seen_domains.json must not be written when dry_run=True"
+        )
+
+
+class TestDetectDivergenceDryRun:
+    """T4 §6 item 6c — detect_divergence dry_run=True guard."""
+
+    def _setup(self, tmp_path: Path) -> tuple[list, Path]:
+        """State: family high=0.3; domain result gap=0.6 → trigger fires."""
+        _write_state(tmp_path, "divergence_highs.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "highs": {"family": 0.3},
+        })
+        m1 = _model_ref("alpha", "alpha", "1.0")
+        m2 = _model_ref("beta", "beta", "1.0")
+        # similarity 0.4 → gap = 0.6, which exceeds stored high 0.3 by 0.3 ≥ MIN_DIVERGENCE_DELTA
+        sim = [[1.0, 0.4], [0.4, 1.0]]
+        dr = _domain_result("family", [m1, m2], sim)
+        return [dr], tmp_path / "divergence_highs.json"
+
+    def test_dry_run_trigger_list_identical(self, tmp_path: Path) -> None:
+        """dry_run=True returns same trigger list as dry_run=False."""
+        domain_results, _ = self._setup(tmp_path)
+        triggers_real = detect_divergence(domain_results, tmp_path, dry_run=False)
+
+        _write_state(tmp_path, "divergence_highs.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "highs": {"family": 0.3},
+        })
+        triggers_dry = detect_divergence(domain_results, tmp_path, dry_run=True)
+
+        assert len(triggers_dry) == len(triggers_real)
+        assert [t.dedupe_key for t in triggers_dry] == [t.dedupe_key for t in triggers_real]
+
+    def test_dry_run_state_file_byte_identical(self, tmp_path: Path) -> None:
+        """dry_run=True leaves divergence_highs.json byte-identical to pre-call snapshot."""
+        domain_results, state_path = self._setup(tmp_path)
+        snapshot = state_path.read_bytes()
+
+        detect_divergence(domain_results, tmp_path, dry_run=True)
+
+        assert state_path.read_bytes() == snapshot, (
+            "divergence_highs.json must not be written when dry_run=True"
+        )
+
+
+class TestDetectMonthlyRoundupDryRun:
+    """T4 §6 item 7 — detect_monthly_roundup dry_run=True guard (highest priority).
+
+    Critical: the write is unconditional when firing (not gated on triggers),
+    so a dry-run on/after the 1st would otherwise mark the month fired and
+    suppress the real run.  The `if not dry_run:` guard (NOT `if triggers and
+    not dry_run:`) is the correct pattern.
+    """
+
+    def _setup_firing(self, tmp_path: Path) -> tuple[datetime, Path]:
+        """State: last_fired_month is previous month → will fire on 2026-06-08."""
+        _write_state(tmp_path, "monthly_roundup.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "last_fired_month": "2026-04",   # April → June 8 run fires for May
+        })
+        now = datetime(2026, 6, 8, 14, 0, 0, tzinfo=UTC)
+        return now, tmp_path / "monthly_roundup.json"
+
+    def test_dry_run_trigger_list_identical(self, tmp_path: Path) -> None:
+        """dry_run=True returns same trigger as dry_run=False when firing."""
+        now, _ = self._setup_firing(tmp_path)
+        triggers_real = detect_monthly_roundup(tmp_path, now=now, dry_run=False)
+
+        # Reset state to same pre-fire condition
+        _write_state(tmp_path, "monthly_roundup.json", {
+            "bootstrapped_at": "2026-05-17T12:00:00+00:00",
+            "last_fired_month": "2026-04",
+        })
+        triggers_dry = detect_monthly_roundup(tmp_path, now=now, dry_run=True)
+
+        assert len(triggers_dry) == len(triggers_real) == 1
+        assert triggers_dry[0].dedupe_key == triggers_real[0].dedupe_key
+        assert triggers_dry[0].evidence["month"] == "2026-05"
+
+    def test_dry_run_state_file_byte_identical_when_firing(self, tmp_path: Path) -> None:
+        """dry_run=True leaves monthly_roundup.json byte-identical EVEN WHEN firing.
+
+        This is the critical poison-pill case: a dry-run on the 1st would
+        otherwise mark last_fired_month = current target, suppressing the
+        real run that day.
+        """
+        now, state_path = self._setup_firing(tmp_path)
+        snapshot = state_path.read_bytes()
+
+        triggers = detect_monthly_roundup(tmp_path, now=now, dry_run=True)
+
+        assert triggers  # confirms the detector DID fire (not silently skipped)
+        assert state_path.read_bytes() == snapshot, (
+            "monthly_roundup.json must not be written when dry_run=True, "
+            "even when the trigger fires — the poison-pill case (T4, 2026-06-08)"
+        )
+
+    def test_real_run_state_file_updated_when_firing(self, tmp_path: Path) -> None:
+        """Baseline: dry_run=False DOES update last_fired_month when firing."""
+        now, state_path = self._setup_firing(tmp_path)
+        snapshot = state_path.read_bytes()
+
+        detect_monthly_roundup(tmp_path, now=now, dry_run=False)
+
+        assert state_path.read_bytes() != snapshot, (
+            "monthly_roundup.json must be updated on a real run when it fires"
+        )
+        state = json.loads(state_path.read_text())
+        assert state["last_fired_month"] == "2026-05"
