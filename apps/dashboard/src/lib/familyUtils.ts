@@ -56,7 +56,7 @@ export function displayModel(modelId: string): string {
 /**
  * Map OpenRouter models to their logical provider (mirrors App.tsx displayProvider).
  */
-export function displayProvider(model: PublishedModel): string {
+export function displayProvider(model: { provider: string; family: string }): string {
   if (model.provider === 'openrouter') {
     const map: Record<string, string> = {
       gpt:      'openai',

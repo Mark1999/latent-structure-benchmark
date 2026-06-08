@@ -12,7 +12,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { displayModel } from '../familyUtils';
+import { displayModel, displayProvider } from '../familyUtils';
 
 // ── 1. Pinned-output assertions (binding — UI/UX verdict §18.4) ───────────────
 
@@ -145,5 +145,51 @@ describe('re-drift grep guards — ALL components must not reintroduce local hel
       }
     }
     expect(violations).toEqual([]);
+  });
+
+  it('no component defines a local displayProvider or resolveProvider function (T7 guard)', () => {
+    const violations: string[] = [];
+    const rePattern = /^function\s+(displayProvider|resolveProvider)\s*\(/m;
+    for (const [filePath, content] of Object.entries(allComponentSources)) {
+      if (rePattern.test(content)) {
+        violations.push(filePath);
+      }
+    }
+    expect(violations).toEqual([]);
+  });
+});
+
+// ── 3. Pinned-output assertions for displayProvider (T7, 2026-06-08) ──────────
+
+describe('displayProvider — pinned outputs', () => {
+  // OpenRouter family-to-provider mappings
+  it('openrouter gpt → openai', () => {
+    expect(displayProvider({ provider: 'openrouter', family: 'gpt' })).toBe('openai');
+  });
+  it('openrouter llama → meta', () => {
+    expect(displayProvider({ provider: 'openrouter', family: 'llama' })).toBe('meta');
+  });
+  it('openrouter mistral → mistral', () => {
+    expect(displayProvider({ provider: 'openrouter', family: 'mistral' })).toBe('mistral');
+  });
+  it('openrouter deepseek → deepseek', () => {
+    expect(displayProvider({ provider: 'openrouter', family: 'deepseek' })).toBe('deepseek');
+  });
+  it('openrouter phi → microsoft', () => {
+    expect(displayProvider({ provider: 'openrouter', family: 'phi' })).toBe('microsoft');
+  });
+  it('openrouter qwen → openrouter (unmapped fall-through)', () => {
+    expect(displayProvider({ provider: 'openrouter', family: 'qwen' })).toBe('openrouter');
+  });
+
+  // Non-openrouter pass-through
+  it('anthropic/claude → anthropic', () => {
+    expect(displayProvider({ provider: 'anthropic', family: 'claude' })).toBe('anthropic');
+  });
+  it('google/gemini → google', () => {
+    expect(displayProvider({ provider: 'google', family: 'gemini' })).toBe('google');
+  });
+  it('xai/grok → xai', () => {
+    expect(displayProvider({ provider: 'xai', family: 'grok' })).toBe('xai');
   });
 });

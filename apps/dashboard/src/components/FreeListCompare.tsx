@@ -6,7 +6,7 @@
  */
 
 import type { PublishedModel } from '../data/types';
-import { displayModel } from '../lib/familyUtils';
+import { displayModel, displayProvider } from '../lib/familyUtils';
 
 export interface SutropCsiEntry {
   item: string;
@@ -33,19 +33,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   microsoft:  'var(--color-provider-microsoft)',
 };
 
-function displayProvider(model: PublishedModel): string {
-  if (model.provider === 'openrouter') {
-    const map: Record<string, string> = {
-      gpt:      'openai',
-      llama:    'meta',
-      mistral:  'mistral',
-      deepseek: 'deepseek',
-      phi:      'microsoft',
-    };
-    return map[model.family] || model.provider;
-  }
-  return model.provider;
-}
 
 const MAX_TERMS = 20;
 

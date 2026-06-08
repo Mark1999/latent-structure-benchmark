@@ -4,7 +4,7 @@
 
 import { useState } from 'react';
 import type { PublishedModel } from '../data/types';
-import { displayModel } from '../lib/familyUtils';
+import { displayModel, displayProvider } from '../lib/familyUtils';
 
 // Provider display mapping
 const PROVIDER_META: Record<string, { name: string; color: string }> = {
@@ -22,20 +22,6 @@ const PROVIDER_ORDER = [
   'anthropic', 'openai', 'google', 'meta', 'xai', 'mistral', 'deepseek', 'microsoft',
 ];
 
-// Map OpenRouter models to their display provider
-function displayProvider(model: PublishedModel): string {
-  if (model.provider === 'openrouter') {
-    const map: Record<string, string> = {
-      gpt:       'openai',
-      llama:     'meta',
-      mistral:   'mistral',
-      deepseek:  'deepseek',
-      phi:       'microsoft',
-    };
-    return map[model.family] || model.provider;
-  }
-  return model.provider;
-}
 
 function shortDate(d: string): string {
   if (!d) return '';

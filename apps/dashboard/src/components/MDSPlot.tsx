@@ -5,7 +5,7 @@
  */
 
 import { useMemo, useState, useCallback, useRef } from 'react';
-import { displayModel } from '../lib/familyUtils';
+import { displayModel, displayProvider } from '../lib/familyUtils';
 
 interface MDSPlotProps {
   mdsCoordinates: Record<string, [number, number]>;
@@ -33,13 +33,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   microsoft: 'var(--color-provider-microsoft)',
 };
 
-function displayProvider(model: { provider: string; family: string }): string {
-  if (model.provider === 'openrouter') {
-    const map: Record<string, string> = { gpt: 'openai', llama: 'meta', mistral: 'mistral', deepseek: 'deepseek', phi: 'microsoft' };
-    return map[model.family] || model.provider;
-  }
-  return model.provider;
-}
 
 export function MDSPlot({
   mdsCoordinates,

@@ -11,27 +11,13 @@ import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
 import { MethodologyPage } from './components/MethodologyPage';
 import { ProvenanceFooter } from './components/ProvenanceFooter';
-import type { PublishedModel, DomainExtended } from './data/types';
+import type { DomainExtended } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
 import type { ActiveVizTab, ActiveFocus } from './components/VizTabs';
+import { displayProvider } from './lib/familyUtils';
 
 type NavTab = 'explore' | 'methodology' | 'data';
 type DomainSlug = 'family' | 'holidays' | 'food';
-
-// Provider display mapping (mirrors ProviderTree)
-function displayProvider(model: PublishedModel): string {
-  if (model.provider === 'openrouter') {
-    const map: Record<string, string> = {
-      gpt:       'openai',
-      llama:     'meta',
-      mistral:   'mistral',
-      deepseek:  'deepseek',
-      phi:       'microsoft',
-    };
-    return map[model.family] || model.provider;
-  }
-  return model.provider;
-}
 
 export default function App() {
   const [navTab, setNavTab] = useState<NavTab>('explore');

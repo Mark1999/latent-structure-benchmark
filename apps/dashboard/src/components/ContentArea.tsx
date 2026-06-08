@@ -19,8 +19,8 @@ import { Focus2FamilyOverview } from './Focus2FamilyOverview';
 import { Focus2FamilySimilarity } from './Focus2FamilySimilarity';
 import { Focus2FamilySalience } from './Focus2FamilySalience';
 import { Focus2FamilyPiles } from './Focus2FamilyPiles';
-import type { DomainExtended, PublishedModel } from '../data/types';
-import { displayModel } from '../lib/familyUtils';
+import type { DomainExtended } from '../data/types';
+import { displayModel, displayProvider } from '../lib/familyUtils';
 
 // Provider display color map
 const PROVIDER_COLORS: Record<string, string> = {
@@ -34,19 +34,6 @@ const PROVIDER_COLORS: Record<string, string> = {
   microsoft:  'var(--color-provider-microsoft)',
 };
 
-function displayProvider(model: PublishedModel): string {
-  if (model.provider === 'openrouter') {
-    const map: Record<string, string> = {
-      gpt:       'openai',
-      llama:     'meta',
-      mistral:   'mistral',
-      deepseek:  'deepseek',
-      phi:       'microsoft',
-    };
-    return map[model.family] || model.provider;
-  }
-  return model.provider;
-}
 
 interface ContentAreaProps {
   domain: DomainExtended | null;

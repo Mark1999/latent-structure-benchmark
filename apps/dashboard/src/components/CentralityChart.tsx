@@ -8,7 +8,7 @@
 
 import { useState, useMemo, useCallback, useRef } from 'react';
 import { CentralityTable } from './CentralityTable';
-import { displayModel } from '../lib/familyUtils';
+import { displayModel, displayProvider } from '../lib/familyUtils';
 
 const PROVIDER_COLORS: Record<string, string> = {
   anthropic:  'var(--color-provider-anthropic)',
@@ -21,32 +21,17 @@ const PROVIDER_COLORS: Record<string, string> = {
   microsoft:  'var(--color-provider-microsoft)',
 };
 
-const FAMILY_TO_PROVIDER: Record<string, string> = {
-  gpt:       'openai',
-  llama:     'meta',
-  mistral:   'mistral',
-  deepseek:  'deepseek',
-  phi:       'microsoft',
-};
-
 interface ModelRef {
   model_id: string;
   provider: string;
   family: string;
 }
 
-function resolveProvider(model: ModelRef): string {
-  if (model.provider === 'openrouter') {
-    return FAMILY_TO_PROVIDER[model.family] || model.provider;
-  }
-  return model.provider;
-}
-
 export interface CentralityChartProps {
   centralityScores: Record<string, number>;
   /** Per-model 95% bootstrap CI from the published domain JSON. model_id → [lo, hi]. */
   centralityCi?: Record<string, [number, number]>;
-  models: Array<{ model_id: string; provider: string; family: string }>;
+  models: ModelRef[];
   selectedModelIds: Set<string>;
   consensusType?: string;
   domainSlug?: string;
@@ -90,7 +75,7 @@ export function CentralityChart({
         model_id: m.model_id,
         score: centralityScores[m.model_id],
         ci: centralityCi?.[m.model_id] ?? null,
-        color: PROVIDER_COLORS[resolveProvider(m)] || 'var(--color-text-secondary)',
+        color: PROVIDER_COLORS[displayProvider(m)] || 'var(--color-text-secondary)',
       }))
       .sort((a, b) => b.score - a.score);
   }, [models, selectedModelIds, centralityScores, centralityCi]);
