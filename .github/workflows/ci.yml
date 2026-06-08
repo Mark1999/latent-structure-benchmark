@@ -38,6 +38,9 @@ jobs:
           fi
           echo "no-spend-gate-check: PASS"
 
+      - name: dashboard-font-size-token-check
+        run: bash scripts/check_font_size_tokens.sh
+
       - name: Install uv
         uses: astral-sh/setup-uv@v5
 
