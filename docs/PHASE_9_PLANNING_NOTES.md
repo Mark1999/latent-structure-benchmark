@@ -2,7 +2,7 @@
 
 **Document name:** `docs/PHASE_9_PLANNING_NOTES.md`
 **Date created:** 2026-05-19 (immediately after M13 launch + the dashboard-data deploy fix)
-**Status:** **paused** — waiting on Mark to answer three scoping questions before any agent is dispatched
+**Status:** **KICKED OFF 2026-06-08.** Mark answered the three §4 scoping questions (scope = "same as proposed", audience = inward-looking, timing = start now). The Architect kickoff/decision-surface doc is at `docs/status/2026-06-08-phase9-kickoff.md`. This planning doc is now historical context; the kickoff doc supersedes it for the live decomposition.
 
 > **What this is.** A holding-place capturing where the Phase 9 conversation stopped so Mark can step away and come back without re-deriving the framing. Read this before resuming.
 
