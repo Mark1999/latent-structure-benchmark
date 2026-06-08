@@ -1,11 +1,16 @@
-# Tier 1–2 capability upgrade — ACTIVATION RUNBOOK (drafted 2026-05-29, VALIDATED 2026-06-01, INACTIVE)
+# Tier 1–2 capability upgrade — ACTIVATION RUNBOOK (drafted 2026-05-29, VALIDATED 2026-06-01, **Tier 1 ACTIVATED 2026-06-05**)
 
-**Status:** Artifacts are drafted, committed, and **VALIDATED — but NOT active.** Nothing here
-changes runtime behavior until the steps in §"Activation" are done. Drafted while Mark traveled;
-per Mark's instruction "draft without activating," then validated 2026-06-01 (Mark: "prep C, don't
-activate"). Activation deferred to a clean session start (PreToolUse hooks intercept every edit;
-activating mid-session — especially with the flaky shell seen 2026-05-31/06-01 — risks blocking
-in-flight work).
+**Status:** **Tier 1 (the four guardrail hooks) is now ACTIVE** — wired into
+`.claude/settings.json` `hooks.PreToolUse` on 2026-06-05, live-validated, Reviewer PASS
+(`docs/status/2026-06-05-tier1-2-hook-activation-reviewer-verdict.md`). **Tier 2 (the
+`lsb-pipeline.js` Workflow orchestration) remains drafted/inert** — not yet validated on a
+throwaway task. The hooks intercept every Write/Edit/MultiEdit now; all four fail-open on
+parse error so they cannot brick the session.
+
+Original deferral context (now resolved for Tier 1): artifacts were drafted while Mark
+traveled ("draft without activating"), validated 2026-06-01 ("prep C, don't activate"), and
+activation was held for a clean session start because PreToolUse hooks intercept every edit.
+Activated 2026-06-05 at a session boundary per that plan.
 
 **Validation run 2026-06-01 (all PASS, artifacts ready to activate):**
 - `check_forbidden_vocab.py`: blocks "the model believes" (exit 2); allows "I think this loop"

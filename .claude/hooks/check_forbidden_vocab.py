@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""DRAFT — INACTIVE. PreToolUse guard: forbidden vocabulary (CLAUDE.md §7).
+"""ACTIVE (wired 2026-06-05). PreToolUse guard: forbidden vocabulary (CLAUDE.md §7).
 
-NOT wired into settings.json yet; cannot fire until activated. See
-docs/proposed/2026-05-29-tier1-2-activation-runbook.md before enabling.
+Wired into .claude/settings.json hooks.PreToolUse per
+docs/proposed/2026-05-29-tier1-2-activation-runbook.md.
 
 Blocks Write/Edit/MultiEdit whose new content contains §7 forbidden vocabulary
 applied to models. This is NET-NEW shift-left enforcement (there is no CI
@@ -12,10 +12,14 @@ only at Reviewer/CI.
 Design choices (per CLAUDE.md §7, which says the rule is about text ABOUT models
 and the Reviewer uses judgment):
   * Multi-word forbidden phrases are blocked outright.
-  * Bare generic terms (worldview/believes/thinks) are blocked ONLY when they
-    appear within ~48 chars of a model token (model/claude/gpt/llm/...), to
-    avoid false positives on ordinary English (e.g. a code comment "I think
-    this loop terminates").
+  * Bare generic terms (worldview/believes/thinks) are blocked ONLY near a
+    model token (model/claude/gpt/llm/...) within the SAME sentence (~48
+    chars, no crossing of ./!/?/newline). Verb terms additionally require the
+    model token to PRECEDE them (subject position) — first-person usage in an
+    adjacent clause must not trip the guard (e.g. a code comment "I think
+    this loop terminates" followed by a sentence naming a model). The noun
+    term stays bidirectional ("the worldview of <X>"). Tuned at activation
+    (2026-06-05) after a live false positive on exactly that adjacency.
   * Fail-OPEN: if stdin can't be parsed, exit 0 (never brick the session).
 Contract: exit 2 + stderr message = block. Verified-needed at activation time.
 """
@@ -34,6 +38,11 @@ HARD_PHRASES = [
 # generic terms forbidden only near a model token
 PROXIMITY_TERMS = [r"worldview", r"believes?", r"\bthinks?\b"]
 MODEL_TOKENS = r"(model|claude|gpt|gemini|llm|opus|sonnet|haiku|deepseek|mistral|grok|qwen)"
+# noun terms match in both directions; verb terms require the model token in
+# subject (preceding) position. Index 0 is the noun.
+BIDIRECTIONAL_TERMS = {PROXIMITY_TERMS[0]}
+# proximity span: same sentence only — never across ., !, ? or a newline
+SPAN = r"[^.!?\n]{0,48}?"
 
 def edited_text(ti: dict) -> str:
     parts = []
@@ -59,9 +68,11 @@ def main() -> None:
     low = text.lower()
     hits = [p for p in HARD_PHRASES if re.search(p, low)]
     for term in PROXIMITY_TERMS:
-        # term within 48 chars (either side) of a model token
-        if re.search(term + r".{0,48}?" + MODEL_TOKENS, low) or \
-           re.search(MODEL_TOKENS + r".{0,48}?" + term, low):
+        # model token in subject (preceding) position, same sentence; noun
+        # terms ALSO hit in reverse ("the <term> of <model token>")
+        if re.search(MODEL_TOKENS + SPAN + term, low) or (
+            term in BIDIRECTIONAL_TERMS and re.search(term + SPAN + MODEL_TOKENS, low)
+        ):
             hits.append(term)
     if hits:
         sys.stderr.write(

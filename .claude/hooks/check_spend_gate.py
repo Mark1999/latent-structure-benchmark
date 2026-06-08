@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""DRAFT — INACTIVE. PreToolUse guard: no spend-gate tokens (CLAUDE.md rule 14).
+"""ACTIVE (wired 2026-06-05). PreToolUse guard: no spend-gate tokens (CLAUDE.md rule 14).
 
-NOT wired into settings.json yet. See
-docs/proposed/2026-05-29-tier1-2-activation-runbook.md before enabling.
+Wired into .claude/settings.json hooks.PreToolUse. See
+docs/proposed/2026-05-29-tier1-2-activation-runbook.md.
 
 Mirrors the CI step `no-spend-gate-check` (.github/workflows/ci.yml) at write time.
 LSB has NO software-side spend gates; cost safety is the provider billing dashboards

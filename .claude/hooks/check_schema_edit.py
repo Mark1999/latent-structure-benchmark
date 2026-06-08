@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""DRAFT — INACTIVE. PreToolUse guard: schema edits need Architect sign-off.
+"""ACTIVE (wired 2026-06-05). PreToolUse guard: schema edits need Architect sign-off.
 
-NOT wired into settings.json yet. See
-docs/proposed/2026-05-29-tier1-2-activation-runbook.md before enabling.
+Wired into .claude/settings.json hooks.PreToolUse. See
+docs/proposed/2026-05-29-tier1-2-activation-runbook.md.
 
 CLAUDE.md rule 6: never edit cdb_core/schemas.py without Architect sign-off; changes
 to InformantRecord / GroundingRef require a matching DATA_DICTIONARY.md update in the
@@ -14,10 +14,11 @@ the authorized Coder. So this emits an "ask" decision (confirm before proceeding
 a reminder. A PreToolUse hook sees only one tool call, so it CANNOT verify the
 DATA_DICTIONARY co-update itself — that remains the Reviewer's R7 check.
 
-Contract assumption (VERIFY at activation): PreToolUse honors a JSON
-hookSpecificOutput.permissionDecision="ask". If a given CC version ignores it, this
-hook is a harmless no-op reminder (it never hard-blocks). Tighten to exit 2 only if a
-hard gate is desired.
+Contract (CONFIRMED at activation 2026-06-05): PreToolUse honors a JSON
+hookSpecificOutput.permissionDecision="ask" — verified live (prompt shown + honored
+on a schemas.py write). If a future CC version ignores it, this hook degrades to a
+harmless no-op reminder (it never hard-blocks). Tighten to exit 2 only if a hard gate
+is desired.
 """
 import json
 import sys

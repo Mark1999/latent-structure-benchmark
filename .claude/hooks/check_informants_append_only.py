@@ -1,8 +1,8 @@
 #!/usr/bin/env python3
-"""DRAFT — INACTIVE. PreToolUse guard: data/raw/informants.jsonl is append-only.
+"""ACTIVE (wired 2026-06-05). PreToolUse guard: data/raw/informants.jsonl is append-only.
 
-NOT wired into settings.json yet. See
-docs/proposed/2026-05-29-tier1-2-activation-runbook.md before enabling.
+Wired into .claude/settings.json hooks.PreToolUse. See
+docs/proposed/2026-05-29-tier1-2-activation-runbook.md.
 
 Enforces CLAUDE.md §9 pitfall 10 + Reviewer R-append-only at write time: an agent
 must never Edit/Write/MultiEdit data/raw/informants.jsonl. Appends are made by the
