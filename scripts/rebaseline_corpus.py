@@ -58,6 +58,8 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import cast
 
+from cdb_publish.lede import OCI_LOW_CONCENTRATION_THRESHOLD
+
 # ---------------------------------------------------------------------------
 # No LLM imports — CLAUDE.md §6 R11, ARCHITECTURE.md §4.2 binding constraint.
 # ---------------------------------------------------------------------------
@@ -79,7 +81,6 @@ DOMAIN_CONFIG: dict[str, dict] = {
 }
 DOMAIN_ORDER = ["family", "holidays", "food"]
 
-OCI_LOW_CONCENTRATION_THRESHOLD: float = 3.0
 ROMNEY_STRONG_WEAK_BOUNDARY: float = 5.0
 ROMNEY_WEAK_TURBULENT_BOUNDARY: float = 3.0
 
