@@ -3,9 +3,18 @@
 **Status:** **Tier 1 (the four guardrail hooks) is now ACTIVE** — wired into
 `.claude/settings.json` `hooks.PreToolUse` on 2026-06-05, live-validated, Reviewer PASS
 (`docs/status/2026-06-05-tier1-2-hook-activation-reviewer-verdict.md`). **Tier 2 (the
-`lsb-pipeline.js` Workflow orchestration) remains drafted/inert** — not yet validated on a
-throwaway task. The hooks intercept every Write/Edit/MultiEdit now; all four fail-open on
-parse error so they cannot brick the session.
+`lsb-pipeline.js` Workflow orchestration) is now VALIDATED (2026-06-08) but not yet used on
+real work** — all four primitives it depends on were confirmed via a throwaway workflow
+(see §"Tier 2 validation" below). The hooks intercept every Write/Edit/MultiEdit now; all
+four fail-open on parse error so they cannot brick the session.
+
+**⚠ Tier 2 USAGE PRECONDITION (from validation):** the workflow `isolation:'worktree'`
+stage forks from **`origin/master` (last pushed)**, NOT local HEAD. LSB commits
+direct-to-master and is frequently unpushed, so the Coder stage would operate against stale
+code and miss local-only commits. **Before invoking `lsb-pipeline` on real work, `git push`
+first** (or otherwise ensure `origin/master` == local HEAD). Verified 2026-06-08: a worktree
+forked at `6083dd2` (=origin/master) while local HEAD was `1326273` (one unpushed commit
+ahead); the local-only commit was absent from the worktree.
 
 Original deferral context (now resolved for Tier 1): artifacts were drafted while Mark
 traveled ("draft without activating"), validated 2026-06-01 ("prep C, don't activate"), and
@@ -90,7 +99,7 @@ echo '{"tool_name":"Write","tool_input":{"file_path":"x.md","content":"I think t
 
 ---
 
-## Tier 2 — orchestration (drafted, inert)
+## Tier 2 — orchestration (VALIDATED 2026-06-08, not yet used on real work)
 
 ### `.claude/workflows/lsb-pipeline.js` (drafted)
 Encodes Architect → CDA SME → (UI/UX if frontend) → Coder → Reviewer → Tester using the
@@ -98,8 +107,32 @@ project subagents, with **`isolation:"worktree"` on the Coder stage** (prevents 
 bundled-commit race that hit us 2026-05-28) and gate-FAIL bounce-outs. Only runs when
 invoked via the Workflow tool with explicit opt-in: `Workflow({ name:"lsb-pipeline",
 args:{ task:"...", kind:"methodology"|"frontend"|"other", contextFiles:[...] } })`.
-**VALIDATE** the Workflow API shape (meta literal, `agentType` resolution to `.claude/agents/`,
-schema-forced structured outputs) on a small throwaway task before trusting it on real work.
+
+### Tier 2 validation (2026-06-08) — PASS, with one usage precondition
+Ran a throwaway validation workflow (`tier2-validation-throwaway`, run
+`wf_98da876c-1c6`, 4 agents, ~91k tokens, 44s) exercising the four primitives the real
+pipeline depends on. Deliberately NOT the real `lsb-pipeline` (that ends in a Coder commit
++ Tester — too destructive for a smoke test); instead a read-only/no-commit script using the
+SAME `agentType`s and the SAME `VERDICT`/`REVIEW` schemas, so a PASS here transfers.
+
+| Primitive | Result |
+|---|---|
+| `meta` pure-literal parses + runs | ✓ workflow executed end to end |
+| custom `agentType` → `.claude/agents/` resolution | ✓ `architect` (text) + `cda_sme`/`reviewer`/`coder` all resolved and ran |
+| schema-forced structured output | ✓ `cda_sme` returned a valid `VERDICT` (PASS), `reviewer` a valid `REVIEW` |
+| gate-FAIL conditional bounce / early-return control flow | ✓ the typed `.verdict` field drove the `=== 'REJECT'` branch (reachable) |
+| `isolation:'worktree'` spin-up + auto-clean | ✓ forked an isolated branch `worktree-<runid>-4` under `.claude/worktrees/`; auto-removed after (no-op); main checkout untouched |
+
+**⚠ Usage precondition (the one real finding):** the worktree forked from **`origin/master`
+(6083dd2, last pushed)**, NOT local HEAD (`1326273`, one unpushed commit ahead) — the
+local-only commit was ABSENT in the worktree. Because LSB commits direct-to-master and is
+frequently unpushed, **`git push` before invoking `lsb-pipeline` on real work**, else the
+Coder stage operates against stale code. (Alternatively, teach the workflow to fork from local
+HEAD — not done; push-first is the simpler operating rule.)
+
+**Still TODO before first real use:** run it once on a genuinely small real task (after a
+push) and confirm the Coder's worktree commit lands where expected and the Reviewer/Tester
+stages behave — the throwaway skipped the actual commit + Tester legs by design.
 
 ### Per-agent permission scoping — DECIDED (Mark accepted 2026-05-29)
 **Finding 1 → NO ACTION.** Agents are already correctly scoped (verified full frontmatter): read-only advisors (architect, ui_ux); read+run gate (reviewer = Bash, no Write); implementers (coder, tester). Do NOT impose blanket read-only.
