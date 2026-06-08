@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.13.0  
+**Version:** v0.13.1  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.13.1** (T3 undefined `--font-size-md` token fix, 2026-06-08) amends §1.1 to add a clarifying note that there is deliberately no `--font-size-md` token (the scale steps base 16px → lg 18px; pitfall #15 silent-fallback guard). Adds §13.12 binding `.f1-model-heading` typography spec: `--font-size-base` (16px) + `--font-weight-bold` (700) + `--color-text-primary`. No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-T3-font-size-md-uiux-verdict.md`). Recurrence-guard CI check deferred (out of scope per UI/UX gate — Architect backlog item).
 - **v0.13.0** (term-map drag-pan re-add + bottom-clipping fix, 2026-06-04) amends §17.4 (replaces "Drag-pan REMOVED" paragraph with re-added drag-pan spec); adds §17.11 (updateScrollableModifier + useLayoutEffect k=1 overflow fix + drag-pan handler contract) and §17.12 (cursor CSS: `grab`/`grabbing` + `--dragging` class + reduced-motion guard). No new tokens. `pad.b` raised from 40 → 52; SVG footer annotation `y=H-6` → `y=H-14`. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-06-04-drag-pan-clipping-uiux-verdict.md`).
 - **v0.12.0** (food promotion provenance surfaces, 2026-05-31) amends §15.5(b): `ProvenanceFooter.tsx` date suffix now sourced from `provenance.json` top-level `generated_at_utc` (`.slice(0,10)`); `generated_at_utc?: string` added to `ProvenanceData` interface; date span render-nothing when field absent. Adds §16.2 (term-MDS disclosure placement: stub section in MethodologyPage.tsx with M4a sentence + C3 n-count disclosure). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`); CDA SME PASS-WITH-NOTES (`docs/status/2026-05-31-food-promote-cda-sme-verdict.md`).
 - **v0.11.0** (TermMap Stage 2 scrollbar zoom model, 2026-05-31) replaces §17.4 "reserved" placeholder with the full Stage 2 spec; adds §17.8 (pan-viewport scrollbar CSS) and §17.9 (prefers-reduced-motion forward-guard). New CSS classes: `.term-map-pan-viewport`, `.term-map-pan-viewport--scrollable`. Drag-pan handlers removed; viewBox-zoom → content-scale model (SVG viewBox frozen, `<g id="term-content" transform="scale(k)">`). Lens auto-disabled at k>1.02 (Q2 LOCKED). No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-05-31-termmap-stage2-uiux-verdict.md`); Architect plan (`docs/status/2026-05-31-termmap-redesign-architect-plan.md`). Stage 2 automated tests deferred to T7 (no vitest harness).
@@ -69,6 +70,13 @@ All visual decisions derive from these tokens. They are defined once in `apps/da
 --font-size-xl:   24px;   /* section headings */
 --font-size-2xl:  32px;   /* page title */
 --font-size-3xl:  48px;   /* hero stat (e.g., "12 models tested") */
+/* NOTE: There is deliberately no --font-size-md token. The scale steps directly
+   from base (16px) to lg (18px). Sub-view headings that need a step between body
+   and lede text use --font-size-base + --font-weight-bold — not a phantom `md`.
+   Any var(--font-size-md) reference is undefined and invalid at computed-value
+   time; because font-size is an inherited property, it silently falls back to
+   the inherited value (the parent's font-size), not the initial value
+   (pitfall #15). */
 
 --font-weight-regular: 400;
 --font-weight-medium:  500;
@@ -2037,6 +2045,22 @@ Each tab carries a visible description paragraph. Copy in `apps/dashboard/src/co
 ### 13.11 Cite path — SourceAttribution and CSV
 
 Focus 1 source line: "Individual consistency data: {domain}-focus1.json · Analysis: v{analysis_version}". CSV columns: model_id, n_runs, oci, oci_ci_lower (nullable), oci_ci_upper (nullable), salience_stability_rho, deterministic_output, concentration_tier.
+
+### 13.12 `.f1-model-heading` typography (binding — T3, 2026-06-08)
+
+The model-name heading shown at the top of the Focus 1 Run Distribution and Term Stability sub-views uses `--font-size-base` (16px) + `--font-weight-bold` (700) + `--color-text-primary`.
+
+Rationale: `.f1-model-heading` is a sub-view heading one level below the section heading (`--font-size-xl`, 24px). `--font-size-lg` (18px) is reserved for the editorial lede and key-finding strip; using it for a per-model sub-view heading would overstate that heading's prominence in the page hierarchy. `--font-size-base` + bold achieves the correct visual step between body text and `xl` section headings without a phantom `--font-size-md` token (which does not exist in the scale — see §1.1 note).
+
+CSS class binding:
+
+```css
+.f1-model-heading {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+}
+```
 
 ---
 
