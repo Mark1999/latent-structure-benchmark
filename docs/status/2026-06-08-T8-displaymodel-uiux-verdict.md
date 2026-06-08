@@ -143,3 +143,30 @@ ContentArea:50, Focus1RunDistribution:176, Focus1TermStability:18, ProviderTree:
 ContentArea:113 special case: `shortName: shortModelName(...)` → `shortName: displayModel(...)`
 (the SelectionBar.ModelInfo `shortName` FIELD name is preserved — it is a typed field).
 ```
+
+---
+
+## OUTCOME — T8 DONE (`c32c773`)
+Architect → UI/UX PASS-WITH-NOTES (+ Mark's strip-rule override + SCOPE CORRECTION 13→16) →
+Coder (round 1 `6c059c7` → amended round 2 `ba9f3db` → changelog fix `c32c773`) →
+Reviewer **PASS** → Tester **PASS**. 16 sites unified to `displayModel`; DESIGN_SYSTEM §18 added
+(v0.14.0); 74 tests (build+lint green). Visible changes: 5 `claude-*`-keeping sites now show
+`opus-4-5` (the bug fix); ProviderTree `ds-v3.2`→`deepseek-v3.2`; TermMap Title-Case dropped;
+Timeline `grok-4`/`phi-4`→`4` collisions removed.
+
+### Reviewer verdict — PASS
+All 9 binding checks pass. Transform matches Mark's no-collision rule EXACTLY (strip org + only
+`claude-`; `grok-4`→`grok-4`, `phi-4`→`phi-4`, not `4`). All 16 sites consolidated (0 helper fns,
+0 inline idioms in components/). Re-drift guard confirmed genuinely broad (glob `components/**`,
+≥16 files, bans all 3 fn names + both idioms) — the round-1 narrow-scoping that hid the 3 sites
+is fixed. Accessibility: heatmap cell aria-label uses full `model_id`; CentralityChart SR summary
+uses `displayModel(id) (id)`. SelectionBar untouched (typed field preserved). DESIGN_SYSTEM §18
+co-update present (R7-style). Scope clean (no `packages/` edits).
+
+### Tester verdict — PASS
+build ✓ / 74 tests / lint clean. **Two revert-and-confirm-fail cycles:** (1) planting a local
+`function shortName` in Sidebar made the re-drift guard FAIL (`["../../components/Sidebar.tsx"]`),
+restore → green — proves the guard protects ALL components incl. the round-2 sites; (2) adding a
+`grok-` strip to `displayModel` made pinned tests FAIL (`grok-4`→`4`, `grok-4.20`→`4.20`),
+restore → green — proves the suite pins Mark's no-collision rule against future regression.
+Coverage complete (18 pinned rows = all 8 providers + 3 edge cases). Tree clean.
