@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.16.0  
+**Version:** v0.17.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.17.0** (Published lede wire-up — Phase 9a T2, 2026-06-09) adds §21 (`.chart-lede` binding token spec). `ContentArea.tsx` Focus-3 lede strip now renders `domain.generated_lede` verbatim in a single `<p className="chart-lede" aria-live="polite">`. Inline-computed lede block (lines 199-220, `selectedModelIds.size` branching, "Consensus baseline (all tested models):" label, inline Smith's S computation) removed. WCAG AA contrast fix: `.chart-lede` color changed from `var(--color-text-secondary)` (~3.40:1, FAILS AA) to `var(--color-text-caption)` (~4.60:1, PASS). R1-b low-output-concentration disclosure restored on family and food domains. §12.9 SR-template boundary note updated: `generated_lede` now rendered in `ContentArea.tsx` (not only `ArticleHeader.tsx`). No new tokens. Gate verdicts: CDA SME PASS (`docs/status/2026-06-08-phase9a-T2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T2-uiux-verdict.md`).
 - **v0.16.0** (Data download tab — Phase 9a task 6, 2026-06-09) adds §20 and the `--color-surface-note` semantic alias token (§1.2). New component `DataPage.tsx` replaces the `navTab === 'data'` placeholder. Section render order B/D/A/C/E/F/G/H (UI/UX binding). No new dependencies. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md`).
 - **v0.15.0** (Collection records tab — Phase 9a T1, 2026-06-09) adds §19. New top-level NavBar tab "Collection records" at position [Explore][Methodology][Collection records][Data]. New files: `FailuresFindings.tsx`, `copy/failures_findings.ts`, `styles/failures-findings.css`, `__tests__/FailuresFindings.test.tsx`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`).
 - **v0.14.0** (displayModel canonical label — T8, 2026-06-08) adds §18. Single canonical
@@ -1862,7 +1863,7 @@ A text-label change alone (rest → pressed) does not satisfy WCAG 1.4.11 3:1 no
 - Text is the output of the corresponding programmatic template function (not `generated_lede`).
 
 **SR template boundary (CDA SME S11 binding):**
-- `generated_lede` (per-domain finding) — used only in `ArticleHeader.tsx`. Not reused in any SR template.
+- `generated_lede` (per-domain finding) — rendered in `ContentArea.tsx` as the Focus-3 chart lede strip (Phase 9a T2). Not reused in any SR template.
 - SR templates (per-viz structural summaries) — live in `src/copy/screen_reader_summaries.ts`. Deterministic, no LLM calls.
 
 **`.sr-only` CSS class:** reused from `app.css` (established at T5/T7). No new visually-hidden class introduced by T8.
@@ -2780,6 +2781,37 @@ Beyond the single new `--color-surface-note` alias, §20 introduces no new CSS c
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.16.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## §21 .chart-lede binding token spec (v0.17.0 — Phase 9a T2, 2026-06-09)
+
+### 21.1 Color token (BINDING)
+
+`.chart-lede` MUST use `color: var(--color-text-caption)` (#6c757d, ~4.60:1 on white, WCAG AA compliant). Do NOT use `var(--color-text-secondary)` (#7f8c8d, ~3.40:1, fails AA at 13px regular weight). The WCAG 1.4.3 minimum is 4.5:1 for text below 18px regular weight; `--color-text-caption` clears this at 4.60:1.
+
+### 21.2 Render spec for the Focus-3 lede strip (BINDING)
+
+The Focus-3 lede strip in `ContentArea.tsx` MUST render as:
+
+```tsx
+<p className="chart-lede" aria-live="polite">{domain.generated_lede}</p>
+```
+
+Rules:
+- **Verbatim render.** `domain.generated_lede` is rendered verbatim — no client-side string transformation, no conditional branching on `selectedModelIds`, no inline Smith's S computation.
+- **Single continuous paragraph.** The published lede may contain two sentences (the main finding + the R1-b low-output-concentration disclosure). Do NOT split them into separate elements. Do NOT style the R1-b sentence differently. It is a first-class finding, not a footnote.
+- **No "Consensus baseline" label.** The published lede self-identifies; the prefixed label is dropped.
+- **`aria-live="polite"` kept.** The lede changes on domain switch; screen readers must announce the new content.
+- **No inline lede logic.** No component may reconstruct a lede client-side. The lede generator lives in `cdb_publish` (CLAUDE.md §6 rule 11 / ARCHITECTURE.md §4.2 boundary). Any future lede change goes through a `cdb_publish` re-generation, not a component edit.
+
+### 21.3 "--" clause separator note
+
+The published `generated_lede` contains "--" (double-hyphen ASCII) as a clause separator, e.g. "their position on the map is shown without a confidence ellipse -- signaling that the runs did not converge". This is NOT a Unicode em dash (U+2014) and does NOT violate the no-em-dash rule. It is approved published copy. Any change to "--" separators in the published lede requires a `lede_v2.py` template update in `cdb_publish` (per CLAUDE.md §6 rule 7 prompt-template versioning) and is out of scope for T2. Render verbatim.
+
+### 21.4 Scope boundary
+
+This section governs ONLY the Focus-3 lede strip (`ContentArea.tsx` around the `!isFocus1 && !isFocus2 && domain` block). The Focus-1 and Focus-2 lede strips (ContentArea.tsx:114, 119 loading/error `<div className="chart-lede">` elements) are out of scope for §21.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.17.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

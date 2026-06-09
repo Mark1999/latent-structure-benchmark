@@ -196,28 +196,7 @@ export function ContentArea({
         {/* ===== Focus 3 tabs ===== */}
         {!loading && !error && !isFocus1 && !isFocus2 && domain && (
           <>
-            <p className="chart-lede" aria-live="polite">
-              {selectedModelIds.size === 0 ? (
-                <>
-                  Consensus baseline (all tested models): <strong>{domain.domain_slug}</strong> vocabulary is organized around a shared categorical structure
-                </>
-              ) : (
-                <>
-                  Across{' '}
-                  <strong>{selectedModelIds.size} model{selectedModelIds.size !== 1 ? 's' : ''}</strong>
-                  , <strong>{domain.domain_slug}</strong> vocabulary is organized around a shared categorical structure
-                </>
-              )}
-              {domain.consensus_score != null && (
-                <>
-                  {' '}(<strong>Smith&apos;s S = {domain.consensus_score.toFixed(2)}</strong>
-                  {domain.consensus_ci && (
-                    <>, 95% CI [{domain.consensus_ci[0].toFixed(2)}, {domain.consensus_ci[1].toFixed(2)}]</>
-                  )}
-                  )
-                </>
-              )}.
-            </p>
+            <p className="chart-lede" aria-live="polite">{domain.generated_lede}</p>
 
             {activeVizTab === 'term-map' && domain.term_mds_coordinates && (
               <TermMap

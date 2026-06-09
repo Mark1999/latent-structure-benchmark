@@ -602,7 +602,7 @@ body {
 .chart-lede {
   font-size: 13px;
   line-height: 1.55;
-  color: var(--color-text-secondary);
+  color: var(--color-text-caption);
   max-width: 580px;
   margin-bottom: 10px;
 }
