@@ -186,4 +186,31 @@ describe('DataPage', () => {
     expect(ccByMatches!.length).toBeGreaterThanOrEqual(2);
   });
 
+  // 13. Section render order (UI/UX verdict §20, binding):
+  //     B (HF) → D (Cite) → A (header/Data) → C (tarball+warning)
+  //     The B2 tarball link must follow all three preceding section headings.
+  it('sections render in binding UI/UX order: B(HF) → D(Cite) → A(header) → C(tarball)', () => {
+    const { container } = render(<DataPage />);
+    const hfHeading      = container.querySelector('#data-hf-heading');
+    const citeHeading    = container.querySelector('#data-cite-heading');
+    const headerHeading  = container.querySelector('#data-header-heading');
+    const tarballHeading = container.querySelector('#data-tarball-heading');
+    expect(hfHeading).not.toBeNull();
+    expect(citeHeading).not.toBeNull();
+    expect(headerHeading).not.toBeNull();
+    expect(tarballHeading).not.toBeNull();
+    // B precedes D
+    expect(
+      hfHeading!.compareDocumentPosition(citeHeading!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // D precedes A
+    expect(
+      citeHeading!.compareDocumentPosition(headerHeading!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // A precedes C
+    expect(
+      headerHeading!.compareDocumentPosition(tarballHeading!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
 });
