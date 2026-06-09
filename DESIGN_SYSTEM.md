@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.14.0  
+**Version:** v0.15.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.15.0** (Collection records tab — Phase 9a T1, 2026-06-09) adds §19. New top-level NavBar tab "Collection records" at position [Explore][Methodology][Collection records][Data]. New files: `FailuresFindings.tsx`, `copy/failures_findings.ts`, `styles/failures-findings.css`, `__tests__/FailuresFindings.test.tsx`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`).
 - **v0.14.0** (displayModel canonical label — T8, 2026-06-08) adds §18. Single canonical
   export `displayModel(modelId)` in familyUtils.ts; bans component-local re-implementation;
   collapses the 16 drifted shortName/shortModelName/shortModelDisplayName helpers. Strip rule (Mark's ruling):
@@ -2560,6 +2561,130 @@ Round-2 additions (3):
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.14.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 19. Collection records tab (v0.15.0 — Phase 9a T1, 2026-06-09)
+
+Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`, M1-M4); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`, N1-N7).
+
+### 19.1 Tab label and nav order (binding N1 / CDA SME M1)
+
+Tab label: `"Collection records"` (CDA SME M1 Option A preferred; exported as `FAILURES_TAB_LABEL` from `copy/failures_findings.ts`).
+
+Nav order (binding): `[Explore] [Methodology] [Collection records] [Data]`.
+
+`NavTab` type: `'explore' | 'methodology' | 'collection-records' | 'data'`. The `'collection-records'` value is the tab route key. `aria-current="page"` on the active tab button.
+
+### 19.2 Domain selector (binding N1 / CDA SME M3)
+
+The Collection records tab owns its own domain state, defaulting to `'family'`. It is NOT inherited from the Explore tab's domain.
+
+Element: `<select id="failures-domain-select">` with `<label htmlFor="failures-domain-select">`. The `id` must be distinct from the Sidebar domain picker's id. Label text: `"Domain"` (M3 compliant).
+
+Three domain options: Family / Holidays / Food (same set as Explore).
+
+### 19.3 Page heading (binding CDA SME M2 / T10 SECTION_HEADING verbatim)
+
+`<h1>` element with text `"Collection records and follow-up interviews"` byte-for-byte. This is the T10 SECTION_HEADING string; it is the tab's primary heading.
+
+### 19.4 Content order (binding N1)
+
+Within the tab region, content renders in this order:
+1. `<h1>` heading (§19.3).
+2. Domain selector row (§19.2) — rendered below the heading, before framing_note.
+3. `framing_note` `<p>` — verbatim, byte-identity from the JSON field. First content paragraph (T9 §5.1 / AC5).
+4. Counts caption `<p>` (T10 §4 template) — OMITTED when `n_records === 0`.
+5. `<ol>` records list or empty-state `<p>`.
+
+No chart-lede, no Smith's S, no SelectionBar, no VizTabs, no consensus-score strings (M4 / N7 chrome isolation).
+
+### 19.5 Badge tokens (binding N3)
+
+Two badge variants, implemented with CSS class modifiers on `.failures-findings__badge`:
+
+| Badge | Border + text token | Background |
+|---|---|---|
+| "Collection failure" | `var(--color-error)` (10.23:1 on white, WCAG AAA) | `var(--color-background)` |
+| "Follow-up interview" | `var(--color-border)` / `var(--color-text-secondary)` | `var(--color-background)` |
+
+Pill shape: `--space-2` horizontal padding, `--border-radius-sm`. **No new tokens.**
+
+### 19.6 `<details>`/`<summary>` pattern (binding N4)
+
+Native `<details>`/`<summary>` elements. No `role` override. Summary collapsed state contains:
+- Badge (§19.5).
+- `model_id` in `<code>` (mono).
+- `collection_date` as YYYY-MM-DD.
+- For failures: `error_type` + "error_message: N chars".
+- For decline interviews: "originating_outcome_class: `<code>{enum}</code>`".
+
+**NO verbatim model bytes in summary rows** (T10 S1 binding). The full verbatim content is only exposed in the expanded `<details>` body.
+
+Focus ring on summary: `.failures-findings__summary:focus-visible { outline: 2px solid var(--color-info); outline-offset: 2px; }`.
+
+### 19.7 `<pre>` container (binding N5)
+
+Class: `.failures-findings__pre`. Properties:
+- `font-family: var(--font-mono)`
+- `font-size: var(--font-size-xs)`
+- `background: var(--color-surface)`
+- `border: var(--border-width) solid var(--color-border)`
+- `border-radius: var(--border-radius-sm)`
+- `padding: var(--space-3)`
+- `white-space: pre-wrap`
+- `word-break: break-word`
+- `overflow-y: auto`
+- `max-height: 320px`
+
+### 19.8 Block labels (T10 S4b + S6 verbatim)
+
+All block labels are exported from `copy/failures_findings.ts`:
+- `"Originating context"`
+- `"Follow-up prompt LSB sent"`
+- `"Model output to the follow-up prompt"`
+- `"Reasoning trace the provider surfaced"` (shown only when `thinking_verbatim` is non-empty)
+- `"Provenance IDs"`
+
+### 19.9 Empty state (binding T10 S2 verbatim)
+
+When `n_records === 0` (e.g., food domain): render the `EMPTY_CAPTION` string byte-for-byte:
+
+> "This domain's collection run produced no failure records or follow-up interviews. The absence is itself an observation about how this set of models responded to this domain's elicitation prompts."
+
+No error icon, no greyout, no skeleton, no "coming soon." The absence is a first-class observation (ARCHITECTURE.md §1.5.6 / CLAUDE.md §9 pitfall #4).
+
+### 19.10 Loading and error states (first-class)
+
+Three fetch states beyond `ready`:
+- **loading:** `LOADING_TEXT = "Loading collection records…"`
+- **fetch-failed:** `FETCH_FAILED_TEXT = "Could not load collection records for this domain. Check that the data file is present."`
+- **malformed:** `MALFORMED_TEXT = "Collection records data for this domain could not be parsed."`
+
+These are first-class states. No "missing"/"pending"/"placeholder" language (AC10).
+
+### 19.11 No new tokens
+
+This section introduces no new CSS custom properties. All styling is token-only via existing `tokens.css` definitions.
+
+### 19.12 New files (binding inventory)
+
+| File | Role |
+|---|---|
+| `apps/dashboard/src/components/FailuresFindings.tsx` | Collection records tab component |
+| `apps/dashboard/src/copy/failures_findings.ts` | CDA-SME-approved copy strings |
+| `apps/dashboard/src/styles/failures-findings.css` | Token-only styles |
+| `apps/dashboard/src/__tests__/FailuresFindings.test.tsx` | 10-case vitest suite |
+
+Edited files:
+- `apps/dashboard/src/components/NavBar.tsx` — adds `'collection-records'` tab; exports `NavTab` type.
+- `apps/dashboard/src/App.tsx` — imports `NavTab` from NavBar; adds `<FailuresFindings />` branch.
+- `apps/dashboard/src/data/types.ts` — adds `FailureOutcomeClass`, `FailureRecord`, `DeclineInterviewRecord`, `FailuresRecord`, `FailuresFile` types.
+- `apps/dashboard/src/styles/app.css` — imports `failures-findings.css`.
+
+### 19.13 Chrome isolation (M4 / N7)
+
+The rendered Collection records tab text content (excluding `<pre>` verbatim model bytes) must not contain: `consensus`, `Smith's S`, `agree`, `believe`, `think` (as \bthink), `worldview`, `categoriz`. The vitest suite's case 9 enforces this with a DOM-walk that excludes `<pre>` nodes.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.15.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

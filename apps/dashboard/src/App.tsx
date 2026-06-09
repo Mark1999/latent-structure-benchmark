@@ -7,16 +7,17 @@ import { useState, useEffect, useCallback } from 'react';
 import './styles/app.css';
 
 import { NavBar } from './components/NavBar';
+import type { NavTab } from './components/NavBar';
 import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
 import { MethodologyPage } from './components/MethodologyPage';
+import { FailuresFindings } from './components/FailuresFindings';
 import { ProvenanceFooter } from './components/ProvenanceFooter';
 import type { DomainExtended } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
 import type { ActiveVizTab, ActiveFocus } from './components/VizTabs';
 import { displayProvider } from './lib/familyUtils';
 
-type NavTab = 'explore' | 'methodology' | 'data';
 type DomainSlug = 'family' | 'holidays' | 'food';
 
 export default function App() {
@@ -189,6 +190,7 @@ export default function App() {
       <>
         <NavBar activeTab={navTab} onTabChange={setNavTab} />
         {navTab === 'methodology' && <MethodologyPage />}
+        {navTab === 'collection-records' && <FailuresFindings />}
         {navTab === 'data' && (
           <div style={{
             display: 'flex',

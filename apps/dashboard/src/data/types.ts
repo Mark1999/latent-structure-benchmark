@@ -278,6 +278,87 @@ export interface DomainResultPublished {
   centrality_ci?: Record<string, [number, number]>;
 }
 
+// ===== Failures types =====
+
+/**
+ * LSB pipeline outcome class values (7-enum).
+ * These name LSB-side detection rules, not model state-of-mind.
+ * Source: apps/dashboard/public/data/failures/family.json (canonical reference).
+ */
+export type FailureOutcomeClass =
+  | "empty_output"
+  | "refusal_string_match"
+  | "single_degenerate_pile"
+  | "parse_failure"
+  | "http_error"
+  | "timeout"
+  | "other";
+
+/**
+ * A collection failure record: a session that did not produce a parseable
+ * primary-step response. record_type === "failure".
+ */
+export interface FailureRecord {
+  record_type: "failure";
+  collection_date: string;
+  model_id: string;
+  domain_slug: string;
+  error_type: string;
+  error_message: string;
+  run_index: number;
+  originating_outcome_class: FailureOutcomeClass | null;
+  retry_attempts: unknown[];
+}
+
+/**
+ * A decline interview record: a follow-up prompt sent after a failure.
+ * record_type === "decline_interview".
+ */
+export interface DeclineInterviewRecord {
+  record_type: "decline_interview";
+  collection_date: string;
+  model_id: string;
+  domain_slug: string;
+  decline_interview_id: string;
+  originating_informant_id: string | null;
+  originating_failure_id: string | null;
+  originating_step: string;
+  originating_outcome_class: FailureOutcomeClass | null;
+  detection_rule_version: string;
+  model_version_returned: string;
+  provider: string;
+  api_endpoint: string;
+  prompt_version: string;
+  sha256_manifest: string;
+  prompt_verbatim: string;
+  response_verbatim: string;
+  thinking_verbatim: string;
+  input_tokens: number;
+  output_tokens: number;
+  latency_ms: number;
+  stop_reason: string;
+  qa_notes: string;
+  version_drift_flag: boolean;
+}
+
+/**
+ * Union type for a single record in a failures file.
+ */
+export type FailuresRecord = FailureRecord | DeclineInterviewRecord;
+
+/**
+ * Top-level structure of a failures/{slug}.json file.
+ */
+export interface FailuresFile {
+  domain_slug: string;
+  generated_at: string;
+  n_records: number;
+  n_failure_records: number;
+  n_decline_interview_records: number;
+  framing_note: string;
+  records: FailuresRecord[];
+}
+
 /**
  * Extended domain result carrying optional fields present in published JSON
  * beyond the base DomainResultPublished interface.  Exported so App.tsx and

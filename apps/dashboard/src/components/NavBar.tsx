@@ -1,11 +1,18 @@
 /**
  * NavBar — top navigation bar (48px)
- * Brand + Explore / Methodology / Data tabs
+ * Brand + Explore / Methodology / Collection records / Data tabs
+ *
+ * Tab order (DESIGN_SYSTEM.md §19.2):
+ *   [Explore] [Methodology] [Collection records] [Data]
  */
 
+import { FAILURES_TAB_LABEL } from '../copy/failures_findings';
+
+export type NavTab = 'explore' | 'methodology' | 'collection-records' | 'data';
+
 interface NavBarProps {
-  activeTab: 'explore' | 'methodology' | 'data';
-  onTabChange: (tab: 'explore' | 'methodology' | 'data') => void;
+  activeTab: NavTab;
+  onTabChange: (tab: NavTab) => void;
 }
 
 export function NavBar({ activeTab, onTabChange }: NavBarProps) {
@@ -28,6 +35,13 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
           aria-current={activeTab === 'methodology' ? 'page' : undefined}
         >
           Methodology
+        </button>
+        <button
+          className={`nav__tab${activeTab === 'collection-records' ? ' nav__tab--active' : ''}`}
+          onClick={() => onTabChange('collection-records')}
+          aria-current={activeTab === 'collection-records' ? 'page' : undefined}
+        >
+          {FAILURES_TAB_LABEL}
         </button>
         <button
           className={`nav__tab${activeTab === 'data' ? ' nav__tab--active' : ''}`}

@@ -1,0 +1,238 @@
+/*
+ * Collection records tab — FailuresFindings component styles.
+ *
+ * Token-only: every color/font/spacing value is a var(--...) reference.
+ * NO hex literals, NO hardcoded px sizes, NO new token definitions.
+ *
+ * Sources:
+ *   DESIGN_SYSTEM.md §19 (v0.15.0) — Collection records tab binding spec.
+ *   UI/UX verdict 2026-06-08 (N1-N7).
+ *   pitfall #15: every var(--...) verified against tokens.css before use.
+ */
+
+/* ===== Page container ===== */
+
+.failures-findings {
+  flex: 1 1 0;
+  min-height: 0;
+  overflow-y: auto;
+  padding: var(--space-8) var(--space-6);
+  max-width: 780px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+/* ===== Heading ===== */
+
+.failures-findings__heading {
+  font-size: var(--font-size-xl);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  margin-bottom: var(--space-4);
+}
+
+/* ===== Domain selector row ===== */
+
+.failures-findings__domain-row {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-6);
+}
+
+.failures-findings__domain-label {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+}
+
+.failures-findings__domain-select {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  background: var(--color-background);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+}
+
+/* ===== Framing note ===== */
+
+.failures-findings__framing-note {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-body);
+  margin-bottom: var(--space-4);
+  max-width: var(--max-prose-width);
+}
+
+/* ===== Counts caption ===== */
+
+.failures-findings__counts {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  margin-bottom: var(--space-6);
+}
+
+/* ===== Records ordered list ===== */
+
+.failures-findings__list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-3);
+}
+
+/* ===== Individual record <details> ===== */
+
+.failures-findings__record {
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  background: var(--color-background);
+}
+
+/* ===== Summary row ===== */
+
+.failures-findings__summary {
+  display: flex;
+  align-items: baseline;
+  gap: var(--space-3);
+  padding: var(--space-3) var(--space-4);
+  cursor: pointer;
+  list-style: none;
+  flex-wrap: wrap;
+}
+
+/* Remove default marker in Chrome/Safari */
+.failures-findings__summary::-webkit-details-marker {
+  display: none;
+}
+
+.failures-findings__summary:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+/* ===== Badges (N3) ===== */
+
+/* Collection failure badge: border+text = --color-error, bg = --color-background */
+.failures-findings__badge {
+  display: inline-block;
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  padding: 2px var(--space-2);
+  border-radius: var(--border-radius-sm);
+  border: var(--border-width) solid var(--color-border);
+  background: var(--color-background);
+  color: var(--color-text-secondary);
+  flex-shrink: 0;
+}
+
+.failures-findings__badge--failure {
+  border-color: var(--color-error);
+  color: var(--color-error);
+}
+
+/* Follow-up interview badge: neutral border, --color-text-secondary */
+.failures-findings__badge--decline {
+  border-color: var(--color-border);
+  color: var(--color-text-secondary);
+}
+
+/* ===== Summary metadata ===== */
+
+.failures-findings__summary-model {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
+.failures-findings__summary-date {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.failures-findings__summary-meta {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.failures-findings__summary-meta code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
+/* ===== Expanded detail body ===== */
+
+.failures-findings__body {
+  padding: var(--space-3) var(--space-4);
+  border-top: var(--border-width) solid var(--color-border);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-4);
+}
+
+/* ===== Block sections ===== */
+
+.failures-findings__block-label {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  margin-bottom: var(--space-2);
+}
+
+/* ===== <pre> blocks (N5) ===== */
+
+.failures-findings__pre {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-3);
+  white-space: pre-wrap;
+  word-break: break-word;
+  overflow-y: auto;
+  max-height: 320px;
+  color: var(--color-text-primary);
+}
+
+/* ===== Provenance metadata list ===== */
+
+.failures-findings__provenance-list {
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+}
+
+.failures-findings__provenance-item {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+}
+
+.failures-findings__provenance-item code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+/* ===== Loading / error / empty states ===== */
+
+.failures-findings__status {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  padding: var(--space-8) 0;
+}
+
+.failures-findings__empty {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+}
