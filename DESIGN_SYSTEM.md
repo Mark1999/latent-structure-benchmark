@@ -1715,7 +1715,7 @@ The MethodologySummary is the article-bottom methodology note rendered below the
 
 ---
 
-### 12.8 SimilarityHeatmap cell-text contrast specification (v0.4.9 — T6, 2026-05-15; supersedes v0.4.5 T5)
+### 12.8 SimilarityHeatmap cell-text contrast specification (v0.4.9 — T6, 2026-05-15; supersedes v0.4.5 T5; dashed-stroke contrast ruling added T3, 2026-06-09)
 
 The SimilarityHeatmap uses a 5-stop discrete-binning model (T6, Posture B). Each cell's similarity value is mapped to one of five named hex stops from `--color-scale-seq-0` through `--color-scale-seq-4` via equal-width bins. This section specifies the WCAG AA contrast compliance for each stop and the binding text-color switch threshold.
 
@@ -1810,15 +1810,66 @@ Stop 3 and model-1 are in the same blue hue family and similar luminance (1.15:1
 
 Non-blue model palette colors (model-2 through model-7, model-9 through model-11) are in distinct hue families (red, orange, green, purple, teal, dark orange, dark purple, dark teal, dark gold) and are not in perceptual collision with any sequential stop.
 
-**CI-crosses-null treatment (deferred — retained from T5):**
+**CI-crosses-null treatment (RESTORED — T3, 2026-06-09):**
 
-The dashed-border treatment for cells where the 95% CI crosses the Mantel-correlation null (SIMILARITY_NULL_VALUE = 0.5) is **retained verbatim from T5** (SimilarityHeatmap.tsx). The dashed-border rendering continues as the token-constrained substitution for §4.5's "reduced saturation" instruction, per CDA SME T5 §4 approval. The §4.5 doc-text refinement (CDA SME T5 §5.4 suggested replacement sentence) remains a T14 follow-up.
+The 2026-05-25 rebuild dropped this treatment; Phase 9a T3 restores it. Implementation site: `apps/dashboard/src/components/SimilarityHeatmap.tsx`. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T3-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T3-uiux-verdict.md`).
 
-Implementation site: `apps/dashboard/src/components/SimilarityHeatmap.tsx`. Dashed-border logic is unchanged by T6.
+**Dashed-border spec (binding — restored from T5, adapted for T6 5-stop palette):**
 
-The binding caption text (CDA SME T5 §5.1) is **not changed**: "Each cell shows how similarly two models organize this domain (1.00 = identical organization; 0.50 = no shared structure). Dashed cells: 95% confidence interval includes the no-shared-structure value."
+| Condition | stroke | strokeWidth | strokeDasharray |
+|---|---|---|---|
+| Crossing (`!isDiagonal && ciCrossesNull(ci)`) | `dashStroke` (see below) | 1.5 | "3,2" |
+| Non-crossing / null CI / diagonal | `var(--color-border)` | 0.5 | none |
 
-The binding dashed-cell aria-label augmentation (CDA SME T5 §5.2) is **not changed**: "; confidence interval includes the no-shared-structure value of 0.50" appended when CI crosses null.
+Diagonal cells are NEVER dashed: self-similarity = 1.0 is an identity fact, not a measurement. Short-circuit on `isDiagonal` before `ciCrossesNull(ci)` check is a hard methodological invariant (CDA SME T3 §4b).
+
+**dashStroke contrast rule (UI/UX T3 verdict — binding, WCAG 1.4.11 3:1 non-text):**
+
+```ts
+const dashStroke = ciCrossesNull
+  ? (sim >= HEATMAP_TEXT_SWITCH_THRESHOLD
+      ? 'var(--color-background)'   // white on seq-3/seq-4: 5.47 / 11.67:1 PASS
+      : 'var(--color-text-primary)') // dark on seq-0/1/2: 8.43 / 5.82 / 3.31:1 PASS
+  : 'var(--color-border)';          // non-crossing solid
+```
+
+| Cell stop | Hex | dashStroke | Contrast | WCAG 1.4.11 |
+|---|---|---|---|---|
+| seq-0 (#eaf0f8) | sim in [0.00, 0.20) | `var(--color-text-primary)` (#2c3e50) | 8.43:1 | PASS |
+| seq-1 (#b8cce4) | sim in [0.20, 0.40) | `var(--color-text-primary)` (#2c3e50) | 5.82:1 | PASS |
+| seq-2 (#6b9dc8) | sim in [0.40, 0.60) | `var(--color-text-primary)` (#2c3e50) | 3.31:1 | PASS (marginal; numeric value + labels provide redundancy) |
+| seq-3 (#2e6da4) | sim in [0.60, 0.80) | `var(--color-background)` (#ffffff) | 5.47:1 | PASS |
+| seq-4 (#1a3a5c) | sim in [0.80, 1.00] | `var(--color-background)` (#ffffff) | 11.67:1 | PASS |
+
+No new tokens. Reuses `HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60` (existing constant). Token refs by `var(--...)` name; no hardcoded hex (CLAUDE.md pitfall #15).
+
+**Caption (CDA SME T3 §3 binding — two-sentence paired unit, verbatim):**
+
+Rendered in `ContentArea.tsx` `chart-wrap__desc` paragraph ONLY. NOT inside `SimilarityHeatmap.tsx` (no duplication).
+
+> "Each cell shows how similarly two models organize this domain (1.00 = identical organization; 0.50 = no shared structure). Dashed cells: 95% confidence interval includes the no-shared-structure value of 0.50."
+
+**Aria-label templates (CDA SME T3 §2 — four variants, verbatim binding):**
+
+Variant A (off-diagonal, CI present, NOT crossing null):
+> `${shortA} versus ${shortB}: similarity ${sim.toFixed(2)}, 95 percent confidence interval ${ci[0].toFixed(2)} to ${ci[1].toFixed(2)}`
+
+Variant B (off-diagonal, CI present, crosses null — the dashed cell):
+> `${shortA} versus ${shortB}: similarity ${sim.toFixed(2)}, 95 percent confidence interval ${ci[0].toFixed(2)} to ${ci[1].toFixed(2)}; confidence interval includes the no-shared-structure value of 0.50`
+
+Variant C (off-diagonal, CI null/missing):
+> `${shortA} versus ${shortB}: similarity ${sim.toFixed(2)}, confidence interval not available`
+
+Variant D (diagonal):
+> `${shortA} self-similarity: 1.00 by construction`
+
+"versus" is the approved non-cognitive connective. "no-shared-structure value of 0.50" provides consistent vocabulary between caption and cell for screen-reader users. "95 percent" written out (not "95%") for screen-reader speech clarity. "1.00 by construction" is load-bearing — do not soften to "self-similarity: 1.00" alone.
+
+**ciCrossesNull strict inequalities (binding — test case 6):**
+
+`ci[0] < 0.5 && 0.5 < ci[1]` — closed-boundary cases ([0.5, 0.501], [0.499, 0.5]) return false.
+
+The §4.5 doc-text refinement (CDA SME T5 §5.4 suggested replacement sentence: replace "shown with reduced saturation" with the dashed-border description) remains a T14 follow-up.
 
 ---
 

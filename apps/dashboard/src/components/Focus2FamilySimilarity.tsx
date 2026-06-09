@@ -24,6 +24,8 @@ import {
 interface Focus2FamilySimilarityProps {
   models: PublishedModel[];
   similarityMatrix: number[][];
+  /** Per-cell 95% bootstrap CI, indexed in the same models-array order as similarityMatrix. */
+  similarityCi?: ([number, number] | null)[][];
   mdsCoordinates: Record<string, [number, number]>;
   mdsUncertainty: Record<string, EllipseParams | null>;
   selectedProvider: string | null;
@@ -224,6 +226,7 @@ function buildMdsSvg(
 export function Focus2FamilySimilarity({
   models,
   similarityMatrix,
+  similarityCi,
   mdsCoordinates,
   mdsUncertainty,
   selectedProvider,
@@ -268,6 +271,7 @@ export function Focus2FamilySimilarity({
         <div className="f2-similarity__heatmap-wrap">
           <SimilarityHeatmap
             similarityMatrix={similarityMatrix}
+            similarityCi={similarityCi ?? []}
             models={models}
             selectedModelIds={familyIds}
           />

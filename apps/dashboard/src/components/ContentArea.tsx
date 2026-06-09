@@ -139,6 +139,7 @@ export function ContentArea({
               <Focus2FamilySimilarity
                 models={domain.models}
                 similarityMatrix={domain.similarity_matrix ?? []}
+                similarityCi={domain.similarity_ci ?? []}
                 mdsCoordinates={domain.mds_coordinates}
                 mdsUncertainty={domain.mds_uncertainty}
                 selectedProvider={selectedProvider}
@@ -243,13 +244,19 @@ export function ContentArea({
 
             {activeVizTab === 'similarity' && (
               <div className="chart-wrap">
+                {/*
+                  Two-sentence caption: CDA SME T3 §3 binding (verbatim).
+                  Source: docs/status/2026-06-08-phase9a-T3-cda-sme-verdict.md §3.
+                  Do NOT render this caption inside SimilarityHeatmap.tsx (no duplication).
+                */}
                 <p className="chart-wrap__desc">
-                  Pairwise similarity between models based on how they co-organize domain
-                  terms. Darker cells indicate models that produce more similar categorical
-                  structures.
+                  Each cell shows how similarly two models organize this domain (1.00 = identical
+                  organization; 0.50 = no shared structure). Dashed cells: 95% confidence interval
+                  includes the no-shared-structure value of 0.50.
                 </p>
                 <SimilarityHeatmap
                   similarityMatrix={domain.similarity_matrix ?? []}
+                  similarityCi={domain.similarity_ci ?? []}
                   models={domain.models}
                   selectedModelIds={selectedModelIds}
                 />
