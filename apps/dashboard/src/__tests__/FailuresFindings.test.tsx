@@ -184,27 +184,14 @@ describe('FailuresFindings', () => {
     });
   });
 
-  // 8. Empty state (food): verbatim EMPTY_CAPTION + zero <details>
-  // Covered by test 8b below (simpler, direct path). This placeholder
-  // ensures the suite is clearly organized per plan §8.
-  it('empty state food (plan §8 case 8) — verified by 8b below via domain switch', () => {
-    // Assertion is in test '8b' which directly switches to food and waits.
-    expect(true).toBe(true);
-  });
-
-  // 8b. Direct render of food JSON (simpler path)
+  // 8. Empty state (food): verbatim EMPTY_CAPTION + zero <details> (AC9 / plan §8 case 8)
+  // Serves food fixture as the initial family fetch so the component immediately
+  // enters the empty-state branch (n_records === 0).
   it('empty state: EMPTY_CAPTION verbatim and zero <details> elements (food fixture)', async () => {
+    // Queue foodJson for the first (family) fetch. Component sees n_records=0
+    // and renders the empty state on first load — no domain switch needed.
     mockFetchWith(foodJson);
     const { container } = render(<FailuresFindings />);
-
-    // Change select to food to trigger food fetch
-    const select = container.querySelector('#failures-domain-select') as HTMLSelectElement;
-    vi.restoreAllMocks();
-    vi.spyOn(globalThis, 'fetch').mockResolvedValue({
-      ok: true,
-      json: async () => foodJson,
-    } as Response);
-    fireEvent.change(select, { target: { value: 'food' } });
 
     await waitFor(() => {
       expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
@@ -255,11 +242,10 @@ describe('FailuresFindings', () => {
     // Also verify the FAILURES_TAB_LABEL is available from copy module
     expect(FAILURES_TAB_LABEL).toBe('Collection records');
 
-    // Verify no preText leak by confirming at least one <pre> would have contained
-    // a substring that would have tripped the test
-    if (prEls_haveResponseBytes(preEls)) {
-      // If we got here without failures above, chrome isolation is working
-    }
+    // Assert the exclusion logic is doing real work: at least one <pre> in the DOM
+    // must contain response_verbatim bytes. This guarantees the chrome-isolation
+    // check above is not vacuously passing because all <pre> blocks were empty.
+    expect(prEls_haveResponseBytes(preEls)).toBe(true);
   });
 
   // 10. Domain switch re-fetches
