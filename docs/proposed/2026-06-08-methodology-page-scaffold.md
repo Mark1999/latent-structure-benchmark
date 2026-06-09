@@ -1,3 +1,4 @@
+
 # Methodology page, draft scaffold (for Mark's review and personal authoring)
 
 **Status:** DRAFT for Mark. Per ARCHITECTURE §5.3 / DESIGN_SYSTEM §6.1, the methodology page is
