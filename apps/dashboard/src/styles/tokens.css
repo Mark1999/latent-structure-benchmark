@@ -133,6 +133,11 @@
   --color-tooltip-dark-text:    var(--color-background);    /* white text on dark bg */
   --color-tooltip-dark-divider: rgba(255, 255, 255, 0.15);  /* section divider */
 
+  /* Semantic alias for note/callout backgrounds (Data page size warning).
+     Same hex as --color-surface (#f8f9fa). Use this alias — NOT --color-surface
+     directly — for .data-page__note backgrounds, per UI/UX verdict §20. */
+  --color-surface-note: #f8f9fa;
+
   /* UI chrome */
   --color-text-primary:    #2c3e50;   /* body text */
   --color-text-secondary:  #7f8c8d;   /* secondary labels at 14px+ or bold — ~3.40:1; use --color-text-caption for 12px regular */

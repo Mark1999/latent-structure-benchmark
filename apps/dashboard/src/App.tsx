@@ -12,6 +12,7 @@ import { Sidebar } from './components/Sidebar';
 import { ContentArea } from './components/ContentArea';
 import { MethodologyPage } from './components/MethodologyPage';
 import { FailuresFindings } from './components/FailuresFindings';
+import { DataPage } from './components/DataPage';
 import { ProvenanceFooter } from './components/ProvenanceFooter';
 import type { DomainExtended } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
@@ -191,20 +192,7 @@ export default function App() {
         <NavBar activeTab={navTab} onTabChange={setNavTab} />
         {navTab === 'methodology' && <MethodologyPage />}
         {navTab === 'collection-records' && <FailuresFindings />}
-        {navTab === 'data' && (
-          <div style={{
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            flex: '1 1 0',
-            minHeight: 0,
-            color: 'var(--color-text-secondary)',
-            fontSize: 'var(--font-size-sm)',
-            fontStyle: 'italic',
-          }}>
-            Data download page — coming soon
-          </div>
-        )}
+        {navTab === 'data' && <DataPage />}
         {/* Footer on non-explore routes: activeDomain=null → always renders if versions present */}
         <ProvenanceFooter activeDomain={null} />
       </>

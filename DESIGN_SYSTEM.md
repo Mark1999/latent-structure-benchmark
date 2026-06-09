@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.15.0  
+**Version:** v0.16.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.16.0** (Data download tab — Phase 9a task 6, 2026-06-09) adds §20 and the `--color-surface-note` semantic alias token (§1.2). New component `DataPage.tsx` replaces the `navTab === 'data'` placeholder. Section render order B/D/A/C/E/F/G/H (UI/UX binding). No new dependencies. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md`).
 - **v0.15.0** (Collection records tab — Phase 9a T1, 2026-06-09) adds §19. New top-level NavBar tab "Collection records" at position [Explore][Methodology][Collection records][Data]. New files: `FailuresFindings.tsx`, `copy/failures_findings.ts`, `styles/failures-findings.css`, `__tests__/FailuresFindings.test.tsx`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`).
 - **v0.14.0** (displayModel canonical label — T8, 2026-06-08) adds §18. Single canonical
   export `displayModel(modelId)` in familyUtils.ts; bans component-local re-implementation;
@@ -1565,6 +1566,10 @@ All components to be built, in implementation order:
 - `DendrogramTable.tsx` — read-as-table rendering for `Dendrogram` (T7). Columns: Cluster, Term, Subtree depth, Bootstrap support (%).
 - `apps/dashboard/src/styles/dendrogram.css` — token-only styles for Dendrogram.
 
+**Data download tab (Phase 9a task 6, 2026-06-09):**
+- `DataPage.tsx` — static Data download tab; all prose verbatim from `data/open_bundle/README.md`, `huggingface_dataset_card.md`, and `ARCHITECTURE.md` §6.6. Section render order B/D/A/C/E/F/G/H per UI/UX verdict §20. Uses `--color-surface-note` for the size-warning callout. File: `apps/dashboard/src/components/DataPage.tsx`. Spec: §20.
+- `apps/dashboard/src/__tests__/DataPage.test.tsx` — 12-case vitest suite (no fetch). Spec: Architect plan §6.
+
 **Methodology page (Phase 6, Mark writes prose):**
 - `MethodologyPage.tsx` — long-form article template; includes "Data provenance" final section (PROMOTE-2, 2026-05-30). File: `apps/dashboard/src/components/MethodologyPage.tsx`. Spec: §15.5(a) and §6.
 - `CitationBlock.tsx` — formatted academic citation component
@@ -2685,6 +2690,96 @@ The rendered Collection records tab text content (excluding `<pre>` verbatim mod
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.15.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 20. Data Page visual specification (v0.16.0 — Phase 9a task 6, 2026-06-09)
+
+Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md`).
+
+### 20.1 Layout and container (binding)
+
+`<main aria-label="Data download">` with `.data-page` as the flex child (fills remaining height below NavBar, `overflow-y: auto`). Container `.data-page__container` uses `max-width: var(--max-prose-width)` centered. Bare `<section>` blocks — no card chrome. `.data-page*` rules appended to `app.css`, mirroring `.methodology-page*`.
+
+`<h2>` per section using `font-size: var(--font-size-xl)` + `color: var(--color-text-primary)`. No `<h1>` (NavBar is the landmark).
+
+### 20.2 Section render order (binding, NOT alphabetical)
+
+B (HF Get-the-data) → D (Cite) → A (header/framing) → C (tarball+warning) → E (GitHub) → F (what's-in-bundle) → G (licenses) → H (provenance pointer).
+
+Rationale: B+D first for the 30-second journalist test and researcher reproduce-and-cite flow; A (framing) after the primary CTAs; C-E-F-G-H in usage-logic order.
+
+### 20.3 Header framing block — CDA SME binding
+
+The header section (A) lifts the FULL 3-sentence framing block verbatim from `data/open_bundle/README.md` (beginning "The mismatch is the finding" through "Every domain in v1 is model-to-model. There are no human baselines."). The bare "There are no human baselines." must NOT appear without the "model-to-model" anchor co-located in the same visual block (CLAUDE.md §9 pitfall #4). No new framing prose written by the Coder.
+
+### 20.4 Size-warning callout (binding)
+
+Class `.data-page__note`, `role="note"`. Rendered BEFORE the tarball anchor in reading order.
+
+Token set:
+- `background: var(--color-surface-note)` (NEW semantic alias; see §1.2 addendum below)
+- `border-left: 4px solid var(--color-warning)`
+- `border-radius: var(--border-radius-sm)`
+- `padding: var(--space-3) var(--space-4)`
+- `font-size: var(--font-size-sm)`
+- `color: var(--color-text-primary)` (NOT secondary — secondary fails 4.5:1 on this tint background)
+- `line-height: var(--line-height-body)`
+
+Text: "Approx. 1.55 GB. Direct download starts when you click."
+
+### 20.5 Code blocks (binding)
+
+Class `data-page__code-block` applied to both `<pre>` and its child `<code>`. Token set:
+- `background: var(--color-surface)`
+- `border: var(--border-width) solid var(--color-border)`
+- `border-radius: var(--border-radius-sm)`
+- `font-family: var(--font-mono)`
+- `font-size: var(--font-size-sm)`
+- `color: var(--color-text-primary)`
+- `overflow-x: auto`
+- `white-space: pre`
+- `padding: var(--space-3) var(--space-4)`
+
+Copy-button DEFERRED (out of scope per UI/UX verdict).
+
+### 20.6 External-link contract (binding, every external `<a>`)
+
+Every external `<a>` must carry ALL four parts:
+1. `target="_blank"`
+2. `rel="noopener noreferrer"`
+3. Nested `<span className="sr-only">(opens <destination> in new tab)</span>`
+4. Self-describing visible text
+
+Exception: B2 tarball anchor sr-only text = "(starts 1.55 GB download in new tab)" (conveys size per WCAG G91).
+
+Precedent: `ProvenanceFooter.tsx:96-101`, `MethodologyPage.tsx:50-58`.
+
+### 20.7 Token addendum — `--color-surface-note` (§1.2)
+
+New semantic alias added to `tokens.css`:
+
+```css
+/* Semantic alias for note/callout backgrounds (Data page size warning).
+   Same hex as --color-surface (#f8f9fa). Use this alias — NOT --color-surface
+   directly — for .data-page__note backgrounds, per UI/UX verdict §20. */
+--color-surface-note: #f8f9fa;
+```
+
+The `.data-page__note` rule uses `var(--color-surface-note)`, NOT `var(--color-surface)` directly, NOT a hex literal. This creates an explicit semantic link between the note callout concept and its background token, making future theming or contrast adjustments traceable.
+
+### 20.8 Verbatim-source requirement
+
+All prose in `DataPage.tsx` is lifted verbatim from:
+- `data/open_bundle/README.md` (header framing block, files table, citation, reproducibility)
+- `data/open_bundle/huggingface_dataset_card.md` (bundle-stats sentence, SHA256, HF description)
+- `ARCHITECTURE.md` §6.6 (license table and split-licensing rationale)
+
+The Coder writes NO new framing prose. The Reviewer enforces via spot-grep against sources.
+
+### 20.9 No new tokens beyond `--color-surface-note`
+
+Beyond the single new `--color-surface-note` alias, §20 introduces no new CSS custom properties. All other styling uses existing `tokens.css` definitions.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.16.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
