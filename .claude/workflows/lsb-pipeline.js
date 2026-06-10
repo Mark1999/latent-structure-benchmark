@@ -1,6 +1,6 @@
-// DRAFT — INACTIVE. Saved Workflow script; only runs when explicitly invoked
+// Saved Workflow script (first production use 2026-06-10); only runs when explicitly invoked
 // via the Workflow tool (which requires explicit opt-in). Writing this file does
-// NOT run anything. VALIDATE before relying on it — see
+// NOT run anything. Validated 2026-05-29; see
 // docs/proposed/2026-05-29-tier1-2-activation-runbook.md.
 //
 // Encodes the LSB gated pipeline deterministically:
@@ -14,7 +14,7 @@
 //
 // Invoke (example): Workflow({ name: "lsb-pipeline", args: {
 //   task: "<one Coder-sized task description>",
-//   kind: "methodology" | "frontend" | "other",
+//   kind: "methodology" | "frontend" | "frontend-methodology" | "other",
 //   contextFiles: ["docs/status/....md"]   // optional pointers the agents should read
 // }})
 
@@ -50,11 +50,22 @@ const REVIEW = {
   },
 }
 
-const task = (args && args.task) || 'UNSPECIFIED TASK'
-const kind = (args && args.kind) || 'other'
-const ctx = (args && args.contextFiles ? args.contextFiles.join(', ') : 'none')
-const isFrontend = kind === 'frontend'
-const isMethodology = kind === 'methodology' || isFrontend === false /* SME reviews most non-trivial work */
+// The harness may deliver `args` as a JSON-encoded string rather than an object
+// (observed 2026-06-10, first production use: args.task resolved undefined and the
+// Architect stop-conditioned on "UNSPECIFIED TASK"). Parse defensively.
+let parsedArgs = args
+if (typeof parsedArgs === 'string') {
+  try { parsedArgs = JSON.parse(parsedArgs) } catch (e) { parsedArgs = { task: parsedArgs } }
+}
+const task = (parsedArgs && parsedArgs.task) || 'UNSPECIFIED TASK'
+const kind = (parsedArgs && parsedArgs.kind) || 'other'
+const ctx = (parsedArgs && parsedArgs.contextFiles ? parsedArgs.contextFiles.join(', ') : 'none')
+// kind: 'frontend' | 'methodology' | 'frontend-methodology' | 'other'
+// UI/UX gate is frontend-only. CDA SME gate runs on EVERY plan per CLAUDE.md §3
+// and binding rule 12 ("Architect plans must be CDA-SME-approved before reaching
+// the Coder"); the original draft skipped SME for kind 'frontend', a rule-12 hole.
+const isFrontend = kind === 'frontend' || kind === 'frontend-methodology'
+const isMethodology = true
 
 const readFirst = `Read CLAUDE.md (esp. §1.5 framing + §7 forbidden vocab) and these context files first: ${ctx}.`
 
@@ -67,7 +78,7 @@ const plan = await agent(
 
 // 2. CDA SME gate (methodology-significant work)
 phase('CDA SME gate')
-let smeVerdict = { verdict: 'PASS', summary: 'skipped — not methodology-significant' }
+let smeVerdict = { verdict: 'PASS', summary: 'skipped: not methodology-significant' }
 if (isMethodology) {
   smeVerdict = await agent(
     `You are the LSB CDA SME. Review this plan on your four axes; issue PASS / PASS-WITH-NOTES / FAIL.\nPLAN:\n${plan}`,
@@ -80,7 +91,7 @@ if (isMethodology) {
 
 // 3. UI/UX gate (frontend only)
 phase('UI/UX gate')
-let uiVerdict = { verdict: 'PASS', summary: 'skipped — not frontend' }
+let uiVerdict = { verdict: 'PASS', summary: 'skipped: not frontend' }
 if (isFrontend) {
   uiVerdict = await agent(
     `You are the LSB UI/UX agent. Review this frontend plan on your four criteria; issue PASS / PASS-WITH-NOTES / FAIL.\nPLAN:\n${plan}\nSME notes: ${JSON.stringify(smeVerdict.notes || [])}`,
@@ -91,7 +102,7 @@ if (isFrontend) {
   }
 }
 
-// 4. Implement (worktree isolation — prevents commit races)
+// 4. Implement (worktree isolation prevents commit races)
 phase('Implement')
 const impl = await agent(
   `${readFirst}\nYou are the LSB Coder. Implement EXACTLY this plan; apply all gate notes; one commit; run ruff/mypy/pytest (and npm build/test/lint if frontend) before committing.\nPLAN:\n${plan}\nMandatory SME notes: ${JSON.stringify(smeVerdict.notes || [])}\nMandatory UI/UX notes: ${JSON.stringify(uiVerdict.notes || [])}`,
