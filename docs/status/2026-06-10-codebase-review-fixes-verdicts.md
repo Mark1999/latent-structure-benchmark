@@ -83,3 +83,15 @@ Lint: `npm run lint` exits 0, no warnings or errors.
 - **UI/UX:** PASS (deletion-only refactor -- no rendered surface; all four criteria N/A). DESIGN_SYSTEM.md line 2614 is historical audit trail in §18, not a Component Inventory entry; no doc update required on deletion. The PROVIDER_COLORS map with hardcoded hex values (e.g., anthropic: #d97706) duplicating tokens.css provider color tokens is the CLAUDE.md §9 pitfall-15 silent-token-drift pattern; deletion is the correct resolution.
 - **Reviewer:** PASS. All R-checks: (1) pre-deletion greps match; (2) `displayModel.test.ts` diff empty; (3) only `/* ===== Timeline ===== */` block removed, Model Map banner untouched; (4) `grep -n "Timeline" DESIGN_SYSTEM.md` returns only §18 audit trail entry; (5) one commit, conventional subject under 72 chars, body references 2026-06-10 review and verdicts file; (6) no em dashes; (7) no forbidden vocabulary; (8) no spend-gate tokens; (9) only three paths modified; (10) no new dependency, no schema change, no token change. Bundle delta non-positive.
 - **Tester:** `npm run test` 148 passed, matching the 2026-06-10 baseline. No test transitioned from pass to fail.
+
+---
+
+## Deferred to existing backlog (review findings 5+, no pipeline run)
+
+From the same 2026-06-10 codebase review, folded into existing backlog items rather than dispatched now:
+
+- **T15 (heatmap/cluster token migration) scope addition:** hardcoded SVG hex values inventoried in `TermMap.tsx` (lines 509-510, 563, 567, 595, 599, 628, 650), `MDSPlot.tsx` (175-176, 199-200, 204-205), `Focus2FamilySimilarity.tsx` (173-174, 199-200, 212, 216, 220-221). Grid lines, axis labels, point strokes. Needs UI/UX token decisions (e.g. svg-grid-line, svg-axis-label) before Coder work.
+- **Tester backlog: chart components with zero vitest coverage:** `MDSPlot.tsx`, `FreeListCompare.tsx`, `ClusterTree.tsx`, `PileStructure.tsx`. Minimum bar: R10 verification (point estimates carry uncertainty) plus data-prop shape validation, matching the existing `TermMap`/`CentralityChart`/`SimilarityHeatmap` test pattern.
+- **Minor:** unused `[[tool.mypy.overrides]]` for `streamlit` in `pyproject.toml`; ~39k sklearn `RuntimeWarning`s (MDS stress divide-by-zero) concentrated in `test_aggregate_cluster_labels` / `test_consensus_type_dispatch` / `test_pipeline` fixtures, possibly the same degenerate-matrix territory as the open F5 question; element-level aria-labels on chart data points (mitigated by read-as-table toggle).
+
+CI confirmation: run 27279321339 (first with the dashboard job) and run 27283698301 (final push `bcf1d9c`) both completed success.
