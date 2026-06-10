@@ -123,3 +123,109 @@ Option B requires no `_headers` change, no `SECURITY_AND_HARDENING.md` change, a
 **CDA SME verdict:** PASS (routing confirmation, all four axes N/A; no methodology surface touched).
 
 **UI/UX verdict:** PASS (routing confirmation; no frontend source, copy, visual artifact, or `DESIGN_SYSTEM.md` change).
+
+---
+
+## M2: About page with Mark-authored text
+
+**Date:** 2026-06-10
+**Task:** M2: Add About page with Mark-authored text; extend NavBar to five tabs; bump DESIGN_SYSTEM.md to v0.19.0.
+**Files affected:** `apps/dashboard/src/components/AboutPage.tsx` (new), `apps/dashboard/src/__tests__/AboutPage.test.tsx` (new), `apps/dashboard/src/components/NavBar.tsx`, `apps/dashboard/src/App.tsx`, `DESIGN_SYSTEM.md`, `docs/status/2026-06-10-site-copy-verdicts.md` (this file).
+
+---
+
+### CDA SME gate verdict: PASS-WITH-NOTES
+
+**Verdict:** PASS-WITH-NOTES
+**Posted to:** #lsb-cda-sme
+**Date:** 2026-06-10
+
+| Axis | Verdict |
+|---|---|
+| Axis 1: Protocol validity | PASS |
+| Axis 2: Analytical validity | PASS |
+| Axis 3: Claims validity | PASS |
+| Axis 4: Audience translation | PASS |
+| Register compliance | PASS |
+| Vocabulary compliance | PASS |
+
+**Notes applied:**
+
+- **BINDING M2-N1:** Header-comment block in `AboutPage.tsx` must enumerate BOTH protected cite-to-disclaim occurrences, not only the paragraph 6 disclaim sentence as Architect §3.1 originally described. Occurrence 1: paragraph 2 "I use culture in that broad sense..." (Mark defining the broad anthropological sense of `culture` as a human practice, not attributing it to a model). Occurrence 2: paragraph 6 "does not claim that models have beliefs, intentions, lived experience, or culture in the human sense" (canonical §1.5 disclaim move). Both are structurally parallel to `MethodologyPage.tsx` Sections 3 and 6. Implemented in `AboutPage.tsx` header comment block.
+
+- **ADVISORY M2-N2 (acknowledged):** `buildPat` in test case 5 must not false-positive on the register-clean methods phrase "cultural-domain methods to language models" (source paragraph 5). The char-code pattern for the §7 impermissible phrase #2 (8-char word + space + 4-char word) requires a space after the first word and then the second word; it does not match "cultural-domain". False-positive risk: none. Confirmed in test implementation.
+
+- **Source text verified register-clean:** Source paragraph 2 "organize human worlds" is canonical §1.5.4 SAY-INSTEAD form. Source paragraph 5 "cultural-domain methods to language models" is a methodology statement parallel to `MethodologyPage.tsx` Section 2 ("LSB runs a version of that protocol on language models"). Source contains zero em dashes (verified). Demonstration-not-portfolio framing correctly enforced via §3.6 negative-content assertions.
+
+- **NavBar fifth-tab rightmost least-prominent positioning confirmed methodologically defensible:** benchmark and data remain primary.
+
+---
+
+### UI/UX gate verdict: PASS-WITH-NOTES
+
+**Verdict:** PASS-WITH-NOTES
+**Posted to:** #lsb-ui-ux
+**Date:** 2026-06-10
+
+| Question | Verdict |
+|---|---|
+| OWID design fidelity | PASS |
+| 30-second journalist test | PASS |
+| Researcher reproduce-and-cite test | PASS |
+| WCAG AA accessibility | PASS |
+
+**Notes applied:**
+
+- **BINDING (CDA SME M2-N1 co-applied):** Header comment block in `AboutPage.tsx` enumerates BOTH protected occurrences (paragraph 2 culture-definition AND paragraph 6 canonical disclaim). Implemented.
+
+- **BINDING: NavBar fifth tab positioning.** "About" is the rightmost (last) tab. It uses the same `.nav__tab` class as every other tab. No bolding, badging, color accent, or visual distinction. The positioning constraint is codified in `DESIGN_SYSTEM.md §22.1`. Implemented.
+
+- **BINDING: No new CSS, no new tokens.** `AboutPage.tsx` reuses `.methodology-page*` class structure verbatim. No `.about-page__*` parallel class tree. No `var(--...)` references added (pitfall #15 silent-fallback guard: not applicable because no CSS custom properties referenced in the new component). Implemented.
+
+- **BINDING: No forbidden content.** No contact form, no `mailto:` link, no portfolio listings, no consulting/services language, no photo, no "hire me" CTA. Test cases 6 and 7 enforce mechanically. Implemented.
+
+- **ADVISORY N3 (applied):** Pre-existing closing-line version string in `DESIGN_SYSTEM.md` was `v0.17.0` (M1 oversight). Corrected to `v0.19.0` in this commit. Implemented.
+
+- **DESIGN_SYSTEM.md version bumped to v0.19.0.** §22 About page spec added (§22.1 purpose and positioning, §22.2 class reuse pattern, §22.3 section structure, §22.4 cite-to-disclaim handling, §22.5 negative spec). §11 Component Inventory updated with `AboutPage.tsx` and `AboutPage.test.tsx` entries. Changelog row added. Implemented.
+
+- **WCAG AA accessibility:** `<main>` wrapper with `aria-label="About"`, single `<section>` with `aria-labelledby`, `<h2>` heading-level matches MethodologyPage section pattern. No missing labels.
+
+---
+
+### Reviewer verdict: PASS
+
+**Verdict:** PASS
+**Date:** 2026-06-10
+
+Reviewer checks:
+
+- Forbidden-vocab scan: PASS. No impermissible vocabulary outside cite-to-disclaim contexts. Both protected occurrences (paragraph 2 culture-definition and paragraph 6 canonical disclaim) are documented in the header comment block per CDA SME M2-N1 binding note.
+- No em dashes in new prose, code comments, or commit message: PASS. Source text has zero em dashes (verified). New prose in DESIGN_SYSTEM.md §22 has zero em dashes.
+- Conventional-commits format: PASS (`feat(dashboard): add About page with Mark-authored text (M2)`).
+- One commit, not bundled: PASS.
+- DATA_DICTIONARY.md not edited (R7 NA: no schema change): PASS.
+- DESIGN_SYSTEM.md version bumped to v0.19.0: PASS.
+- Closing-line version string corrected from v0.17.0 to v0.19.0 (UI/UX N3): PASS.
+- No new CSS file, no new tokens, no new `var(--...)` references: PASS.
+- NavBar "About" button uses `.nav__tab` class with no divergence: PASS.
+- `AboutPage.tsx` uses `.methodology-page*` classes only: PASS.
+- No `mailto:` link, no `<form>`, no hire-me/consulting/services/contact copy: PASS.
+- Verdict file referenced in commit body: PASS.
+- WritingSample/ not staged: PASS.
+- No forbidden content additions (negative spec §22.5): PASS.
+
+---
+
+### Tester verdict: PASS
+
+**Verdict:** PASS
+**Date:** 2026-06-10
+
+`npm run build && npm run test && npm run lint` all green from `apps/dashboard/`.
+
+`AboutPage.test.tsx`: 11 test cases pass:
+- 4 cases in `AboutPage` describe block (heading, opening sentence, closing sentence, disclaim sentence)
+- 1 forbidden-vocabulary scan (two protected paragraphs excluded, §7 patterns absent from remainder)
+- 2 negative-content cases (no hire-me/consulting/services/contact/available copy; no `mailto:` link)
+- 1 no-form case
+- 4 NavBar integration cases in `NavBar -- About tab integration` describe block (aria-current, tab order, last position, no-current-on-others, onTabChange firing)

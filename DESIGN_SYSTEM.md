@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.18.0  
+**Version:** v0.19.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.19.0** (About page, M2, 2026-06-10) adds `AboutPage.tsx` (Mark-authored text). Adds NavBar fifth tab "About" at rightmost position (binding least-prominent slot: benchmark and data presentation remain primary; About entry must not dominate the nav). Mirrors `MethodologyPage.tsx` class structure (`.methodology-page`, `.methodology-page__container`, `.methodology-page__section`, `.methodology-page__heading`, `.methodology-page__text`); no new tokens, no new CSS. Adds §22 About page spec. Updates §11 Component Inventory. Corrects pre-existing closing-line version string from `v0.17.0` to `v0.19.0` (UI/UX N3 advisory). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md` M2 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md` M2 section).
 - **v0.18.0** (Methodology rewrite + provenance section move — M1, 2026-06-10) replaces the v0.17.0 Coder-built placeholder prose in sections 1-6 of `MethodologyPage.tsx` with Mark-authored final text (eight sections; CDA tradition, forebears credit with verified links). Moves the §15.5(a) `Data provenance` section and the §16.2 `Cross-model term map and uncertainty` section from `MethodologyPage.tsx` to `DataPage.tsx` (placement: after Section H Provenance pointer). Adds a new "Provenance" pointer section at the end of `MethodologyPage.tsx` (in-app `/data` link, §6.3). Fixes a duplicate-id defect introduced by the move (DataPage Section H heading id renamed to `data-provenance-pointer-heading`). Adds §6.3 (provenance-pointer note, in §6 methodology page architecture section). Updates §15.5(a), §16.2 placement paragraphs, and §11 inventory entries. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`).
 - **v0.17.0** (Published lede wire-up — Phase 9a T2, 2026-06-09) adds §21 (`.chart-lede` binding token spec). `ContentArea.tsx` Focus-3 lede strip now renders `domain.generated_lede` verbatim in a single `<p className="chart-lede" aria-live="polite">`. Inline-computed lede block (lines 199-220, `selectedModelIds.size` branching, "Consensus baseline (all tested models):" label, inline Smith's S computation) removed. WCAG AA contrast fix: `.chart-lede` color changed from `var(--color-text-secondary)` (~3.40:1, FAILS AA) to `var(--color-text-caption)` (~4.60:1, PASS). R1-b low-output-concentration disclosure restored on family and food domains. §12.9 SR-template boundary note updated: `generated_lede` now rendered in `ContentArea.tsx` (not only `ArticleHeader.tsx`). No new tokens. Gate verdicts: CDA SME PASS (`docs/status/2026-06-08-phase9a-T2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T2-uiux-verdict.md`).
 - **v0.16.0** (Data download tab — Phase 9a task 6, 2026-06-09) adds §20 and the `--color-surface-note` semantic alias token (§1.2). New component `DataPage.tsx` replaces the `navTab === 'data'` placeholder. Section render order B/D/A/C/E/F/G/H (UI/UX binding). No new dependencies. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md`).
@@ -1590,6 +1591,10 @@ All components to be built, in implementation order:
 - `CitationBlock.tsx` — formatted academic citation component
 - `LimitationCard.tsx` — each known limitation as a card
 
+**About page (M2, 2026-06-10):**
+- `AboutPage.tsx` — long-form article for the About tab; Mark-authored text (M2, 2026-06-10). Single `<section>` with one h2 heading "About Mark Dawson", body as `<p>` elements one per source paragraph, verbatim apart from heading-case normalization and the header comment block. Deliberately shares `.methodology-page*` class structure with `MethodologyPage.tsx` (no `.about-page__*` parallel class tree). No own CSS file, no new tokens. File: `apps/dashboard/src/components/AboutPage.tsx`. Spec: §22.
+- `apps/dashboard/src/__tests__/AboutPage.test.tsx` — 9-case vitest suite (no fetch). Includes NavBar integration cases for the fifth tab. Spec: Architect plan M2 §3.5.
+
 **Provenance surfaces (PROMOTE-2, 2026-05-30):**
 - `ProvenanceFooter.tsx` — global `<footer>` landmark; reads versions and domains from `/data/provenance.json`; `--font-size-xs` / `--color-text-caption`; per-domain conditional (renders nothing if active domain is not in provenance.json's `domains` block); every screen. File: `apps/dashboard/src/components/ProvenanceFooter.tsx`. Spec: §15.5(b) and §16.
 
@@ -2882,6 +2887,69 @@ This section governs ONLY the Focus-3 lede strip (`ContentArea.tsx` around the `
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.17.0. This document is a living specification — update it before building any new component that requires a visual decision not covered here.*
+## 22. About page (v0.19.0, M2, 2026-06-10)
+
+`AboutPage.tsx` is a static long-form article for the fifth NavBar tab. It renders Mark-authored text verbatim. No interactive elements, no data fetching, no new CSS.
+
+Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES (both: `docs/status/2026-06-10-site-copy-verdicts.md` M2 section).
+
+### 22.1 Purpose and positioning (binding)
+
+The About page is a demonstration piece: it establishes authorship, perspective, and professional context for the benchmark. It is NOT a portfolio page, services page, consulting offering, or contact page.
+
+**NavBar positioning constraint (binding).** "About" is the rightmost (fifth) tab. It uses the same `.nav__tab` class as every other tab: no bolding, no badging, no color accent, no visual distinction. The benchmark and data presentation remain primary; the About entry is present but must not dominate the nav. Any future Coder who wants to visually distinguish the About tab must route to UI/UX before adding any class-name divergence.
+
+**No sales or contact affordances (binding).** The page must not contain: a "hire me" CTA, a "Contact" section or link, a "Services" or "Consulting" heading, a contact form, a `mailto:` link, a LinkedIn or social link, a list of testimonials, a "Recent clients" or "Selected work" section, a portrait or photo, a CV download link, or any sales or availability language. These constraints match the content of the Mark-authored source text; nothing analogous should be invented. If a future need for any of these surfaces, route to a new plan cycle through the Architect.
+
+### 22.2 Class reuse pattern (binding)
+
+`AboutPage.tsx` deliberately shares the `.methodology-page*` class structure with `MethodologyPage.tsx`. This is intentional: the About prose typographic posture should be identical to the Methodology page. There is NO `.about-page__*` parallel class tree. Introducing a new `.about-page__*` class is a stop condition: pause and route to UI/UX.
+
+Classes used (verbatim, same as `MethodologyPage.tsx`):
+- `.methodology-page`: `<main>` wrapper
+- `.methodology-page__container`: inner container
+- `.methodology-page__section`: `<section>` wrapper
+- `.methodology-page__heading`: `<h2>` heading
+- `.methodology-page__text`: `<p>` body paragraphs
+
+No new tokens, no new CSS files.
+
+### 22.3 Section structure (binding)
+
+Single `<section>` containing:
+- `<main className="methodology-page" aria-label="About">` outer wrapper
+- `<div className="methodology-page__container">` inner container
+- One `<section className="methodology-page__section" aria-labelledby="about-mark-dawson-heading">`
+- `<h2 id="about-mark-dawson-heading" className="methodology-page__heading">About Mark Dawson</h2>` (heading-case normalized from the source markdown h1; h2 matches MethodologyPage section heading pattern)
+- Eight `<p className="methodology-page__text">` elements, one per source paragraph, in source order, verbatim
+
+### 22.4 Cite-to-disclaim handling (binding, CDA SME M2-N1)
+
+The Mark-authored source text contains TWO protected cite-to-disclaim occurrences. The header comment block in `AboutPage.tsx` must enumerate BOTH (CDA SME M2-N1 BINDING; original Architect plan §3.1 described only one):
+
+- **Occurrence 1 (paragraph 2):** "I use culture in that broad sense: not just nationality or tradition, but the patterned ways people classify, interpret, value, and act." This is Mark defining the broad anthropological sense of `culture` as a human practice, NOT attributing culture to a model. Register-clean (CDA SME M2 verdict). Parallel to `MethodologyPage.tsx` Section 6 scare-quoted repudiation pattern.
+
+- **Occurrence 2 (paragraph 6):** "The benchmark does not claim that models have beliefs, intentions, lived experience, or culture in the human sense." This is the canonical §1.5 cite-to-disclaim move: the disclaimer sentence explicitly repudiates cognition attribution and must not be flagged by the Reviewer's forbidden-vocab grep. Parallel to `MethodologyPage.tsx` Section 3 "not because they have beliefs or lived experience" cite-to-disclaim.
+
+The Reviewer's forbidden-vocab sweep treats both occurrences as protected by the header comment. Pattern mirrors `MethodologyPage.tsx` lines 134-141 and 217-223. The disclaim text is the section's substance, not a violation.
+
+### 22.5 What this page is not (negative spec, binding)
+
+This list is a mirror of §22.1. It is repeated here for explicitness when a Coder is reading §22 in isolation:
+
+- No contact form
+- No `mailto:` link
+- No portfolio listings ("Recent clients," "Selected work," etc.)
+- No consulting or services language
+- No photo or portrait
+- No "hire me" or availability CTA
+- No LinkedIn, social media, or external profile links
+- No CV download link
+
+The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (cases 6 and 7). The Reviewer enforces the remainder on inspection.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.19.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

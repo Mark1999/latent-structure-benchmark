@@ -1,14 +1,17 @@
 /**
  * NavBar — top navigation bar (48px)
- * Brand + Explore / Methodology / Collection records / Data tabs
+ * Brand + Explore / Methodology / Collection records / Data / About tabs
  *
- * Tab order (DESIGN_SYSTEM.md §19.2):
- *   [Explore] [Methodology] [Collection records] [Data]
+ * Tab order (DESIGN_SYSTEM.md §22.1, §19.2):
+ *   [Explore] [Methodology] [Collection records] [Data] [About]
+ *
+ * "About" is rightmost (least prominent) per §22.1 positioning constraint.
+ * Benchmark and data remain primary; About must not dominate the nav.
  */
 
 import { FAILURES_TAB_LABEL } from '../copy/failures_findings';
 
-export type NavTab = 'explore' | 'methodology' | 'collection-records' | 'data';
+export type NavTab = 'explore' | 'methodology' | 'collection-records' | 'data' | 'about';
 
 interface NavBarProps {
   activeTab: NavTab;
@@ -49,6 +52,13 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
           aria-current={activeTab === 'data' ? 'page' : undefined}
         >
           Data
+        </button>
+        <button
+          className={`nav__tab${activeTab === 'about' ? ' nav__tab--active' : ''}`}
+          onClick={() => onTabChange('about')}
+          aria-current={activeTab === 'about' ? 'page' : undefined}
+        >
+          About
         </button>
       </div>
     </nav>

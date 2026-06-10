@@ -13,6 +13,7 @@ import { ContentArea } from './components/ContentArea';
 import { MethodologyPage } from './components/MethodologyPage';
 import { FailuresFindings } from './components/FailuresFindings';
 import { DataPage } from './components/DataPage';
+import { AboutPage } from './components/AboutPage';
 import { ProvenanceFooter } from './components/ProvenanceFooter';
 import type { DomainExtended } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
@@ -193,6 +194,7 @@ export default function App() {
         {navTab === 'methodology' && <MethodologyPage />}
         {navTab === 'collection-records' && <FailuresFindings />}
         {navTab === 'data' && <DataPage />}
+        {navTab === 'about' && <AboutPage />}
         {/* Footer on non-explore routes: activeDomain=null → always renders if versions present */}
         <ProvenanceFooter activeDomain={null} />
       </>
