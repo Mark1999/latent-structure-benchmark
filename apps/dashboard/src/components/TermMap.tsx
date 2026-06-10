@@ -597,8 +597,8 @@ export function TermMap({
     for (let i = 0; i <= 4; i++) {
       const gy = pad.t + (ph * i) / 4;
       const gx = pad.l + (pw * i) / 4;
-      svgParts.push(`<line x1="${pad.l}" y1="${gy.toFixed(1)}" x2="${(pad.l + pw).toFixed(1)}" y2="${gy.toFixed(1)}" stroke="#f0f0ec" stroke-width=".5"/>`);
-      svgParts.push(`<line x1="${gx.toFixed(1)}" y1="${pad.t}" x2="${gx.toFixed(1)}" y2="${(pad.t + ph).toFixed(1)}" stroke="#f0f0ec" stroke-width=".5"/>`);
+      svgParts.push(`<line x1="${pad.l}" y1="${gy.toFixed(1)}" x2="${(pad.l + pw).toFixed(1)}" y2="${gy.toFixed(1)}" stroke="var(--color-svg-grid-line)" stroke-width=".5"/>`);
+      svgParts.push(`<line x1="${gx.toFixed(1)}" y1="${pad.t}" x2="${gx.toFixed(1)}" y2="${(pad.t + ph).toFixed(1)}" stroke="var(--color-svg-grid-line)" stroke-width=".5"/>`);
     }
 
     const plotCx = pad.l + pw / 2;
@@ -754,7 +754,7 @@ export function TermMap({
       const py = sy(t.y).toFixed(1);
       const col = getClusterColor(t.cluster);
       svgParts.push(
-        `<circle class="term-dot" cx="${px}" cy="${py}" r="4" fill="${col}" stroke="#fff" stroke-width=".8" data-cluster="${t.cluster}" data-idx="${i}" data-ox="${px}" data-oy="${py}" cursor="pointer"/>`
+        `<circle class="term-dot" cx="${px}" cy="${py}" r="4" fill="${col}" stroke="var(--color-svg-dot-stroke)" stroke-width=".8" data-cluster="${t.cluster}" data-idx="${i}" data-ox="${px}" data-oy="${py}" cursor="pointer"/>`
       );
     });
 
@@ -782,7 +782,7 @@ export function TermMap({
       ? `${selectedModelIds.size} model${selectedModelIds.size !== 1 ? 's' : ''} · `
       : '';
     svgParts.push(
-      `<text x="${(pad.l + pw / 2).toFixed(1)}" y="${H - 14}" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="#a0a098">${modelNote}${nTerms} shared terms · ${nClusters} clusters from pile-sort co-occurrence</text>`
+      `<text x="${(pad.l + pw / 2).toFixed(1)}" y="${H - 14}" text-anchor="middle" font-family="var(--font-body)" font-size="10" fill="var(--color-svg-axis-caption)">${modelNote}${nTerms} shared terms · ${nClusters} clusters from pile-sort co-occurrence</text>`
     );
 
     // svgParts is the INNER content of <g id="term-content"> only.

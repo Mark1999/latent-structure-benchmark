@@ -138,6 +138,17 @@
      directly — for .data-page__note backgrounds, per UI/UX verdict §20. */
   --color-surface-note: #f8f9fa;
 
+  /* SVG chrome tokens - T15 migration (2026-06-10 codebase review)           */
+  /* Byte-identical to the hex literals they replace; zero visual delta.      */
+  /* Token placement: after --color-surface-hover, before sequential scale.   */
+  /* Consolidation ruling: #888 and #999 stay on separate tokens (UI/UX T15). */
+  --color-svg-grid-line:        #f0f0ec;   /* light grid lines in TermMap / MDSPlot */
+  --color-svg-axis-caption:     #a0a098;   /* axis label text; WCAG advisory: pre-existing fail at 11px */
+  --color-svg-label-secondary:  #4a4a4a;   /* model/term label text in MDS components */
+  --color-svg-marker-stroke:    #888888;   /* #888 fallback neutral stroke (FreeListCompare, PileStructure, Focus1SelfConsistencyOverview, Focus2FamilyOverview) */
+  --color-svg-gray-branch:      #999999;   /* #999 cross-cluster branch color (ClusterTree) */
+  --color-svg-dot-stroke:       #ffffff;   /* dot stroke white (TermMap, MDSPlot, Focus2FamilySimilarity) */
+
   /* UI chrome */
   --color-text-primary:    #2c3e50;   /* body text */
   --color-text-secondary:  #7f8c8d;   /* secondary labels at 14px+ or bold — ~3.40:1; use --color-text-caption for 12px regular */

@@ -51,7 +51,7 @@ function simToColor(sim: number): string {
 
 function simToTextColor(sim: number): string {
   return sim >= HEATMAP_TEXT_SWITCH_THRESHOLD
-    ? '#ffffff'
+    ? 'var(--color-background)'
     : 'var(--color-heatmap-cell-text-dark)';
 }
 

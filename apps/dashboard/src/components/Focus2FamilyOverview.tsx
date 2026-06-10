@@ -105,7 +105,7 @@ export function Focus2FamilyOverview({
       <p className="f2-overview__desc">{FOCUS2_OVERVIEW_DESCRIPTION}</p>
 
       {familyCards.map((card) => {
-        const dotColor = PROVIDER_DISPLAY_COLORS[card.provider] || '#888';
+        const dotColor = PROVIDER_DISPLAY_COLORS[card.provider] || 'var(--color-svg-marker-stroke)';
         const nModels = card.models.length;
 
         return (
@@ -176,7 +176,7 @@ export function Focus2FamilyOverview({
           <p className="f2-overview__section-heading">Single-model providers</p>
           {singleModelFamilies.map((provider) => {
             const familyModels = grouping[provider] || [];
-            const dotColor = PROVIDER_DISPLAY_COLORS[provider] || '#888';
+            const dotColor = PROVIDER_DISPLAY_COLORS[provider] || 'var(--color-svg-marker-stroke)';
             return (
               <div
                 key={provider}

@@ -59,7 +59,7 @@ export function FreeListCompare({
     >
       {visibleModels.map((model) => {
         const providerKey = displayProvider(model);
-        const providerColor = PROVIDER_COLORS[providerKey] || '#888';
+        const providerColor = PROVIDER_COLORS[providerKey] || 'var(--color-svg-marker-stroke)';
         const entries: SutropCsiEntry[] = sutropCsi[model.model_id] ?? [];
         const sorted = [...entries].sort((a, b) => b.csi - a.csi).slice(0, MAX_TERMS);
         const displayName = displayModel(model.model_id);

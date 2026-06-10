@@ -58,7 +58,7 @@ export function PileStructure({
       >
         {visibleModels.map((model) => {
           const providerKey = displayProvider(model);
-          const providerColor = PROVIDER_COLORS[providerKey] || '#888';
+          const providerColor = PROVIDER_COLORS[providerKey] || 'var(--color-svg-marker-stroke)';
           const pileData = centroidPiles[model.model_id];
           const displayName = displayModel(model.model_id);
 

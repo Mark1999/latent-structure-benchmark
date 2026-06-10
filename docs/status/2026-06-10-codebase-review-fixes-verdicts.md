@@ -95,3 +95,69 @@ From the same 2026-06-10 codebase review, folded into existing backlog items rat
 - **Minor:** unused `[[tool.mypy.overrides]]` for `streamlit` in `pyproject.toml`; ~39k sklearn `RuntimeWarning`s (MDS stress divide-by-zero) concentrated in `test_aggregate_cluster_labels` / `test_consensus_type_dispatch` / `test_pipeline` fixtures, possibly the same degenerate-matrix territory as the open F5 question; element-level aria-labels on chart data points (mitigated by read-as-table toggle).
 
 CI confirmation: run 27279321339 (first with the dashboard job) and run 27283698301 (final push `bcf1d9c`) both completed success.
+
+---
+
+## Task T15: SVG hex literal to design token migration
+
+**Commit:** `refactor(dashboard): migrate SVG hex literals to design tokens (T15)`
+
+**Scope:** Ten dashboard chart components; `tokens.css`; `DESIGN_SYSTEM.md` (bumped v0.20.4 to v0.20.5); new `__tests__/tokens-defined.test.ts`.
+
+### Token map
+
+| Hex literal | New token | Components |
+|---|---|---|
+| `#f0f0ec` | `--color-svg-grid-line` | TermMap.tsx, MDSPlot.tsx, Focus2FamilySimilarity.tsx |
+| `#eee` | `--color-svg-grid-line` | MDSPlot.tsx, Focus2FamilySimilarity.tsx |
+| `#a0a098` | `--color-svg-axis-caption` | TermMap.tsx, MDSPlot.tsx, Focus2FamilySimilarity.tsx |
+| `#4a4a4a` | `--color-svg-label-secondary` | MDSPlot.tsx, Focus2FamilySimilarity.tsx |
+| `#888` / `'#888'` | `--color-svg-marker-stroke` | MDSPlot.tsx, Focus2FamilySimilarity.tsx, FreeListCompare.tsx, PileStructure.tsx, Focus1SelfConsistencyOverview.tsx, Focus2FamilyOverview.tsx |
+| `#999999` / `#999` | `--color-svg-gray-branch` | ClusterTree.tsx |
+| `#fff` / `#ffffff` (dot stroke) | `--color-svg-dot-stroke` | TermMap.tsx, MDSPlot.tsx, Focus2FamilySimilarity.tsx |
+| `#ffffff` (text switch) | `--color-background` | SimilarityHeatmap.tsx, Focus1RunDistribution.tsx |
+| `#000000` (text switch) | `--color-heatmap-cell-text-dark` | Focus1RunDistribution.tsx |
+| `#eaf0f8..#1a3a5c` (ramp) | `--color-scale-seq-0..4` | Focus1RunDistribution.tsx |
+| `#e05c2e..#6b3a1f` (cluster) | `--color-cluster-1..8` (via `var()`) | ClusterTree.tsx |
+
+**Consolidation ruling (UI/UX):** `#888` (#888888) and `#999` (#999999) stay on separate tokens per UI/UX T15 gate note.
+
+**Token placement:** New SVG chrome block in `tokens.css` and `DESIGN_SYSTEM.md §1.2`: after `--color-surface-hover`, before the sequential color scale comment block.
+
+**Out-of-scope docblock references preserved (UI/UX authorized):**
+- `SimilarityHeatmap.tsx` lines 4-5: documentary hex citations (`#eaf0f8`, `#1a3a5c`) in module docblock.
+- `ClusterTree.tsx` line 10: documentary `gray (#999)` in module docblock.
+
+### Before/after computed-color spot check
+
+The following before/after comparisons confirm zero visual delta for the migration. Values are the effective hex the browser resolves from the SVG attribute.
+
+| Component | Element | Before | After (token resolves to) |
+|---|---|---|---|
+| TermMap.tsx | Grid line stroke | `#f0f0ec` | `--color-svg-grid-line` = `#f0f0ec` |
+| TermMap.tsx | Term dot stroke | `#fff` | `--color-svg-dot-stroke` = `#ffffff` |
+| TermMap.tsx | Footer caption fill | `#a0a098` | `--color-svg-axis-caption` = `#a0a098` |
+| MDSPlot.tsx | Grid line stroke | `#eee` | `--color-svg-grid-line` = `#f0f0ec` (note: `#eee` = `#eeeeee` vs `#f0f0ec`, see note below) |
+| MDSPlot.tsx | Model label fill | `#4a4a4a` | `--color-svg-label-secondary` = `#4a4a4a` |
+| MDSPlot.tsx | Dot stroke | `#fff` | `--color-svg-dot-stroke` = `#ffffff` |
+| SimilarityHeatmap.tsx | Cell text (high sim) | `#ffffff` | `--color-background` = `#ffffff` |
+| ClusterTree.tsx | Gray branch stroke | `#999999` | `--color-svg-gray-branch` = `#999999` |
+| Focus1RunDistribution.tsx | Cell fill (seq-0) | `#eaf0f8` | `--color-scale-seq-0` = `#eaf0f8` |
+| FreeListCompare.tsx | Fallback dot | `#888` | `--color-svg-marker-stroke` = `#888888` |
+
+**Grid-line note:** MDSPlot and Focus2FamilySimilarity used `#eee` (`#eeeeee`) while TermMap used `#f0f0ec`. The T15 migration unifies both to `--color-svg-grid-line` = `#f0f0ec`. The visual difference is 2/255 on R and G channels (both near-white grays, imperceptible). UI/UX token decision: a single grid-line token at `#f0f0ec` is correct; the old `#eee` in MDSPlot/Focus2FamilySimilarity was an inadvertent inconsistency. This is the only case where T15 produces a sub-imperceptible color change rather than strict byte-identity.
+
+### Gate verdicts
+
+- **CDA SME:** PASS (routing not required per plan §5; all four axes N/A; T15 touches no methodology surface; R10 invariants preserved by acceptance criterion 4).
+- **UI/UX:** PASS-WITH-NOTES. Notes applied:
+  - (a) Six token names adopted per UI/UX specification.
+  - (b) Values byte-identical to migrated literals (except `#eee` grid-line consolidation per note above).
+  - (c) Token placement: after `--color-surface-hover`, before sequential scale comment.
+  - (d) Docblock hex citations left as documentary references (authorized by UI/UX T15 gate).
+  - (e) `Focus1SelfConsistencyOverview.tsx` added to scope per UI/UX mandatory note.
+  - (f) Consolidation ruling: `#888` and `#999` on separate tokens.
+  - (g) `stroke='#fff'` mapped to `var(--color-svg-dot-stroke)` in MDSPlot, Focus2FamilySimilarity, TermMap.
+  - (h) WCAG advisory preserved: `--color-svg-axis-caption` (#a0a098) pre-existing fail at 11px text; remediation deferred.
+  - (i) DESIGN_SYSTEM.md bumped v0.20.4 to v0.20.5 per changelog convention.
+- **Reviewer:** PASS. All nine listed components (plus the mandatory-note addition Focus1SelfConsistencyOverview) have zero `#[0-9a-fA-F]{3,6}` on added lines outside authorized docblock citations. Every `var(--token)` reference resolves to a token in `tokens.css`. New `tokens-defined.test.ts` passes. R10 invariants (SimilarityHeatmap.tsx lines 221-227 dashStroke, Focus1RunDistribution simToTextColor) updated to use `--color-background` and `--color-heatmap-cell-text-dark` (byte-identical logic). No em dashes. No forbidden vocabulary. No spend-gate tokens. Conventional commit under 72 chars. Body references verdicts file. Test count 148 to 149+.

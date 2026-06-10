@@ -19,12 +19,13 @@ import {
 } from '../copy/focus1';
 
 // ===== Sequential color scale (same as SimilarityHeatmap, §13.6) =====
+// T15 migration: var(--color-scale-seq-*) tokens from tokens.css
 const HEATMAP_COLORS = [
-  '#eaf0f8',  // seq-0
-  '#b8cce4',  // seq-1
-  '#6b9dc8',  // seq-2
-  '#2e6da4',  // seq-3
-  '#1a3a5c',  // seq-4
+  'var(--color-scale-seq-0)',
+  'var(--color-scale-seq-1)',
+  'var(--color-scale-seq-2)',
+  'var(--color-scale-seq-3)',
+  'var(--color-scale-seq-4)',
 ];
 
 const HEATMAP_TEXT_SWITCH_THRESHOLD = 0.60;
@@ -35,7 +36,9 @@ function simToColor(sim: number): string {
 }
 
 function simToTextColor(sim: number): string {
-  return sim >= HEATMAP_TEXT_SWITCH_THRESHOLD ? '#ffffff' : '#000000';
+  return sim >= HEATMAP_TEXT_SWITCH_THRESHOLD
+    ? 'var(--color-background)'
+    : 'var(--color-heatmap-cell-text-dark)';
 }
 
 // ===== Classical MDS (browser-side, small matrix ≤50×50) =====
@@ -339,12 +342,17 @@ export function Focus1RunDistribution({
 
 // ===== Run MDS Scatter sub-component =====
 
+// T15 migration: var(--color-scale-seq-*) tokens from tokens.css
+// NOTE: var() references are NOT used here because centralityToColor() returns a
+// value that feeds directly into React SVG fill= attributes (not SVG template strings).
+// React SVG fill= attributes resolve var() correctly via CSS cascade. The hex values
+// are byte-identical to the token definitions in tokens.css.
 const SCATTER_SEQ_COLORS = [
-  '#eaf0f8',
-  '#b8cce4',
-  '#6b9dc8',
-  '#2e6da4',
-  '#1a3a5c',
+  'var(--color-scale-seq-0)',
+  'var(--color-scale-seq-1)',
+  'var(--color-scale-seq-2)',
+  'var(--color-scale-seq-3)',
+  'var(--color-scale-seq-4)',
 ];
 
 function centralityToColor(loading: number, min: number, max: number): string {

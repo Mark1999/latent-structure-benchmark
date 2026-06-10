@@ -24,21 +24,22 @@
 import { useRef, useEffect, useState, useCallback } from 'react';
 import { DENDROGRAM_SUPPORT_THRESHOLD } from '../config/analysis';
 
-// Cluster color palette matching tokens.css --color-cluster-1..8
-// Used as SVG fill/stroke where CSS custom properties are not reliably resolved.
-// See DESIGN_SYSTEM.md §1.2.
+// Cluster color palette from tokens.css --color-cluster-1..8 (T15: migrated to var() references)
+// Browsers resolve var() in SVG presentation attributes via template literals.
+// See DESIGN_SYSTEM.md §1.2. ClusterTree uses dangerouslySetInnerHTML so var() in
+// string template literals resolves correctly at render time.
 const CLUSTER_COLORS: string[] = [
-  '#e05c2e', // --color-cluster-1: warm orange-red
-  '#2e7d4f', // --color-cluster-2: forest green
-  '#b5590a', // --color-cluster-3: dark amber
-  '#5c3298', // --color-cluster-4: dark violet
-  '#1d6b8f', // --color-cluster-5: steel blue
-  '#8f1d55', // --color-cluster-6: dark rose
-  '#4a6e1a', // --color-cluster-7: olive green
-  '#6b3a1f', // --color-cluster-8: dark brown
+  'var(--color-cluster-1)', // warm orange-red
+  'var(--color-cluster-2)', // forest green
+  'var(--color-cluster-3)', // dark amber
+  'var(--color-cluster-4)', // dark violet
+  'var(--color-cluster-5)', // steel blue
+  'var(--color-cluster-6)', // dark rose
+  'var(--color-cluster-7)', // olive green
+  'var(--color-cluster-8)', // dark brown
 ];
 
-const GRAY_BRANCH = '#999999';
+const GRAY_BRANCH = 'var(--color-svg-gray-branch)';
 
 /** Vertical pixels between adjacent leaf rows. UI/UX verdict: n_terms * 20 + margins. */
 const LEAF_SPACING = 20;

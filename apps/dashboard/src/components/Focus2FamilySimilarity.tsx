@@ -170,8 +170,8 @@ function buildMdsSvg(
     for (let i = 0; i <= 4; i++) {
       const gy = pad.t + (ph * i) / 4;
       const gx = pad.l + (pw * i) / 4;
-      svg += `<line x1="${pad.l}" y1="${gy}" x2="${pad.l + pw}" y2="${gy}" stroke="#eee" stroke-width="0.5"/>`;
-      svg += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t + ph}" stroke="#eee" stroke-width="0.5"/>`;
+      svg += `<line x1="${pad.l}" y1="${gy}" x2="${pad.l + pw}" y2="${gy}" stroke="var(--color-svg-grid-line)" stroke-width="0.5"/>`;
+      svg += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t + ph}" stroke="var(--color-svg-grid-line)" stroke-width="0.5"/>`;
     }
 
     // Ellipses (only for family members shown at full opacity)
@@ -184,7 +184,7 @@ function buildMdsSvg(
       const rx = (u.semi_major / (xMax - xMin)) * pw;
       const ry = (u.semi_minor / (yMax - yMin)) * ph;
       const deg = -(u.rotation_rad * 180) / Math.PI;
-      const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || '#888';
+      const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || 'var(--color-svg-marker-stroke)';
       svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${color}" stroke="${color}" fill-opacity="0.07" stroke-opacity="0.2" stroke-width="1"/>`;
     });
 
@@ -192,12 +192,12 @@ function buildMdsSvg(
     visibleModels.filter((m) => !familyIds.has(m.model_id)).forEach((m) => {
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x), cy = sy(y);
-      const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || '#888';
+      const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || 'var(--color-svg-marker-stroke)';
       const name = displayModel(m.model_id);
       const layout = labelLayouts.find((l) => l.model_id === m.model_id)!;
       svg += `<g opacity="0.45">`;
-      svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="#fff" stroke-width="1.5"/>`;
-      svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="11" fill="#4a4a4a" style="pointer-events:none">${name}</text>`;
+      svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5"/>`;
+      svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="11" fill="var(--color-svg-label-secondary)" style="pointer-events:none">${name}</text>`;
       svg += `</g>`;
     });
 
@@ -205,20 +205,20 @@ function buildMdsSvg(
     visibleModels.filter((m) => familyIds.has(m.model_id)).forEach((m) => {
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x), cy = sy(y);
-      const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || '#888';
+      const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || 'var(--color-svg-marker-stroke)';
       const name = displayModel(m.model_id);
       const layout = labelLayouts.find((l) => l.model_id === m.model_id)!;
       // Inner filled circle
-      svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="#fff" stroke-width="1.5"/>`;
+      svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5"/>`;
       // Outer ring — §14.5: r=9, fill:none, stroke: 2px var(--color-text-primary) at 35% opacity
       svg += `<circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="rgba(44,62,80,0.35)" stroke-width="2"/>`;
       // Label
-      svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="12" fill="#2c3e50" font-weight="500" style="pointer-events:none">${name}</text>`;
+      svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="12" fill="var(--color-text-primary)" font-weight="500" style="pointer-events:none">${name}</text>`;
     });
 
     // Axis labels
-    svg += `<text x="${pad.l + pw / 2}" y="${H - 6}" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="#a0a098">MDS Dimension 1 — relative</text>`;
-    svg += `<text x="12" y="${pad.t + ph / 2}" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="#a0a098" transform="rotate(-90,12,${pad.t + ph / 2})">Dimension 2</text>`;
+    svg += `<text x="${pad.l + pw / 2}" y="${H - 6}" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--color-svg-axis-caption)">MDS Dimension 1 (relative)</text>`;
+    svg += `<text x="12" y="${pad.t + ph / 2}" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--color-svg-axis-caption)" transform="rotate(-90,12,${pad.t + ph / 2})">Dimension 2</text>`;
 
     return { svgContent: svg, width: W, height: H };
   }

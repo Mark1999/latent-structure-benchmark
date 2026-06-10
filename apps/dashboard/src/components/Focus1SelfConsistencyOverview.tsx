@@ -30,7 +30,7 @@ function getModelColor(model: PublishedModel): string {
         model.provider
       )
     : model.provider;
-  return PROVIDER_COLORS[provider] || '#888';
+  return PROVIDER_COLORS[provider] || 'var(--color-svg-marker-stroke)';
 }
 
 type ConcentrationTier = 'concentrated' | 'moderate' | 'diffuse';
@@ -76,7 +76,7 @@ export function Focus1SelfConsistencyOverview({
       <div className="f1-overview" role="list" aria-label="Models ranked by output concentration">
         {ranked.map((modelData, idx) => {
           const model = models.find((m) => m.model_id === modelData.model_id);
-          const color = model ? getModelColor(model) : '#888';
+          const color = model ? getModelColor(model) : 'var(--color-svg-marker-stroke)';
           const tier = getTier(modelData.oci);
           const isSelected = modelData.model_id === selectedModelId;
 
