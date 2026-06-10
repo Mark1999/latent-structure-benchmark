@@ -237,6 +237,40 @@ def test_security_md_section71_no_p0_t6_parenthetical():
     )
 
 
+def test_security_md_r4_no_ci_append_only_claim():
+    """SECURITY_AND_HARDENING.md §9 R4 row must NOT claim 'append-only check in CI'.
+
+    The old R4 text read 'The append-only check in CI is the mechanical enforcement'
+    which was false: data/raw/ is gitignored so CI cannot see the file. The corrected
+    text describes the two-layer PreToolUse hook + gitignore path segregation model.
+    """
+    text = SECURITY_MD.read_text(encoding="utf-8")
+    assert "append-only check in CI is the mechanical enforcement" not in text, (
+        "SECURITY_AND_HARDENING.md §9 R4 row still contains the false "
+        "'append-only check in CI is the mechanical enforcement' claim. "
+        "R4 must describe the PreToolUse hook + gitignore two-layer model instead."
+    )
+
+
+def test_security_md_r4_references_pretooluse_and_gitignore():
+    """SECURITY_AND_HARDENING.md §9 R4 row must describe two-layer enforcement.
+
+    Correct text must reference the PreToolUse hook AND gitignore path segregation
+    as the two mechanical enforcement layers (worktree commit 2361fb7).
+    """
+    text = SECURITY_MD.read_text(encoding="utf-8")
+    # R4 row must mention the hook
+    assert "PreToolUse hook" in text, (
+        "SECURITY_AND_HARDENING.md R4 row must reference 'PreToolUse hook' "
+        "as one of the two mechanical enforcement layers."
+    )
+    # R4 row must mention gitignore segregation
+    assert "gitignore" in text, (
+        "SECURITY_AND_HARDENING.md R4 row must reference gitignore path segregation "
+        "as the second mechanical enforcement layer."
+    )
+
+
 def test_hook_file_exists_and_is_active():
     """The hook file must exist and contain the ACTIVE wiring comment."""
     assert HOOK.exists(), f"Hook file not found at {HOOK}"
