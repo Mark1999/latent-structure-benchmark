@@ -21,6 +21,17 @@
 export const IMPACT_PARAGRAPH_FAILURES =
   "Some sessions do not produce a usable answer. A model declines, or returns something our pipeline cannot parse, or the request fails on the provider's side. We keep all of it. Which prompts a model will not answer, and how it says no, is as much a part of its behavior as the answers it gives. Deleting these records would make every model look equally cooperative, and that would be misleading. So they are published here, verbatim.";
 
+// ===== Follow-up interviews impact paragraph (v0.19.2 — CR-T2, 2026-06-10) =====
+
+/**
+ * Impact paragraph for the follow-up interviews surface.
+ * Mark-authored, approved verbatim 2026-06-10; CDA SME T2 gate PASS-WITH-NOTES.
+ * Renders only when at least one decline_interview record is present in the loaded file.
+ * Do NOT paraphrase. Byte-identity assertion in FailuresFindings.test.tsx enforces this.
+ */
+export const IMPACT_PARAGRAPH_FOLLOWUPS =
+  "When a model declines, we ask it one more question: why? Its answer is recorded here word for word. Read these with care. The explanation a model gives for refusing is itself just output, produced the same way as everything else it says. It may be consistent, it may be boilerplate, it may contradict what actually happened. That is exactly why we keep it: how a model accounts for its own refusal is one more observable behavior, not the inside story.";
+
 // ===== NavBar tab label (N1 / CDA SME M1 Option A) =====
 
 /** NavBar tab label — "Collection records" (CDA SME M1 Option A preferred). */

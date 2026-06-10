@@ -24,6 +24,7 @@ import {
   EMPTY_CAPTION,
   FAILURES_TAB_LABEL,
   IMPACT_PARAGRAPH_FAILURES,
+  IMPACT_PARAGRAPH_FOLLOWUPS,
 } from '../copy/failures_findings';
 
 // ── Fixtures: load the production JSON files ─────────────────────────────────
@@ -276,6 +277,26 @@ describe('FailuresFindings', () => {
     render(<FailuresFindings />);
     // The paragraph must not be present in loading state
     expect(screen.queryByText(IMPACT_PARAGRAPH_FAILURES)).not.toBeInTheDocument();
+  });
+
+  // 14. Byte-identity: IMPACT_PARAGRAPH_FOLLOWUPS renders verbatim (CR-T2 AC5)
+  it('renders IMPACT_PARAGRAPH_FOLLOWUPS byte-for-byte in ready state with decline records (CR-T2 AC5)', async () => {
+    mockFetchWith(familyJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(IMPACT_PARAGRAPH_FOLLOWUPS)).toBeInTheDocument();
+    });
+  });
+
+  // 15. Follow-up impact paragraph does NOT render when no decline_interview records present (CR-T2 AC6)
+  // food fixture has n_records === 0 so no decline_interview records exist.
+  it('IMPACT_PARAGRAPH_FOLLOWUPS absent when no decline_interview records present (CR-T2 AC6)', async () => {
+    mockFetchWith(foodJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
+    });
+    expect(screen.queryByText(IMPACT_PARAGRAPH_FOLLOWUPS)).not.toBeInTheDocument();
   });
 
   // 10. Domain switch re-fetches

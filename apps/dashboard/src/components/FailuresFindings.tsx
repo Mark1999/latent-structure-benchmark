@@ -20,6 +20,7 @@ import { useState, useEffect, useRef } from 'react';
 import type { FailuresFile, FailuresRecord, FailureRecord, DeclineInterviewRecord } from '../data/types';
 import {
   IMPACT_PARAGRAPH_FAILURES,
+  IMPACT_PARAGRAPH_FOLLOWUPS,
   SECTION_HEADING,
   BADGE_FAILURE,
   BADGE_DECLINE,
@@ -333,23 +334,39 @@ export function FailuresFindings() {
             {data.n_records === 0 ? (
               /* Empty state (T10 S2 verbatim / AC9) — first-class, not a defect */
               <p className="failures-findings__empty">{EMPTY_CAPTION}</p>
-            ) : (
-              <ol className="failures-findings__list">
-                {data.records.map((record: FailuresRecord, i: number) => {
-                  if (isFailureRecord(record)) {
-                    return (
-                      <FailureRecordRow key={`failure-${i}`} record={record} index={i} />
-                    );
-                  }
-                  if (isDeclineInterviewRecord(record)) {
-                    return (
-                      <DeclineInterviewRow key={`decline-${i}`} record={record} index={i} />
-                    );
-                  }
-                  return null;
-                })}
-              </ol>
-            )}
+            ) : (() => {
+              /* Split records into failure and decline-interview groups (CR-T2 / §19.4 step 6). */
+              const failureRecords = data.records.filter(isFailureRecord);
+              const declineRecords = data.records.filter(isDeclineInterviewRecord);
+              const hasDecline = declineRecords.length > 0;
+              return (
+                <>
+                  {/* Failure records group */}
+                  {failureRecords.length > 0 && (
+                    <ol className="failures-findings__list">
+                      {failureRecords.map((record, i) => (
+                        <FailureRecordRow key={`failure-${i}`} record={record} index={i} />
+                      ))}
+                    </ol>
+                  )}
+
+                  {/* Follow-up interviews impact paragraph (CR-T2, v0.19.2).
+                      Renders only when at least one decline_interview record is present (AC3). */}
+                  {hasDecline && (
+                    <p className="failures-findings__impact">{IMPACT_PARAGRAPH_FOLLOWUPS}</p>
+                  )}
+
+                  {/* Decline-interview records group */}
+                  {hasDecline && (
+                    <ol className="failures-findings__list">
+                      {declineRecords.map((record, i) => (
+                        <DeclineInterviewRow key={`decline-${i}`} record={record} index={i} />
+                      ))}
+                    </ol>
+                  )}
+                </>
+              );
+            })()}
           </>
         );
       })()}

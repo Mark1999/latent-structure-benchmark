@@ -111,7 +111,7 @@
 
 ---
 
-*T2-T8 verdicts to be appended as subsequent tasks complete.*
+*T3-T8 verdicts to be appended as subsequent tasks complete.*
 
 **Checks performed:**
 
@@ -223,4 +223,78 @@
 
 ---
 
-*T2-T8 verdicts to be appended as subsequent tasks complete.*
+## T2: Impact paragraph for follow-up interviews
+
+**Task scope:** Add `IMPACT_PARAGRAPH_FOLLOWUPS` (Mark-authored) to the Collection records tab, inserted between failure records and decline-interview records (conditional on at least one decline_interview record present). Amend DESIGN_SYSTEM.md §19.4. Two new vitest cases.
+
+### CDA SME verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-axis scorecard:**
+
+| Axis | Score | Notes |
+|---|---|---|
+| Protocol validity | PASS | Paragraph correctly frames the follow-up interview as an LSB-side protocol action, not a model-initiated behavior. "We ask it one more question" attributes the action to LSB, not to the model. |
+| Analytical validity | N/A | No analysis claim made. |
+| Claims validity | PASS | S4 ("just output, produced the same way as everything else it says") and S6 ("observable behavior, not the inside story") are the load-bearing §1.5.4 register locks. The string explicitly disclaims interiority and frames the explanation as output, not cognition. §1.5.4 clean. |
+| Audience translation | PASS | A cold reader is explicitly warned ("Read these with care") and given a concrete reason why the explanation may be unreliable, without attributing intent. The "not the inside story" close is the strongest anti-attribution sentence on this surface. |
+
+**Notes (advisory):**
+
+- **A1 (advisory):** AC7 reference to "R7" in the plan is an internal citation artifact; the plan's AC7 confirms the approved string contains none of the seven forbidden substrings. No action required by Coder.
+- **A2 (advisory):** "behavior" and the implicit output-distribution register coexist in T2 as in T1. T3 (taxonomy disclosure) should bridge these registers explicitly when it ships. This is a T3 concern, not a T2 gate concern.
+- **A3 (standing rule):** The posture that the SME does not silently revise Mark's prose (FAIL bounces to Mark via orchestrator) is hereby promoted to a standing operating rule for any future Mark-authored copy surface. No Coder action required.
+- **Carry-forward T1 N1:** "cooperative" is not used in the T2 string. T2 AC14 + R9 enforced. CONFIRMED.
+- **Carry-forward T1 N2:** Two-register bridging is a T3 concern; noted but not a T2 gate condition.
+- **Conditional-render rule:** Renders only when at least one decline_interview record is present. A follow-up-interview framing paragraph with zero follow-up-interview records would be vacuous and misleadingly imply the surface contains data it does not. Food empty-state (n_records === 0) correctly suppresses it. METHODOLOGICALLY CORRECT.
+- **Gate rule applied:** PASS-WITH-NOTES leaves the string byte-identical. Notes are advisory.
+
+---
+
+### UI/UX verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-question scorecard:**
+
+| Question | Score | Notes |
+|---|---|---|
+| OWID design fidelity | PASS | Reuses `.failures-findings__impact` class (existing tokens only). No new tokens introduced. |
+| 30-second journalist test | PASS | Paragraph is positioned at the natural reading boundary between failure records and follow-up interview records; a cold reader encounters it immediately before the interview transcripts they are about to read. |
+| Researcher reproduce-and-cite test | PASS | Paragraph contextualizes the follow-up interview artifacts without suppressing them; researchers can still access verbatim records below. |
+| WCAG AA accessibility | PASS | `.failures-findings__impact` uses `--color-text-primary` on `--color-background`, same as CR-T1 verdict. Exceeds AA at all font sizes. |
+
+**Notes (binding on Coder):**
+
+- **N1 (binding, placement):** Failure records group renders first, then the follow-up impact paragraph, then the decline-interview records group. Two separate `<ol className="failures-findings__list">` elements. The paragraph is a sibling `<p>` element between the two lists. Do NOT merge all records into a single `<ol>`.
+- **N2 (binding, CSS class):** Reuse `.failures-findings__impact`. No new class, no new tokens.
+- **N3 (confirmatory, empty-state):** When `n_records === 0`, neither the paragraph nor any grouped lists render; the empty-state `<p>` is the only content. Unchanged from current posture.
+- **N4 (confirmatory, chrome-isolation):** Approved string does not contain `consensus`, `Smith's S`, `agree`, `believe`, `worldview`, `categoriz`, or `\bthink`. Case 9 unchanged.
+- **N5 (secondary fix, closing-line):** The closing line of DESIGN_SYSTEM.md must be updated from `v0.19.0` to `v0.19.2`. This corrects a pre-existing error not addressed in v0.19.1.
+- **Design system update:** DESIGN_SYSTEM.md §19.4 further amended under v0.19.2; changelog entry added referencing this verdict file; closing-line version string corrected.
+
+---
+
+### Reviewer verdict: PASS
+
+**Date:** 2026-06-10
+
+**Checks:**
+
+- R1. `IMPACT_PARAGRAPH_FOLLOWUPS` byte-identical to the plan §2 string and approved-copy doc T2 section. No em dashes, straight apostrophes, exact whitespace, final period present. PASS.
+- R2. Export is purely additive in `copy/failures_findings.ts`; `IMPACT_PARAGRAPH_FAILURES` and all other existing exports unchanged. PASS.
+- R3. Paragraph renders in `ready` state when at least one decline_interview record is present; does not render in loading/fetch-failed/malformed/no-decline_interview-records states. PASS.
+- R4. vitest cases 14 (byte-identity under `familyJson`) and 15 (absent under `foodJson`) added and pass. Case 9 chrome-isolation passes unchanged. PASS.
+- R5. DESIGN_SYSTEM.md §19.4 amended under v0.19.2; changelog entry added; closing-line version corrected from v0.19.0 to v0.19.2. PASS.
+- R6. Verdict file has T2 section appended; T1 section unchanged. PASS.
+- R7. One commit on master with the specified message; body references kickoff and verdict file; no em dashes. PASS.
+- R8. No em dashes anywhere in the diff (code, comments, docs, commit message). PASS.
+- R9. No banned vocabulary in diffed text. No use of "cooperative" outside the existing T1 counterfactual frame. PASS.
+- R10. No new CSS custom properties referenced that are not defined in `tokens.css`. `.failures-findings__impact` class reused; all tokens already verified in CR-T1. PASS.
+- R11. No edits to CDA-SME-bound byte-identical strings (`framing_note` JSON, `SECTION_HEADING`, `EMPTY_CAPTION`, badges, blocks, `IMPACT_PARAGRAPH_FAILURES`, loading/error strings). PASS.
+- R12. No spend-gate or cost-estimate language anywhere in the diff. PASS.
+
+---
+
+*T3-T8 verdicts to be appended as subsequent tasks complete.*

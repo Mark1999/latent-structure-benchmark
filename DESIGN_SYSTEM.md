@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.19.1  
+**Version:** v0.19.2  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.19.2** (Follow-up interviews impact paragraph — CR-T2, 2026-06-10) amends §19.4 content order: step 6 (records list) is now split into two groups with the follow-up impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) inserted between them. Failure records render in a first `<ol className="failures-findings__list">`, then conditionally (when at least one `decline_interview` record is present) the `IMPACT_PARAGRAPH_FOLLOWUPS` `<p className="failures-findings__impact">` renders, then decline records render in a second `<ol className="failures-findings__list">`. CSS class reuses `.failures-findings__impact` (no new class, no new tokens). Follow-up impact paragraph renders only when `data.records.some(r => r.record_type === 'decline_interview')` is true; does not render in loading/fetch-failed/malformed states or when zero decline_interview records are present. Two new vitest cases added: byte-identity under `familyJson` (case 14), absent under `foodJson` (case 15). Also corrects pre-existing closing-line version string from `v0.19.0` to `v0.19.2`. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section).
 - **v0.19.1** (Impact paragraph for collection failures — CR-T1, 2026-06-10) amends §19.4 content order: inserts "Impact paragraph (`IMPACT_PARAGRAPH_FAILURES`) `<p>`" as new step 3 (between heading step 1 and domain selector step 2); old steps 3-5 renumber to 4-6. Adds new CSS class `.failures-findings__impact` to `failures-findings.css` (tokens: `--font-size-base`, `--color-text-primary`, `--line-height-body`, `--space-6`, `--max-prose-width`). No new tokens. The paragraph renders inside the `ready` fetch state only (AC4); renders in the empty-state path (n_records === 0, AC3). Three new vitest cases added: byte-identity (case 11), empty-state paragraph present (case 12), absent in loading state (case 13). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T1 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T1 section).
 - **v0.19.0** (About page, M2, 2026-06-10) adds `AboutPage.tsx` (Mark-authored text). Adds NavBar fifth tab "About" at rightmost position (binding least-prominent slot: benchmark and data presentation remain primary; About entry must not dominate the nav). Mirrors `MethodologyPage.tsx` class structure (`.methodology-page`, `.methodology-page__container`, `.methodology-page__section`, `.methodology-page__heading`, `.methodology-page__text`); no new tokens, no new CSS. Adds §22 About page spec. Updates §11 Component Inventory. Corrects pre-existing closing-line version string from `v0.17.0` to `v0.19.0` (UI/UX N3 advisory). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md` M2 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md` M2 section).
 - **v0.18.0** (Methodology rewrite + provenance section move — M1, 2026-06-10) replaces the v0.17.0 Coder-built placeholder prose in sections 1-6 of `MethodologyPage.tsx` with Mark-authored final text (eight sections; CDA tradition, forebears credit with verified links). Moves the §15.5(a) `Data provenance` section and the §16.2 `Cross-model term map and uncertainty` section from `MethodologyPage.tsx` to `DataPage.tsx` (placement: after Section H Provenance pointer). Adds a new "Provenance" pointer section at the end of `MethodologyPage.tsx` (in-app `/data` link, §6.3). Fixes a duplicate-id defect introduced by the move (DataPage Section H heading id renamed to `data-provenance-pointer-heading`). Adds §6.3 (provenance-pointer note, in §6 methodology page architecture section). Updates §15.5(a), §16.2 placement paragraphs, and §11 inventory entries. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`).
@@ -2643,7 +2644,7 @@ Round-2 additions (3):
 
 ---
 
-## 19. Collection records tab (v0.15.0 — Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1 — CR-T1, 2026-06-10)
+## 19. Collection records tab (v0.15.0 — Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1 — CR-T1, 2026-06-10; §19.4 further amended v0.19.2 — CR-T2, 2026-06-10)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`, M1-M4); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`, N1-N7).
 
@@ -2667,7 +2668,7 @@ Three domain options: Family / Holidays / Food (same set as Explore).
 
 `<h1>` element with text `"Collection records and follow-up interviews"` byte-for-byte. This is the T10 SECTION_HEADING string; it is the tab's primary heading.
 
-### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10)
+### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10; further amended v0.19.2 / CR-T2 2026-06-10)
 
 Within the tab region, content renders in this order:
 1. `<h1>` heading (§19.3).
@@ -2675,7 +2676,11 @@ Within the tab region, content renders in this order:
 3. Impact paragraph (`IMPACT_PARAGRAPH_FAILURES`) `<p className="failures-findings__impact">` — Mark-authored, approved verbatim 2026-06-10; renders in the `ready` fetch state only (not in loading/fetch-failed/malformed states); renders in the empty-state path (n_records === 0, AC3). See v0.19.1 CR-T1 for the CSS class spec.
 4. `framing_note` `<p>` — verbatim, byte-identity from the JSON field. First data-sourced content paragraph (T9 §5.1 / AC5).
 5. Counts caption `<p>` (T10 §4 template) — OMITTED when `n_records === 0`.
-6. `<ol>` records list or empty-state `<p>`.
+6. When `n_records > 0`, records render in two grouped lists with the follow-up impact paragraph between them:
+   a. Failure records `<ol className="failures-findings__list">` — all `record_type === 'failure'` records.
+   b. Follow-up interviews impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) `<p className="failures-findings__impact">` — Mark-authored, approved verbatim 2026-06-10; renders ONLY when at least one `decline_interview` record is present (`data.records.some(r => r.record_type === 'decline_interview')`). Does not render when zero decline_interview records exist. CSS class reuses `.failures-findings__impact` (no new tokens).
+   c. Decline-interview records `<ol className="failures-findings__list">` — all `record_type === 'decline_interview'` records. Rendered only when at least one such record exists (same condition as 6b).
+   When `n_records === 0`: empty-state `<p>` only (§19.9); no grouped lists.
 
 No chart-lede, no Smith's S, no SelectionBar, no VizTabs, no consensus-score strings (M4 / N7 chrome isolation).
 
@@ -2952,6 +2957,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.19.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.19.2. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
