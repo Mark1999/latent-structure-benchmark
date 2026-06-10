@@ -172,8 +172,8 @@ export function MDSPlot({
     for (let i = 0; i <= 4; i++) {
       const gy = pad.t + (ph * i) / 4;
       const gx = pad.l + (pw * i) / 4;
-      svg += `<line x1="${pad.l}" y1="${gy}" x2="${pad.l + pw}" y2="${gy}" stroke="var(--color-svg-grid-line)" stroke-width="0.5"/>`;
-      svg += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t + ph}" stroke="var(--color-svg-grid-line)" stroke-width="0.5"/>`;
+      svg += `<line x1="${pad.l}" y1="${gy}" x2="${pad.l + pw}" y2="${gy}" stroke="var(--color-svg-grid-line-neutral)" stroke-width="0.5"/>`;
+      svg += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t + ph}" stroke="var(--color-svg-grid-line-neutral)" stroke-width="0.5"/>`;
     }
 
     // Ellipses

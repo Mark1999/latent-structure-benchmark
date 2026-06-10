@@ -142,7 +142,8 @@
   /* Byte-identical to the hex literals they replace; zero visual delta.      */
   /* Token placement: after --color-surface-hover, before sequential scale.   */
   /* Consolidation ruling: #888 and #999 stay on separate tokens (UI/UX T15). */
-  --color-svg-grid-line:        #f0f0ec;   /* light grid lines in TermMap / MDSPlot */
+  --color-svg-grid-line:        #f0f0ec;   /* TermMap warm-white grid lines */
+  --color-svg-grid-line-neutral: #eeeeee;  /* MDSPlot/Focus2 neutral gray grid lines (UI/UX T15 ruling) */
   --color-svg-axis-caption:     #a0a098;   /* axis label text; WCAG advisory: pre-existing fail at 11px */
   --color-svg-label-secondary:  #4a4a4a;   /* model/term label text in MDS components */
   --color-svg-marker-stroke:    #888888;   /* #888 fallback neutral stroke (FreeListCompare, PileStructure, Focus1SelfConsistencyOverview, Focus2FamilyOverview) */
