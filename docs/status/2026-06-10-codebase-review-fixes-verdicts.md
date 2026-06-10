@@ -20,7 +20,16 @@ Verified facts: `data/raw/` is gitignored (.gitignore line 17); `data/raw/inform
 
 ## Task 1b (follow-up from Reviewer note): correct R4 wording in SECURITY_AND_HARDENING.md §9
 
-Status: queued. SECURITY_AND_HARDENING.md line 554 R4 still reads "The append-only check in CI is the mechanical enforcement"; to be aligned with the corrected §7.1 item 2.
+**Commit:** `docs(docs): align R4 reviewer rule with corrected append-only enforcement`
+
+R4 row in SECURITY_AND_HARDENING.md §9 (line 554) rewritten to replace the false "append-only check in CI" claim with the accurate two-layer enforcement description: PreToolUse hook `.claude/hooks/check_informants_append_only.py` (blocks agent Write/Edit/MultiEdit calls at tool time) plus gitignore path segregation (`data/raw/` gitignored per `.gitignore` line 17, structurally invisible to git and PR diffs). Reviewer backstop role restated as rejecting any diff that would start tracking `data/raw/` contents inside git. Rule text ("No edits to existing lines in `data/raw/informants.jsonl`."), rule id R4, and "Where defined" cell (§7.1) preserved verbatim. No other row touched.
+
+Origin: Reviewer PASS-WITH-NOTES mandatory note on commit `0ead206` (2026-06-10 codebase review). Parallel correction: CLAUDE.md §9 pitfall 10 and SECURITY_AND_HARDENING.md §7.1 item 2 were fixed in commit `0ead206`; this commit aligns R4 to match.
+
+- **CDA SME:** PASS. Axes: protocol N/A, analytical N/A, claims PASS (enforcement description now accurate), audience PASS. No §1.5.x framing, no analysis measures, no schema methodology fields, no lede templates, no methodology page copy. Append-only invariant itself (bad records keep `qa_passed=False`) preserved verbatim.
+- **UI/UX:** skipped (not frontend).
+- **Reviewer:** PASS. R4 rule text preserved verbatim and bolded. R4 "Where defined" cell remains §7.1. Cell now describes PreToolUse hook + gitignore path segregation as mechanical enforcement; Reviewer backstop role correctly restated. No other table row touched (R3 and R5 rows byte-identical). No em dashes. No forbidden vocabulary. No spend-gate tokens. Commit subject `docs(docs): align R4 reviewer rule with corrected append-only enforcement` under 72 chars. Commit body references 2026-06-10 review, commit `0ead206`, and this verdicts file.
+- **Tester:** `uv run pytest tests/unit/test_check_informants_append_only.py` green (17 tests). Full `uv run pytest`, `uv run ruff check .`, `uv run mypy packages/` all green. No new tests required; existing doc-state tests do not constrain R4 wording.
 
 ## Task 2: add dashboard build/test/lint job to CI (T-CI-vitest)
 
