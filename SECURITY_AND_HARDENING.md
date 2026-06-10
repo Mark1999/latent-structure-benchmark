@@ -456,7 +456,7 @@ This section is the security expression of `ARCHITECTURE.md` §1 commitment 7 ("
 **Enforcement mechanisms:**
 
 1. **The collection runner** (`cdb_collect/runner.py`) opens the file in append mode (`"a"`) and never seeks. There is no code path in `cdb_collect` that opens the file for writing in any other mode.
-2. **A pre-commit hook in CI** (added in P0-T6) checks any PR that modifies `data/raw/informants.jsonl` and rejects modifications that touch existing lines — only additions at the end are allowed. This catches the case where a Coder accidentally edits the file by hand.
+2. **A PreToolUse hook for Claude Code agents** (`.claude/hooks/check_informants_append_only.py`, wired 2026-06-05 per `.claude/settings.json`) rejects any `Write`, `Edit`, or `MultiEdit` call targeting `data/raw/informants.jsonl` at agent-tool time. This is the primary local enforcement layer. `data/raw/` is gitignored (`.gitignore` line 17), so the file is structurally invisible to git and to PR review: path segregation makes CI-level checks redundant.
 3. **The nightly backup to Backblaze B2** uses content-addressable upload. If a previously-backed-up line is later modified, the backup catches the divergence on the next run.
 4. **The four-layer backup strategy** (`HOSTING_AND_DEV_OPS.md` §4) means a tampered version of the file can be compared against earlier backed-up versions and the tampering identified.
 
