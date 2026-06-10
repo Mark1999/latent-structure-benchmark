@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.20.3  
+**Version:** v0.20.4  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.20.3** (Per-attempt retry-transcript block, CR-T8, 2026-06-10) adds §19.18 specifying the attempts block rendered inside a failure record's expanded body when `retry_attempts` is non-empty. Layout: labeled section with framing paragraph followed by one card per attempt, each showing `attempt_index` heading (0-indexed), response verbatim in a `<pre>`, and an optional provenance list for `stop_reason` and `parse_error_message` (labeled "LSB parser-state diagnosis"). New CSS classes in `failures-findings.css`: `.failures-findings__attempts`, `.failures-findings__attempts-framing`, `.failures-findings__attempt`, `.failures-findings__attempt-heading`. WCAG AA ruling: `.failures-findings__attempt-heading` uses `--color-text-primary` (NOT `--color-text-secondary`). No new tokens. Six new vitest cases (41-46); case 40 (case 9 extended) further extended to materialise the attempts block and scan its chrome. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T8 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T8 section).
 - **v0.20.3** (Term Map label declutter, TM-C, 2026-06-10) implements
   §3.1.1(c) label-declutter rule. Six changes from TM-C UI/UX gate:
   (1) Cluster label font changed from ad-hoc 26px/20px to `var(--font-body)`
@@ -2868,7 +2869,7 @@ Round-2 additions (3):
 
 ---
 
-## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10; further amended v0.19.3, CR-T3, 2026-06-10; further amended v0.19.4, CR-T5, 2026-06-10; further amended v0.19.5, CR-T6, 2026-06-10; §19.17 added v0.20.2, CR-T7, 2026-06-10)
+## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10; further amended v0.19.3, CR-T3, 2026-06-10; further amended v0.19.4, CR-T5, 2026-06-10; further amended v0.19.5, CR-T6, 2026-06-10; §19.17 added v0.20.2, CR-T7, 2026-06-10; §19.18 added v0.20.4, CR-T8, 2026-06-10)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`, M1-M4); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`, N1-N7).
 
@@ -3426,7 +3427,78 @@ All other rendering reuses existing classes. No new tokens introduced.
 - Case 37: expand fetch-failed state renders RECORDS_DETAIL_FETCH_FAILED byte-identical.
 - Case 38: expand malformed state renders RECORDS_DETAIL_MALFORMED byte-identical.
 - Case 39: a fixture record with a null step does not render that step section heading or its sub-blocks; other steps are present.
-- Case 40: case 9 chrome-isolation extended over the expanded detail DOM (excluding `<pre>` nodes); affirmative zero-count assertions pass for all six forbidden substrings.
+- Case 40: case 9 chrome-isolation extended over the expanded detail DOM (excluding `<pre>` nodes); affirmative zero-count assertions pass for all six forbidden substrings. CR-T8 further extends this case to materialise the attempts block (open `<details>`) and scan attempts chrome for the same forbidden substrings and `\bthink` regex.
+
+---
+
+### 19.18 Per-attempt retry-transcript block (binding, CR-T8, v0.20.3)
+
+Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T8 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T8 section).
+
+The retry-attempts block renders inside the expanded body of a `FailureRecord` accordion row (and defensively inside `DeclineInterviewRecord`) when the record's `retry_attempts` field is a non-empty array. If the array is empty, null, or absent, the block does NOT render; this is correct behavior, not a loading state.
+
+**Placement (binding):** The attempts block appears AFTER the originating-context block and BEFORE the `error_message` block inside the failure record body.
+
+**Block structure (binding):**
+
+```
+<div class="failures-findings__attempts">
+  <div class="failures-findings__block-label">{BLOCK_ATTEMPTS}</div>
+  <p class="failures-findings__attempts-framing">{ATTEMPTS_FRAMING}</p>
+  {/* one card per attempt, sorted ascending by attempt_index */}
+  <div class="failures-findings__attempt">
+    <p class="failures-findings__attempt-heading">
+      attempt_index: <code>{String(attempt.attempt_index)}</code>
+    </p>
+    <pre class="failures-findings__pre">{attempt.response_verbatim}</pre>
+    {/* optional provenance list: only if stop_reason or parse_error_message non-null */}
+    <ul class="failures-findings__provenance-list">
+      <li class="failures-findings__provenance-item">
+        stop_reason: <code>{attempt.stop_reason}</code>
+      </li>
+      <li class="failures-findings__provenance-item">
+        {ATTEMPTS_PARSE_ERROR_LABEL}: <code>{attempt.parse_error_message}</code>
+      </li>
+    </ul>
+  </div>
+</div>
+```
+
+**Attempt sort order (binding, CDA SME N1):** Attempts are sorted by `attempt_index` ascending before render. `attempt_index` is 0-indexed for JSON-byte audit alignment; this must not be presented as "attempt 1 of N" framing.
+
+**Register lock on `BLOCK_ATTEMPTS` and `ATTEMPTS_FRAMING` (binding, CDA SME N3):**
+
+- PIPELINE retry language only (no per-record refusal framing)
+- Parser-state language only for `parse_error_message` label ("LSB parser-state diagnosis")
+- No bare "refusal" in either string
+- No "cooperative" or cognition attribution
+- Shared-prompt register: the framing confirms the prompt is shared across all attempts and shown once above
+
+**Prompt register lock (binding, CDA SME N2 / AC11):** No per-attempt `prompt_verbatim` is rendered. The parent record's prompt is shown once. The ATTEMPTS_FRAMING string makes this explicit. This is not a UI omission; it is a register decision.
+
+**Token rules (binding, WCAG AA):**
+
+All five new CSS classes use only tokens already defined in `tokens.css` as of v0.20.3. No new tokens were added.
+
+| Class | Key token decisions |
+|---|---|
+| `.failures-findings__attempts` | `--space-2` gap, `--space-4` bottom margin |
+| `.failures-findings__attempts-framing` | `--color-text-secondary` (framing paragraph only; passes 4.5:1 at this font size+weight) |
+| `.failures-findings__attempt` | `--color-surface` background, `--color-border` border, `--border-radius-sm` |
+| `.failures-findings__attempt-heading` | **`--color-text-primary`** (NOT `--color-text-secondary`; WCAG AA ruling: 14px regular-weight heading must pass 4.5:1; `--color-text-secondary` fails at this size+weight) |
+| `.failures-findings__attempt-heading code` | `--color-text-primary` (same as heading, `--font-mono` font family) |
+
+**WCAG AA ruling (UI/UX gate-time, binding):** The attempt heading (`attempt_index: <code>N</code>`) is 14px regular weight. `--color-text-secondary` fails the 4.5:1 contrast requirement at this size+weight. `.failures-findings__attempt-heading` MUST use `--color-text-primary`. The framing paragraph (`.failures-findings__attempts-framing`) is a longer paragraph at small size, and `--color-text-secondary` is acceptable for that role. This distinction is binding and must not be collapsed.
+
+**Test cases (binding, CR-T8 AC16-AC17):**
+
+- Case 41: `BLOCK_ATTEMPTS` byte-identity (approved string: `"Pipeline retry attempts"`).
+- Case 42: `ATTEMPTS_FRAMING` byte-identity (approved string per CDA SME N3).
+- Case 43: attempts block renders for a fixture failure record with non-empty `retry_attempts` (exactly one `.failures-findings__attempts` in DOM after `<details>` expand).
+- Case 44: attempts block absent when `retry_attempts` is `[]`.
+- Case 45: attempts block absent when `retry_attempts` is null or the field is omitted.
+- Case 46: attempts render in `attempt_index` ascending order when fixture supplies indices out of order.
+- Case 40 (extended): case 9 chrome-isolation walk opens `<details>` to materialise the attempts block before the scan; forbidden-substring list and `\bthink` regex both pass on attempts chrome (excluding `<pre>` nodes).
 
 ---
 
@@ -3614,6 +3686,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.20.3. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.20.4. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

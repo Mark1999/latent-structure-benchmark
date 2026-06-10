@@ -50,6 +50,12 @@
  *     freelist and pile_interview sections are present.
  * 40. Case 9 chrome-isolation extended over the expanded detail DOM (excluding <pre> nodes);
  *     affirmative zero-count assertions pass for all six forbidden substrings.
+ * 41. BLOCK_ATTEMPTS byte-identity (CR-T8 AC4).
+ * 42. ATTEMPTS_FRAMING byte-identity (CR-T8 AC5).
+ * 43. Attempts block renders for a fixture failure record with non-empty retry_attempts (CR-T8 AC8).
+ * 44. Attempts block absent when retry_attempts is [] (CR-T8 AC7).
+ * 45. Attempts block absent when retry_attempts is null/undefined (CR-T8 AC7).
+ * 46. Attempts render in attempt_index ascending order regardless of array order in source (CR-T8 AC10).
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -73,6 +79,8 @@ import {
   BLOCK_PILESORT_EXCHANGE,
   BLOCK_PILE_INTERVIEW_EXCHANGE,
   BLOCK_DETAIL_PROVENANCE,
+  BLOCK_ATTEMPTS,
+  ATTEMPTS_FRAMING,
 } from '../copy/failures_findings';
 
 // -- Fixtures: load the production JSON files -----------------------------------
@@ -1080,23 +1088,224 @@ describe('FailuresFindings', () => {
     });
   });
 
+  // ===========================================================================
+  // CR-T8 cases: per-attempt retry-transcript block (§19.18, v0.20.3)
+  // ===========================================================================
+
+  // A minimal fixture family JSON with a failure record that has non-empty retry_attempts.
+  // Built from familyJson structure; overrides ONLY the first failure record with retry data.
+  // All other records have their retry_attempts zeroed out so that counts are deterministic.
+  function buildFamilyWithRetries(retryAttempts: unknown[]) {
+    let patchedFirst = false;
+    const recordsCopy = familyJson.records.map((r) => {
+      if (r.record_type === 'failure' && !patchedFirst) {
+        patchedFirst = true;
+        return { ...r, retry_attempts: retryAttempts };
+      }
+      // Zero out any pre-existing retry_attempts so test counts are deterministic.
+      return { ...r, retry_attempts: [] };
+    });
+    return { ...familyJson, records: recordsCopy };
+  }
+
+  // 41. BLOCK_ATTEMPTS byte-identity (CR-T8 AC4)
+  it('CR-T8 case 41: BLOCK_ATTEMPTS is byte-identical to approved string', () => {
+    expect(BLOCK_ATTEMPTS).toBe('Pipeline retry attempts');
+  });
+
+  // 42. ATTEMPTS_FRAMING byte-identity (CR-T8 AC5)
+  it('CR-T8 case 42: ATTEMPTS_FRAMING is byte-identical to approved string', () => {
+    expect(ATTEMPTS_FRAMING).toBe(
+      'After a parser-state failure the LSB pipeline re-issued the same prompt. ' +
+      'Each attempt below shows the response the provider returned and the parser-state outcome ' +
+      'the LSB pipeline recorded. The prompt is shared across all attempts and is shown once above.',
+    );
+  });
+
+  // 43. Attempts block renders when retry_attempts is non-empty (CR-T8 AC8)
+  it('CR-T8 case 43: attempts block renders for a failure record with non-empty retry_attempts', async () => {
+    const retryAttempts = [
+      {
+        attempt_index: 0,
+        response_verbatim: 'attempt 0 response bytes',
+        thinking_verbatim: '',
+        stop_reason: 'stop',
+        parse_error_message: 'Items missing from pile sort: {}',
+      },
+    ];
+    const familyWithRetries = buildFamilyWithRetries(retryAttempts);
+    mockFetchBoth(familyWithRetries, recordsFamilyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(container.querySelectorAll('details').length).toBeGreaterThan(0);
+    });
+
+    // Open the first details element to materialise the attempts block (CR-T8 AC17 / N4 binding)
+    const allDetails = container.querySelectorAll('details');
+    fireEvent.click(allDetails[0].querySelector('summary')!);
+
+    // Attempts block must be present (exactly one)
+    await waitFor(() => {
+      const attemptsBlocks = container.querySelectorAll('.failures-findings__attempts');
+      expect(attemptsBlocks.length).toBe(1);
+    });
+
+    // BLOCK_ATTEMPTS heading must be present
+    expect(container.textContent).toContain(BLOCK_ATTEMPTS);
+    // ATTEMPTS_FRAMING must be present
+    expect(container.textContent).toContain(ATTEMPTS_FRAMING);
+    // Response verbatim in pre
+    const preEls = container.querySelectorAll('.failures-findings__attempts pre');
+    expect(preEls.length).toBe(1);
+    expect(preEls[0].textContent).toBe('attempt 0 response bytes');
+  });
+
+  // 44. Attempts block absent when retry_attempts is [] (CR-T8 AC7)
+  it('CR-T8 case 44: attempts block absent when retry_attempts is empty array', async () => {
+    const familyWithEmptyRetries = buildFamilyWithRetries([]);
+    mockFetchBoth(familyWithEmptyRetries, recordsFamilyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(container.querySelectorAll('details').length).toBeGreaterThan(0);
+    });
+
+    // Open the first failure record
+    const allDetails = container.querySelectorAll('details');
+    fireEvent.click(allDetails[0].querySelector('summary')!);
+
+    // Attempts block must NOT be present
+    await waitFor(() => {
+      expect(container.querySelectorAll('.failures-findings__attempts').length).toBe(0);
+    });
+  });
+
+  // 45. Attempts block absent when retry_attempts is null/undefined (CR-T8 AC7)
+  it('CR-T8 case 45: attempts block absent when retry_attempts is null or omitted', async () => {
+    // familyJson failure records have retry_attempts:[] in source; override to omit the field.
+    const recordsCopy = familyJson.records.map((r) => {
+      if (r.record_type === 'failure') {
+        const { retry_attempts: _omit, ...rest } = r as (typeof r & { retry_attempts?: unknown });
+        void _omit;
+        return rest;
+      }
+      return r;
+    });
+    const familyNoRetries = { ...familyJson, records: recordsCopy };
+    mockFetchBoth(familyNoRetries, recordsFamilyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(container.querySelectorAll('details').length).toBeGreaterThan(0);
+    });
+
+    // Open the first failure record
+    const allDetails = container.querySelectorAll('details');
+    fireEvent.click(allDetails[0].querySelector('summary')!);
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('.failures-findings__attempts').length).toBe(0);
+    });
+  });
+
+  // 46. Attempts render in attempt_index ascending order (CR-T8 AC10)
+  it('CR-T8 case 46: attempts render in attempt_index ascending order', async () => {
+    // Supply attempts out of order: index 1 first, then index 0.
+    const retryAttempts = [
+      {
+        attempt_index: 1,
+        response_verbatim: 'attempt 1 response',
+        thinking_verbatim: '',
+        stop_reason: 'stop',
+        parse_error_message: null,
+      },
+      {
+        attempt_index: 0,
+        response_verbatim: 'attempt 0 response',
+        thinking_verbatim: '',
+        stop_reason: 'stop',
+        parse_error_message: null,
+      },
+    ];
+    const familyWithRetries = buildFamilyWithRetries(retryAttempts);
+    mockFetchBoth(familyWithRetries, recordsFamilyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(container.querySelectorAll('details').length).toBeGreaterThan(0);
+    });
+
+    const allDetails = container.querySelectorAll('details');
+    fireEvent.click(allDetails[0].querySelector('summary')!);
+
+    await waitFor(() => {
+      expect(container.querySelectorAll('.failures-findings__attempt').length).toBe(2);
+    });
+
+    // The attempts in DOM order must be index 0 first, then index 1.
+    const attemptDivs = container.querySelectorAll('.failures-findings__attempt');
+    const headings = Array.from(attemptDivs).map((div) => {
+      const codeEl = div.querySelector('.failures-findings__attempt-heading code');
+      return codeEl?.textContent ?? '';
+    });
+    expect(headings[0]).toBe('0');
+    expect(headings[1]).toBe('1');
+
+    // Also verify response order: attempt 0 response before attempt 1 response.
+    const preEls = container.querySelectorAll('.failures-findings__attempts pre');
+    expect(preEls[0].textContent).toBe('attempt 0 response');
+    expect(preEls[1].textContent).toBe('attempt 1 response');
+  });
+
   // 40. Case 9 chrome-isolation extended over the expanded detail DOM (excluding <pre> nodes).
   // Per §19.17 binding: the chrome text of the DETAIL SECTION specifically must not contain
   // the six forbidden substrings. The full-page chrome includes existing TAXONOMY_BLOCK copy
   // (e.g., "refusal_string_match") which was reviewed under prior gate verdicts.
   // This case scopes to the new CR-T7 detail chrome only.
+  // CR-T8 AC17: also opens <details> (failures records) to materialise the attempts block
+  // during the walk; forbidden-substring scan and \bthink regex still pass.
   it('CR-T7 case 40: detail section chrome-isolation passes (forbidden substrings absent in detail chrome)', async () => {
-    mockFetchWithDetail(familyJson, recordsFamilyJson, detailFixture);
+    // Inject retry_attempts into the first failure record so the attempts block is materialised.
+    const retryAttemptsForIsolation = [
+      {
+        attempt_index: 0,
+        response_verbatim: 'attempt zero verbatim bytes for isolation test',
+        thinking_verbatim: '',
+        stop_reason: 'stop',
+        parse_error_message: 'Items missing from pile sort: {}',
+      },
+    ];
+    const familyWithRetries = {
+      ...familyJson,
+      records: familyJson.records.map((r) =>
+        r.record_type === 'failure' ? { ...r, retry_attempts: retryAttemptsForIsolation } : r,
+      ),
+    };
+
+    mockFetchWithDetail(familyWithRetries, recordsFamilyJson, detailFixture);
     const { container } = render(<FailuresFindings />);
     await waitFor(() => {
       expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
     });
 
-    // Expand the first row to load the detail DOM.
+    // CR-T8 AC17: open all <details> elements (failures records) to materialise the
+    // attempts block before running the chrome isolation walk.
+    const allDetailsEls = container.querySelectorAll('details');
+    for (const detailsEl of Array.from(allDetailsEls)) {
+      const summaryEl = detailsEl.querySelector('summary');
+      if (summaryEl) fireEvent.click(summaryEl);
+    }
+
+    // Expand the first records-table row to load the detail DOM.
     const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
     fireEvent.click(expandBtns[0]);
     await waitFor(() => {
       expect(screen.getByText(BLOCK_FREELIST_EXCHANGE)).toBeInTheDocument();
+    });
+
+    // Wait for any attempts block to appear (or confirm it is absent in the detail section).
+    // The attempts block lives in the failures accordion, not the detail section,
+    // so the attempts DOM is now materialised in the full container.
+    await waitFor(() => {
+      // At minimum, verify the attempts block rendered (injected fixture has one attempt).
+      expect(container.querySelectorAll('.failures-findings__attempts').length).toBeGreaterThan(0);
     });
 
     // Extract chrome text from the DETAIL SECTION only (excludes full-page chrome).
@@ -1126,6 +1335,19 @@ describe('FailuresFindings', () => {
 
     // Affirmative: BLOCK_DETAIL_PROVENANCE heading is in the detail chrome.
     expect(detailChromeText).toContain(BLOCK_DETAIL_PROVENANCE);
+
+    // CR-T8 AC17: also scan the attempts chrome (excluding <pre>) for forbidden substrings.
+    // The attempts block is in the failures accordion; extract its chrome separately.
+    const attemptsBlocks = container.querySelectorAll('.failures-findings__attempts');
+    for (const block of Array.from(attemptsBlocks)) {
+      const preEls = Array.from(block.querySelectorAll('pre'));
+      const attemptsChromeText = extractChromeText(block as Element, preEls);
+      for (const word of forbidden) {
+        expect(attemptsChromeText.toLowerCase()).not.toContain(word.toLowerCase());
+      }
+      // CR-T8 AC17 \bthink regex: chrome must not match /\bthink/i outside <pre>.
+      expect(/\bthink/i.test(attemptsChromeText)).toBe(false);
+    }
   });
 });
 

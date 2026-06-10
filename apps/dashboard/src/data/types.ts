@@ -281,6 +281,30 @@ export interface DomainResultPublished {
 // ===== Failures types =====
 
 /**
+ * A single pipeline retry attempt on a FailureRecord.
+ * Mirrors the per-attempt dict in PublishedFailureRecord.retry_attempts
+ * from cdb_publish/schemas/failures.py.
+ *
+ * These are PIPELINE retries: the same prompt was re-issued by LSB after a
+ * parser-state failure. There is no per-attempt prompt_verbatim because the
+ * prompt is shared across all attempts (AC11 / kickoff §6 Train C register).
+ *
+ * Source: apps/dashboard/public/data/failures/family.json (canonical reference,
+ * lines ~617-640). Added CR-T8.
+ */
+export interface RetryAttempt {
+  attempt_index: number;
+  response_verbatim: string;
+  thinking_verbatim: string;
+  stop_reason?: string | null;
+  input_tokens?: number | null;
+  output_tokens?: number | null;
+  thoughts_token_count?: number | null;
+  latency_ms?: number | null;
+  parse_error_message?: string | null;
+}
+
+/**
  * LSB pipeline outcome class values (7-enum).
  * These name LSB-side detection rules, not model state-of-mind.
  * Source: apps/dashboard/public/data/failures/family.json (canonical reference).
@@ -307,7 +331,8 @@ export interface FailureRecord {
   error_message: string;
   run_index: number;
   originating_outcome_class: FailureOutcomeClass | null;
-  retry_attempts: unknown[];
+  /** Pipeline retry attempts (AC1/AC2, CR-T8). Empty array when no retries occurred. */
+  retry_attempts?: RetryAttempt[] | null;
 }
 
 /**
@@ -339,6 +364,8 @@ export interface DeclineInterviewRecord {
   stop_reason: string;
   qa_notes: string;
   version_drift_flag: boolean;
+  /** Defensive: pipeline retry attempts (AC2/AC12, CR-T8). Runtime expectation: absent on decline_interview records. */
+  retry_attempts?: RetryAttempt[] | null;
 }
 
 /**

@@ -18,7 +18,7 @@
 | CR-T5 | Successful-records section in Collection records tab | B | Pending T4 |
 | CR-T6 | Counts caption update | B | SHIPPED |
 | CR-T7 | Raw-exchange exposure on InformantRecord-derived rows | C | Pending T4+T5 |
-| CR-T8 | Per-attempt retry-transcript exposure | C | Pending |
+| CR-T8 | Per-attempt retry-transcript exposure | C | SHIPPED |
 
 ---
 
@@ -878,3 +878,68 @@ Applied by Coder agent. All notes N1-N8 and NOTE-1 through NOTE-7 applied. The f
 **Cloudflare file-count arithmetic:** 1319 existing files + 1291 new detail files = 2610 total, well under the 20,000 Cloudflare Pages file-count limit.
 
 **Vitest Case 39 deviation:** Under N2 disposition (a), null steps cannot appear on valid records. Case 39 was adjusted to test that a full-step fixture renders all three step headings (positive assertion) rather than testing null-step suppression (which the type guard would reject as malformed data). The suppression guard (if (!step) return null) remains in the component as defensive code; the test verifies the positive case instead.
+
+---
+
+## CR-T8: per-attempt retry-transcript exposure (gate artifacts, pre-implementation)
+
+**Status:** Plan gates complete. This section persists the binding artifacts for the implementation dispatch.
+
+### CDA SME plan verdict: PASS-WITH-NOTES (N1-N4 binding)
+
+Full verdict: see `.claude/agent-memory/cda_sme/project_cr_t8_plan_verdict.md`.
+
+Binding notes summary:
+
+- **N1 (binding):** `attempt_index` displayed as 0-indexed. Do NOT reframe as "attempt 1 of N." Rationale: JSON-byte audit alignment.
+- **N2 (binding):** `parse_error_message` labeled "LSB parser-state diagnosis" (not raw label, not "refusal"). The label string is `ATTEMPTS_PARSE_ERROR_LABEL = "LSB parser-state diagnosis"`.
+- **N3 (binding, 6-rule register lock on BLOCK_ATTEMPTS + ATTEMPTS_FRAMING):** (1) PIPELINE retry language; (2) parser-state language for error label; (3) no bare "refusal"; (4) no "cooperative"; (5) no cognition attribution; (6) shared-prompt register preserved (prompt shown once above).
+- **N4 (binding):** Case 40 (chrome-isolation walk) must open `<details>` to materialise the attempts block before scanning. The `\bthink` regex and forbidden-substring list must pass on attempts chrome (excluding `<pre>` nodes).
+
+### CDA SME bound strings (gate-time delivered, byte-identical)
+
+```
+BLOCK_ATTEMPTS = "Pipeline retry attempts"
+
+ATTEMPTS_FRAMING =
+  "After a parser-state failure the LSB pipeline re-issued the same prompt. " +
+  "Each attempt below shows the response the provider returned and the parser-state outcome " +
+  "the LSB pipeline recorded. The prompt is shared across all attempts and is shown once above."
+
+ATTEMPTS_PARSE_ERROR_LABEL = "LSB parser-state diagnosis"
+```
+
+All three satisfy all six N3 register-lock rules.
+
+### UI/UX plan verdict: PASS-WITH-NOTES (binding WCAG AA ruling follows)
+
+UI/UX VERDICT: PASS-WITH-NOTES
+
+1. OWID design fidelity:      PASS (no chart elements; text-only surface)
+2. 30-second journalist:      PASS (block label + framing paragraph orientate a cold reader in one glance)
+3. Researcher cite path:      PASS (attempt_index shown for audit-trail alignment; parse_error_message labeled with "LSB parser-state diagnosis")
+4. WCAG AA:                   PASS-WITH-NOTES (see WCAG ruling below)
+
+DESIGN_SYSTEM.md update: required (new §19.18; version bump v0.20.2 to v0.20.3)
+
+**WCAG AA ruling (binding):** The attempt heading (`.failures-findings__attempt-heading`) is 14px regular weight. `--color-text-secondary` fails the 4.5:1 contrast requirement at this size+weight. This class MUST use `--color-text-primary`. The framing paragraph (`.failures-findings__attempts-framing`) is a longer text block at small size, and `--color-text-secondary` is acceptable for that role. This distinction is binding. The Coder must not collapse it.
+
+### CR-T8 Coder Implementation Note (2026-06-10)
+
+Applied by Coder agent. All notes N1-N4 applied. The following implementation decisions are recorded:
+
+**N1 applied:** `attempt_index` rendered as `attempt_index: <code>{String(attempt.attempt_index)}</code>`. The `String()` call preserves 0-indexed integer rendering without any "attempt N of M" reframing.
+
+**N2 applied:** `parse_error_message` rendered as `{ATTEMPTS_PARSE_ERROR_LABEL}: <code>{attempt.parse_error_message}</code>`. The label constant is in `failures_findings.ts`.
+
+**N3 applied:** `BLOCK_ATTEMPTS` and `ATTEMPTS_FRAMING` authored byte-identical to gate-time delivered strings. All six register-lock rules verified.
+
+**N4 applied:** Case 40 extended to inject retry_attempts into the first failure record, open all `<details>` elements via `fireEvent.click`, and scan the `.failures-findings__attempts` chrome (excluding `<pre>` nodes) for all six forbidden substrings and the `\bthink` regex.
+
+**Prompt register lock (AC11):** No per-attempt `prompt_verbatim` rendered. ATTEMPTS_FRAMING makes this explicit. Shared-prompt register preserved.
+
+**Sorting:** Attempts sorted ascending by `attempt_index` inside `AttemptsBlock` via `[...attempts].sort((a, b) => a.attempt_index - b.attempt_index)`. Original array not mutated.
+
+**Defensive wiring:** `AttemptsBlock` wired into both `FailureRecordRow` (primary) and `DeclineInterviewRow` (defensive). `retry_attempts` typed as `RetryAttempt[] | null` in both interfaces.
+
+**DESIGN_SYSTEM.md version transition:** The §19.18 spec was written against v0.20.2 baseline. The version bump applied is v0.20.2 to v0.20.3. No tokens were added.

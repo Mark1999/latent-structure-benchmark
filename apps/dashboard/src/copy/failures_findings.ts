@@ -386,6 +386,44 @@ export const BLOCK_PILE_INTERVIEW_REASONING =
 /** Heading for the provenance block. */
 export const BLOCK_DETAIL_PROVENANCE = "Provenance and pipeline identifiers";
 
+// ===== Per-attempt retry-transcript block (v0.20.3, CR-T8, 2026-06-10) =====
+// All strings below are CDA SME-approved (CR-T8 gate, 2026-06-10).
+// Do NOT paraphrase. Byte-identity assertions in FailuresFindings.test.tsx enforce this.
+// Register constraints (CDA SME N3 BINDING):
+//   1. PIPELINE retry not model retry.
+//   2. Parser-state language only.
+//   3. No bare "refusal" (T3 N4 carry-forward).
+//   4. No "cooperative" outside CR-T1 counterfactual frame (T1 N1 carry-forward).
+//   5. No cognition attribution.
+//   6. Shared-prompt register preserved by AC11 (parent prompt rendered once, not per attempt).
+// N1 BINDING: attempt_index value shown 0-indexed (byte-aligned with published JSON for audit trail).
+// N2 BINDING: parse_error_message label frames the field as an LSB parser-state classifier output.
+
+/**
+ * Block heading for the pipeline retry attempts surface.
+ * CDA SME-approved (CR-T8 gate, 2026-06-10); byte-identical.
+ * Do NOT paraphrase.
+ */
+export const BLOCK_ATTEMPTS = "Pipeline retry attempts";
+
+/**
+ * Framing paragraph for the pipeline retry attempts block.
+ * CDA SME-approved (CR-T8 gate, 2026-06-10); byte-identical.
+ * Frames these as LSB-pipeline retries of the same prompt after a parser-state failure.
+ * Do NOT paraphrase.
+ */
+export const ATTEMPTS_FRAMING =
+  "After a parser-state failure the LSB pipeline re-issued the same prompt. " +
+  "Each attempt below shows the response the provider returned and the parser-state outcome " +
+  "the LSB pipeline recorded. The prompt is shared across all attempts and is shown once above.";
+
+/**
+ * Sub-label for the parse_error_message field in an attempt.
+ * CDA SME N2 BINDING: frames the field as an LSB parser-state classifier output,
+ * not a model-side finding. Mirrors originating_outcome_class framing precedent.
+ */
+export const ATTEMPTS_PARSE_ERROR_LABEL = "LSB parser-state diagnosis";
+
 /**
  * Anti-attribution note rendered below the provenance heading.
  * CDA SME-bound (byte-identical).

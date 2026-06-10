@@ -474,3 +474,53 @@
   line-height: var(--line-height-tight);
   margin-bottom: var(--space-2);
 }
+
+/* ==========================================================================
+   CR-T8: Per-attempt retry-transcript block (§19.18, v0.20.3)
+   All rules use only tokens defined in tokens.css (Pitfall 15).
+   ========================================================================== */
+
+/* Outer container for the attempts block inside a record body. */
+.failures-findings__attempts {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-4);
+}
+
+/* Framing paragraph below the BLOCK_ATTEMPTS label. */
+.failures-findings__attempts-framing {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+  margin-bottom: var(--space-3);
+}
+
+/* Container for a single retry attempt entry. */
+.failures-findings__attempt {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  padding: var(--space-3);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  margin-bottom: var(--space-3);
+}
+
+/* Attempt heading: shows attempt_index (0-indexed, audit-aligned). */
+/* UI/UX WCAG correction: uses --color-text-primary (not --color-text-secondary)
+   per Mandatory UI/UX note: "--color-text-secondary fails 4.5:1 at 14px regular weight". */
+.failures-findings__attempt-heading {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+}
+
+.failures-findings__attempt-heading code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}

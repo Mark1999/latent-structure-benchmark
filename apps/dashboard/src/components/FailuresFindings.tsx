@@ -31,6 +31,7 @@ import type {
   RecordsSummaryFile,
   RecordsModelRow,
   PublishedRecordDetail,
+  RetryAttempt,
 } from '../data/types';
 import { isPublishedRecordDetail } from '../data/types';
 import {
@@ -81,6 +82,9 @@ import {
   BLOCK_PILE_INTERVIEW_REASONING,
   BLOCK_DETAIL_PROVENANCE,
   BLOCK_DETAIL_PROVENANCE_NOTE,
+  BLOCK_ATTEMPTS,
+  ATTEMPTS_FRAMING,
+  ATTEMPTS_PARSE_ERROR_LABEL,
 } from '../copy/failures_findings';
 import '../styles/failures-findings.css';
 
@@ -157,6 +161,68 @@ function formatDate(isoDate: string): string {
   return isoDate.slice(0, 10);
 }
 
+// ===== Attempts block sub-component (CR-T8, §19.18) =====
+
+interface AttemptsBlockProps {
+  attempts: RetryAttempt[];
+}
+
+/**
+ * Renders the pipeline retry attempts block for a FailureRecord (or defensively
+ * DeclineInterviewRecord) when retry_attempts is a non-empty array.
+ *
+ * Per §19.18 (v0.20.3, CR-T8):
+ * - Renders BLOCK_ATTEMPTS heading, ATTEMPTS_FRAMING paragraph, then each attempt in
+ *   attempt_index ascending order (AC10 defensive sort).
+ * - Per-attempt structure: heading line (attempt_index 0-indexed per CDA SME N1),
+ *   response_verbatim in <pre>, optional stop_reason and parse_error_message in
+ *   .failures-findings__provenance-list (CDA SME N2: parse_error_message framed with
+ *   ATTEMPTS_PARSE_ERROR_LABEL).
+ * - The parent record's prompt_verbatim is NOT repeated per attempt (AC11 / N3 rule 6).
+ * - When retry_attempts is null, undefined, or [], returns null (AC7).
+ */
+function AttemptsBlock({ attempts }: AttemptsBlockProps) {
+  if (!attempts || attempts.length === 0) return null;
+
+  // Sort by attempt_index ascending (AC10 defensive sort regardless of array order)
+  const sorted = [...attempts].sort((a, b) => a.attempt_index - b.attempt_index);
+
+  return (
+    <div className="failures-findings__attempts">
+      {/* Block heading (BLOCK_ATTEMPTS, CDA SME-bound, §19.18) */}
+      <div className="failures-findings__block-label">{BLOCK_ATTEMPTS}</div>
+      {/* Framing paragraph (ATTEMPTS_FRAMING, CDA SME-bound, §19.18) */}
+      <p className="failures-findings__attempts-framing">{ATTEMPTS_FRAMING}</p>
+      {sorted.map((attempt) => (
+        <div key={attempt.attempt_index} className="failures-findings__attempt">
+          {/* Attempt heading: literal attempt_index 0-indexed per CDA SME N1 (audit-trail alignment) */}
+          <p className="failures-findings__attempt-heading">
+            attempt_index: <code>{String(attempt.attempt_index)}</code>
+          </p>
+          {/* Response verbatim in pre (reuses §19.7 max-height 320px via existing class) */}
+          <pre className="failures-findings__pre">{attempt.response_verbatim}</pre>
+          {/* Optional provenance sub-list: stop_reason and parse_error_message when present */}
+          {(attempt.stop_reason != null || attempt.parse_error_message != null) && (
+            <ul className="failures-findings__provenance-list">
+              {attempt.stop_reason != null && (
+                <li className="failures-findings__provenance-item">
+                  stop_reason: <code>{attempt.stop_reason}</code>
+                </li>
+              )}
+              {attempt.parse_error_message != null && attempt.parse_error_message !== '' && (
+                <li className="failures-findings__provenance-item">
+                  {/* N2 BINDING: label frames parse_error_message as LSB parser-state output */}
+                  {ATTEMPTS_PARSE_ERROR_LABEL}: <code>{attempt.parse_error_message}</code>
+                </li>
+              )}
+            </ul>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 // ===== Individual record components =====
 
 interface FailureRecordRowProps {
@@ -197,6 +263,11 @@ function FailureRecordRow({ record, index }: FailureRecordRowProps) {
               )}
             </ul>
           </div>
+          {/* Pipeline retry attempts block (CR-T8, AC8): between originating-context and error-message.
+              Renders only when retry_attempts is non-empty (AC7 / AttemptsBlock guard). */}
+          {record.retry_attempts && (
+            <AttemptsBlock attempts={record.retry_attempts} />
+          )}
           {/* Full error message */}
           <div>
             <div className="failures-findings__block-label">error_message</div>
@@ -268,6 +339,11 @@ function DeclineInterviewRow({ record, index }: DeclineInterviewRowProps) {
               <div className="failures-findings__block-label">{BLOCK_REASONING}</div>
               <pre className="failures-findings__pre">{record.thinking_verbatim}</pre>
             </div>
+          )}
+          {/* Pipeline retry attempts block (CR-T8, AC12 defensive): below response block.
+              Runtime expectation: absent on decline_interview records. Renders nothing if absent. */}
+          {record.retry_attempts && (
+            <AttemptsBlock attempts={record.retry_attempts} />
           )}
           {/* Provenance IDs */}
           <div>
