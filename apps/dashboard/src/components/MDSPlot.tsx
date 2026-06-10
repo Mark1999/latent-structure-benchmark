@@ -1,11 +1,12 @@
 /**
- * ModelMap — model-level MDS scatter plot.
+ * ModelMap: model-level MDS scatter plot.
  * Shows model positions in 2D MDS space with confidence ellipses.
- * Responds to model selection — only selected models are shown.
+ * Responds to model selection; only selected models are shown.
  */
 
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { displayModel, displayProvider } from '../lib/familyUtils';
+import type { R1State } from '../data/types';
 
 interface MDSPlotProps {
   mdsCoordinates: Record<string, [number, number]>;
@@ -20,6 +21,10 @@ interface MDSPlotProps {
   selectedModelIds: Set<string>;
   topTerms: Record<string, string[]>;
   centralityScores: Record<string, number>;
+  /** R1 state per model_id -- drives ellipse suppression and marker shape. See DESIGN_SYSTEM.md §3.3.5. */
+  r1States: Record<string, R1State>;
+  /** OCI value per model_id -- display-only for R1-b tooltip. MUST NOT be used for classification. See DESIGN_SYSTEM.md §3.3.5 impl req 11 and A5. */
+  ociValues: Record<string, number>;
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -41,6 +46,8 @@ export function MDSPlot({
   selectedModelIds,
   topTerms,
   centralityScores,
+  r1States,
+  ociValues,
 }: MDSPlotProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -176,11 +183,14 @@ export function MDSPlot({
       svg += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t + ph}" stroke="var(--color-svg-grid-line-neutral)" stroke-width="0.5"/>`;
     }
 
-    // Ellipses
+    // Ellipses: R1-a only (models with typical_concentration and valid uncertainty)
     visibleModels.forEach((m) => {
       const [x, y] = mdsCoordinates[m.model_id];
       const u = mdsUncertainty[m.model_id];
       if (!u || u.semi_major <= 0) return;
+      // Only emit ellipse for R1-a (typical_concentration). R1-b and R1-c suppress the ellipse.
+      const r1 = r1States[m.model_id];
+      if (r1 === 'low_concentration' || r1 === 'deterministic') return;
       const cx = sx(x), cy = sy(y);
       const rx = (u.semi_major / (xMax - xMin)) * pw;
       const ry = (u.semi_minor / (yMax - yMin)) * ph;
@@ -196,7 +206,21 @@ export function MDSPlot({
       const color = PROVIDER_COLORS[displayProvider(m)] || 'var(--color-svg-marker-stroke)';
       const name = displayModel(m.model_id);
       const layout = labelLayouts[idx];
-      svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5" data-model="${m.model_id}" style="cursor:pointer"/>`;
+      const r1 = r1States[m.model_id];
+
+      if (r1 === 'low_concentration') {
+        // R1-b: dashed-stroke circle, no ellipse (DESIGN_SYSTEM.md §3.3.5 impl req 9)
+        svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" fill-opacity="0.6" stroke="${color}" stroke-width="2" stroke-dasharray="4 2" stroke-opacity="1" data-model="${m.model_id}" data-r1-state="low_concentration" aria-label="${name}, low output concentration. Position shown without confidence ellipse." style="cursor:pointer"/>`;
+      } else if (r1 === 'deterministic') {
+        // R1-c: hollow triangle polygon, apex-up, circumradius 8px (DESIGN_SYSTEM.md §3.3.5 impl req 10)
+        const ptTop = `${cx.toFixed(2)},${(cy - 8).toFixed(2)}`;
+        const ptBL  = `${(cx - 6.93).toFixed(2)},${(cy + 4).toFixed(2)}`;
+        const ptBR  = `${(cx + 6.93).toFixed(2)},${(cy + 4).toFixed(2)}`;
+        svg += `<polygon points="${ptTop} ${ptBL} ${ptBR}" fill="none" stroke="${color}" stroke-width="3" stroke-opacity="1" data-model="${m.model_id}" data-r1-state="deterministic" aria-label="${name}, deterministic output. Same categorical structure on every run." style="cursor:pointer"/>`;
+      } else {
+        // R1-a: standard filled circle with dot stroke (byte-identical to pre-change output)
+        svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5" data-model="${m.model_id}" style="cursor:pointer"/>`;
+      }
       svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="12" fill="var(--color-svg-label-secondary)" style="pointer-events:none">${name}</text>`;
     });
 
@@ -205,7 +229,7 @@ export function MDSPlot({
     svg += `<text x="12" y="${pad.t + ph / 2}" text-anchor="middle" font-family="var(--font-body)" font-size="11" fill="var(--color-svg-axis-caption)" transform="rotate(-90,12,${pad.t + ph / 2})">Dimension 2</text>`;
 
     return { svgContent: svg, width: W, height: H };
-  }, [visibleModels, mdsCoordinates, mdsUncertainty]);
+  }, [visibleModels, mdsCoordinates, mdsUncertainty, r1States]);
 
   const handleMouseMove = useCallback((e: React.MouseEvent) => {
     const target = e.target as SVGElement;
@@ -238,7 +262,9 @@ export function MDSPlot({
       <p className="model-map__desc">
         Each dot is one AI model. Models placed close together organize vocabulary
         in similar ways. Ellipses show 95% confidence regions from bootstrap
-        resampling — smaller ellipses mean more stable positions.
+        resampling. Smaller ellipses mean more stable positions.
+        Models without ellipses are flagged with a different marker shape indicating
+        low output concentration or deterministic output.
       </p>
       <div className="model-map__svg-container">
         <svg
@@ -254,6 +280,12 @@ export function MDSPlot({
         <div className="chart-tooltip" style={{ left: tooltip.x, top: tooltip.y }}>
           <div className="chart-tooltip__name">{displayModel(tooltip.id)}</div>
           <div className="chart-tooltip__sub">{tooltip.id}</div>
+          {r1States[tooltip.id] === 'low_concentration' && (
+            <div>Position uncertain. This model&apos;s within-model output concentration is low (OCI = {ociValues[tooltip.id] != null ? ociValues[tooltip.id].toFixed(1) : 'n/a'}; higher means runs converge on one structure). See model profile for within-model distribution.</div>
+          )}
+          {r1States[tooltip.id] === 'deterministic' && (
+            <div>Deterministic output. This model produced the same categorical structure on every run. Its position on the map is consistent, but there is no uncertainty range to show. See the methodology page for why this is the least informative case, not the most.</div>
+          )}
           {tooltipCentrality != null && (
             <div>Centrality: <span className="chart-tooltip__mono">{tooltipCentrality.toFixed(3)}</span></div>
           )}

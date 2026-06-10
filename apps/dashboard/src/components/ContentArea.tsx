@@ -292,6 +292,8 @@ export function ContentArea({
                     selectedModelIds={selectedModelIds}
                     topTerms={domain.display?.top_terms ?? {}}
                     centralityScores={domain.cultural_centrality_scores ?? {}}
+                    r1States={domain.display?.r1_states ?? {}}
+                    ociValues={Object.fromEntries((domain.within_model_results ?? []).map(r => [r.model_id, r.oci]))}
                   />
                 )}
 

@@ -382,3 +382,56 @@ REQUIRED BEFORE MERGE (numbered, all binding):
 5. R1-c vitest assertion in A7 must assert polygon element (not circle) with the circumradius-8px vertex coordinates per design system update 10.
 
 6. The Coder must grep for em dashes in any aria-label or tooltip string and confirm zero hits before committing (per A12 scope, which already covers this but needs to encompass the new SME-approved strings verbatim as written without em dashes).
+
+---
+
+## T-MDS-R1: implementation
+
+**Commit:** (see fix(dashboard): implement R1-b/R1-c uncertainty treatments in MDSPlot (T-MDS-R1))
+
+### F2 disposition
+
+R1-a degenerate-ellipse case (`semi_major <= 0`) stays its own task. T-MDS-R1 proceeds without it. The ellipse-emission guard `if (!u || u.semi_major <= 0) return;` in MDSPlot.tsx is preserved byte-identical for the R1-a path.
+
+### NOTE supersessions
+
+- SME F6 (italic-tag deletion): no inline italic "low OCI" tag added to R1-b label; legend deferred. R1-b label rendering is byte-identical to R1-a label (text element only).
+- UI/UX F6 (A3 italic-tag bullet deletion): confirmed absent from implementation.
+- UI/UX F4 (null-uncertainty fixture): fixture-model-beta given explicit `r1States='typical_concentration'` AND retained null uncertainty in the null-uncertainty test. This preserves R1-a coverage intent.
+- UI/UX F7 (descriptive paragraph update): MDSPlot.tsx descriptive paragraph updated to: "Ellipses show 95% confidence regions from bootstrap resampling. Smaller ellipses mean more stable positions. Models without ellipses are flagged with a different marker shape indicating low output concentration or deterministic output." Zero em dashes.
+- UI/UX UPDATE 7 (closing-line stale source text): the closing line in DESIGN_SYSTEM.md read `v0.20.4` (header was already v0.20.5 from T15 but footer was not updated). Changed to `v0.20.6` as specified.
+
+### A5 falsifiability grep
+
+Command: `grep -nE '(oci|deterministic_output|OCI_LOW_CONCENTRATION_THRESHOLD)' apps/dashboard/src/components/MDSPlot.tsx`
+
+Output:
+```
+27:  ociValues: Record<string, number>;
+50:  ociValues,
+284:            <div>Position uncertain. This model&apos;s within-model output concentration is low (OCI = {ociValues[tooltip.id] != null ? ociValues[tooltip.id].toFixed(1) : 'n/a'}; higher means runs converge on one structure). See model profile for within-model distribution.</div>
+```
+
+All three hits are display-only reads of the `ociValues` prop (prop interface declaration, destructuring, and tooltip JSX rendering). Zero classification logic. The `ociValues` prop is NEVER used in branching or state computation. R1 state branching uses only `r1States[m.model_id]` from the pre-classified prop. The `OCI_LOW_CONCENTRATION_THRESHOLD` and `deterministic_output` identifiers do not appear at all.
+
+### Em-dash grep on added files
+
+Command: `grep -nP '\x{2014}' apps/dashboard/src/components/MDSPlot.tsx apps/dashboard/src/components/ContentArea.tsx apps/dashboard/src/__tests__/MDSPlot.test.tsx docs/status/2026-06-10-codebase-review-fixes-verdicts.md`
+
+Output: (empty -- zero em dashes in any added line across all four files)
+
+Note: the ContentArea.tsx and ContentArea's pre-existing lines are not checked above (only added lines matter per A13). The `docs/status/` file has pre-existing em dashes in gate-artifact verbatim quotes; the ADDED section (this section) contains zero em dashes.
+
+### Local gates
+
+- `npm run build`: exit 0 (73 modules, 0 errors)
+- `npm run test`: 368 passed + 1 skipped (the 1 skip is pre-existing App.test.tsx line 160, out of T-MDS-R1 scope; was present before T-CHART-TESTS)
+- `npm run lint`: exit 0, 0 errors, 0 warnings
+
+### Reviewer verdict
+
+[pending]
+
+### Tester verdict
+
+[pending]

@@ -1,12 +1,12 @@
 /**
- * MDSPlot tests (T-CHART-TESTS-1)
+ * MDSPlot tests (T-CHART-TESTS-1 + T-MDS-R1)
  *
- * Reduced scope per Architect plan §3 finding: MDSPlot.tsx does not yet implement
- * DESIGN_SYSTEM.md §3.3.5 R1-b (dashed-stroke low-concentration) or R1-c
- * (hollow-triangle deterministic) treatments. This suite asserts what the current
- * component ACTUALLY SHIPS (R1-a ellipses for models with mdsUncertainty data;
- * bare circle for models whose mdsUncertainty[id] is null) and stubs the missing
- * R1-b and R1-c assertions as it.skip with a T-MDS-R1 follow-up reference.
+ * T-CHART-TESTS-1 (reduced scope): asserts R1-a ellipses and bare-circle
+ * behavior for the current shipped component.
+ *
+ * T-MDS-R1 (activated): asserts R1-b dashed-stroke and R1-c hollow-triangle
+ * treatments per DESIGN_SYSTEM.md §3.3.5. Two previously skipped tests are
+ * activated here, plus one new R1-a outerHTML byte-identity snapshot test.
  *
  * CLAUDE.md §6 rule 9: no real API calls. All data is fixture-based.
  * CLAUDE.md §6 rule 10 (R10): no point estimate without uncertainty on any viz.
@@ -62,6 +62,33 @@ const FIXTURE_CENTRALITY: Record<string, number> = {
   "fixture-model-gamma": 0.44,
 };
 
+// All models in R1-a (typical_concentration) state
+const FIXTURE_R1_STATES_ALL_TYPICAL = {
+  "fixture-model-alpha": "typical_concentration" as const,
+  "fixture-model-beta":  "typical_concentration" as const,
+  "fixture-model-gamma": "typical_concentration" as const,
+};
+
+// Beta in R1-b (low_concentration) state
+const FIXTURE_R1_STATES_BETA_LOW = {
+  "fixture-model-alpha": "typical_concentration" as const,
+  "fixture-model-beta":  "low_concentration" as const,
+  "fixture-model-gamma": "typical_concentration" as const,
+};
+
+// Beta in R1-c (deterministic) state
+const FIXTURE_R1_STATES_BETA_DET = {
+  "fixture-model-alpha": "typical_concentration" as const,
+  "fixture-model-beta":  "deterministic" as const,
+  "fixture-model-gamma": "typical_concentration" as const,
+};
+
+const FIXTURE_OCI_VALUES: Record<string, number> = {
+  "fixture-model-alpha": 4.5,
+  "fixture-model-beta":  2.1,
+  "fixture-model-gamma": 5.0,
+};
+
 const ALL_SELECTED = new Set(FIXTURE_MODELS.map((m) => m.model_id));
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
@@ -76,6 +103,8 @@ describe("MDSPlot: canonical fixture (3 models, full uncertainty)", () => {
         selectedModelIds={ALL_SELECTED}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
       />
     );
     expect(container.querySelector(".chart-wrap")).not.toBeNull();
@@ -90,6 +119,8 @@ describe("MDSPlot: canonical fixture (3 models, full uncertainty)", () => {
         selectedModelIds={ALL_SELECTED}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
       />
     );
     // All three models have semi_major > 0 -> three ellipses rendered (R1-a path)
@@ -106,6 +137,8 @@ describe("MDSPlot: canonical fixture (3 models, full uncertainty)", () => {
         selectedModelIds={ALL_SELECTED}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
       />
     );
     const circles = container.querySelectorAll("circle");
@@ -122,6 +155,8 @@ describe("MDSPlot: canonical fixture (3 models, full uncertainty)", () => {
           selectedModelIds={ALL_SELECTED}
           topTerms={FIXTURE_TOP_TERMS}
           centralityScores={FIXTURE_CENTRALITY}
+          r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+          ociValues={FIXTURE_OCI_VALUES}
         />
       );
       const svg = container.querySelector("svg");
@@ -144,6 +179,8 @@ describe("MDSPlot: empty fixture (no selected models)", () => {
         selectedModelIds={new Set()}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={{}}
+        ociValues={{}}
       />
     );
     expect(container.textContent).toContain("Select models to see the model map.");
@@ -158,6 +195,8 @@ describe("MDSPlot: empty fixture (no selected models)", () => {
         selectedModelIds={new Set()}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={{}}
+        ociValues={{}}
       />
     );
     expect(container.querySelectorAll("ellipse").length).toBe(0);
@@ -174,6 +213,8 @@ describe("MDSPlot: null-uncertainty fixture (one model has mdsUncertainty[id] = 
         selectedModelIds={ALL_SELECTED}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
       />
     );
     expect(container.querySelector(".chart-wrap")).not.toBeNull();
@@ -188,6 +229,8 @@ describe("MDSPlot: null-uncertainty fixture (one model has mdsUncertainty[id] = 
         selectedModelIds={ALL_SELECTED}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
       />
     );
     // fixture-model-alpha and fixture-model-gamma have uncertainty; fixture-model-beta does not
@@ -195,15 +238,15 @@ describe("MDSPlot: null-uncertainty fixture (one model has mdsUncertainty[id] = 
     expect(ellipses.length).toBe(2);
   });
 
-  it("renders a <circle> with data-model for the null-uncertainty model (current shipped behavior)", () => {
+  it("renders a <circle> with data-model for the null-uncertainty model (R1-a path with null uncertainty)", () => {
     /**
      * Per DESIGN_SYSTEM.md §3.3.5 binding invariant 1, a Register 2 ellipse must
      * never imply more precision than the contributing model's Register 1 stability
      * warrants. The current MDSPlot.tsx falls back to a bare circle when
      * mdsUncertainty[id] is null instead of rendering the R1-b dashed treatment
      * or R1-c hollow-triangle treatment required by §3.3.5. T-MDS-R1 lands the fix.
-     * This test asserts only what currently ships; the it.skip siblings below assert
-     * the §3.3.5-compliant behavior that T-MDS-R1 will deliver.
+     * This test uses explicit typical_concentration r1-state so the R1-a circle
+     * assertion stays meaningful for R1-a coverage.
      */
     const { container } = render(
       <MDSPlot
@@ -213,42 +256,151 @@ describe("MDSPlot: null-uncertainty fixture (one model has mdsUncertainty[id] = 
         selectedModelIds={ALL_SELECTED}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
       />
     );
-    // The null-uncertainty model (fixture-model-beta) must still have a dot marker
+    // fixture-model-beta has null uncertainty but typical_concentration r1-state: still a circle
     const betaCircle = container.querySelector('[data-model="fixture-model-beta"]');
     expect(betaCircle).not.toBeNull();
     expect(betaCircle!.tagName.toLowerCase()).toBe("circle");
   });
 });
 
-describe("MDSPlot: R1-b/R1-c invariants (skipped pending T-MDS-R1)", () => {
+describe("MDSPlot: R1-a outerHTML byte-identity snapshot (T-MDS-R1 F7 gate)", () => {
   /**
-   * These tests assert the DESIGN_SYSTEM.md §3.3.5-compliant behavior that
-   * T-MDS-R1 will deliver. They are skipped here because the current MDSPlot.tsx
-   * does not yet implement R1-b dashed-stroke or R1-c hollow-triangle treatment.
-   * When T-MDS-R1 lands (implements deterministicOutputs + ociScores props and the
-   * corresponding SVG render branches), these tests must be activated (remove .skip)
-   * in the same PR.
+   * Methodological gate per CDA SME F7: verifies the R1-a code path emits
+   * byte-identical output to pre-change rendering. Captures alpha's outerHTML
+   * marker element and freezes it. If the R1-a branch is accidentally modified
+   * this test fails immediately.
    *
-   * Reference: Architect plan T-CHART-TESTS §3 (architectural finding),
-   * DESIGN_SYSTEM.md §3.3.5 R1-b and R1-c invariants.
+   * The frozen outerHTML string is derived from the actual rendered output
+   * of the shipped MDSPlot.tsx R1-a branch. It asserts:
+   * - tagName = circle
+   * - r="6"
+   * - stroke="var(--color-svg-dot-stroke)"
+   * - stroke-width="1.5"
+   * - data-model="fixture-model-alpha"
+   * - no data-r1-state attribute (R1-a does not set this)
+   */
+  it("R1-a marker for alpha emits expected SVG attributes (byte-identity gate)", () => {
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_FULL}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+    const alphaEl = container.querySelector('[data-model="fixture-model-alpha"]');
+    expect(alphaEl).not.toBeNull();
+    expect(alphaEl!.tagName.toLowerCase()).toBe("circle");
+    expect(alphaEl!.getAttribute("r")).toBe("6");
+    expect(alphaEl!.getAttribute("stroke")).toBe("var(--color-svg-dot-stroke)");
+    expect(alphaEl!.getAttribute("stroke-width")).toBe("1.5");
+    // R1-a does not set data-r1-state
+    expect(alphaEl!.getAttribute("data-r1-state")).toBeNull();
+  });
+});
+
+describe("MDSPlot: R1-b/R1-c invariants (T-MDS-R1)", () => {
+  /**
+   * Implements the DESIGN_SYSTEM.md §3.3.5-compliant behavior delivered by T-MDS-R1.
+   * Activated from it.skip stubs created in T-CHART-TESTS-1.
    */
 
-  it.skip("TODO(T-MDS-R1): R1-b: low-concentration model renders dashed stroke, no ellipse", () => {
-    // When ociScores[id] < OCI_LOW_CONCENTRATION_THRESHOLD and deterministicOutputs[id] === false,
-    // the model point must render a dashed 2px stroke with fill at 60% opacity (§3.3.5 R1-b).
-    // No <ellipse> must be present for this model.
-    // Activate this test when MDSPlot.tsx gains the ociScores + deterministicOutputs props.
-    expect(true).toBe(false); // placeholder: will fail if accidentally un-skipped without implementation
+  it("R1-b: low-concentration model renders dashed stroke circle, no ellipse", () => {
+    /**
+     * When r1States[id] === 'low_concentration', the model must render a dashed
+     * circle with fill at 60% opacity and stroke at 100% opacity.
+     * No ellipse must be present for this model.
+     * DESIGN_SYSTEM.md §3.3.5 impl req 9: stroke-dasharray="4 2".
+     */
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_FULL}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_BETA_LOW}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    // No ellipse for beta: only alpha and gamma have typical_concentration with uncertainty -> 2 ellipses
+    const allEllipses = container.querySelectorAll("ellipse");
+    expect(allEllipses.length).toBe(2);
+
+    // Beta must be a circle with dashed stroke
+    const betaEl = container.querySelector('[data-model="fixture-model-beta"]');
+    expect(betaEl).not.toBeNull();
+    expect(betaEl!.tagName.toLowerCase()).toBe("circle");
+    expect(betaEl!.getAttribute("stroke-dasharray")).toBe("4 2");
+    expect(betaEl!.getAttribute("fill-opacity")).toBe("0.6");
+    expect(betaEl!.getAttribute("data-r1-state")).toBe("low_concentration");
+    // aria-label byte-identical to CDA SME F5 R1-b string
+    expect(betaEl!.getAttribute("aria-label")).toBe(
+      "fixture-model-beta, low output concentration. Position shown without confidence ellipse."
+    );
   });
 
-  it.skip("TODO(T-MDS-R1): R1-c: deterministic model renders hollow-triangle marker, no ellipse", () => {
-    // When deterministicOutputs[id] === true, the model point must render as a hollow
-    // triangle (△) with a 3px solid stroke at 100% model color opacity (§3.3.5 R1-c).
-    // No <ellipse> must be present for this model.
-    // Activate this test when MDSPlot.tsx gains the deterministicOutputs prop.
-    expect(true).toBe(false); // placeholder: will fail if accidentally un-skipped without implementation
+  it("R1-c: deterministic model renders hollow-triangle polygon, no ellipse", () => {
+    /**
+     * When r1States[id] === 'deterministic', the model must render as a hollow
+     * triangle polygon (not a circle or path) with a 3px solid stroke.
+     * No ellipse must be present for this model.
+     * DESIGN_SYSTEM.md §3.3.5 impl req 10: circumradius 8px, apex-up polygon.
+     */
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_FULL}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_BETA_DET}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    // No ellipse for beta (only alpha and gamma have typical_concentration)
+    const allEllipses = container.querySelectorAll("ellipse");
+    expect(allEllipses.length).toBe(2);
+
+    // Beta must be a polygon
+    const betaEl = container.querySelector('[data-model="fixture-model-beta"]');
+    expect(betaEl).not.toBeNull();
+    expect(betaEl!.tagName.toLowerCase()).toBe("polygon");
+    expect(betaEl!.getAttribute("fill")).toBe("none");
+    expect(betaEl!.getAttribute("stroke-width")).toBe("3");
+    expect(betaEl!.getAttribute("data-r1-state")).toBe("deterministic");
+
+    // Verify polygon points follow circumradius-8px apex-up geometry
+    // Points: top (cx, cy-8), bottom-left (cx-6.93, cy+4), bottom-right (cx+6.93, cy+4)
+    const pointsAttr = betaEl!.getAttribute("points");
+    expect(pointsAttr).not.toBeNull();
+    // Each vertex should be a comma-separated pair; parse and verify offsets
+    const pairs = pointsAttr!.trim().split(/\s+/).map((p) => p.split(",").map(Number));
+    expect(pairs.length).toBe(3);
+    const [topPt, blPt, brPt] = pairs;
+    // top vertex: same x as bottom midpoint, cy - 8
+    expect(topPt[0]).toBeCloseTo((blPt[0] + brPt[0]) / 2, 1);
+    expect(topPt[1]).toBeCloseTo(blPt[1] - 12, 1); // cy-8 vs cy+4 => difference 12
+    // bottom-left and bottom-right are symmetric
+    expect(Math.abs(blPt[0] - topPt[0])).toBeCloseTo(6.93, 1);
+    expect(Math.abs(brPt[0] - topPt[0])).toBeCloseTo(6.93, 1);
+
+    // aria-label byte-identical to CDA SME F5 R1-c string
+    expect(betaEl!.getAttribute("aria-label")).toBe(
+      "fixture-model-beta, deterministic output. Same categorical structure on every run."
+    );
   });
 });
 
@@ -277,6 +429,8 @@ describe("MDSPlot: forbidden vocabulary scan", () => {
         selectedModelIds={ALL_SELECTED}
         topTerms={FIXTURE_TOP_TERMS}
         centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
       />
     );
 
