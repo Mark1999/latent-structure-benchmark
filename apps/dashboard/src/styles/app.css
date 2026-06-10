@@ -640,9 +640,12 @@ body {
   .focus3-layout {
     display: grid;
     grid-template-columns: 280px minmax(0, var(--max-chart-width));
+    /* Single row must fill the .chart-area height (section 3.1.1(a) 70vh rule).
+       align-items: start with an auto row collapsed the chart column to its
+       320px flex-basis floor (2026-06-10 live regression, crushed hero). */
+    grid-template-rows: minmax(0, 1fr);
     grid-template-areas: "lede chart";
     gap: 16px;
-    align-items: start;
   }
 
   .focus3-layout__chart-col {
