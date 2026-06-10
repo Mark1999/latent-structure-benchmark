@@ -307,3 +307,117 @@
   line-height: var(--line-height-body);
   max-width: var(--max-prose-width);
 }
+
+/* ===== Successes summary section (v0.19.4, CR-T5, 2026-06-10) ===== */
+
+/* UI/UX CR-T5: all token-only, no new token definitions.
+   pitfall #15: every var(--...) verified against tokens.css before use. */
+
+.failures-findings__successes {
+  margin-top: var(--space-8);
+  max-width: var(--max-prose-width);
+}
+
+/* Reuses .failures-findings__taxonomy-heading for the h2 heading (UI/UX decision). */
+.failures-findings__successes-heading {
+  margin-bottom: var(--space-4);
+}
+
+/* Framing note for the records section -- same styling as failures framing note */
+.failures-findings__successes-framing {
+  margin-bottom: var(--space-4);
+}
+
+/* Empty-state observation -- reuses .failures-findings__empty semantics */
+.failures-findings__successes-empty {
+  margin-bottom: var(--space-4);
+}
+
+/* Table wrapper: display block for mobile horizontal scroll (UI/UX WCAG gap) */
+.failures-findings__successes-table-wrapper {
+  overflow-x: auto;
+  margin-bottom: var(--space-4);
+}
+
+/* Per-model table: display block enables native browser horizontal scroll on
+   narrow viewports (375px with 5 columns; UI/UX binding). */
+.failures-findings__successes-table {
+  display: block;
+  border-collapse: collapse;
+  width: 100%;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+/* thead and tbody must also be block to preserve table layout when table is block */
+.failures-findings__successes-table thead,
+.failures-findings__successes-table tbody {
+  display: table;
+  width: 100%;
+  table-layout: fixed;
+}
+
+.failures-findings__successes-th {
+  text-align: left;
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-secondary);
+  font-size: var(--font-size-xs);
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+  white-space: nowrap;
+}
+
+.failures-findings__successes-tr:hover {
+  background: var(--color-surface-hover);
+}
+
+.failures-findings__successes-td {
+  padding: var(--space-2) var(--space-3);
+  border-bottom: var(--border-width) solid var(--color-border);
+  vertical-align: middle;
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+}
+
+.failures-findings__successes-td--num {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  text-align: right;
+  white-space: nowrap;
+}
+
+/* Inline code in table cells (model_id, provider, model_version_returned) */
+.failures-findings__successes-code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+  word-break: break-all;
+}
+
+/* sr-only: screen-reader-only class for <caption> (WCAG 1.3.1 table accessible name).
+   Uses the standard sr-only pattern (not a new token). */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* Link-out caption: uses --color-text-caption (~4.60:1 on white, WCAG AA at 12px).
+   UI/UX CR-T5 binding: do NOT use --color-text-secondary (~3.40:1, fails 4.5:1 at 12px). */
+.failures-findings__successes-caption {
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-body);
+  max-width: var(--max-prose-width);
+}
+
+/* Status paragraph variant for the records side (loading/failed/malformed) */
+.failures-findings__successes-status {
+  margin-top: var(--space-8);
+}

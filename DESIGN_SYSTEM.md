@@ -1,14 +1,15 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.19.3  
-**Status:** Draft — for review by Mark and Opus Architect agent  
+**Version:** v0.19.4  
+**Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
 
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.19.4** (Successful-records summary section, CR-T5, 2026-06-10) amends §19.4 content order: adds step 8 (successful-records summary section) below the failures/decline-interviews list (and below EMPTY_CAPTION when n_records === 0). Adds new §19.15 specifying the successful-records summary section structure, element spec, CSS classes, fetch coupling, and vitest cases. TAXONOMY_BLOCK.topLevel[0].description updated (SME N6 conditional revision): drops stale "when the successes section ships" phrasing; now reads "...Surfaced in the per-model summary section below..." New CSS classes in `failures-findings.css`: `.failures-findings__successes`, `.failures-findings__successes-heading`, `.failures-findings__successes-framing`, `.failures-findings__successes-empty`, `.failures-findings__successes-table-wrapper`, `.failures-findings__successes-table`, `.failures-findings__successes-th`, `.failures-findings__successes-tr`, `.failures-findings__successes-td`, `.failures-findings__successes-td--num`, `.failures-findings__successes-code`, `.failures-findings__successes-caption`, `.failures-findings__successes-status`, `.sr-only`. No new tokens. Seven new vitest cases (20-26); case 9 extended. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T5 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T5 section).
 - **v0.19.3** (Taxonomy block, CR-T3, 2026-06-10) amends §19.4 content order: inserts taxonomy block (`TAXONOMY_BLOCK`) as new step 4 (between `IMPACT_PARAGRAPH_FAILURES` step 3 and `framing_note` step 5); former steps 4-6 renumber to 5-7. Adds new §19.14 specifying the taxonomy block structure, element spec, CSS classes, and placement. New CSS classes in `failures-findings.css`: `.failures-findings__taxonomy`, `.failures-findings__taxonomy-heading`, `.failures-findings__taxonomy-bridge`, `.failures-findings__taxonomy-list`, `.failures-findings__taxonomy-enum-label`. No new tokens. Taxonomy block renders in `ready` state including the empty-state path (n_records === 0); does not render in loading/fetch-failed/malformed states. Element structure: `<section aria-labelledby>` + `<h2>` heading + bridge `<p>` + two `<ul>` lists (top-level outcomes and enum values). Four new vitest cases (16-19). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section).
 - **v0.19.2** (Follow-up interviews impact paragraph, CR-T2, 2026-06-10) amends §19.4 content order: step 6 (records list) is now split into two groups with the follow-up impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) inserted between them. Failure records render in a first `<ol className="failures-findings__list">`, then conditionally (when at least one `decline_interview` record is present) the `IMPACT_PARAGRAPH_FOLLOWUPS` `<p className="failures-findings__impact">` renders, then decline records render in a second `<ol className="failures-findings__list">`. CSS class reuses `.failures-findings__impact` (no new class, no new tokens). Follow-up impact paragraph renders only when `data.records.some(r => r.record_type === 'decline_interview')` is true; does not render in loading/fetch-failed/malformed states or when zero decline_interview records are present. Two new vitest cases added: byte-identity under `familyJson` (case 14), absent under `foodJson` (case 15). Also corrects pre-existing closing-line version string from `v0.19.0` to `v0.19.2`. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section).
 - **v0.19.1** (Impact paragraph for collection failures, CR-T1, 2026-06-10) amends §19.4 content order: inserts "Impact paragraph (`IMPACT_PARAGRAPH_FAILURES`) `<p>`" as new step 3 (between heading step 1 and domain selector step 2); old steps 3-5 renumber to 4-6. Adds new CSS class `.failures-findings__impact` to `failures-findings.css` (tokens: `--font-size-base`, `--color-text-primary`, `--line-height-body`, `--space-6`, `--max-prose-width`). No new tokens. The paragraph renders inside the `ready` fetch state only (AC4); renders in the empty-state path (n_records === 0, AC3). Three new vitest cases added: byte-identity (case 11), empty-state paragraph present (case 12), absent in loading state (case 13). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T1 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T1 section).
@@ -2645,7 +2646,7 @@ Round-2 additions (3):
 
 ---
 
-## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10; further amended v0.19.3, CR-T3, 2026-06-10)
+## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10; further amended v0.19.3, CR-T3, 2026-06-10; further amended v0.19.4, CR-T5, 2026-06-10)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`, M1-M4); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`, N1-N7).
 
@@ -2669,7 +2670,7 @@ Three domain options: Family / Holidays / Food (same set as Explore).
 
 `<h1>` element with text `"Collection records and follow-up interviews"` byte-for-byte. This is the T10 SECTION_HEADING string; it is the tab's primary heading.
 
-### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10; further amended v0.19.2 / CR-T2 2026-06-10; further amended v0.19.3 / CR-T3 2026-06-10)
+### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10; further amended v0.19.2 / CR-T2 2026-06-10; further amended v0.19.3 / CR-T3 2026-06-10; further amended v0.19.4 / CR-T5 2026-06-10)
 
 Within the tab region, content renders in this order:
 1. `<h1>` heading (§19.3).
@@ -2683,6 +2684,7 @@ Within the tab region, content renders in this order:
    b. Follow-up interviews impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) `<p className="failures-findings__impact">`: Mark-authored, approved verbatim 2026-06-10; renders ONLY when at least one `decline_interview` record is present (`data.records.some(r => r.record_type === 'decline_interview')`). Does not render when zero decline_interview records exist. CSS class reuses `.failures-findings__impact` (no new tokens).
    c. Decline-interview records `<ol className="failures-findings__list">`: all `record_type === 'decline_interview'` records. Rendered only when at least one such record exists (same condition as 7b).
    When `n_records === 0`: empty-state `<p>` only (§19.9); no grouped lists.
+8. Successful-records summary section (`<section aria-labelledby="records-summary-heading">`): fetched independently from `/data/records/{domain}.json`; renders in its own `RecordsFetchState` independent of the failures-side state; renders BELOW the failures list (below EMPTY_CAPTION when n_records === 0). See §19.15 for full spec.
 
 No chart-lede, no Smith's S, no SelectionBar, no VizTabs, no consensus-score strings (M4 / N7 chrome isolation).
 
@@ -2856,6 +2858,112 @@ All string values are the CDA SME-approved wording (T3 verdict). The seven `id` 
 **Accessible landmark (binding F1):** `aria-labelledby="taxonomy-block-heading"` on the `<section>` provides a named landmark for screen-reader navigation. The `id="taxonomy-block-heading"` on the `<h2>` is required and must be present in the rendered DOM.
 
 **No new tokens (binding §19.11 posture):** All CSS rules use only tokens already defined in `tokens.css`. No new `--*` custom properties introduced by this section.
+
+### 19.15 Successful-records summary section (binding, CR-T5, v0.19.4)
+
+The successful-records summary section is a CDA-SME-approved per-model table surfacing the `/data/records/{domain}.json` summary artifact. It renders as step 8 in §19.4 content order -- below the failures/decline-interviews list, or below EMPTY_CAPTION when n_records === 0. "Successful" means the LSB pipeline parsed a primary-step response; it is NOT a quality judgment on the model output (CR-T4 N5 / DATA_DICTIONARY.md §12.6 carry-forward).
+
+**Element structure (binding, UI/UX CR-T5):**
+
+```tsx
+<section
+  aria-labelledby="records-summary-heading"
+  className="failures-findings__successes"
+>
+  <h2
+    id="records-summary-heading"
+    className="failures-findings__taxonomy-heading failures-findings__successes-heading"
+  >
+    {RECORDS_SECTION_HEADING}
+  </h2>
+  <p className="failures-findings__framing-note failures-findings__successes-framing">
+    {data.framing_note}  {/* verbatim from JSON, byte-identical (AC6) */}
+  </p>
+  {data.by_model.length === 0 ? (
+    <p className="failures-findings__empty failures-findings__successes-empty">
+      {RECORDS_EMPTY_OBSERVATION}
+    </p>
+  ) : (
+    <div className="failures-findings__successes-table-wrapper">
+      <table className="failures-findings__successes-table">
+        <caption className="sr-only">{RECORDS_SECTION_HEADING}</caption>
+        <thead>...</thead>
+        <tbody>...</tbody>
+      </table>
+    </div>
+  )}
+  <p className="failures-findings__successes-caption">
+    {RECORDS_LINK_OUT_CAPTION}
+  </p>
+</section>
+```
+
+**Section heading (binding, CDA SME N1):** `<h2>` with `RECORDS_SECTION_HEADING = "Per-model summary of parsed primary-step responses"`. Reuses `.failures-findings__taxonomy-heading` for the heading style (same level, same visual weight). The additional `.failures-findings__successes-heading` class provides `margin-bottom: var(--space-4)` spacing.
+
+**WCAG accessible name (binding, UI/UX WCAG gap):** `<caption className="sr-only">` inside the `<table>` element provides a programmatic accessible name per WCAG 1.3.1. The `<section aria-labelledby>` provides the landmark name but does not automatically label the table inside it.
+
+**Column labels (binding, CDA SME N2):** Model | Provider | Runs | QA-pass count | Model version returned. Exported from `copy/failures_findings.ts` as `RECORDS_COL_*` constants. No sortable column headers (AC16 / CDA SME -- no ranking signal).
+
+**Cell rendering (binding, AC7):** `model_id`, `provider`, and `model_version_returned` render inside `<code className="failures-findings__successes-code">` elements. `n_runs` and `n_qa_passed` render as plain integers. `model_version_returned_count` is NOT rendered in the table (CR-T4 lex-greatest selection is a property of the summary as documented in DATA_DICTIONARY §12.6).
+
+**Row order (binding, AC16):** Lexicographic by `model_id` ascending, determined by the artifact's `by_model` array order. No client-side sorting. No `<th onClick>` handlers. No sort state.
+
+**Mobile overflow (binding, UI/UX CR-T5):** `.failures-findings__successes-table` uses `display: block` to enable native browser horizontal scroll on narrow viewports (375px with 5 columns will overflow). `thead` and `tbody` use `display: table` to preserve table layout. No JavaScript scroll handler required.
+
+**Fetch coupling (binding, AC2, AC3):** Both `/data/failures/{domain}.json` and `/data/records/{domain}.json` are fetched via `Promise.allSettled` against the same `AbortController`. Domain change cancels both in-flight requests. Two independent sub-state variables (`fetchState: FetchState` and `recordsFetchState: RecordsFetchState`) handle rendering independently. A failures-side error does NOT suppress the successes section; a records-side error does NOT suppress the failures section.
+
+**Independent fetch states (binding, AC3):** `RecordsFetchState` union mirrors `FetchState`: `idle | loading | fetch-failed | malformed | ready`. Each state maps to a distinct render:
+- `idle`: renders nothing.
+- `loading`: renders `RECORDS_LOADING_TEXT` as `<p className="failures-findings__status failures-findings__successes-status">`.
+- `fetch-failed`: renders `RECORDS_FETCH_FAILED_TEXT` as `<p className="failures-findings__status failures-findings__successes-status">`.
+- `malformed`: renders `RECORDS_MALFORMED_TEXT` as `<p className="failures-findings__status failures-findings__successes-status">`.
+- `ready`: renders the section with heading, framing_note, table (or zero-runs observation), and link-out caption.
+
+**Zero-runs first-class state (binding, AC8):** When `by_model: []`, the section renders `RECORDS_EMPTY_OBSERVATION` using `.failures-findings__empty .failures-findings__successes-empty`. The `framing_note` still renders above it. Table chrome does NOT render. This is binding-equivalent to the existing failures empty-state pattern (CR-T4 N3 carry-forward).
+
+**Link-out caption (binding, AC12):** `RECORDS_LINK_OUT_CAPTION` renders as `<p className="failures-findings__successes-caption">` below the table (or below the empty-state observation). Uses `--color-text-caption` (~4.60:1 on white, WCAG AA at 12px). Do NOT use `--color-text-secondary` (~3.40:1, fails 4.5:1 at 12px regular weight). Caption points to the Data tab; does not link out to external URLs directly.
+
+**CSS classes (binding, all token-only, no new tokens):**
+
+- `.failures-findings__successes` -- section container; `margin-top: var(--space-8)`; `max-width: var(--max-prose-width)`.
+- `.failures-findings__successes-heading` -- h2 spacing modifier; `margin-bottom: var(--space-4)`.
+- `.failures-findings__successes-framing` -- framing note paragraph; `margin-bottom: var(--space-4)` (reuses `.failures-findings__framing-note` for color/size).
+- `.failures-findings__successes-empty` -- zero-runs observation; `margin-bottom: var(--space-4)` (reuses `.failures-findings__empty` for color/size).
+- `.failures-findings__successes-table-wrapper` -- overflow container; `overflow-x: auto`; `margin-bottom: var(--space-4)`.
+- `.failures-findings__successes-table` -- `display: block` (mobile scroll); `border-collapse: collapse`; `font-size: var(--font-size-sm)`.
+- `.failures-findings__successes-table thead, .failures-findings__successes-table tbody` -- `display: table`; `width: 100%`; `table-layout: fixed`.
+- `.failures-findings__successes-th` -- column headers; `font-weight: var(--font-weight-medium)`; `color: var(--color-text-secondary)`; `font-size: var(--font-size-xs)`; `padding: var(--space-2) var(--space-3)`; `border-bottom: var(--border-width) solid var(--color-border)`; `white-space: nowrap`.
+- `.failures-findings__successes-tr:hover` -- `background: var(--color-surface-hover)`.
+- `.failures-findings__successes-td` -- data cells; `padding: var(--space-2) var(--space-3)`; `border-bottom: var(--border-width) solid var(--color-border)`; `font-size: var(--font-size-sm)`; `color: var(--color-text-primary)`.
+- `.failures-findings__successes-td--num` -- numeric cells (n_runs, n_qa_passed); `text-align: right`; `white-space: nowrap`.
+- `.failures-findings__successes-code` -- inline code in cells; `font-family: var(--font-mono)`; `font-size: var(--font-size-xs)`; `color: var(--color-text-primary)`; `word-break: break-all`.
+- `.failures-findings__successes-caption` -- link-out caption; `font-size: var(--font-size-xs)`; `color: var(--color-text-caption)`; `line-height: var(--line-height-body)`; `max-width: var(--max-prose-width)`.
+- `.failures-findings__successes-status` -- status paragraph for loading/failed/malformed; `margin-top: var(--space-8)` (reuses `.failures-findings__status` for color/size).
+- `.sr-only` -- screen-reader-only class for `<caption>` accessible name (standard sr-only pattern; not a token).
+
+**No new tokens (binding §19.11 posture):** All CSS rules use only tokens already defined in `tokens.css`. No new `--*` custom properties introduced by this section.
+
+**New copy strings (all CDA SME N1-N5 approved, exported from `copy/failures_findings.ts`):**
+- `RECORDS_SECTION_HEADING` -- section `<h2>` text (CDA SME N1).
+- `RECORDS_COL_MODEL`, `RECORDS_COL_PROVIDER`, `RECORDS_COL_RUNS`, `RECORDS_COL_QA_PASS`, `RECORDS_COL_VERSION` -- column labels (CDA SME N2).
+- `RECORDS_EMPTY_OBSERVATION` -- zero-runs first-class observation (CDA SME N3).
+- `RECORDS_LINK_OUT_CAPTION` -- link-out caption below table (CDA SME N4).
+- `RECORDS_LOADING_TEXT`, `RECORDS_FETCH_FAILED_TEXT`, `RECORDS_MALFORMED_TEXT` -- status strings (CDA SME N5).
+
+**TAXONOMY_BLOCK update (binding, SME N6 conditional revision):** `TAXONOMY_BLOCK.topLevel[0].description` updated in same commit: drops stale "when the successes section ships" phrasing (section has now shipped). New text: "LSB parsed primary-step output from the session. Surfaced in the per-model summary section below. The per-domain summary artifact is at /data/records/{slug}.json."
+
+**Vitest cases (binding, AC13):**
+- Case 20: records section heading (`RECORDS_SECTION_HEADING`) renders byte-for-byte under `recordsFamilyJson` fixture.
+- Case 21: `framing_note` from `recordsFamilyJson` fixture renders byte-for-byte.
+- Case 22: all 17 family `model_id` values render as `<code>` elements in row order matching the fixture's `by_model` array order.
+- Case 23: records section renders zero-runs observation under a `by_model: []` fixture; table absent.
+- Case 24: records section renders `RECORDS_FETCH_FAILED_TEXT` when records fetch returns ok=false (HTTP 404).
+- Case 25: records section heading absent in loading state (never-resolving fetch; mirrors case 13/19 pattern).
+- Case 26: records section renders BELOW `EMPTY_CAPTION` in DOM order when `failures.n_records === 0` (foodJson + recordsFoodJson); asserted via `compareDocumentPosition`.
+- Case 9 (existing, extended): chrome-isolation DOM-walk now fetches both failures and records fixtures; extended DOM includes table headers, cells, captions, empty-state observation, framing_note, link-out caption. Forbidden-substring scan passes over the extended DOM.
+- Case 10 (existing, updated): domain switch now asserts 2 fetches per domain (failures + records = 4 total calls after domain switch).
+
+**Accessible landmark (binding):** `aria-labelledby="records-summary-heading"` on the `<section>` provides a named landmark. `id="records-summary-heading"` on the `<h2>` is required and must be present in the rendered DOM.
 
 ---
 
@@ -3043,6 +3151,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.19.3. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.19.4. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

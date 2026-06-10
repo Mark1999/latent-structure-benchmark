@@ -359,6 +359,36 @@ export interface FailuresFile {
   records: FailuresRecord[];
 }
 
+// ===== Records summary types (CR-T4 / CR-T5) =====
+
+/**
+ * A single row in a per-domain records summary file.
+ * Mirrors the published shape in apps/dashboard/public/data/records/{slug}.json.
+ * Source: DATA_DICTIONARY.md §12.6.
+ */
+export interface RecordsModelRow {
+  model_id: string;
+  provider: string;
+  n_runs: number;
+  n_qa_passed: number;
+  model_version_returned: string;
+  model_version_returned_count: number;
+}
+
+/**
+ * Top-level structure of a records/{slug}.json summary file.
+ * Published by cdb_publish successes builder (CR-T4).
+ * "Successful" here means the LSB pipeline parsed a primary-step response --
+ * NOT a quality judgment on the model output (DATA_DICTIONARY.md §12.6).
+ */
+export interface RecordsSummaryFile {
+  domain_slug: string;
+  generated_at: string;
+  n_informants: number;
+  by_model: RecordsModelRow[];
+  framing_note: string;
+}
+
 /**
  * Extended domain result carrying optional fields present in published JSON
  * beyond the base DomainResultPublished interface.  Exported so App.tsx and

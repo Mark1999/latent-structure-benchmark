@@ -394,4 +394,106 @@
 
 ---
 
-*T4-T8 verdicts to be appended as subsequent tasks complete.*
+## T5: Successful-records section in Collection records tab
+
+**Task scope:** Extend `FailuresFindings.tsx` with parallel fetch of `/data/records/{domain}.json`, independent `RecordsFetchState`, `isRecordsSummaryFile` type guard, `RecordsSummarySection` sub-component rendering the per-model table below the failures content. Add `RecordsModelRow` and `RecordsSummaryFile` types to `types.ts`. Add eight new copy strings to `copy/failures_findings.ts`. Add CSS classes to `failures-findings.css`. Update DESIGN_SYSTEM.md §19.4 + add §19.15. Update TAXONOMY_BLOCK.topLevel[0].description per SME N6 conditional revision. Add vitest cases 20-26 and extend cases 9 and 10.
+
+### CDA SME verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-axis scorecard:**
+
+| Axis | Score | Notes |
+|---|---|---|
+| Protocol validity | PASS | Section heading "Per-model summary of parsed primary-step responses" correctly frames parser-state, not quality judgment. |
+| Analytical validity | N/A | No analysis claim made. Table reports counts only. |
+| Claims validity | PASS-WITH-NOTES | N1-N6 binding notes applied (see below). CF1, T1 N1, T3 N4, T3 N8 carry-forwards confirmed. |
+| Audience translation | PASS | framing_note renders verbatim; link-out caption directs to Data tab. |
+
+**Binding notes applied:**
+
+- N1 (BINDING): Section heading = "Per-model summary of parsed primary-step responses". No "Successful" in heading.
+- N2 (BINDING): Column labels approved: Model | Provider | Runs | QA-pass count | Model version returned.
+- N3 (BINDING): Empty-state observation approved verbatim.
+- N4 (BINDING): Link-out caption approved verbatim (Architect stub unchanged).
+- N5 (BINDING): Loading/fetch-failed/malformed strings issued byte-identical.
+- N6 (BINDING, conditional revision): TAXONOMY_BLOCK.topLevel[0].description updated to drop "when the successes section ships" stale phrasing. New text: "LSB parsed primary-step output from the session. Surfaced in the per-model summary section below. The per-domain summary artifact is at /data/records/{slug}.json."
+
+**Carry-forwards confirmed:**
+
+- CF1 (CR-T4): n_qa_passed label reads as software-only QA pass count. CONFIRMED.
+- T1 N1: "cooperative" does not appear outside the existing counterfactual frame. CONFIRMED.
+- T3 N4: no bare "refusal" in any new copy strings or commit text. CONFIRMED.
+- T3 N8: TAXONOMY_BLOCK.topLevel[0] forward-pointer phrasing now resolved (section shipped). CLOSES T3 N8.
+- §1.5.4 forbidden-vocabulary scan: clean. No worldview/believes/thinks/understands.
+- "Successful" does not echo as a quality judgment in any surrounding copy.
+- §19.13 forbidden-substring list: absent from all new chrome strings.
+
+---
+
+### UI/UX verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-question scorecard:**
+
+| Question | Score | Notes |
+|---|---|---|
+| OWID design fidelity | PASS | Token-only classes. No new tokens. All tokens verified against tokens.css (Pitfall 15). |
+| 30-second journalist test | PASS | Records section below failures list; cold reader encounters failures framing first, then the full picture. |
+| Researcher reproduce-and-cite test | PASS | framing_note verbatim; link-out caption points to Data tab + bundle + HF + Zenodo. |
+| WCAG AA accessibility | PASS | sr-only caption on table (WCAG 1.3.1); section aria-labelledby landmark; display:block mobile scroll (375px). --color-text-caption on link-out caption (~4.60:1, WCAG AA). |
+
+**Binding notes applied:**
+
+- Placement: records section renders below failures list (below EMPTY_CAPTION when n_records === 0).
+- WCAG gap: `<caption className="sr-only">` required inside `<table>` (WCAG 1.3.1). Applied.
+- Mobile overflow: `.failures-findings__successes-table` uses `display: block`; thead/tbody use `display: table`. Applied.
+- Color token: link-out caption uses `--color-text-caption` (NOT `--color-text-secondary`). Applied.
+- CSS class naming: `.failures-findings__successes-*` prefix for new classes; reuse `.failures-findings__taxonomy-heading` for h2; reuse `.failures-findings__empty` semantics for zero-runs state. Applied.
+- Fetch coupling: `Promise.allSettled` + one AbortController; two independent sub-states. Applied.
+- No sortable columns: no `<th onClick>` handlers. Applied per AC16.
+- TAXONOMY_BLOCK N6: SME-conditional revision shipped in same commit. Applied.
+- DESIGN_SYSTEM.md v0.19.4: §19.4 step 8 added; §19.15 new subsection added; changelog entry added; closing-line version updated to v0.19.4. Applied.
+
+---
+
+### Reviewer verdict: PASS
+
+**Date:** 2026-06-10
+
+**Checks:**
+
+- AC1: `RecordsModelRow` and `RecordsSummaryFile` exported from `types.ts`; fields exactly match CR-T4 family.json shape; additive (no existing exports modified). PASS.
+- AC2: Parallel fetch via `Promise.allSettled` against one AbortController. Domain change aborts both. PASS.
+- AC3: `RecordsFetchState` independent of `FetchState`; failures error does not suppress records section. PASS.
+- AC4: `isRecordsSummaryFile` validates all six required fields with correct primitive types per row. PASS.
+- AC5: Records section `<section aria-labelledby="records-summary-heading">` renders below failures content. Two placement contexts covered. PASS.
+- AC6: `data.framing_note` rendered verbatim inside `.failures-findings__successes-framing`. PASS.
+- AC7: Table columns match N2 labels; model_id/provider/model_version_returned in `<code>`; n_runs/n_qa_passed as plain integers; model_version_returned_count not rendered. PASS.
+- AC8: `by_model: []` renders `RECORDS_EMPTY_OBSERVATION`, not table. framing_note still renders. PASS.
+- AC9: fetch-failed state renders `RECORDS_FETCH_FAILED_TEXT`. PASS.
+- AC10: malformed state renders `RECORDS_MALFORMED_TEXT`. PASS.
+- AC11: loading state renders `RECORDS_LOADING_TEXT`. PASS.
+- AC12: `RECORDS_LINK_OUT_CAPTION` renders below table (and below empty-state). PASS.
+- AC13: Vitest cases 20-26 added; case 9 extended to include records DOM; case 10 updated for 2-fetch-per-domain model. PASS.
+- AC14: Case 9 chrome-isolation walk extended; forbidden-substring scan passes over new DOM. PASS.
+- AC15: All `var(--...)` tokens verified against `tokens.css`. No new token definitions. PASS.
+- AC16: No `<th onClick>`. No sort state. Row order from artifact's by_model array. PASS.
+- AC17: No forbidden vocabulary in any new string (worldview/believes/thinks/understands/cooperative outside counterfactual). "Successful" not echoed as quality judgment. No bare "refusal". PASS.
+- AC18: DESIGN_SYSTEM.md §19.4 step 8 added; §19.15 subsection added; changelog v0.19.4; closing line updated. PASS.
+- AC19: T5 section appended to verdicts file; T1/T2/T3/T4 sections unchanged. PASS.
+- AC20: npm run build + npm run test + npm run lint all pass. PASS.
+- AC21: Zero em dashes (U+2014) in any new text. PASS.
+- AC22: One commit on master. PASS.
+- AC23: TAXONOMY_BLOCK.topLevel[0].description updated per SME N6 conditional revision; CR-T3 case 16 fixture test updated (heading still passes; description is in DOM text). PASS.
+- Pitfall 15: every var(--...) verified against tokens.css. PASS.
+- Pitfall 7: no forbidden vocabulary in any diffed text including comments. PASS.
+- No cdb_core/schemas.py edits. No cdb_publish/ edits. No DATA_DICTIONARY.md edits (R6/R7 not triggered). PASS.
+- No spend-gate or cost-estimate language (R13). PASS.
+- cdb_analyze LLM-import boundary unaffected (new code is dashboard). PASS.
+
+---
+
+*T6-T8 verdicts to be appended as subsequent tasks complete.*

@@ -55,7 +55,7 @@ export const TAXONOMY_BLOCK = {
     {
       term: "Successful run",
       description:
-        "LSB parsed primary-step output from the session. Surfaced separately on this tab when the successes section ships. The per-domain summary artifact already exists under /data/records/{slug}.json.",
+        "LSB parsed primary-step output from the session. Surfaced in the per-model summary section below. The per-domain summary artifact is at /data/records/{slug}.json.",
     },
     {
       term: "Collection failure",
@@ -188,3 +188,62 @@ export const MALFORMED_TEXT =
 
 /** Domain selector label — reuses the existing domain picker convention. */
 export const DOMAIN_LABEL = "Domain";
+
+// ===== Records summary section (v0.19.4, CR-T5, 2026-06-10) =====
+
+/**
+ * Section heading for the per-model records summary section.
+ * CDA SME N1 (CR-T5): disambiguates parser-state from quality judgment.
+ * Do NOT paraphrase. Byte-identity assertion in FailuresFindings.test.tsx enforces this.
+ */
+export const RECORDS_SECTION_HEADING =
+  "Per-model summary of parsed primary-step responses";
+
+/**
+ * Column labels for the per-model records summary table.
+ * CDA SME N2 (CR-T5): byte-identical as approved.
+ */
+export const RECORDS_COL_MODEL = "Model";
+export const RECORDS_COL_PROVIDER = "Provider";
+export const RECORDS_COL_RUNS = "Runs";
+export const RECORDS_COL_QA_PASS = "QA-pass count";
+export const RECORDS_COL_VERSION = "Model version returned";
+
+/**
+ * Empty-state observation for a domain where by_model is empty.
+ * CDA SME N3 (CR-T5): first-class observation, not a defect.
+ * Do NOT paraphrase. Byte-identity assertion in FailuresFindings.test.tsx enforces this.
+ */
+export const RECORDS_EMPTY_OBSERVATION =
+  "No collection runs in this domain produced a parseable primary-step response. " +
+  "The absence is itself an observation about how this set of models behaved under " +
+  "the LSB elicitation prompts for this domain.";
+
+/**
+ * Link-out caption below the per-model table (or empty-state observation).
+ * CDA SME N4 (CR-T5): byte-identical to the Architect stub as approved.
+ * Points to the Data tab, not to external URLs directly.
+ */
+export const RECORDS_LINK_OUT_CAPTION =
+  "The full per-record bytes are published in the open data bundle. " +
+  "See the Data tab for the bundle, the Hugging Face dataset, and the Zenodo DOI.";
+
+/**
+ * Loading state label for the records summary fetch.
+ * CDA SME N5 (CR-T5): mirrors LOADING_TEXT semantics, refers to records summary.
+ */
+export const RECORDS_LOADING_TEXT = "Loading records summary…";
+
+/**
+ * Fetch-failed error label for the records summary fetch.
+ * CDA SME N5 (CR-T5): mirrors FETCH_FAILED_TEXT semantics.
+ */
+export const RECORDS_FETCH_FAILED_TEXT =
+  "Could not load the records summary for this domain. Check that the data file is present.";
+
+/**
+ * Malformed data label for the records summary fetch.
+ * CDA SME N5 (CR-T5): mirrors MALFORMED_TEXT semantics.
+ */
+export const RECORDS_MALFORMED_TEXT =
+  "Records summary data for this domain could not be parsed.";

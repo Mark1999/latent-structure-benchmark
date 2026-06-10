@@ -2,22 +2,32 @@
  * FailuresFindings — Collection records tab component.
  *
  * Renders the failures-as-findings surface as a top-level tab.
- * Self-fetches /data/failures/{domain}.json on mount + domain change.
- * OWN domain state (default 'family') — NOT inherited from Explore.
+ * Self-fetches /data/failures/{domain}.json and /data/records/{domain}.json
+ * in parallel on mount + domain change. OWN domain state (default 'family') --
+ * NOT inherited from Explore.
  *
  * Framing: these records are LSB pipeline output properties, not
  * claims about model intent or state-of-mind. See ARCHITECTURE.md §1.5.6.
  *
- * Design bindings: DESIGN_SYSTEM.md §19 (v0.15.0).
- * CDA SME: Phase 9a T1 verdict (2026-06-08), M1-M4 applied.
- * UI/UX: Phase 9a T1 verdict (2026-06-08), N1-N7 applied.
+ * Design bindings: DESIGN_SYSTEM.md §19 (v0.19.4).
+ * CDA SME: Phase 9a T1 verdict (2026-06-08), M1-M4 applied;
+ *           CR-T1 (2026-06-10); CR-T2 (2026-06-10); CR-T3 (2026-06-10);
+ *           CR-T5 (2026-06-10), N1-N6 applied.
+ * UI/UX: Phase 9a T1 verdict (2026-06-08), N1-N7 applied;
+ *         CR-T1 through CR-T5 verdicts (2026-06-10) applied.
  *
  * NO Explore chrome: no chart-lede, no Smith's S, no SelectionBar,
  * no VizTabs, no consensus strings (M4 / N7).
  */
 
 import { useState, useEffect, useRef } from 'react';
-import type { FailuresFile, FailuresRecord, FailureRecord, DeclineInterviewRecord } from '../data/types';
+import type {
+  FailuresFile,
+  FailuresRecord,
+  FailureRecord,
+  DeclineInterviewRecord,
+  RecordsSummaryFile,
+} from '../data/types';
 import {
   IMPACT_PARAGRAPH_FAILURES,
   IMPACT_PARAGRAPH_FOLLOWUPS,
@@ -36,6 +46,17 @@ import {
   FETCH_FAILED_TEXT,
   MALFORMED_TEXT,
   DOMAIN_LABEL,
+  RECORDS_SECTION_HEADING,
+  RECORDS_COL_MODEL,
+  RECORDS_COL_PROVIDER,
+  RECORDS_COL_RUNS,
+  RECORDS_COL_QA_PASS,
+  RECORDS_COL_VERSION,
+  RECORDS_EMPTY_OBSERVATION,
+  RECORDS_LINK_OUT_CAPTION,
+  RECORDS_LOADING_TEXT,
+  RECORDS_FETCH_FAILED_TEXT,
+  RECORDS_MALFORMED_TEXT,
 } from '../copy/failures_findings';
 import '../styles/failures-findings.css';
 
@@ -47,6 +68,14 @@ type FetchState =
   | { kind: 'fetch-failed'; message: string }
   | { kind: 'malformed' }
   | { kind: 'ready'; data: FailuresFile };
+
+/** Independent fetch state for the records summary side (AC3). */
+type RecordsFetchState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'fetch-failed'; message: string }
+  | { kind: 'malformed' }
+  | { kind: 'ready'; data: RecordsSummaryFile };
 
 /** Type-guard: is the fetched value a valid FailuresFile? */
 function isFailuresFile(val: unknown): val is FailuresFile {
@@ -60,6 +89,33 @@ function isFailuresFile(val: unknown): val is FailuresFile {
     typeof v.n_decline_interview_records === 'number' &&
     Array.isArray(v.records)
   );
+}
+
+/** Type-guard: is the fetched value a valid RecordsSummaryFile? (AC4) */
+function isRecordsSummaryFile(val: unknown): val is RecordsSummaryFile {
+  if (typeof val !== 'object' || val === null) return false;
+  const v = val as Record<string, unknown>;
+  if (
+    typeof v.domain_slug !== 'string' ||
+    typeof v.generated_at !== 'string' ||
+    typeof v.n_informants !== 'number' ||
+    typeof v.framing_note !== 'string' ||
+    !Array.isArray(v.by_model)
+  ) return false;
+  // Validate each row in by_model
+  for (const row of v.by_model as unknown[]) {
+    if (typeof row !== 'object' || row === null) return false;
+    const r = row as Record<string, unknown>;
+    if (
+      typeof r.model_id !== 'string' ||
+      typeof r.provider !== 'string' ||
+      typeof r.n_runs !== 'number' ||
+      typeof r.n_qa_passed !== 'number' ||
+      typeof r.model_version_returned !== 'string' ||
+      typeof r.model_version_returned_count !== 'number'
+    ) return false;
+  }
+  return true;
 }
 
 /** Type-guard: is a record a FailureRecord? */
@@ -230,38 +286,79 @@ export function FailuresFindings() {
   // NOT inherited from Explore.
   const [domain, setDomain] = useState<DomainSlug>('family');
   const [fetchState, setFetchState] = useState<FetchState>({ kind: 'idle' });
+  const [recordsFetchState, setRecordsFetchState] = useState<RecordsFetchState>({ kind: 'idle' });
 
-  // Abort controller ref for cancellation on domain change
+  // Abort controller ref for cancellation on domain change.
+  // Both fetches share one AbortController (AC2).
   const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    // Cancel any in-flight request
+    // Cancel any in-flight requests
     abortRef.current?.abort();
     const controller = new AbortController();
     abortRef.current = controller;
 
     const load = async () => {
+      // Both fetches start in loading state before Promise.all resolves (AC2).
       setFetchState({ kind: 'loading' });
-      try {
-        const resp = await fetch(`/data/failures/${domain}.json`, {
-          signal: controller.signal,
-        });
-        if (!resp.ok) {
-          setFetchState({ kind: 'fetch-failed', message: `HTTP ${resp.status}` });
-          return;
-        }
-        const raw: unknown = await resp.json();
-        if (!isFailuresFile(raw)) {
-          setFetchState({ kind: 'malformed' });
-          return;
-        }
-        setFetchState({ kind: 'ready', data: raw });
-      } catch (e) {
-        if (e instanceof Error && e.name === 'AbortError') return;
+      setRecordsFetchState({ kind: 'loading' });
+
+      // Run both fetches in parallel against the same AbortController (AC2).
+      const [failuresResult, recordsResult] = await Promise.allSettled([
+        fetch(`/data/failures/${domain}.json`, { signal: controller.signal }),
+        fetch(`/data/records/${domain}.json`, { signal: controller.signal }),
+      ]);
+
+      // Handle failures side (independent of records side per AC3)
+      if (failuresResult.status === 'rejected') {
+        const e = failuresResult.reason as Error;
+        if (e.name === 'AbortError') return;
         setFetchState({
           kind: 'fetch-failed',
           message: e instanceof Error ? e.message : 'Unknown error',
         });
+      } else {
+        const resp = failuresResult.value;
+        if (!resp.ok) {
+          setFetchState({ kind: 'fetch-failed', message: `HTTP ${resp.status}` });
+        } else {
+          try {
+            const raw: unknown = await resp.json();
+            if (!isFailuresFile(raw)) {
+              setFetchState({ kind: 'malformed' });
+            } else {
+              setFetchState({ kind: 'ready', data: raw });
+            }
+          } catch {
+            setFetchState({ kind: 'fetch-failed', message: 'JSON parse error' });
+          }
+        }
+      }
+
+      // Handle records side independently (AC3)
+      if (recordsResult.status === 'rejected') {
+        const e = recordsResult.reason as Error;
+        if (e.name === 'AbortError') return;
+        setRecordsFetchState({
+          kind: 'fetch-failed',
+          message: e instanceof Error ? e.message : 'Unknown error',
+        });
+      } else {
+        const resp = recordsResult.value;
+        if (!resp.ok) {
+          setRecordsFetchState({ kind: 'fetch-failed', message: `HTTP ${resp.status}` });
+        } else {
+          try {
+            const raw: unknown = await resp.json();
+            if (!isRecordsSummaryFile(raw)) {
+              setRecordsFetchState({ kind: 'malformed' });
+            } else {
+              setRecordsFetchState({ kind: 'ready', data: raw });
+            }
+          } catch {
+            setRecordsFetchState({ kind: 'fetch-failed', message: 'JSON parse error' });
+          }
+        }
       }
     };
 
@@ -409,7 +506,128 @@ export function FailuresFindings() {
         );
       })()}
 
+      {/* Records summary section (CR-T5, v0.19.4) — independent of failures side (AC3).
+          Placement: below the failures/decline-interviews list (or below EMPTY_CAPTION
+          when n_records === 0). See DESIGN_SYSTEM.md §19.15. */}
+      <RecordsSummarySection recordsFetchState={recordsFetchState} />
+
       {/* idle state renders nothing (initial state before first fetch resolves) */}
     </div>
+  );
+}
+
+// ===== Records summary section component (CR-T5) =====
+
+interface RecordsSummarySectionProps {
+  recordsFetchState: RecordsFetchState;
+}
+
+/**
+ * Renders the per-model summary of parsed primary-step responses.
+ * Independent of the failures side fetch state (AC3, AC5).
+ * Section structure mirrors §19.14 taxonomy block pattern (AC5, §19.15).
+ */
+function RecordsSummarySection({ recordsFetchState }: RecordsSummarySectionProps) {
+  if (recordsFetchState.kind === 'loading') {
+    return (
+      <p className="failures-findings__status failures-findings__successes-status">
+        {RECORDS_LOADING_TEXT}
+      </p>
+    );
+  }
+
+  if (recordsFetchState.kind === 'fetch-failed') {
+    return (
+      <p className="failures-findings__status failures-findings__successes-status">
+        {RECORDS_FETCH_FAILED_TEXT}
+      </p>
+    );
+  }
+
+  if (recordsFetchState.kind === 'malformed') {
+    return (
+      <p className="failures-findings__status failures-findings__successes-status">
+        {RECORDS_MALFORMED_TEXT}
+      </p>
+    );
+  }
+
+  if (recordsFetchState.kind === 'idle') {
+    return null;
+  }
+
+  // ready state
+  const data = recordsFetchState.data;
+
+  return (
+    <section
+      aria-labelledby="records-summary-heading"
+      className="failures-findings__successes"
+    >
+      <h2
+        id="records-summary-heading"
+        className="failures-findings__taxonomy-heading failures-findings__successes-heading"
+      >
+        {RECORDS_SECTION_HEADING}
+      </h2>
+
+      {/* framing_note verbatim (AC6) — byte-identical to the CR-T4-published string */}
+      <p className="failures-findings__framing-note failures-findings__successes-framing">
+        {data.framing_note}
+      </p>
+
+      {/* Per-model table or zero-runs empty state (AC7, AC8) */}
+      {data.by_model.length === 0 ? (
+        /* Zero-runs first-class observation state (AC8, CR-T4 N3 carry-forward) */
+        <p className="failures-findings__empty failures-findings__successes-empty">
+          {RECORDS_EMPTY_OBSERVATION}
+        </p>
+      ) : (
+        /* Per-model table (AC7): rows in artifact order (lexicographic by model_id),
+           no client-side sorting, no sortable headers (AC16). */
+        <div className="failures-findings__successes-table-wrapper">
+          <table className="failures-findings__successes-table">
+            <caption className="sr-only">
+              {RECORDS_SECTION_HEADING}
+            </caption>
+            <thead>
+              <tr>
+                <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_MODEL}</th>
+                <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_PROVIDER}</th>
+                <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_RUNS}</th>
+                <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_QA_PASS}</th>
+                <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_VERSION}</th>
+              </tr>
+            </thead>
+            <tbody>
+              {data.by_model.map((row) => (
+                <tr key={row.model_id} className="failures-findings__successes-tr">
+                  <td className="failures-findings__successes-td">
+                    <code className="failures-findings__successes-code">{row.model_id}</code>
+                  </td>
+                  <td className="failures-findings__successes-td">
+                    <code className="failures-findings__successes-code">{row.provider}</code>
+                  </td>
+                  <td className="failures-findings__successes-td failures-findings__successes-td--num">
+                    {row.n_runs}
+                  </td>
+                  <td className="failures-findings__successes-td failures-findings__successes-td--num">
+                    {row.n_qa_passed}
+                  </td>
+                  <td className="failures-findings__successes-td">
+                    <code className="failures-findings__successes-code">{row.model_version_returned}</code>
+                  </td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+
+      {/* Link-out caption (AC12) — points to Data tab, no external links */}
+      <p className="failures-findings__successes-caption">
+        {RECORDS_LINK_OUT_CAPTION}
+      </p>
+    </section>
   );
 }
