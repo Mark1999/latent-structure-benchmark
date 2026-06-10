@@ -597,3 +597,268 @@
 ---
 
 *T7-T8 verdicts to be appended as subsequent tasks complete.*
+
+
+## CR-T7: per-record raw-exchange detail surface (gate artifacts, pre-implementation)
+
+**Status:** Plan gates complete; first Coder dispatch correctly STOP-CONDITIONED (gate artifacts had not reached it). This section persists the binding artifacts for the implementation dispatch.
+
+### CDA SME plan verdict: PASS-WITH-NOTES (N1-N8 binding)
+
+Full verdict and the eight binding notes: see the SME memory `​.claude/agent-memory/cda_sme/project_cr_t7_plan_verdict.md`. Resolutions: N1 = BLOCK_PILE_INTERVIEW_* naming; N2 = disposition (a), non-Optional step fields, no fallback string.
+
+### CDA SME bound strings (byte-identical, delivered 2026-06-10)
+
+The authoritative byte-identical strings for all 8 categories (_FRAMING_NOTE_DETAIL, RECORDS_DETAIL_FRAMING, RECORDS_DETAIL_EXPAND_LABEL, the three state strings, the nine BLOCK_* sub-labels, BLOCK_DETAIL_PROVENANCE + note, the DATA_DICTIONARY section 12.7 block) are in `​.claude/agent-memory/cda_sme/project_cr_t7_sme_bound_strings.md`. The Coder pastes from that file verbatim.
+
+### UI/UX plan verdict: PASS-WITH-NOTES (binding section 19.17 spec follows verbatim)
+
+UI/UX VERDICT: PASS-WITH-NOTES
+
+1. OWID design fidelity:      PASS
+2. 30-second journalist:      PASS
+3. Researcher cite path:      PASS
+4. WCAG AA:                   PASS
+
+DESIGN_SYSTEM.md update:      required
+(new §19.17 specified below; version bumped v0.19.5 to v0.19.6; changelog entry added)
+
+---
+
+CRITERION 1 -- OWID DESIGN FIDELITY: PASS
+
+The per-record detail surface is a record browser, not a data visualization. The OWID fidelity requirement (axes labeled with units, uncertainty visualized, no bare point estimates) applies to chart components. This surface has no chart elements. The plan correctly reuses `.failures-findings__pre` (max-height 320px, token-only, white-space: pre-wrap, word-break: break-word) from §19.7. No new color usage. No new tokens. All proposed CSS classes use only existing tokens verified against tokens.css. Pitfall 15 compliance is covered by AC-D12. PASS.
+
+CRITERION 2 -- 30-SECOND JOURNALIST TEST: PASS
+
+The expand affordance (per row of the existing per-model summary table, via a button in a new rightmost column) is immediately visible on a table that is already in the reader's field of view. The loading state communicates data-fetching. A cold reader can pivot from the per-model summary table to a raw exchange in two interactions: (1) locate the table row for a model, (2) click the expand button. Block labels (step section headings + BLOCK_PROMPT/BLOCK_RESPONSE/BLOCK_REASONING sub-labels) name each verbatim block. The provenance block provides the G7 researcher path. The navigation pattern decision (see NOTE-1 below) closes the one open question in the plan. PASS conditional on NOTE-1 being applied.
+
+CRITERION 3 -- RESEARCHER REPRODUCE-AND-CITE TEST: PASS
+
+AC-D9 requires all eight sha256_manifest keys visible as key: <code>value</code> and provider_request_id visible. AC-P1 includes PublishedRecordProvenance with sha256_manifest: dict[str, str]. The provenance block reuses the existing .failures-findings__provenance-list / .failures-findings__provenance-item / .failures-findings__provenance-item code pattern from failures.py's decline-interview provenance block. This closes audit gap G7 for the record-browser surface. The chart-side deep-link affordance (D4b) is correctly deferred to a follow-up cycle. PASS.
+
+CRITERION 4 -- WCAG AA: PASS
+
+Native <details>/<summary> cannot be placed as a direct child of <tr> in valid HTML (only <td> and <th> are valid <tr> children). The plan's AC-D3 defers the navigation pattern to UI/UX. The binding pattern specified in §19.17 below uses an expand <button aria-expanded> in a new rightmost <td>, revealing a sibling <tr className="failures-findings__detail-row"><td colSpan={N}>. This preserves valid table structure, is keyboard-accessible via Tab + Enter/Space, and satisfies WCAG 2.1.1. The <details>/<summary> pattern from §19.6 is not appropriate inside a <table> and is NOT used here. Mobile a11y: .failures-findings__pre already has white-space: pre-wrap + word-break: break-word which handles horizontal overflow for verbatim text without requiring overflow-x: auto on the pre element; no new CSS needed. Expand button minimum touch target: min-height 44px, min-width 44px per WCAG 2.5.5 (see §19.17 binding). PASS conditional on NOTE-1 through NOTE-5 being applied.
+
+---
+
+NOTES (all binding; Coder must apply before dispatch):
+
+NOTE-1 (BINDING, NAVIGATION PATTERN): The plan leaves the navigation pattern open ("UI/UX picks"). The binding decision is: add one expand <button aria-expanded="false"> in a new rightmost <th>/<td> column of the per-model summary table (§19.15). The expand button triggers a sibling <tr className="failures-findings__detail-row"> that spans all columns via <td colSpan={6}> (colSpan equals the column count). When collapsed, the detail row has display: none. When expanded, it displays with the lazy-fetched detail body inside it. This is the pattern specified in §19.17 below. Do NOT use native <details>/<summary> inside a <tr> -- that is invalid HTML. Do NOT create a separate per-record list outside the table.
+
+NOTE-2 (BINDING, TABLE COLUMN COUNT): The per-model summary table (§19.15) has 5 data columns (Model, Provider, Runs, QA-pass count, Model version returned). Adding the expand-button column makes 6 columns total. The detail row uses colSpan={6}. The screen-reader-only <caption> is already present (§19.15 binding). The new <th> for the expand column uses aria-label="Expand record details" and is visually empty (expand button renders inside the <td>, not the <th> text).
+
+NOTE-3 (BINDING, EXPAND BUTTON ACCESSIBLE NAME): The expand <button> inside each row uses aria-expanded={boolean} and aria-label derived from the informant_id field: aria-label={"Expand raw exchange for " + informantId}. When aria-expanded is true, the adjacent detail row is visible; when false, display: none. The button text may be a disclosure triangle glyph (▶ collapsed, ▼ expanded) or the text from RECORDS_DETAIL_EXPAND_LABEL (CDA SME N6 bound). Either is acceptable; the accessible name via aria-label is the binding requirement.
+
+NOTE-4 (BINDING, LAZY-FETCH ABORT): Each expand button owns one AbortController instantiated on first expand. The fetch fires on first click only; subsequent opens of the same row reuse the already-fetched data (no re-fetch on close/reopen). The AbortController is cancelled in the React cleanup function for that row's state. This matches AC-D4 semantics.
+
+NOTE-5 (BINDING, PRE HORIZONTAL OVERFLOW): .failures-findings__pre already has white-space: pre-wrap and word-break: break-word. These two rules together prevent horizontal overflow on verbatim content without requiring overflow-x: auto on the pre element. No additional CSS is needed for mobile horizontal overflow on <pre> blocks in this surface. The plan's AC-D13 ("UI/UX specifies horizontal scroll behavior") is resolved: the existing .failures-findings__pre handles it. Do NOT add overflow-x: auto or a new scroll container around the <pre> blocks.
+
+NOTE-6 (ADVISORY, SME NOTE N2 SCHEMA REALITY): The plan's PublishedStepExchange fields are typed str | None. The CDA SME note N2 binding requires reconciling this with cdb_core/schemas.py where FreelistRecord, PileSortRecord, and InterviewRecord have prompt_verbatim: str and response_verbatim: str as required (non-optional) fields. The Coder should apply SME N2 option (a): drop the | None typing on prompt_verbatim and response_verbatim in PublishedStepExchange (they are always populated for a successful InformantRecord). Retain thinking_verbatim: str | None because InformantRecord does not guarantee a thinking field exists. This is a publish-layer decision; no DESIGN_SYSTEM.md change required.
+
+NOTE-7 (ADVISORY): The plan names the step-level section constants as BLOCK_FREELIST_EXCHANGE, BLOCK_PILESORT_EXCHANGE, and BLOCK_PILE_INTERVIEW_EXCHANGE (incorporating CDA SME N1 rename). Within each step section, the sub-labels BLOCK_PROMPT, BLOCK_RESPONSE, and BLOCK_REASONING (existing constants from copy/failures_findings.ts) are reused verbatim for the prompt/response/thinking sub-blocks within that step. The Coder must NOT invent new sub-label constants for these -- use the existing ones.
+
+---
+
+DESIGN_SYSTEM.md UPDATE (version v0.19.5 to v0.19.6):
+
+The following §19.17 content is binding on the Coder. The Coder applies it as AC-D14, bumps the version header from v0.19.5 to v0.19.6, updates the closing line, and prepends the changelog entry below to the changelog block.
+
+CHANGELOG ENTRY TO PREPEND (before the existing v0.19.5 entry):
+
+- **v0.19.6** (Per-record raw-exchange detail surface, CR-T7, 2026-06-10) adds §19.17 specifying the per-record expand affordance on the successful-records summary table, the per-record detail body structure, the step-section layout, the provenance block, and mobile/accessibility rules. Navigation pattern decision: expand button in a new rightmost column of the §19.15 per-model table, revealing a sibling full-width detail row (colSpan={6}). New CSS classes in `failures-findings.css`: `.failures-findings__detail-row`, `.failures-findings__detail-cell`, `.failures-findings__expand-btn`, `.failures-findings__detail-step`, `.failures-findings__detail-step-heading`. No new tokens. Eight new vitest cases (33-40); case 9 extended over the expanded detail DOM. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T7 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T7 section).
+
+SECTION §19.17 CONTENT (insert before the "---" separator preceding §20):
+
+### 19.17 Per-record raw-exchange detail surface (binding, CR-T7, v0.19.6)
+
+The per-record detail surface adds an expand affordance to each row of the §19.15 per-model summary table. Expanding a row lazy-fetches `/data/records/{slug}/{informant_id}.json` and renders the three CDA step exchanges plus a provenance block.
+
+**Navigation pattern (binding NOTE-1):**
+
+The §19.15 per-model summary table gains one new column: an expand column to the right of the five existing data columns. Total column count: 6.
+
+- New `<th>` for the expand column: visually empty, `aria-label="Expand record details"`, class `.failures-findings__successes-th`.
+- New `<td>` in each data row: contains one `<button>` per informant row (see expand button spec below). Class `.failures-findings__successes-td`.
+- When expanded: a sibling `<tr className="failures-findings__detail-row">` follows the data row. It contains a single `<td className="failures-findings__detail-cell" colSpan={6}>`. When collapsed: `display: none` on the detail row.
+
+Do NOT use `<details>/<summary>` inside `<tr>`. That is invalid HTML structure.
+
+**Expand button spec (binding):**
+
+```tsx
+<button
+  className="failures-findings__expand-btn"
+  aria-expanded={isExpanded}
+  aria-label={`Expand raw exchange for ${informantId}`}
+  onClick={() => handleToggle(informantId)}
+>
+  {isExpanded ? '▼' : '▶'}
+</button>
+```
+
+CSS class `.failures-findings__expand-btn`:
+- `background: transparent`
+- `border: var(--border-width) solid var(--color-border)`
+- `border-radius: var(--border-radius-sm)`
+- `padding: var(--space-1) var(--space-2)`
+- `cursor: pointer`
+- `font-size: var(--font-size-xs)`
+- `color: var(--color-text-secondary)`
+- `min-height: 44px` (WCAG 2.5.5 touch target floor)
+- `min-width: 44px`
+- Focus ring: `outline: 2px solid var(--color-info); outline-offset: 2px` on `:focus-visible`
+
+**Detail row CSS (binding):**
+
+CSS class `.failures-findings__detail-row`: no additional styling beyond inherited table row rules. The collapsed state is controlled by `display: none` applied inline or via a CSS class toggle; use whichever pattern is consistent with the component's existing state management.
+
+CSS class `.failures-findings__detail-cell`:
+- `padding: var(--space-4)`
+- `background: var(--color-surface)`
+- `border-bottom: var(--border-width) solid var(--color-border)`
+
+**Lazy-fetch state machine (binding NOTE-4):**
+
+Each row has independent fetch state: `idle | loading | fetch-failed | malformed | ready`. Fetch fires on first expand click only; subsequent opens reuse cached data. One AbortController per row, cancelled in React cleanup.
+
+- `idle`: detail row not yet visible; no fetch initiated.
+- `loading`: detail row visible; renders `RECORDS_DETAIL_LOADING` as `<p className="failures-findings__status">`.
+- `fetch-failed`: detail row visible; renders `RECORDS_DETAIL_FETCH_FAILED` as `<p className="failures-findings__status">`.
+- `malformed`: detail row visible; renders `RECORDS_DETAIL_MALFORMED` as `<p className="failures-findings__status">`.
+- `ready`: detail row visible; renders the step exchanges and provenance block.
+
+**Detail body structure (binding):**
+
+Inside `.failures-findings__detail-cell`, when `ready`, content renders in this order:
+
+1. Free-list step section (if `freelist` is non-null in the detail JSON).
+2. Pile-sort step section (if `pile_sort` is non-null).
+3. Interview step section (if `interview` is non-null).
+4. Provenance block (always rendered when state is `ready`).
+
+When a top-level step is null (not present on this informant), that step's entire section is suppressed. Do NOT render an empty section or a "not available" placeholder. Absence is a first-class state (§19.9 posture carried forward).
+
+**Step section structure (binding CDA SME N4):**
+
+Each step section uses a two-level label structure. The outer level names the CDA step (using one of the three SME-bound constants: `BLOCK_FREELIST_EXCHANGE`, `BLOCK_PILESORT_EXCHANGE`, `BLOCK_PILE_INTERVIEW_EXCHANGE`). The inner level names each verbatim sub-block (using existing constants `BLOCK_PROMPT`, `BLOCK_RESPONSE`, `BLOCK_REASONING` -- the last only when `thinking_verbatim` is non-empty).
+
+```tsx
+<div className="failures-findings__detail-step">
+  <p className="failures-findings__detail-step-heading">
+    {BLOCK_FREELIST_EXCHANGE}  {/* or PILESORT or INTERVIEW */}
+  </p>
+  {/* Prompt sub-block */}
+  <p className="failures-findings__block-label">{BLOCK_PROMPT}</p>
+  <pre className="failures-findings__pre">{step.prompt_verbatim}</pre>
+  {/* Response sub-block */}
+  <p className="failures-findings__block-label">{BLOCK_RESPONSE}</p>
+  <pre className="failures-findings__pre">{step.response_verbatim}</pre>
+  {/* Reasoning sub-block -- only when thinking_verbatim is non-empty */}
+  {step.thinking_verbatim && (
+    <>
+      <p className="failures-findings__block-label">{BLOCK_REASONING}</p>
+      <pre className="failures-findings__pre">{step.thinking_verbatim}</pre>
+    </>
+  )}
+</div>
+```
+
+CSS class `.failures-findings__detail-step`:
+- `display: flex`
+- `flex-direction: column`
+- `gap: var(--space-2)`
+- `margin-bottom: var(--space-6)`
+
+CSS class `.failures-findings__detail-step-heading`:
+- `font-size: var(--font-size-sm)`
+- `font-weight: var(--font-weight-bold)`
+- `color: var(--color-text-primary)`
+- `line-height: var(--line-height-tight)`
+- `margin-bottom: var(--space-2)`
+
+Reuses `.failures-findings__block-label` (existing) for sub-block labels. Reuses `.failures-findings__pre` (existing, §19.7) for all `<pre>` blocks. No new tokens.
+
+**Pre horizontal overflow (binding NOTE-5):**
+
+`.failures-findings__pre` already has `white-space: pre-wrap` and `word-break: break-word`. These handle horizontal overflow for verbatim text. Do NOT add `overflow-x: auto` to these elements or wrap them in a separate horizontal scroll container. The existing 320px `max-height` with `overflow-y: auto` is the only scroll behavior on `<pre>` blocks.
+
+**Provenance block (binding):**
+
+Below the three step sections, a provenance block renders using the existing pattern from the decline-interview provenance block:
+
+```tsx
+<p className="failures-findings__block-label">{BLOCK_DETAIL_PROVENANCE}</p>
+<ul className="failures-findings__provenance-list">
+  <li className="failures-findings__provenance-item">
+    provider_request_id: <code>{provenance.provider_request_id ?? '(none)'}</code>
+  </li>
+  <li className="failures-findings__provenance-item">
+    model_id: <code>{provenance.model_id}</code>
+  </li>
+  <li className="failures-findings__provenance-item">
+    model_version_returned: <code>{provenance.model_version_returned}</code>
+  </li>
+  {/* One <li> per sha256_manifest key, eight total */}
+  {Object.entries(provenance.sha256_manifest).map(([key, val]) => (
+    <li key={key} className="failures-findings__provenance-item">
+      {key}: <code>{val}</code>
+    </li>
+  ))}
+</ul>
+```
+
+Reuses `.failures-findings__block-label`, `.failures-findings__provenance-list`, `.failures-findings__provenance-item`, `.failures-findings__provenance-item code` (all existing from §19). No new CSS classes required for the provenance block.
+
+**CSS summary -- new classes only (all token-only, no new tokens):**
+
+| Class | Rule summary |
+|---|---|
+| `.failures-findings__detail-row` | No new rules required (inherits table row behavior; collapsed via `display: none` toggle) |
+| `.failures-findings__detail-cell` | `padding: var(--space-4)`; `background: var(--color-surface)`; `border-bottom: var(--border-width) solid var(--color-border)` |
+| `.failures-findings__expand-btn` | See expand button spec above |
+| `.failures-findings__detail-step` | `display: flex; flex-direction: column; gap: var(--space-2); margin-bottom: var(--space-6)` |
+| `.failures-findings__detail-step-heading` | `font-size: var(--font-size-sm); font-weight: var(--font-weight-bold); color: var(--color-text-primary); line-height: var(--line-height-tight); margin-bottom: var(--space-2)` |
+
+All other rendering reuses existing classes. No new tokens introduced.
+
+**No new tokens (binding §19.11 posture):** All CSS rules use only tokens already defined in `tokens.css`. No new `--*` custom properties introduced by this section.
+
+**Accessible landmark:** The detail cell does not require its own `aria-labelledby` because its accessible name is provided by the expand button's `aria-label` (which names the informant_id). The detail row has no separate section landmark.
+
+**Chrome-isolation extension (binding):** Case 9 extension must walk the expanded detail DOM (excluding `<pre>` nodes per §19.13 convention) and confirm zero instances of: `worldview`, `believes`, `thinks`, `understands`, `cooperative` (outside counterfactual context), bare `refusal` in LSB chrome text. The CDA SME N5 affirmative zero-count assertions apply.
+
+**Vitest cases (binding):**
+- Case 33: byte-identity on all new SME-bound strings (RECORDS_DETAIL_EXPAND_LABEL, RECORDS_DETAIL_FRAMING, RECORDS_DETAIL_LOADING, RECORDS_DETAIL_FETCH_FAILED, RECORDS_DETAIL_MALFORMED, BLOCK_FREELIST_EXCHANGE, BLOCK_PILESORT_EXCHANGE, BLOCK_PILE_INTERVIEW_EXCHANGE, BLOCK_DETAIL_PROVENANCE).
+- Case 34: each row of the per-model summary table contains an expand button with aria-expanded="false" in initial state.
+- Case 35: clicking an expand button triggers a fetch to `/data/records/family/{informant_id}.json` (mocked fetch); ready-state DOM contains the three step-heading labels and all eight sha256_manifest keys rendered inside `<code>` elements.
+- Case 36: expand loading state renders RECORDS_DETAIL_LOADING byte-identical.
+- Case 37: expand fetch-failed state renders RECORDS_DETAIL_FETCH_FAILED byte-identical.
+- Case 38: expand malformed state renders RECORDS_DETAIL_MALFORMED byte-identical.
+- Case 39: a fixture record with `interview: null` does not render the interview step section heading or its sub-blocks; free-list and pile-sort sections are present.
+- Case 40: case 9 chrome-isolation extended over the expanded detail DOM (excluding `<pre>` nodes); affirmative zero-count assertions pass for all six forbidden substrings.
+
+---
+
+REQUIRED BEFORE MERGE (numbered):
+
+1. Apply NOTE-1: implement navigation pattern as expand button in new rightmost column plus sibling detail row (colSpan=6). Do NOT use <details>/<summary> inside <tr>.
+
+2. Apply NOTE-3: expand button aria-label is "Expand raw exchange for {informantId}" (dynamically set per row). aria-expanded={isExpanded} reflects current state.
+
+3. Apply NOTE-4: lazy-fetch AbortController per row; fetch fires only on first expand click; subsequent opens reuse cached data.
+
+4. Apply NOTE-5: no additional horizontal scroll CSS on <pre> blocks; .failures-findings__pre handles overflow via pre-wrap + break-word.
+
+5. Apply NOTE-7: sub-block labels (BLOCK_PROMPT, BLOCK_RESPONSE, BLOCK_REASONING) are the existing exported constants from copy/failures_findings.ts, not new constants.
+
+6. Apply AC-D14: add §19.17 to DESIGN_SYSTEM.md per the specification above. Bump version v0.19.5 to v0.19.6. Prepend the changelog entry specified above. Update the closing line version string from v0.19.5 to v0.19.6.
+
+7. Apply AC-D12: before committing, grep tokens.css to confirm every var(--...) reference in the five new CSS classes exists. All five classes use only existing tokens per the spec above; no new tokens required.
+
+8. Apply SME N1 rename: the interview step constant is BLOCK_PILE_INTERVIEW_EXCHANGE (not BLOCK_INTERVIEW_EXCHANGE), per CDA SME binding note N1.
+
+9. Confirm that the new <th> for the expand column is included in the colSpan count: colSpan must equal the total column count including the expand column (6 if the table has 5 data columns + 1 expand column).
+
+10. Verify that the DESIGN_SYSTEM.md closing line reads "*End of DESIGN_SYSTEM.md v0.19.6..." (not v0.19.5) after the update."
