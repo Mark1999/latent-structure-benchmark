@@ -1,5 +1,5 @@
 /**
- * ChartToolbar — unified compact toolbar for the Term Map VizTab.
+ * ChartToolbar: unified compact toolbar for the Term Map VizTab.
  *
  * Renders the four consolidated controls specified in DESIGN_SYSTEM.md §3.1.1(b)(ii):
  *   1. Overlay category names selector (select)
@@ -7,14 +7,14 @@
  *   3. Show cluster labels toggle (checkbox, default: checked/ON)
  *   4. Magnifying lens toggle (checkbox, default: unchecked/OFF)
  *
- * Aria-label strings are verbatim from §3.1.1(b)(ii) — do NOT reword.
+ * Aria-label strings are verbatim from §3.1.1(b)(ii); do NOT reword.
  * Visual chrome: background var(--color-surface), border-bottom 1px solid var(--color-border),
  * no top border, no box-shadow (DESIGN_SYSTEM.md v0.20.1, UI/UX gate TM-B).
  *
  * No internal state. All control values and change handlers are props.
  * Touch targets: min 44px height at <768px per WCAG 2.5.5 (enforced in chart-toolbar.css).
  *
- * Tokens used (all confirmed present in tokens.css — CLAUDE.md pitfall 15):
+ * Tokens used (all confirmed present in tokens.css, CLAUDE.md pitfall 15):
  *   --space-2, --space-4, --color-surface, --color-border, --color-text-primary,
  *   --font-body, --font-size-sm, --max-chart-width
  */
@@ -107,7 +107,7 @@ export function ChartToolbar({
         Show cluster labels
       </label>
 
-      {/* Magnifying lens toggle — disabled when zoomed in (Q2 LOCKED §17) */}
+      {/* Magnifying lens toggle: disabled when zoomed in (Q2 LOCKED §17) */}
       <label
         className={`chart-toolbar__checkbox-label${lensDisabledByZoom ? ' chart-toolbar__checkbox-label--disabled' : ''}`}
         title={lensDisabledByZoom ? 'Zoom out to 100% to use the magnifying lens' : 'Hover to magnify and separate crowded term labels'}
