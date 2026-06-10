@@ -289,3 +289,108 @@ export const RECORDS_FETCH_FAILED_TEXT =
  */
 export const RECORDS_MALFORMED_TEXT =
   "Records summary data for this domain could not be parsed.";
+
+// ===== Per-record detail surface (v0.20.1, CR-T7, 2026-06-10) =====
+// All strings below are byte-identical to the CDA SME bound strings in
+// .claude/agent-memory/cda_sme/project_cr_t7_sme_bound_strings.md.
+// Do NOT paraphrase. Byte-identity assertions in FailuresFindings.test.tsx
+// enforce this.
+// NOTE-7-SUPERSEDED-BY-N4: The nine BLOCK_FREELIST_*/BLOCK_PILESORT_*/
+// BLOCK_PILE_INTERVIEW_* constants below are the per-step sub-labels per
+// CDA SME N4 (parser-state register per step). Existing BLOCK_PROMPT,
+// BLOCK_RESPONSE, BLOCK_REASONING constants (from the follow-up surface,
+// failures_findings.ts) are scoped to the follow-up interview and are not
+// reused here. N4 cognition-attribution axis supersedes UI/UX NOTE-7
+// convenience axis. See docs/status/2026-06-10-collection-records-rework-verdicts.md
+// CR-T7 section and .claude/agent-memory/cda_sme/project_cr_t7_plan_verdict.md N4.
+
+/**
+ * In-page caption rendered above the expanded detail body.
+ * CDA SME-bound (byte-identical). Distinct from framing_note_detail (N8).
+ */
+export const RECORDS_DETAIL_FRAMING =
+  "The blocks below show the verbatim bytes exchanged for this collection session, step by step. " +
+  "Each of the three CDA elicitation steps (free list, pile sort, pile interview) is shown as the " +
+  "prompt LSB sent, the response the provider returned, and any reasoning trace the provider surfaced. " +
+  "These are LSB pipeline I/O records, not a window into model cognition.";
+
+/**
+ * Expand affordance button copy. CDA SME N6: no "answer", no quality-framed verb.
+ */
+export const RECORDS_DETAIL_EXPAND_LABEL = "Show parsed-step exchange";
+
+/** Loading state for the per-record detail fetch. */
+export const RECORDS_DETAIL_LOADING = "Loading per-record exchange…";
+
+/** Fetch-failed state for the per-record detail fetch. */
+export const RECORDS_DETAIL_FETCH_FAILED =
+  "Could not load the per-record exchange for this session. Check that the data file is present.";
+
+/** Malformed state for the per-record detail fetch. */
+export const RECORDS_DETAIL_MALFORMED =
+  "Per-record exchange data for this session could not be parsed.";
+
+// -- Step heading labels (CDA SME N1: PILE_INTERVIEW prefix avoids collision with follow-up surface) --
+
+/** Outer heading for the free-list step section. */
+export const BLOCK_FREELIST_EXCHANGE = "Free-list step";
+
+/** Outer heading for the pile-sort step section. */
+export const BLOCK_PILESORT_EXCHANGE = "Pile-sort step";
+
+/**
+ * Outer heading for the pile-interview step section.
+ * CDA SME N1 rename: "pile-interview" avoids collision with the follow-up
+ * "interview" record kind (DeclineInterview / BADGE_DECLINE).
+ */
+export const BLOCK_PILE_INTERVIEW_EXCHANGE = "Pile-interview step";
+
+// -- Free-list step sub-labels (CDA SME N4 / bound strings §5) --
+
+/** Free-list step: prompt sub-label. */
+export const BLOCK_FREELIST_PROMPT = "Free-list prompt LSB sent";
+
+/** Free-list step: response sub-label. */
+export const BLOCK_FREELIST_RESPONSE = "Provider response to the free-list prompt";
+
+/** Free-list step: reasoning trace sub-label. */
+export const BLOCK_FREELIST_REASONING =
+  "Reasoning trace the provider surfaced on the free-list step";
+
+// -- Pile-sort step sub-labels (CDA SME N4 / bound strings §5) --
+
+/** Pile-sort step: prompt sub-label. */
+export const BLOCK_PILESORT_PROMPT = "Pile-sort prompt LSB sent";
+
+/** Pile-sort step: response sub-label. */
+export const BLOCK_PILESORT_RESPONSE = "Provider response to the pile-sort prompt";
+
+/** Pile-sort step: reasoning trace sub-label. */
+export const BLOCK_PILESORT_REASONING =
+  "Reasoning trace the provider surfaced on the pile-sort step";
+
+// -- Pile-interview step sub-labels (CDA SME N1 rename + N4 / bound strings §5) --
+
+/** Pile-interview step: prompt sub-label. */
+export const BLOCK_PILE_INTERVIEW_PROMPT = "Pile-interview prompt LSB sent";
+
+/** Pile-interview step: response sub-label. */
+export const BLOCK_PILE_INTERVIEW_RESPONSE = "Provider response to the pile-interview prompt";
+
+/** Pile-interview step: reasoning trace sub-label. */
+export const BLOCK_PILE_INTERVIEW_REASONING =
+  "Reasoning trace the provider surfaced on the pile-interview step";
+
+// -- Provenance block labels (CDA SME bound strings §6) --
+
+/** Heading for the provenance block. */
+export const BLOCK_DETAIL_PROVENANCE = "Provenance and pipeline identifiers";
+
+/**
+ * Anti-attribution note rendered below the provenance heading.
+ * CDA SME-bound (byte-identical).
+ */
+export const BLOCK_DETAIL_PROVENANCE_NOTE =
+  "The identifiers below name the LSB collection session, the prompt-template version, " +
+  "and the provider-returned model-version string. They are properties of the LSB pipeline run, " +
+  "not of the model's intent.";

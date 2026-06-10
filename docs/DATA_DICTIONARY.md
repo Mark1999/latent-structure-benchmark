@@ -1508,6 +1508,14 @@ The `framing_note` text:
 
 ---
 
+### §12.7 Per-record detail JSON (CR-T7, 2026-06-10)
+
+Per-domain `data/records/{slug}/detail/{informant_id}.json` files expose the verbatim bytes exchanged on each of the three CDA elicitation steps (free list, pile sort, pile interview) for a single collection session. Each file holds three top-level step objects (`freelist`, `pile_sort`, `pile_interview`); each step object holds three sub-fields (`prompt_verbatim`, `response_verbatim`, `thinking_verbatim`) plus the provider-returned model-version string and the LSB-side prompt-template version. The three top-level step fields are non-Optional; the publish path produces them on every emitted record. The `thinking_verbatim` field may be the empty string when the provider did not surface a reasoning trace; an empty string is a first-class state, not a missing record.
+
+Per-record detail JSON exposes the verbatim bytes the LSB pipeline sent and the verbatim bytes the provider returned. The detail JSON is not a record of the model's reasoning, intent, or understanding; it is a transcript of the LSB collection step.
+
+---
+
 ---
 
 ## 13. Social publishing pipeline schemas (Phase 7 T1)

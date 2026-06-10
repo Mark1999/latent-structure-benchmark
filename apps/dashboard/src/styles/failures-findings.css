@@ -421,3 +421,56 @@
 .failures-findings__successes-status {
   margin-top: var(--space-8);
 }
+
+/* ==========================================================================
+   CR-T7: Per-record raw-exchange detail surface (§19.17, v0.20.1)
+   All rules use only tokens defined in tokens.css (Pitfall 15).
+   ========================================================================== */
+
+/* Detail row: no additional styling needed; collapsed via display:none toggle.
+   Inherited table row behavior is sufficient. */
+.failures-findings__detail-row {
+  /* collapsed/expanded state managed inline by React component */
+}
+
+/* Detail cell: full-width cell spanning all 6 columns of the summary table. */
+.failures-findings__detail-cell {
+  padding: var(--space-4);
+  background: var(--color-surface);
+  border-bottom: var(--border-width) solid var(--color-border);
+}
+
+/* Expand button: accessible touch target (44x44px per WCAG 2.5.5), keyboard focusable. */
+.failures-findings__expand-btn {
+  background: transparent;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-1) var(--space-2);
+  cursor: pointer;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-secondary);
+  min-height: 44px;
+  min-width: 44px;
+}
+
+.failures-findings__expand-btn:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+/* Detail step: container for one CDA elicitation step (free-list, pile-sort, pile-interview). */
+.failures-findings__detail-step {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  margin-bottom: var(--space-6);
+}
+
+/* Detail step heading: step name label above the sub-blocks. */
+.failures-findings__detail-step-heading {
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  margin-bottom: var(--space-2);
+}

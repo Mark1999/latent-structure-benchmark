@@ -9,13 +9,14 @@
  * Framing: these records are LSB pipeline output properties, not
  * claims about model intent or state-of-mind. See ARCHITECTURE.md §1.5.6.
  *
- * Design bindings: DESIGN_SYSTEM.md §19 (v0.19.5).
+ * Design bindings: DESIGN_SYSTEM.md §19 (v0.20.1).
  * CDA SME: Phase 9a T1 verdict (2026-06-08), M1-M4 applied;
  *           CR-T1 (2026-06-10); CR-T2 (2026-06-10); CR-T3 (2026-06-10);
  *           CR-T5 (2026-06-10), N1-N6 applied;
- *           CR-T6 (2026-06-10), N1-N10 applied.
+ *           CR-T6 (2026-06-10), N1-N10 applied;
+ *           CR-T7 (2026-06-10), N1-N8 applied.
  * UI/UX: Phase 9a T1 verdict (2026-06-08), N1-N7 applied;
- *         CR-T1 through CR-T6 verdicts (2026-06-10) applied.
+ *         CR-T1 through CR-T7 verdicts (2026-06-10) applied.
  *
  * NO Explore chrome: no chart-lede, no Smith's S, no SelectionBar,
  * no VizTabs, no consensus strings (M4 / N7).
@@ -28,7 +29,10 @@ import type {
   FailureRecord,
   DeclineInterviewRecord,
   RecordsSummaryFile,
+  RecordsModelRow,
+  PublishedRecordDetail,
 } from '../data/types';
+import { isPublishedRecordDetail } from '../data/types';
 import {
   IMPACT_PARAGRAPH_FAILURES,
   IMPACT_PARAGRAPH_FOLLOWUPS,
@@ -58,6 +62,25 @@ import {
   RECORDS_LOADING_TEXT,
   RECORDS_FETCH_FAILED_TEXT,
   RECORDS_MALFORMED_TEXT,
+  RECORDS_DETAIL_FRAMING,
+  RECORDS_DETAIL_EXPAND_LABEL,
+  RECORDS_DETAIL_LOADING,
+  RECORDS_DETAIL_FETCH_FAILED,
+  RECORDS_DETAIL_MALFORMED,
+  BLOCK_FREELIST_EXCHANGE,
+  BLOCK_FREELIST_PROMPT,
+  BLOCK_FREELIST_RESPONSE,
+  BLOCK_FREELIST_REASONING,
+  BLOCK_PILESORT_EXCHANGE,
+  BLOCK_PILESORT_PROMPT,
+  BLOCK_PILESORT_RESPONSE,
+  BLOCK_PILESORT_REASONING,
+  BLOCK_PILE_INTERVIEW_EXCHANGE,
+  BLOCK_PILE_INTERVIEW_PROMPT,
+  BLOCK_PILE_INTERVIEW_RESPONSE,
+  BLOCK_PILE_INTERVIEW_REASONING,
+  BLOCK_DETAIL_PROVENANCE,
+  BLOCK_DETAIL_PROVENANCE_NOTE,
 } from '../copy/failures_findings';
 import '../styles/failures-findings.css';
 
@@ -519,25 +542,131 @@ export function FailuresFindings() {
       {/* Records summary section (CR-T5, v0.19.4): independent of failures side (AC3).
           Placement: below the failures/decline-interviews list (or below EMPTY_CAPTION
           when n_records === 0). See DESIGN_SYSTEM.md §19.15. */}
-      <RecordsSummarySection recordsFetchState={recordsFetchState} />
+      <RecordsSummarySection recordsFetchState={recordsFetchState} domainSlug={domain} />
 
       {/* idle state renders nothing (initial state before first fetch resolves) */}
     </div>
   );
 }
 
-// ===== Records summary section component (CR-T5) =====
+// ===== Per-record detail fetch state and component (CR-T7) =====
+
+/** Lazy-fetch state for a single per-record detail row (NOTE-4 / §19.17). */
+type DetailFetchState =
+  | { kind: 'idle' }
+  | { kind: 'loading' }
+  | { kind: 'fetch-failed' }
+  | { kind: 'malformed' }
+  | { kind: 'ready'; data: PublishedRecordDetail };
+
+/**
+ * Step constants mapping for the three CDA steps.
+ * exchange: outer step heading label (BLOCK_*_EXCHANGE, CDA SME N1).
+ * prompt/response/reasoning: inner sub-block labels (N4 per-step register).
+ */
+const STEP_CONFIG = [
+  {
+    key: 'freelist' as const,
+    exchange: BLOCK_FREELIST_EXCHANGE,
+    prompt: BLOCK_FREELIST_PROMPT,
+    response: BLOCK_FREELIST_RESPONSE,
+    reasoning: BLOCK_FREELIST_REASONING,
+  },
+  {
+    key: 'pile_sort' as const,
+    exchange: BLOCK_PILESORT_EXCHANGE,
+    prompt: BLOCK_PILESORT_PROMPT,
+    response: BLOCK_PILESORT_RESPONSE,
+    reasoning: BLOCK_PILESORT_REASONING,
+  },
+  {
+    key: 'pile_interview' as const,
+    exchange: BLOCK_PILE_INTERVIEW_EXCHANGE,
+    prompt: BLOCK_PILE_INTERVIEW_PROMPT,
+    response: BLOCK_PILE_INTERVIEW_RESPONSE,
+    reasoning: BLOCK_PILE_INTERVIEW_REASONING,
+  },
+] as const;
+
+interface RecordDetailBodyProps {
+  detail: PublishedRecordDetail;
+}
+
+/**
+ * Renders the full per-record detail body: RECORDS_DETAIL_FRAMING caption,
+ * three CDA step sections with sub-block labels, and the provenance block.
+ * Per §19.17 binding detail body structure.
+ */
+function RecordDetailBody({ detail }: RecordDetailBodyProps) {
+  return (
+    <div>
+      {/* In-page caption (RECORDS_DETAIL_FRAMING, SME-bound) */}
+      <p className="failures-findings__framing-note">{RECORDS_DETAIL_FRAMING}</p>
+
+      {/* Three CDA step sections (§19.17 step section structure) */}
+      {STEP_CONFIG.map(({ key, exchange, prompt, response, reasoning }) => {
+        const step = detail[key];
+        if (!step) return null;
+        return (
+          <div key={key} className="failures-findings__detail-step">
+            {/* Outer step heading (BLOCK_*_EXCHANGE, CDA SME N1 naming) */}
+            <p className="failures-findings__detail-step-heading">
+              {exchange}
+            </p>
+            {/* Prompt sub-block */}
+            <p className="failures-findings__block-label">{prompt}</p>
+            <pre className="failures-findings__pre">{step.prompt_verbatim}</pre>
+            {/* Response sub-block */}
+            <p className="failures-findings__block-label">{response}</p>
+            <pre className="failures-findings__pre">{step.response_verbatim}</pre>
+            {/* Reasoning sub-block: only when thinking_verbatim is non-empty */}
+            {step.thinking_verbatim && (
+              <>
+                <p className="failures-findings__block-label">{reasoning}</p>
+                <pre className="failures-findings__pre">{step.thinking_verbatim}</pre>
+              </>
+            )}
+          </div>
+        );
+      })}
+
+      {/* Provenance block (§19.17 provenance block) */}
+      <p className="failures-findings__block-label">{BLOCK_DETAIL_PROVENANCE}</p>
+      <p className="failures-findings__framing-note">{BLOCK_DETAIL_PROVENANCE_NOTE}</p>
+      <ul className="failures-findings__provenance-list">
+        <li className="failures-findings__provenance-item">
+          provider_request_id: <code>{detail.provenance.provider_request_id || '(none)'}</code>
+        </li>
+        <li className="failures-findings__provenance-item">
+          model_id: <code>{detail.provenance.model_id}</code>
+        </li>
+        <li className="failures-findings__provenance-item">
+          model_version_returned: <code>{detail.provenance.model_version_returned}</code>
+        </li>
+        {Object.entries(detail.provenance.sha256_manifest).map(([key, val]) => (
+          <li key={key} className="failures-findings__provenance-item">
+            {key}: <code>{val}</code>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
+// ===== Records summary section component (CR-T5, extended CR-T7) =====
 
 interface RecordsSummarySectionProps {
   recordsFetchState: RecordsFetchState;
+  domainSlug: string;
 }
 
 /**
  * Renders the per-model summary of parsed primary-step responses.
  * Independent of the failures side fetch state (AC3, AC5).
  * Section structure mirrors §19.14 taxonomy block pattern (AC5, §19.15).
+ * CR-T7: adds expand column + per-row detail surface (§19.17).
  */
-function RecordsSummarySection({ recordsFetchState }: RecordsSummarySectionProps) {
+function RecordsSummarySection({ recordsFetchState, domainSlug }: RecordsSummarySectionProps) {
   if (recordsFetchState.kind === 'loading') {
     return (
       <p className="failures-findings__status failures-findings__successes-status">
@@ -594,7 +723,8 @@ function RecordsSummarySection({ recordsFetchState }: RecordsSummarySectionProps
         </p>
       ) : (
         /* Per-model table (AC7): rows in artifact order (lexicographic by model_id),
-           no client-side sorting, no sortable headers (AC16). */
+           no client-side sorting, no sortable headers (AC16).
+           CR-T7: 6 columns total (5 data + 1 expand). colSpan on detail row = 6. */
         <div className="failures-findings__successes-table-wrapper">
           <table className="failures-findings__successes-table">
             <caption className="sr-only">
@@ -607,27 +737,22 @@ function RecordsSummarySection({ recordsFetchState }: RecordsSummarySectionProps
                 <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_RUNS}</th>
                 <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_QA_PASS}</th>
                 <th scope="col" className="failures-findings__successes-th">{RECORDS_COL_VERSION}</th>
+                {/* Expand column (NOTE-2 / §19.17): visually empty, accessible name via aria-label */}
+                <th
+                  scope="col"
+                  className="failures-findings__successes-th"
+                  aria-label="Expand record details"
+                />
               </tr>
             </thead>
             <tbody>
               {data.by_model.map((row) => (
-                <tr key={row.model_id} className="failures-findings__successes-tr">
-                  <td className="failures-findings__successes-td">
-                    <code className="failures-findings__successes-code">{row.model_id}</code>
-                  </td>
-                  <td className="failures-findings__successes-td">
-                    <code className="failures-findings__successes-code">{row.provider}</code>
-                  </td>
-                  <td className="failures-findings__successes-td failures-findings__successes-td--num">
-                    {row.n_runs}
-                  </td>
-                  <td className="failures-findings__successes-td failures-findings__successes-td--num">
-                    {row.n_qa_passed}
-                  </td>
-                  <td className="failures-findings__successes-td">
-                    <code className="failures-findings__successes-code">{row.model_version_returned}</code>
-                  </td>
-                </tr>
+                // Fragment key on model_id -- each row expands to two <tr> elements.
+                <ExpandableModelRow
+                  key={row.model_id}
+                  row={row}
+                  domainSlug={domainSlug}
+                />
               ))}
             </tbody>
           </table>
@@ -639,5 +764,128 @@ function RecordsSummarySection({ recordsFetchState }: RecordsSummarySectionProps
         {RECORDS_LINK_OUT_CAPTION}
       </p>
     </section>
+  );
+}
+
+/** Props for an expandable model data row + its sibling detail row. */
+interface ExpandableModelRowProps {
+  row: RecordsModelRow;
+  domainSlug: string;
+}
+
+/**
+ * Renders one data <tr> with five data cells and one expand button cell,
+ * plus a sibling detail <tr> (colSpan={6}). The two <tr> elements are wrapped
+ * in a React Fragment keyed on model_id. Fetch state is managed inline per
+ * NOTE-4 / §19.17 lazy-fetch spec.
+ */
+function ExpandableModelRow({ row, domainSlug }: ExpandableModelRowProps) {
+
+  const [isExpanded, setIsExpanded] = useState(false);
+  const [detailState, setDetailState] = useState<DetailFetchState>({ kind: 'idle' });
+  const cachedDataRef = useRef<PublishedRecordDetail | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  useEffect(() => {
+    return () => {
+      abortRef.current?.abort();
+    };
+  }, []);
+
+  function handleToggle() {
+    const next = !isExpanded;
+    setIsExpanded(next);
+
+    if (next) {
+      if (cachedDataRef.current !== null) {
+        setDetailState({ kind: 'ready', data: cachedDataRef.current });
+        return;
+      }
+
+      abortRef.current?.abort();
+      const controller = new AbortController();
+      abortRef.current = controller;
+
+      setDetailState({ kind: 'loading' });
+
+      const url = `/data/records/${domainSlug}/detail/${row.model_id}.json`;
+      fetch(url, { signal: controller.signal })
+        .then(async (resp) => {
+          if (!resp.ok) {
+            setDetailState({ kind: 'fetch-failed' });
+            return;
+          }
+          try {
+            const raw: unknown = await resp.json();
+            if (!isPublishedRecordDetail(raw)) {
+              setDetailState({ kind: 'malformed' });
+            } else {
+              cachedDataRef.current = raw;
+              setDetailState({ kind: 'ready', data: raw });
+            }
+          } catch {
+            setDetailState({ kind: 'fetch-failed' });
+          }
+        })
+        .catch((err: unknown) => {
+          if (err instanceof Error && err.name === 'AbortError') return;
+          setDetailState({ kind: 'fetch-failed' });
+        });
+    }
+  }
+
+  return (
+    <>
+      {/* Data row with 5 data cells + expand button cell (6th) */}
+      <tr className="failures-findings__successes-tr">
+        <td className="failures-findings__successes-td">
+          <code className="failures-findings__successes-code">{row.model_id}</code>
+        </td>
+        <td className="failures-findings__successes-td">
+          <code className="failures-findings__successes-code">{row.provider}</code>
+        </td>
+        <td className="failures-findings__successes-td failures-findings__successes-td--num">
+          {row.n_runs}
+        </td>
+        <td className="failures-findings__successes-td failures-findings__successes-td--num">
+          {row.n_qa_passed}
+        </td>
+        <td className="failures-findings__successes-td">
+          <code className="failures-findings__successes-code">{row.model_version_returned}</code>
+        </td>
+        {/* Expand button cell (6th column, NOTE-1 / §19.17) */}
+        <td className="failures-findings__successes-td">
+          <button
+            className="failures-findings__expand-btn"
+            aria-expanded={isExpanded}
+            aria-label={`Expand raw exchange for ${row.model_id}`}
+            title={RECORDS_DETAIL_EXPAND_LABEL}
+            onClick={handleToggle}
+          >
+            {isExpanded ? '▼' : '▶'}
+          </button>
+        </td>
+      </tr>
+      {/* Sibling detail row (NOTE-1 / §19.17): display:none when collapsed */}
+      <tr
+        className="failures-findings__detail-row"
+        style={{ display: isExpanded ? undefined : 'none' }}
+      >
+        <td className="failures-findings__detail-cell" colSpan={6}>
+          {detailState.kind === 'loading' && (
+            <p className="failures-findings__status">{RECORDS_DETAIL_LOADING}</p>
+          )}
+          {detailState.kind === 'fetch-failed' && (
+            <p className="failures-findings__status">{RECORDS_DETAIL_FETCH_FAILED}</p>
+          )}
+          {detailState.kind === 'malformed' && (
+            <p className="failures-findings__status">{RECORDS_DETAIL_MALFORMED}</p>
+          )}
+          {detailState.kind === 'ready' && (
+            <RecordDetailBody detail={detailState.data} />
+          )}
+        </td>
+      </tr>
+    </>
   );
 }

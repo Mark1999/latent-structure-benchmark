@@ -39,7 +39,7 @@ from cdb_publish.derived import TOP_TERMS_METRIC, r1_state_for, top_freelist_ter
 from cdb_publish.failures import build_failures
 from cdb_publish.lede import generate_lede
 from cdb_publish.schemas.manifest import Manifest, ManifestDomain
-from cdb_publish.successes import build_successes
+from cdb_publish.successes import build_record_details, build_successes
 
 logger = logging.getLogger(__name__)
 
@@ -367,6 +367,15 @@ def build(
     # "Successful" means the LSB pipeline parsed a primary-step response,
     # not a quality judgment on the model output.
     records_map = build_successes(
+        raw_informants_path=raw_informants_path,
+        output_dir=output_dir / "records",
+        domain_slugs=domain_slugs,
+    )
+
+    # Build per-record detail JSON files (CR-T7): verbatim bytes for all
+    # three CDA elicitation steps per informant record.
+    # Emits {output_dir}/records/{slug}/detail/{informant_id}.json.
+    build_record_details(
         raw_informants_path=raw_informants_path,
         output_dir=output_dir / "records",
         domain_slugs=domain_slugs,

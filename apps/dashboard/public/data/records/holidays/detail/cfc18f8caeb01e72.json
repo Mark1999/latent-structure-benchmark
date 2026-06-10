@@ -1,0 +1,44 @@
+{
+  "informant_id": "cfc18f8caeb01e72",
+  "framing_note_detail": "This record exposes the verbatim bytes the LSB pipeline sent and the verbatim bytes the provider returned for a single collection session. A session has three elicitation steps: a free-list step (LSB asks the model to list items in the domain), a pile-sort step (LSB asks the model to group its own free-list items into piles), and a pile-interview step (LSB asks the model to explain the criteria it used for the pile-sort grouping). Each step is shown below as three sub-blocks: what LSB sent, what the provider returned, and any reasoning trace the provider surfaced. This record is not a transcript of the model's reasoning, intent, or understanding; it is a transcript of the LSB collection step.",
+  "freelist": {
+    "prompt_verbatim": "We are conducting a study on how people categorize concepts. Your task is\nto name every holiday, festive day, or religious observance that comes to mind. Be thorough \u2014 keep going\nuntil you truly cannot think of any more. Output a numbered list with one\nentry per line. Do not provide descriptions or organize them into groups.\nYou may list up to 200.\n",
+    "response_verbatim": "1. New Year's Day\n2. Epiphany\n3. Lunar New Year\n4. Candlemas\n5. Valentine's Day\n6. Mardi Gras / Fat Tuesday\n7. Ash Wednesday\n8. Purim\n9. Holi\n10. Nowruz\n11. Palm Sunday\n12. Holy Thursday\n13. Good Friday\n14. Holy Saturday\n15. Easter Sunday\n16. Easter Monday\n17. Passover\n18. Ramadan\n19. Eid al-Fitr\n20. Vesak\n21. Pentecost\n22. Corpus Christi\n23. Assumption of Mary\n24. Raksha Bandhan\n25. Ganesh Chaturthi\n26. Mid-Autumn Festival\n27. Diwali\n28. All Saints' Day\n29. All Souls' Day\n30. Bonfire Night\n31. Veterans Day\n32. Thanksgiving\n33. St. Andrew's Day\n34. St. Nicholas Day\n35. Immaculate Conception\n36. Las Posadas\n37. St. Lucia's Day\n38. Winter Solstice\n39. Hanukkah\n40. Kwanzaa\n41. Boxing Day\n42. Three Kings' Day (Epiphany)\n43. Groundhog Day\n44. Valentine's Day\n45. Shrove Tuesday\n46. Flag Day\n47. Bastille Day\n48. Obon\n49. Rosh Hashanah\n50. Yom Kippur\n51. Sukkot\n52. Simchat Torah\n53. Dussehra\n54. Durga Puja\n55. Mother's Day\n56. Father's Day\n57. Independence Day (US)\n58. Bastille Day (France)\n59. Canada Day\n60. Bastille Day (France)\n61. Independence Day (India)\n62. Australia Day\n63. ANZAC Day\n64. Waitangi Day\n65. Bastille Day (France)\n66. National Day (China)\n67. Liberation Day (Netherlands)\n68. Bastille Day (France)\n69. Bastille Day (France)\n70. Bastille Day (France)\n71. Bastille Day (France)\n72. Bastille Day (France)\n73. Bastille",
+    "thinking_verbatim": "",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "prompt_version": "v1_s2"
+  },
+  "pile_sort": {
+    "prompt_verbatim": "The following 65 items were generated in a listing task about holiday, festive day, or religious observance:\n\n- new year's day\n- epiphany\n- lunar new year\n- candlemas\n- valentine's day\n- mardi gras / fat tuesday\n- ash wednesday\n- purim\n- holi\n- nowruz\n- palm sunday\n- holy thursday\n- good friday\n- holy saturday\n- easter sunday\n- easter monday\n- passover\n- ramadan\n- eid al-fitr\n- vesak\n- pentecost\n- corpus christi\n- assumption of mary\n- raksha bandhan\n- ganesh chaturthi\n- mid-autumn festival\n- diwali\n- all saints' day\n- all souls' day\n- bonfire night\n- veterans day\n- thanksgiving\n- st. andrew's day\n- st. nicholas day\n- immaculate conception\n- las posadas\n- st. lucia's day\n- winter solstice\n- hanukkah\n- kwanzaa\n- boxing day\n- three kings' day (epiphany)\n- groundhog day\n- shrove tuesday\n- flag day\n- bastille day\n- obon\n- rosh hashanah\n- yom kippur\n- sukkot\n- simchat torah\n- dussehra\n- durga puja\n- mother's day\n- father's day\n- independence day (us)\n- bastille day (france)\n- canada day\n- independence day (india)\n- australia day\n- anzac day\n- waitangi day\n- national day (china)\n- liberation day (netherlands)\n- bastille\n\nPlease organize them into groups of similar items. The number of groups is\nup to you. Every single item must be placed in one group \u2014 none should be\nleft unassigned.\n\nProvide your response as valid JSON in exactly this structure:\n{\"piles\": [[\"item1\", \"item2\"], [\"item3\", \"item4\", \"item5\"], ...]}\n",
+    "response_verbatim": "```json\n{\n  \"piles\": [\n    [\"new year's day\", \"lunar new year\", \"nowruz\", \"winter solstice\", \"three kings' day (epiphany)\", \"groundhog day\"],\n    [\"epiphany\", \"candlemas\", \"ash wednesday\", \"palm sunday\", \"holy thursday\", \"good friday\", \"holy saturday\", \"easter sunday\", \"easter monday\", \"pentecost\", \"corpus christi\", \"assumption of mary\", \"immaculate conception\"],\n    [\"valentine's day\", \"mother's day\", \"father's day\"],\n    [\"mardi gras / fat tuesday\", \"shrove tuesday\"],\n    [\"purim\", \"passover\", \"ramadan\", \"eid al-fitr\", \"vesak\", \"raksha bandhan\", \"ganesh chaturthi\", \"diwali\", \"all saints' day\", \"all souls' day\", \"hanukkah\", \"rosh hashanah\", \"yom kippur\", \"sukkot\", \"simchat torah\", \"dussehra\", \"durga puja\", \"obon\"],\n    [\"nowruz\", \"holi\", \"mid-autumn festival\", \"st. nicholas day\", \"las posadas\", \"st. lucia's day\"],\n    [\"thanksgiving\", \"veterans day\", \"independence day (us)\", \"bastille day\", \"bastille day (france)\", \"canada day\", \"independence day (india)\", \"australia day\", \"anzac day\", \"waitangi day\", \"national day (china)\", \"liberation day (netherlands)\"],\n    [\"bonfire night\", \"st. andrew's day\", \"flag day\", \"boxing day\"],\n    [\"kwanzaa\"]\n  ]\n}\n```",
+    "thinking_verbatim": "",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "prompt_version": "v1_s2"
+  },
+  "pile_interview": {
+    "prompt_verbatim": "You previously sorted items into the following groups. For each group,\nprovide a short label (2-5 words) that describes the organizing principle\n\u2014 what the items in that group have in common.\n\nGroup 1: new year's day, lunar new year, nowruz, winter solstice, three kings' day (epiphany), groundhog day\nGroup 2: epiphany, candlemas, ash wednesday, palm sunday, holy thursday, good friday, holy saturday, easter sunday, easter monday, pentecost, corpus christi, assumption of mary, immaculate conception\nGroup 3: valentine's day, mother's day, father's day\nGroup 4: mardi gras / fat tuesday, shrove tuesday\nGroup 5: purim, passover, ramadan, eid al-fitr, vesak, raksha bandhan, ganesh chaturthi, diwali, all saints' day, all souls' day, hanukkah, rosh hashanah, yom kippur, sukkot, simchat torah, dussehra, durga puja, obon\nGroup 6: holi, mid-autumn festival, st. nicholas day, las posadas, st. lucia's day\nGroup 7: thanksgiving, veterans day, independence day (us), bastille day, bastille day (france), canada day, independence day (india), australia day, anzac day, waitangi day, national day (china), liberation day (netherlands)\nGroup 8: bonfire night, st. andrew's day, flag day, boxing day\nGroup 9: kwanzaa\n\nRespond with one label per group, numbered to match the groups above.\n",
+    "response_verbatim": "1. **Seasonal and cultural new year celebrations**\n2. **Christian liturgical calendar holidays**\n3. **Family and relationship appreciation days**\n4. **Pre-Lenten celebration days**\n5. **Major religious and cultural festivals**\n6. **Seasonal and folk celebrations**\n7. **National and patriotic holidays**\n8. **Regional and lesser-known observances**\n9. **Cultural heritage celebration**",
+    "thinking_verbatim": "",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "prompt_version": "v1_s2"
+  },
+  "provenance": {
+    "provider_request_id": "gen-1778272236-h2shiiEomFTht5ebwglw",
+    "model_id": "mistralai/mistral-small-2603",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "provider": "openrouter",
+    "domain_slug": "holidays",
+    "run_index": 0,
+    "collection_date": "2026-05-08T20:30:49.414428",
+    "sha256_manifest": {
+      "freelist_prompt": "5f87d9e971f886d3c5408d50f634eb3e3fb956c3100b0a6598ad963920e04271",
+      "freelist_response": "9071137065818e1f0d397a7d10bda2b1feb0566cfea7e54096012a58b8e45671",
+      "pilesort_prompt": "86b9d910bca7a5eb49bbcbea3d0c0b316f06c3af752fe0c46d24ef43931a34c3",
+      "pilesort_response": "01343c3faca2e4a0502fb1dd2e3255ed3840622078089062517a9af88b54b4a6",
+      "interview_prompt": "ab9c9781289f23fd25edff8171040d794b85685b3d5893ac843d2ebb29c9a20e",
+      "interview_response": "17afefda0203a3d338e1475d717ad79b0e8312798191886e9fc19cb2da16368c",
+      "request_params": "04fb8c7f250133c039fca957af872a1c690f585dfef5440dd77b06921281e06f",
+      "informant_record_total": "d87a8ae4e15243a44f8e8a602234c67a2503844145e96613703ab0c2697b18f2"
+    }
+  }
+}

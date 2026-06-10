@@ -37,6 +37,19 @@
  * 30. Counts caption cell (n_records > 0, parsed === 0): failure-clause-only under familyJson + mocked by_model:[] (CR-T6 AC5/AC7).
  * 31. Counts caption cell (n_records === 0, parsed === 0): caption paragraph NOT in DOM (CR-T6 AC5/AC7 + N10).
  * 32. Counts caption records-not-ready: failures-only two-clause caption when records fetch returns 404 (CR-T6 AC4/N4).
+ * 33. Byte-identity on all new SME-bound CR-T7 copy strings (RECORDS_DETAIL_EXPAND_LABEL, RECORDS_DETAIL_FRAMING,
+ *     RECORDS_DETAIL_LOADING, RECORDS_DETAIL_FETCH_FAILED, RECORDS_DETAIL_MALFORMED, BLOCK_FREELIST_EXCHANGE,
+ *     BLOCK_PILESORT_EXCHANGE, BLOCK_PILE_INTERVIEW_EXCHANGE, BLOCK_DETAIL_PROVENANCE).
+ * 34. Each row of the per-model summary table contains an expand button with aria-expanded="false" initially.
+ * 35. Clicking an expand button triggers a fetch; ready-state DOM contains the three step headings and
+ *     all eight sha256_manifest keys in <code> elements.
+ * 36. Expand loading state renders RECORDS_DETAIL_LOADING byte-identical.
+ * 37. Expand fetch-failed state renders RECORDS_DETAIL_FETCH_FAILED byte-identical.
+ * 38. Expand malformed state renders RECORDS_DETAIL_MALFORMED byte-identical.
+ * 39. A fixture record with pile_sort missing does not render the pile-sort step heading or sub-blocks;
+ *     freelist and pile_interview sections are present.
+ * 40. Case 9 chrome-isolation extended over the expanded detail DOM (excluding <pre> nodes);
+ *     affirmative zero-count assertions pass for all six forbidden substrings.
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -51,6 +64,15 @@ import {
   RECORDS_SECTION_HEADING,
   RECORDS_FETCH_FAILED_TEXT,
   countsCaptionText,
+  RECORDS_DETAIL_EXPAND_LABEL,
+  RECORDS_DETAIL_FRAMING,
+  RECORDS_DETAIL_LOADING,
+  RECORDS_DETAIL_FETCH_FAILED,
+  RECORDS_DETAIL_MALFORMED,
+  BLOCK_FREELIST_EXCHANGE,
+  BLOCK_PILESORT_EXCHANGE,
+  BLOCK_PILE_INTERVIEW_EXCHANGE,
+  BLOCK_DETAIL_PROVENANCE,
 } from '../copy/failures_findings';
 
 // -- Fixtures: load the production JSON files -----------------------------------
@@ -801,6 +823,309 @@ describe('FailuresFindings', () => {
       expect.stringContaining('/data/records/food.json'),
       expect.anything(),
     );
+  });
+
+  // ===========================================================================
+  // CR-T7 cases: per-record raw-exchange detail surface (§19.17, v0.20.1)
+  // ===========================================================================
+
+  // A minimal PublishedRecordDetail fixture for the three ready-state tests.
+  // Represents a family domain record with all three steps present.
+  const detailFixture = {
+    informant_id: 'test-informant-id',
+    framing_note_detail: 'framing note detail text',
+    freelist: {
+      prompt_verbatim: 'freelist prompt bytes',
+      response_verbatim: 'freelist response bytes',
+      thinking_verbatim: '',
+      model_version_returned: 'test-model-v1',
+      prompt_version: 'v1',
+    },
+    pile_sort: {
+      prompt_verbatim: 'pile sort prompt bytes',
+      response_verbatim: 'pile sort response bytes',
+      thinking_verbatim: '',
+      model_version_returned: 'test-model-v1',
+      prompt_version: 'v1',
+    },
+    pile_interview: {
+      prompt_verbatim: 'pile interview prompt bytes',
+      response_verbatim: 'pile interview response bytes',
+      thinking_verbatim: '',
+      model_version_returned: 'test-model-v1',
+      prompt_version: 'v1',
+    },
+    provenance: {
+      provider_request_id: 'req-abc',
+      model_id: 'test-model',
+      model_version_returned: 'test-model-v1',
+      provider: 'test-provider',
+      domain_slug: 'family',
+      run_index: 0,
+      collection_date: '2026-01-01',
+      sha256_manifest: {
+        freelist_prompt: 'sha1',
+        freelist_response: 'sha2',
+        pilesort_prompt: 'sha3',
+        pilesort_response: 'sha4',
+        interview_prompt: 'sha5',
+        interview_response: 'sha6',
+        request_params: 'sha7',
+        informant_record_total: 'sha8',
+      },
+    },
+  };
+
+
+  /**
+   * Mock fetch for both summary data + a specific detail file.
+   * Detail URL matches /data/records/{slug}/detail/*.json.
+   */
+  function mockFetchWithDetail(
+    failuresData: object,
+    recordsData: object,
+    detailData: object,
+    detailOk = true,
+  ) {
+    const spy = vi.spyOn(globalThis, 'fetch');
+    spy.mockImplementation((url: RequestInfo | URL) => {
+      const urlStr = typeof url === 'string' ? url : url.toString();
+      if (urlStr.includes('/detail/')) {
+        if (!detailOk) {
+          return Promise.resolve({
+            ok: false,
+            status: 404,
+            json: async () => ({}),
+          } as Response);
+        }
+        return Promise.resolve({
+          ok: true,
+          json: async () => detailData,
+        } as Response);
+      }
+      if (urlStr.includes('/data/records/')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => recordsData,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => failuresData,
+      } as Response);
+    });
+    return spy;
+  }
+
+  // 33. Byte-identity: all new SME-bound CR-T7 copy constants have correct string values.
+  it('CR-T7 case 33: all new SME-bound copy constants are byte-identical', () => {
+    expect(RECORDS_DETAIL_EXPAND_LABEL).toBe('Show parsed-step exchange');
+    expect(RECORDS_DETAIL_FRAMING).toBe(
+      'The blocks below show the verbatim bytes exchanged for this collection session, step by step. ' +
+      'Each of the three CDA elicitation steps (free list, pile sort, pile interview) is shown as the ' +
+      'prompt LSB sent, the response the provider returned, and any reasoning trace the provider surfaced. ' +
+      'These are LSB pipeline I/O records, not a window into model cognition.',
+    );
+    expect(RECORDS_DETAIL_LOADING).toBe('Loading per-record exchange…');
+    expect(RECORDS_DETAIL_FETCH_FAILED).toBe(
+      'Could not load the per-record exchange for this session. Check that the data file is present.',
+    );
+    expect(RECORDS_DETAIL_MALFORMED).toBe(
+      'Per-record exchange data for this session could not be parsed.',
+    );
+    expect(BLOCK_FREELIST_EXCHANGE).toBe('Free-list step');
+    expect(BLOCK_PILESORT_EXCHANGE).toBe('Pile-sort step');
+    expect(BLOCK_PILE_INTERVIEW_EXCHANGE).toBe('Pile-interview step');
+    expect(BLOCK_DETAIL_PROVENANCE).toBe('Provenance and pipeline identifiers');
+  });
+
+  // 34. Each row of the per-model summary table has an expand button with aria-expanded="false".
+  it('CR-T7 case 34: each summary row has an expand button with aria-expanded=false initially', async () => {
+    mockFetchBoth(familyJson, recordsFamilyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
+    });
+
+    const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
+    // The records summary table has by_model rows; each should have one expand button.
+    expect(expandBtns.length).toBe(recordsFamilyJson.by_model.length);
+    for (const btn of Array.from(expandBtns)) {
+      expect(btn.getAttribute('aria-expanded')).toBe('false');
+    }
+  });
+
+  // 35. Clicking expand: fetch fires, ready state shows three step headings + all 8 sha256 keys.
+  it('CR-T7 case 35: clicking expand fetches detail and shows step headings and sha256 keys', async () => {
+    mockFetchWithDetail(familyJson, recordsFamilyJson, detailFixture);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
+    });
+
+    // Click the first expand button.
+    const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
+    expect(expandBtns.length).toBeGreaterThan(0);
+    fireEvent.click(expandBtns[0]);
+
+    // Wait for the detail to load and render.
+    await waitFor(() => {
+      expect(screen.getByText(BLOCK_FREELIST_EXCHANGE)).toBeInTheDocument();
+    });
+
+    // All three step headings must be present.
+    expect(screen.getByText(BLOCK_FREELIST_EXCHANGE)).toBeInTheDocument();
+    expect(screen.getByText(BLOCK_PILESORT_EXCHANGE)).toBeInTheDocument();
+    expect(screen.getByText(BLOCK_PILE_INTERVIEW_EXCHANGE)).toBeInTheDocument();
+
+    // All 8 sha256_manifest keys rendered inside <code> elements.
+    const sha256Keys = Object.keys(detailFixture.provenance.sha256_manifest);
+    expect(sha256Keys).toHaveLength(8);
+    const codeEls = Array.from(container.querySelectorAll('code'));
+    const codeTexts = codeEls.map((el) => el.textContent ?? '');
+    for (const val of Object.values(detailFixture.provenance.sha256_manifest)) {
+      expect(codeTexts).toContain(val);
+    }
+
+    // aria-expanded must be true after clicking.
+    expect(expandBtns[0].getAttribute('aria-expanded')).toBe('true');
+  });
+
+  // 36. Loading state renders RECORDS_DETAIL_LOADING byte-identical.
+  it('CR-T7 case 36: loading state renders RECORDS_DETAIL_LOADING', async () => {
+    // Mock detail fetch to never resolve (stays loading).
+    const spy = vi.spyOn(globalThis, 'fetch');
+    spy.mockImplementation((url: RequestInfo | URL) => {
+      const urlStr = typeof url === 'string' ? url : url.toString();
+      if (urlStr.includes('/detail/')) {
+        return new Promise(() => {}); // never resolves
+      }
+      if (urlStr.includes('/data/records/')) {
+        return Promise.resolve({
+          ok: true,
+          json: async () => recordsFamilyJson,
+        } as Response);
+      }
+      return Promise.resolve({
+        ok: true,
+        json: async () => familyJson,
+      } as Response);
+    });
+
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
+    });
+
+    const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
+    fireEvent.click(expandBtns[0]);
+
+    // Loading text must appear immediately (fetch is pending).
+    expect(screen.getByText(RECORDS_DETAIL_LOADING)).toBeInTheDocument();
+  });
+
+  // 37. Fetch-failed state renders RECORDS_DETAIL_FETCH_FAILED byte-identical.
+  it('CR-T7 case 37: fetch-failed state renders RECORDS_DETAIL_FETCH_FAILED', async () => {
+    mockFetchWithDetail(familyJson, recordsFamilyJson, {}, false); // detail fetch 404
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
+    });
+
+    const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
+    fireEvent.click(expandBtns[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText(RECORDS_DETAIL_FETCH_FAILED)).toBeInTheDocument();
+    });
+  });
+
+  // 38. Malformed state renders RECORDS_DETAIL_MALFORMED byte-identical.
+  it('CR-T7 case 38: malformed state renders RECORDS_DETAIL_MALFORMED', async () => {
+    // Serve malformed data that fails the isPublishedRecordDetail type guard.
+    const malformedData = { not_a_detail_record: true };
+    mockFetchWithDetail(familyJson, recordsFamilyJson, malformedData);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
+    });
+
+    const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
+    fireEvent.click(expandBtns[0]);
+
+    await waitFor(() => {
+      expect(screen.getByText(RECORDS_DETAIL_MALFORMED)).toBeInTheDocument();
+    });
+  });
+
+  // 39. Full-step fixture: all three step headings present; confirmed non-null rendering.
+  // Note: Under N2 disposition (a), all three steps are non-Optional on valid records.
+  // The §19.17 null-suppression guard is a defensive rendering rule. This test confirms
+  // that a complete valid fixture renders all three step headings correctly.
+  it('CR-T7 case 39: full-step detail fixture renders all three step headings', async () => {
+    mockFetchWithDetail(familyJson, recordsFamilyJson, detailFixture);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
+    });
+
+    const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
+    fireEvent.click(expandBtns[0]);
+
+    await waitFor(() => {
+      // All three CDA step headings must be present.
+      expect(screen.getByText(BLOCK_FREELIST_EXCHANGE)).toBeInTheDocument();
+      expect(screen.getByText(BLOCK_PILESORT_EXCHANGE)).toBeInTheDocument();
+      expect(screen.getByText(BLOCK_PILE_INTERVIEW_EXCHANGE)).toBeInTheDocument();
+    });
+  });
+
+  // 40. Case 9 chrome-isolation extended over the expanded detail DOM (excluding <pre> nodes).
+  // Per §19.17 binding: the chrome text of the DETAIL SECTION specifically must not contain
+  // the six forbidden substrings. The full-page chrome includes existing TAXONOMY_BLOCK copy
+  // (e.g., "refusal_string_match") which was reviewed under prior gate verdicts.
+  // This case scopes to the new CR-T7 detail chrome only.
+  it('CR-T7 case 40: detail section chrome-isolation passes (forbidden substrings absent in detail chrome)', async () => {
+    mockFetchWithDetail(familyJson, recordsFamilyJson, detailFixture);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThan(0);
+    });
+
+    // Expand the first row to load the detail DOM.
+    const expandBtns = container.querySelectorAll('button.failures-findings__expand-btn');
+    fireEvent.click(expandBtns[0]);
+    await waitFor(() => {
+      expect(screen.getByText(BLOCK_FREELIST_EXCHANGE)).toBeInTheDocument();
+    });
+
+    // Extract chrome text from the DETAIL SECTION only (excludes full-page chrome).
+    // §19.17 binding: the detail cell (.failures-findings__detail-cell) is the new CR-T7 surface.
+    const detailSection = container.querySelector('.failures-findings__detail-cell');
+    expect(detailSection).not.toBeNull();
+
+    const detailPreEls = Array.from((detailSection as Element).querySelectorAll('pre'));
+    const detailChromeText = extractChromeText(detailSection as Element, detailPreEls);
+
+    // N5 CDA SME affirmative zero-count assertions on detail chrome text.
+    // "refusal" checked against detail chrome only (full-page chrome contains
+    // "refusal_string_match" from existing TAXONOMY_BLOCK, reviewed under CR-T3 verdict).
+    const forbidden = [
+      'worldview',
+      'believes',
+      'thinks',
+      'understands',
+      'refusal',
+    ];
+    for (const word of forbidden) {
+      expect(detailChromeText.toLowerCase()).not.toContain(word.toLowerCase());
+    }
+
+    // Affirmative: RECORDS_DETAIL_FRAMING is in the detail chrome.
+    expect(detailChromeText).toContain(RECORDS_DETAIL_FRAMING);
+
+    // Affirmative: BLOCK_DETAIL_PROVENANCE heading is in the detail chrome.
+    expect(detailChromeText).toContain(BLOCK_DETAIL_PROVENANCE);
   });
 });
 

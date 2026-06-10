@@ -419,6 +419,281 @@ class TestBuildIntegration:
         assert m.records == {}
 
 
+# ===========================================================================
+# CR-T7: build_record_details tests
+# ===========================================================================
+
+def _minimal_informant(
+    informant_id: str = "test-id-0001",
+    domain_slug: str = "family",
+    model_id: str = "test-model",
+    model_version_returned: str = "test-model-v1",
+    freelist_prompt: str = "freelist prompt",
+    freelist_response: str = "freelist response",
+    thinking_verbatim: str = "",
+    provider_request_id: str = "req-001",
+) -> dict:
+    """Return a minimal InformantRecord dict with all three step fields."""
+    return {
+        "informant_id": informant_id,
+        "domain_slug": domain_slug,
+        "run_index": 0,
+        "collection_date": "2026-06-10",
+        "model_id": model_id,
+        "model_version_returned": model_version_returned,
+        "family": None,
+        "provider": "test-provider",
+        "provider_request_id": provider_request_id,
+        "knowledge_cutoff": "2024-12",
+        "open_weights": False,
+        "origin_country": "us",
+        "alignment_method": "rlhf",
+        "collection_method": "api",
+        "collection_mode": "batch",
+        "api_endpoint": "https://test.example.com/v1",
+        "api_version": "2026-01-01",
+        "temperature": 1.0,
+        "top_p": 1.0,
+        "max_tokens": 4096,
+        "system_prompt": "",
+        "qa_passed": True,
+        "qa_notes": None,
+        "freelist": {
+            "prompt_verbatim": freelist_prompt,
+            "response_verbatim": freelist_response,
+            "thinking_verbatim": thinking_verbatim,
+            "prompt_version": "v1",
+        },
+        "pile_sort": {
+            "prompt_verbatim": "pile sort prompt",
+            "response_verbatim": '{"piles": [["a", "b"]]}',
+            "thinking_verbatim": "",
+            "prompt_version": "v1",
+        },
+        "interview": {
+            "prompt_verbatim": "interview prompt",
+            "response_verbatim": "interview response",
+            "thinking_verbatim": "",
+            "prompt_version": "v1",
+        },
+        "sha256_manifest": {
+            "freelist_prompt": "sha_fp",
+            "freelist_response": "sha_fr",
+            "pilesort_prompt": "sha_pp",
+            "pilesort_response": "sha_pr",
+            "interview_prompt": "sha_ip",
+            "interview_response": "sha_ir",
+            "request_params": "sha_rp",
+            "informant_record_total": "sha_tot",
+        },
+    }
+
+
+def _write_informants(tmp_path: Path, records: list[dict]) -> Path:
+    """Write records as JSONL lines to tmp_path/informants.jsonl."""
+    p = tmp_path / "informants.jsonl"
+    p.write_text("".join(json.dumps(r) + "\n" for r in records))
+    return p
+
+
+class TestBuildRecordDetails:
+    """Tests for build_record_details (CR-T7)."""
+
+    def test_detail_file_emitted_at_expected_path(self, tmp_path: Path) -> None:
+        """Output file is at {output_dir}/{slug}/detail/{informant_id}.json."""
+        from cdb_publish.successes import build_record_details
+
+        rec = _minimal_informant(informant_id="abc123", domain_slug="family")
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],
+        )
+
+        expected = out / "family" / "detail" / "abc123.json"
+        assert expected.exists(), f"Expected file not found: {expected}"
+
+    def test_schema_round_trip(self, tmp_path: Path) -> None:
+        """Emitted JSON validates against PublishedRecordDetail schema."""
+        from cdb_publish.schemas.successes import PublishedRecordDetail
+        from cdb_publish.successes import build_record_details
+
+        rec = _minimal_informant(informant_id="schematest", domain_slug="family")
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],
+        )
+
+        detail_path = out / "family" / "detail" / "schematest.json"
+        assert detail_path.exists()
+        detail = PublishedRecordDetail.model_validate_json(detail_path.read_text())
+        assert detail.informant_id == "schematest"
+        assert detail.freelist is not None
+        assert detail.pile_sort is not None
+        assert detail.pile_interview is not None
+
+    def test_pile_interview_field_name(self, tmp_path: Path) -> None:
+        """Published field is pile_interview (CDA SME N1 rename from interview)."""
+        from cdb_publish.successes import build_record_details
+
+        rec = _minimal_informant(informant_id="n1rename", domain_slug="family")
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],
+        )
+
+        data = json.loads((out / "family" / "detail" / "n1rename.json").read_text())
+        assert "pile_interview" in data, "Published field must be pile_interview, not interview"
+        assert "interview" not in data or data.get("interview") is None
+
+    def test_empty_thinking_verbatim_first_class(self, tmp_path: Path) -> None:
+        """thinking_verbatim empty string is emitted as-is (first-class state, not None)."""
+        from cdb_publish.successes import build_record_details
+
+        rec = _minimal_informant(
+            informant_id="nothinking",
+            domain_slug="family",
+            thinking_verbatim="",
+        )
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],
+        )
+
+        data = json.loads((out / "family" / "detail" / "nothinking.json").read_text())
+        # thinking_verbatim must be "" not null (N2: first-class state).
+        assert data["freelist"]["thinking_verbatim"] == ""
+        assert data["freelist"]["thinking_verbatim"] is not None
+
+    def test_sanitization_applied_to_detail(self, tmp_path: Path) -> None:
+        """sanitize_record_strings() fires on thinking_verbatim and other string fields."""
+        from cdb_publish.successes import build_record_details
+
+        # Inject an API-key-shaped string into freelist_response to trigger redaction.
+        fake_key = (
+            "sk-ant-api03-AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA"
+            "-BBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB-CCCCCCCCAA"
+        )
+        rec = _minimal_informant(
+            informant_id="sanitizetest",
+            domain_slug="family",
+            freelist_response=f"Normal response {fake_key} end",
+        )
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],
+        )
+
+        data = json.loads((out / "family" / "detail" / "sanitizetest.json").read_text())
+        # The API-key pattern must be redacted.
+        assert "sk-ant-api03" not in data["freelist"]["response_verbatim"]
+
+    def test_framing_note_detail_byte_identical(self, tmp_path: Path) -> None:
+        """framing_note_detail in emitted file is byte-identical to _FRAMING_NOTE_DETAIL."""
+        from cdb_publish.successes import _FRAMING_NOTE_DETAIL, build_record_details
+
+        rec = _minimal_informant(informant_id="framingtest", domain_slug="family")
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],
+        )
+
+        data = json.loads((out / "family" / "detail" / "framingtest.json").read_text())
+        assert data["framing_note_detail"] == _FRAMING_NOTE_DETAIL
+
+    def test_sha256_invariant_after_build_record_details(self, tmp_path: Path) -> None:
+        """Source informants.jsonl SHA256 is unchanged after build_record_details."""
+        from cdb_publish.successes import build_record_details
+
+        rec = _minimal_informant(informant_id="sha256test", domain_slug="family")
+        inf_path = _write_informants(tmp_path, [rec])
+        sha_before = _sha256(inf_path)
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],
+        )
+
+        sha_after = _sha256(inf_path)
+        assert sha_before == sha_after, "Source JSONL was modified (append-only invariant violated)"
+
+    def test_records_outside_domain_slugs_skipped(self, tmp_path: Path) -> None:
+        """Records whose domain_slug is not in domain_slugs produce no detail file."""
+        from cdb_publish.successes import build_record_details
+
+        rec = _minimal_informant(informant_id="skiptest", domain_slug="holidays")
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        build_record_details(
+            raw_informants_path=inf_path,
+            output_dir=out,
+            domain_slugs=["family"],  # holidays not included
+        )
+
+        # No file for holidays slug.
+        assert not (out / "holidays" / "detail" / "skiptest.json").exists()
+
+    def test_missing_step_fields_skipped_with_warning(
+        self, tmp_path: Path, caplog: pytest.LogCaptureFixture
+    ) -> None:
+        """Records missing step fields are skipped (N2 disposition a)."""
+        from cdb_publish.successes import build_record_details
+
+        # Record without freelist/pile_sort/interview fields (legacy/malformed).
+        rec: dict = {
+            "informant_id": "skipstep",
+            "domain_slug": "family",
+            "run_index": 0,
+            "collection_date": "2026-06-10",
+            "model_id": "test",
+            "model_version_returned": "test-v1",
+            "provider": "test",
+            "provider_request_id": "req-skip",
+            # freelist, pile_sort, interview absent
+        }
+        inf_path = _write_informants(tmp_path, [rec])
+        out = tmp_path / "out"
+
+        import logging
+        with caplog.at_level(logging.WARNING):
+            build_record_details(
+                raw_informants_path=inf_path,
+                output_dir=out,
+                domain_slugs=["family"],
+            )
+
+        # No detail file emitted.
+        assert not (out / "family" / "detail" / "skipstep.json").exists()
+        # Warning logged.
+        assert any("missing one or more step fields" in msg for msg in caplog.messages)
+
+
 @pytest.mark.parametrize("domain_slug", ["family", "holidays", "food"])
 def test_every_domain_emits_file(domain_slug: str, tmp_path: Path) -> None:
     """Parametrized: all three known slugs produce output files."""

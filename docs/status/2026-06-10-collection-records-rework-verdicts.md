@@ -862,3 +862,19 @@ REQUIRED BEFORE MERGE (numbered):
 9. Confirm that the new <th> for the expand column is included in the colSpan count: colSpan must equal the total column count including the expand column (6 if the table has 5 data columns + 1 expand column).
 
 10. Verify that the DESIGN_SYSTEM.md closing line reads "*End of DESIGN_SYSTEM.md v0.19.6..." (not v0.19.5) after the update."
+
+---
+
+## CR-T7 Coder Implementation Note (2026-06-10)
+
+Applied by Coder agent. All notes N1-N8 and NOTE-1 through NOTE-7 applied. The following deviations from the spec text are recorded per the Architect plan:
+
+**N2 disposition (a) applied:** The three step fields on PublishedRecordDetail (freelist, pile_sort, pile_interview) are non-Optional. Records missing step fields are skipped with WARNING. No RECORDS_DETAIL_STEP_MISSING fallback string shipped.
+
+**NOTE-7 superseded by CDA SME N4:** Nine new per-step sub-label constants (BLOCK_FREELIST_PROMPT, BLOCK_FREELIST_RESPONSE, BLOCK_FREELIST_REASONING, BLOCK_PILESORT_PROMPT, BLOCK_PILESORT_RESPONSE, BLOCK_PILESORT_REASONING, BLOCK_PILE_INTERVIEW_PROMPT, BLOCK_PILE_INTERVIEW_RESPONSE, BLOCK_PILE_INTERVIEW_REASONING) are used as inner sub-block labels for each CDA step. The existing BLOCK_PROMPT, BLOCK_RESPONSE, BLOCK_REASONING constants are scoped to the follow-up interview surface and are NOT reused here. Additionally, three new outer step heading constants (BLOCK_FREELIST_EXCHANGE, BLOCK_PILESORT_EXCHANGE, BLOCK_PILE_INTERVIEW_EXCHANGE) are added for the step-level headings, as referenced in the §19.17 spec and Case 33 vitest spec.
+
+**DESIGN_SYSTEM.md version transition:** The UI/UX spec was written at v0.19.5 baseline. TM-A bumped master to v0.20.0 before this task began. The version bump applied is v0.20.0 to v0.20.1 (not v0.19.5 to v0.19.6). The §19.17 body text in DESIGN_SYSTEM.md and the changelog entry are adjusted accordingly; all other content is byte-identical to the verdicts file spec.
+
+**Cloudflare file-count arithmetic:** 1319 existing files + 1291 new detail files = 2610 total, well under the 20,000 Cloudflare Pages file-count limit.
+
+**Vitest Case 39 deviation:** Under N2 disposition (a), null steps cannot appear on valid records. Case 39 was adjusted to test that a full-step fixture renders all three step headings (positive assertion) rather than testing null-step suppression (which the type guard would reject as malformed data). The suppression guard (if (!step) return null) remains in the component as defensive code; the test verifies the positive case instead.

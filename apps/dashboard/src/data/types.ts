@@ -389,6 +389,90 @@ export interface RecordsSummaryFile {
   framing_note: string;
 }
 
+// ===== Per-record detail types (CR-T7) =====
+
+/**
+ * Verbatim bytes for one CDA elicitation step.
+ * Mirrors PublishedStepExchange in cdb_publish/schemas/successes.py.
+ * Per CDA SME N2 disposition (a): prompt_verbatim and response_verbatim
+ * are required (non-optional). thinking_verbatim may be empty string.
+ */
+export interface PublishedStepExchange {
+  prompt_verbatim: string;
+  response_verbatim: string;
+  thinking_verbatim: string;
+  model_version_returned: string;
+  prompt_version: string;
+}
+
+/**
+ * Provenance and pipeline identifiers for a single collection session.
+ * Mirrors PublishedRecordProvenance in cdb_publish/schemas/successes.py.
+ */
+export interface PublishedRecordProvenance {
+  provider_request_id: string;
+  model_id: string;
+  model_version_returned: string;
+  provider: string;
+  domain_slug: string;
+  run_index: number;
+  collection_date: string;
+  sha256_manifest: Record<string, string>;
+}
+
+/**
+ * Per-record detail JSON: verbatim bytes for all three CDA steps plus
+ * provenance identifiers.
+ * Mirrors PublishedRecordDetail in cdb_publish/schemas/successes.py.
+ *
+ * The three step fields (freelist, pile_sort, pile_interview) are
+ * non-Optional per CDA SME N2 disposition (a).
+ *
+ * pile_interview corresponds to InformantRecord.interview (renamed per
+ * CDA SME N1 to avoid confusion with the DeclineInterview record kind).
+ */
+export interface PublishedRecordDetail {
+  informant_id: string;
+  framing_note_detail: string;
+  freelist: PublishedStepExchange;
+  pile_sort: PublishedStepExchange;
+  pile_interview: PublishedStepExchange;
+  provenance: PublishedRecordProvenance;
+}
+
+/** Type-guard: is the fetched value a valid PublishedRecordDetail? */
+export function isPublishedRecordDetail(val: unknown): val is PublishedRecordDetail {
+  if (typeof val !== 'object' || val === null) return false;
+  const v = val as Record<string, unknown>;
+  if (
+    typeof v.informant_id !== 'string' ||
+    typeof v.framing_note_detail !== 'string' ||
+    typeof v.freelist !== 'object' || v.freelist === null ||
+    typeof v.pile_sort !== 'object' || v.pile_sort === null ||
+    typeof v.pile_interview !== 'object' || v.pile_interview === null ||
+    typeof v.provenance !== 'object' || v.provenance === null
+  ) return false;
+  // Validate step shape (spot-check the required fields)
+  function isStep(s: unknown): s is PublishedStepExchange {
+    if (typeof s !== 'object' || s === null) return false;
+    const st = s as Record<string, unknown>;
+    return (
+      typeof st.prompt_verbatim === 'string' &&
+      typeof st.response_verbatim === 'string' &&
+      typeof st.thinking_verbatim === 'string'
+    );
+  }
+  if (!isStep(v.freelist) || !isStep(v.pile_sort) || !isStep(v.pile_interview)) return false;
+  // Validate provenance shape
+  const p = v.provenance as Record<string, unknown>;
+  return (
+    typeof p.provider_request_id === 'string' &&
+    typeof p.model_id === 'string' &&
+    typeof p.model_version_returned === 'string' &&
+    typeof p.sha256_manifest === 'object' && p.sha256_manifest !== null
+  );
+}
+
 /**
  * Extended domain result carrying optional fields present in published JSON
  * beyond the base DomainResultPublished interface.  Exported so App.tsx and

@@ -1,0 +1,44 @@
+{
+  "informant_id": "b5da0fe68148a68d",
+  "framing_note_detail": "This record exposes the verbatim bytes the LSB pipeline sent and the verbatim bytes the provider returned for a single collection session. A session has three elicitation steps: a free-list step (LSB asks the model to list items in the domain), a pile-sort step (LSB asks the model to group its own free-list items into piles), and a pile-interview step (LSB asks the model to explain the criteria it used for the pile-sort grouping). Each step is shown below as three sub-blocks: what LSB sent, what the provider returned, and any reasoning trace the provider surfaced. This record is not a transcript of the model's reasoning, intent, or understanding; it is a transcript of the LSB collection step.",
+  "freelist": {
+    "prompt_verbatim": "For an anthropological research project, please generate an exhaustive list of\ntype of food or dish. Write as many as possible \u2014 do not cut the list short. Provide\neach item on its own line, numbered sequentially. Do not add explanations or\ngroup them by category. Aim for up to 200 items.\n",
+    "response_verbatim": "1. Sushi\n2. Ramen\n3. Tempura\n4. Miso soup\n5. Takoyaki\n6. Okonomiyaki\n7. Udon\n8. Soba\n9. Onigiri\n10. Yakitori\n11. Tonkatsu\n12. Shabu-shabu\n13. Sukiyaki\n14. Kaiseki\n15. Natto\n16. Edamame\n17. Gyoza\n18. Fugu\n19. Unagi\n20. Anago\n21. Sashimi\n22. Domburi\n23. Oden\n24. Chawanmushi\n25. Nikuman\n26. Melon pan\n27. Taiyaki\n28. Dorayaki\n29. Mochi\n30. Daifuku\n31. Wagashi\n32. Dango\n33. Y\u014dkan\n34. Warabimochi\n35. Kuzumochi\n36. Mitarashi dango\n37. Anmitsu\n38. Shiratama\n39. Kanten\n40. Mitarashi dango\n41. Chikuwa\n42. Kamaboko\n43. Hanpen\n44. Satsuma-age\n45. Inago no tsukudani\n46. Basashi\n47. Torisashi\n48. Basashi\n49. Basashi\n50. Basashi\n51. Basashi\n52. Basashi\n53. Basashi\n54. Basashi\n55. Basashi\n56. Basashi\n57. Basashi",
+    "thinking_verbatim": "",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "prompt_version": "v1_s1"
+  },
+  "pile_sort": {
+    "prompt_verbatim": "Below are 46 items collected from a free-listing exercise about type of food or dish:\n\n- sushi\n- ramen\n- tempura\n- miso soup\n- takoyaki\n- okonomiyaki\n- udon\n- soba\n- onigiri\n- yakitori\n- tonkatsu\n- shabu-shabu\n- sukiyaki\n- kaiseki\n- natto\n- edamame\n- gyoza\n- fugu\n- unagi\n- anago\n- sashimi\n- domburi\n- oden\n- chawanmushi\n- nikuman\n- melon pan\n- taiyaki\n- dorayaki\n- mochi\n- daifuku\n- wagashi\n- dango\n- y\u014dkan\n- warabimochi\n- kuzumochi\n- mitarashi dango\n- anmitsu\n- shiratama\n- kanten\n- chikuwa\n- kamaboko\n- hanpen\n- satsuma-age\n- inago no tsukudani\n- basashi\n- torisashi\n\nGroup these items into clusters based on their similarity to one another.\nUse as many or as few clusters as you see fit. Each item must belong to\nexactly one cluster \u2014 do not leave any out.\n\nReturn your answer as valid JSON using this format:\n{\"piles\": [[\"item1\", \"item2\"], [\"item3\", \"item4\", \"item5\"], ...]}\n",
+    "response_verbatim": "```json\n{\n  \"piles\": [\n    [\"sushi\", \"sashimi\"],\n    [\"ramen\", \"udon\", \"soba\", \"domburi\"],\n    [\"tempura\", \"gyoza\", \"nikuman\", \"chikuwa\", \"kamaboko\", \"hanpen\", \"satsuma-age\"],\n    [\"miso soup\", \"oden\", \"chawanmushi\"],\n    [\"takoyaki\", \"okonomiyaki\"],\n    [\"yakitori\", \"tonkatsu\", \"shabu-shabu\", \"sukiyaki\"],\n    [\"kaiseki\"],\n    [\"natto\"],\n    [\"edamame\"],\n    [\"fugu\", \"basashi\", \"torisashi\"],\n    [\"unagi\", \"anago\"],\n    [\"melon pan\", \"taiyaki\", \"dorayaki\"],\n    [\"mochi\", \"daifuku\", \"wagashi\", \"dango\", \"y\u014dkan\", \"warabimochi\", \"kuzumochi\", \"mitarashi dango\", \"anmitsu\", \"shiratama\", \"kanten\"],\n    [\"inago no tsukudani\"]\n  ]\n}\n```",
+    "thinking_verbatim": "",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "prompt_version": "v1_s1"
+  },
+  "pile_interview": {
+    "prompt_verbatim": "You previously sorted items into the following groups. For each group,\nprovide a short label (2-5 words) that describes the organizing principle\n\u2014 what the items in that group have in common.\n\nGroup 1: sushi, sashimi\nGroup 2: ramen, udon, soba, domburi\nGroup 3: tempura, gyoza, nikuman, chikuwa, kamaboko, hanpen, satsuma-age\nGroup 4: miso soup, oden, chawanmushi\nGroup 5: takoyaki, okonomiyaki\nGroup 6: yakitori, tonkatsu, shabu-shabu, sukiyaki\nGroup 7: kaiseki\nGroup 8: natto\nGroup 9: edamame\nGroup 10: fugu, basashi, torisashi\nGroup 11: unagi, anago\nGroup 12: melon pan, taiyaki, dorayaki\nGroup 13: mochi, daifuku, wagashi, dango, y\u014dkan, warabimochi, kuzumochi, mitarashi dango, anmitsu, shiratama, kanten\nGroup 14: inago no tsukudani\n\nRespond with one label per group, numbered to match the groups above.\n",
+    "response_verbatim": "Here are the labels for each group:\n\n1. Raw fish dishes\n2. Noodle dishes\n3. Deep-fried foods\n4. Steamed dishes\n5. Savory pancakes\n6. Meat dishes\n7. Traditional multi-course meal\n8. Fermented soybeans\n9. Steamed soybeans\n10. Raw meat/fish dishes\n11. Freshwater eel dishes\n12. Sweet pastries\n13. Traditional Japanese sweets\n14. Insect-based dish",
+    "thinking_verbatim": "",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "prompt_version": "v1_s1"
+  },
+  "provenance": {
+    "provider_request_id": "gen-1778874221-MzCRlLBfwxAaHKSaNjrU",
+    "model_id": "mistralai/mistral-small-2603",
+    "model_version_returned": "mistralai/mistral-small-2603",
+    "provider": "openrouter",
+    "domain_slug": "food",
+    "run_index": 0,
+    "collection_date": "2026-05-15T19:43:46.622527",
+    "sha256_manifest": {
+      "freelist_prompt": "d3c3fcbbef35eb37dec62f2c787065822c0648b26d8d32ef95b774e8bdf2962e",
+      "freelist_response": "ad2918449baf1fb50c2c5c3122e46f34b44516598118f1a36861b693a62cbbd9",
+      "pilesort_prompt": "d0bc1c08121eca0388d8ed4952540eb3c87467b5af3f282bcedd85b5a4352694",
+      "pilesort_response": "319eed8df1ed821dcabf4bd96b99d919498c6c83c51b77732c7c5af06d999734",
+      "interview_prompt": "6c390b580437a4f5fc03d802ee9e1bb81424bcd147967272c43138c173070d28",
+      "interview_response": "557ac41cebc98128c36e9daabdeb4e738485214970e4b324f4dc231475df01a6",
+      "request_params": "5d7cfe6c333ed7a2ccdef72a4bb6cead5794711751eb147394d0fe9a4f07d02f",
+      "informant_record_total": "67687c00c74259be653824c6c34287b093a2cf7005e3a2076b2118c1495324c8"
+    }
+  }
+}
