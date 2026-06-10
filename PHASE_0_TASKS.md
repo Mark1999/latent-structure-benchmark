@@ -154,7 +154,7 @@ The constraint is that nothing in Phase 0 should commit the project to a decisio
 - [ ] `cdb_analyze/__init__.py` contains a **module-level comment block** that documents the no-LLM-imports rule from `ARCHITECTURE.md` §4.2 binding constraint. This is human-readable; the actual enforcement is the static check in T6.
 - [ ] `cdb_publish/build.py`, `cdb_publish/schemas/`, `cdb_publish/README.md` exist as placeholders
 - [ ] `cdb_social/triggers.py`, `cdb_social/drafters/`, `cdb_social/queue.py` exist as placeholders
-- [ ] `scripts/` exists with empty placeholder files for `collect.py`, `analyze.py`, `publish.py`, `qa_check.py`, `build_db.py`, `cost_report.py` — each with a `if __name__ == "__main__": raise NotImplementedError("Phase 0 placeholder")` body and a docstring linking to the relevant `ARCHITECTURE.md` section
+- [ ] `scripts/` exists with empty placeholder files for `collect.py`, `analyze.py`, `publish.py`, `qa_check.py`, `build_db.py`, each with a `if __name__ == "__main__": raise NotImplementedError("Phase 0 placeholder")` body and a docstring linking to the relevant `ARCHITECTURE.md` section. *(Historical: the original P0-T4 spec also included `cost_report.py`; that file was removed by the 2026-05-01 spend-cap removal, formalized in `ARCHITECTURE.md` v0.7.3.)*
 - [ ] All packages can be imported from a Python REPL without error
 - [ ] Commit message: `chore: P0-T4 empty package skeletons`
 
@@ -264,10 +264,10 @@ The constraint is that nothing in Phase 0 should commit the project to a decisio
 - [ ] `data/raw/informants.jsonl` is *not* created (it's append-only and starts empty when collection begins)
 - [ ] `data/processed/` exists with `.gitkeep`
 - [ ] `data/results/` exists with `.gitkeep` (git-tracked content per §4.3)
-- [ ] `data/grounding/` exists with the **v0.7 multi-baseline directory layout**: `data/grounding/family/romney_1996/` exists as an empty directory with placeholder files for `source.md`, `items.txt`, `cooccurrence.csv`, `grounding_ref.json`, all containing `# Phase 4c deliverable — see ARCHITECTURE.md §4.2.5` as their only content
+- [ ] `data/grounding/` exists with the **v0.7 multi-baseline directory layout**: `data/grounding/family/romney_1996/` exists as an empty directory with placeholder files for `source.md`, `items.txt`, `cooccurrence.csv`, `grounding_ref.json`, all containing `# Phase 4c deliverable, see ARCHITECTURE.md §4.2.5` as their only content. *(Historical: Phase 4c (human baseline acquisition) was removed by the 2026-05-07 §1.5.5 amendment in `ARCHITECTURE.md` v0.7.2; `data/grounding/family/romney_1996/` is retained as a historical reference per `ARCHITECTURE.md` v0.7.5 §6.6, not as a live v1 baseline.)*
 - [ ] `data/open_bundle/` exists with `.gitkeep`
-- [ ] `data/cost_reports/` exists with `.gitkeep` (git-tracked)
-- [ ] `data/social_queue/pending/` and `data/social_queue/approved/` exist with `.gitkeep`
+- [ ] ~~`data/cost_reports/` exists with `.gitkeep` (git-tracked)~~ *(Historical, superseded: removed 2026-05-01 by the spend-cap removal; formalized in `ARCHITECTURE.md` v0.7.3.)*
+- [ ] ~~`data/social_queue/pending/` and `data/social_queue/approved/` exist with `.gitkeep`~~ *(Historical, superseded: the realized path is `out/social/queue/` per `ARCHITECTURE.md` v0.7.4 (2026-05-17); the `data/social_queue/` layout in this Phase 0 spec was never realized because §2 boundary rule mandates `out/social/`.)*
 - [ ] `data/domains/v1/` exists with placeholder `family.yaml`, `holidays.yaml`, `food.yaml` files (each containing only `# Phase 1 deliverable` as a comment, so the file structure is set up but no real domain definitions are committed yet)
 - [ ] Commit message: `chore: P0-T8 empty data directories with v0.7 multi-baseline grounding layout`
 

@@ -1,7 +1,7 @@
 # CLAUDE.md — LSB Team Constitution
 
 **Document name:** `CLAUDE.md`
-**Version:** v1.0 (first canonical version, aligned with `ARCHITECTURE.md` v0.7 and `DESIGN_SYSTEM.md` v0.2)
+**Version:** v1.0 (first canonical version; aligns with the current `ARCHITECTURE.md` and `DESIGN_SYSTEM.md`, both of which carry their own changelogs)
 **Status:** Binding for all Claude Code agents working on LSB
 **Audience:** Architect, CDA SME, UI/UX, Coder, Reviewer, Tester agents — and Mark
 **Companion docs:** `ARCHITECTURE.md` (binding for data, schema, agent pipeline, phase plan), `DESIGN_SYSTEM.md` (binding for all frontend work), `PHASE_0_TASKS.md`, `SECURITY_AND_HARDENING.md`, `HOSTING_AND_DEV_OPS.md`, `docs/DATA_DICTIONARY.md`

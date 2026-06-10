@@ -46,7 +46,21 @@ YAML validated: `uv run python -c "import yaml; yaml.safe_load(open('.github/wor
 
 ## Task 3: fix CLAUDE.md version claim and PHASE_0_TASKS.md staleness
 
-Status: queued.
+**Commit:** docs(docs): fix stale version claim and PHASE_0_TASKS references
+
+Five stale documentation references corrected:
+- CLAUDE.md line 4 header version pin (claimed `ARCHITECTURE.md` v0.7 + `DESIGN_SYSTEM.md` v0.2; actual v0.7.5 and v0.17.0): reworded to version-less phrasing referencing the changelogs in each companion doc, removing a known maintenance trap.
+- PHASE_0_TASKS.md line 157 (P0-T4 `scripts/` placeholder list): `cost_report.py` removed from the list with a `(Historical: ...)` annotation referencing the 2026-05-01 spend-cap removal and `ARCHITECTURE.md` v0.7.3.
+- PHASE_0_TASKS.md line 267 (P0-T8 grounding placeholder content): "Phase 4c deliverable" annotated as historical (Phase 4c removed by the 2026-05-07 §1.5.5 amendment in `ARCHITECTURE.md` v0.7.2; retention clarified per v0.7.5 §6.6). One pre-existing em dash inside the literal placeholder-content string replaced with a comma to satisfy the no-em-dashes hard rule.
+- PHASE_0_TASKS.md line 269 (P0-T8 `data/cost_reports/` directory): struck-through and marked `(Historical, superseded: removed 2026-05-01 by the spend-cap removal; formalized in ARCHITECTURE.md v0.7.3.)`.
+- PHASE_0_TASKS.md line 270 (P0-T8 `data/social_queue/{pending,approved}/`): struck-through and marked `(Historical, superseded: realized path is out/social/queue/ per ARCHITECTURE.md v0.7.4; §2 boundary rule mandates out/social/.)`.
+
+Style: annotations follow CLAUDE.md §9 historical-pitfall convention (preserve original text, prepend or append a `(Historical, superseded: ...)` note) rather than silently rewriting history. PHASE_0_TASKS.md is a historical decomposition doc.
+
+- **CDA SME:** not routed. Plan touches no methodology measure, no gate threshold, no schema methodology field, no §1.5.x framing, no lede template, no methodology-page copy, no researcher grounding workflow. Architect verdict: routing not required.
+- **UI/UX:** skipped (no frontend source, copy, visual artifact, or `DESIGN_SYSTEM.md` change).
+- **Reviewer:** [verdict on commit]
+- **Tester:** `uv run pytest tests/unit/test_check_informants_append_only.py` green (doc-state guards). No new tests required; the change is doc-only and touches no code surface the existing suite is wired to.
 
 ## Task 4: delete dead component Timeline.tsx
 
