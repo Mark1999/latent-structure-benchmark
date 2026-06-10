@@ -425,12 +425,18 @@ export function TermMap({
   const render = useCallback(() => {
     if (!wrapRef.current) return;
     const rect = wrapRef.current.getBoundingClientRect();
-    const W = Math.max(rect.width || 600, 600);
+    // Quantize the measured box to 8px steps (2026-06-10 jitter fix): any
+    // oscillation source that wobbles the container by a few real pixels
+    // (footnote lines, scrollbars, fractional DPR rounding) now resolves to
+    // the same bucket and produces a byte-identical layout, which the
+    // equality guards then drop instead of re-rendering.
+    const QUANT = 8;
+    const W = Math.floor(Math.max(rect.width || 600, 600) / QUANT) * QUANT;
     // §17.1 defensive cap: H can never exceed the viewport even if CSS regresses.
     // This breaks the ResizeObserver loop at the source: if overflow leaks and the
     // container reports a height larger than the viewport, we clamp it here so the
     // SVG cannot grow the parent further.
-    const H = Math.min(Math.max(rect.height || 400, 400), window.innerHeight);
+    const H = Math.floor(Math.min(Math.max(rect.height || 400, 400), window.innerHeight) / QUANT) * QUANT;
 
     if (terms.length === 0) return;
 
@@ -786,8 +792,14 @@ export function TermMap({
     // Also reset zoom display to 1 since render() always produces a k=1 layout.
     setSvgBaseDims({ w: W, h: H });
     setZoomDisplay(1);
-    // Update hidden cluster labels for the footnote list.
-    setHiddenClusterLabels(newHiddenLabels);
+    // Update hidden cluster labels for the footnote list. Equality-guarded
+    // (2026-06-10 jitter fix): an unconditional set with a fresh array forced a
+    // re-render every pass, which fed the footnote-height feedback loop.
+    setHiddenClusterLabels((prev) =>
+      prev.length === newHiddenLabels.length && prev.every((v, i) => v === newHiddenLabels[i])
+        ? prev
+        : newHiddenLabels
+    );
   }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds, showUncertainty, showClusterLabels, termUncertainty, salienceRanks]);
 
   // Re-render on resize or term/coord change.
@@ -1414,8 +1426,12 @@ export function TermMap({
       )}
 
       {/* Footnote list for hidden cluster labels (UI/UX D1 binding: greedy + footnote fallback).
-          Renders below chart when one or more cluster labels could not be placed on map. */}
-      {hiddenClusterLabels.length > 0 && showClusterLabels && (
+          Renders below chart when one or more cluster labels could not be placed on map.
+          2026-06-10 jitter fix: the band is height-CONSTANT (fixed height + internal
+          scroll) so item-count changes can never resize .chart-wrap and re-fire the
+          ResizeObserver. Item count feeding back into chart height was the live
+          oscillation Mark reported (footnote list cycling, chart re-rendering). */}
+      {showClusterLabels && (
         <ol
           className="term-map-cluster-footnotes"
           aria-label="Cluster labels not shown on map due to space constraints."
@@ -1425,11 +1441,18 @@ export function TermMap({
             margin: '4px 0 0 0',
             paddingLeft: '20px',
             lineHeight: '1.5',
+            height: '48px',
+            overflowY: 'auto',
+            flex: 'none',
           }}
         >
-          {hiddenClusterLabels.map((label) => (
-            <li key={label}>{label}</li>
-          ))}
+          {hiddenClusterLabels.length > 0 ? (
+            hiddenClusterLabels.map((label) => <li key={label}>{label}</li>)
+          ) : (
+            <li style={{ listStyle: 'none', marginLeft: '-20px' }}>
+              All cluster labels are shown on the map.
+            </li>
+          )}
         </ol>
       )}
 

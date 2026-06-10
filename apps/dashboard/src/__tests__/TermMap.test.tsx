@@ -254,8 +254,10 @@ describe("TermMap", () => {
     expect(document.querySelector(".term-map-salience-caption")).toBeNull();
   });
 
-  // TM-C: hidden cluster labels footnote list absent when no labels are hidden
-  it("TM-C: term-map-cluster-footnotes absent when no cluster labels are hidden", () => {
+  // TM-C + 2026-06-10 jitter fix: the footnote band is height-constant and always
+  // present when cluster labels are on; its item count must never resize
+  // .chart-wrap and re-fire the ResizeObserver (the live oscillation regression).
+  it("TM-C: footnote band is height-constant with placeholder when nothing hidden", () => {
     render(
       <TermMap
         termCoords={FIXTURE_TERM_COORDS}
@@ -264,9 +266,11 @@ describe("TermMap", () => {
       />
     );
 
-    // No cluster labels are hidden in a minimal fixture (not enough labels to collide)
-    // The footnote list should not be rendered when hiddenClusterLabels is empty.
-    expect(document.querySelector(".term-map-cluster-footnotes")).toBeNull();
+    const band = document.querySelector<HTMLOListElement>(".term-map-cluster-footnotes");
+    expect(band).not.toBeNull();
+    expect(band!.style.height).toBe("48px");
+    expect(band!.style.overflowY).toBe("auto");
+    expect(band!.textContent).toContain("All cluster labels are shown on the map.");
   });
 
   // TM-C: R6 invariant check -- no ellipse/circle/polygon changes in component render
