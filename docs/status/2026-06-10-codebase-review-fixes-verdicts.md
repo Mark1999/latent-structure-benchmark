@@ -62,6 +62,24 @@ Style: annotations follow CLAUDE.md §9 historical-pitfall convention (preserve 
 - **Reviewer:** [verdict on commit]
 - **Tester:** `uv run pytest tests/unit/test_check_informants_append_only.py` green (doc-state guards). No new tests required; the change is doc-only and touches no code surface the existing suite is wired to.
 
-## Task 4: delete dead component Timeline.tsx
+## Task 4: delete dead Timeline.tsx component
 
-Status: queued.
+**Commit:** `refactor(dashboard): delete dead Timeline component`
+
+`apps/dashboard/src/components/Timeline.tsx` deleted. `.timeline` and `.timeline__*` CSS block (lines 1183 to 1304, `/* ===== Timeline ===== */` banner through `.timeline__stop-date`) removed from `apps/dashboard/src/styles/app.css`. The `/* ===== Model Map ===== */` banner at the old line 1306 is unchanged; a blank separator line precedes it as before. `displayModel.test.ts:140` historical comment preserved byte-identical.
+
+Pre-deletion grep results (all expectations met):
+1. `grep -rn "from.*Timeline" apps/dashboard/src` -- no matches (exit 1).
+2. `grep -rn "import.*Timeline" apps/dashboard/src` -- no matches (exit 1).
+3. `grep -rn "\btimeline\b" apps/dashboard/src --include="*.tsx" --include="*.ts"` -- two matches, both inside `Timeline.tsx` itself (the file being deleted): line 31 (comment "Derive timeline stops") and line 95 (aria-label "Version history timeline"). No match in any live component.
+4. `grep -rn "timeline" apps/dashboard/src/styles` -- 16 matches, all inside `app.css` lines 1184-1304 (the block being deleted). None in any other styles file.
+5. `grep -n "Timeline" DESIGN_SYSTEM.md` -- one match at line 2614, in §18 historical audit trail (displayModel migration record), not in §11 Component Inventory. UI/UX agent confirmed no doc update required.
+
+Build: `npm run build` exits 0, 68 modules, 50.38 kB CSS / 329.19 kB JS. Bundle size non-positive delta (Timeline.tsx was not imported; tree-shaken out).
+Tests: `npm run test` 148 passed (12 test files). Matches the 2026-06-10 baseline count.
+Lint: `npm run lint` exits 0, no warnings or errors.
+
+- **CDA SME:** not routed. Deletion does not touch any analysis measure, gate threshold, ConsensusType enum, schema methodology field, §1.5.x framing section, lede template, methodology-page copy, or researcher-grounding workflow. The deleted file was never rendered to users.
+- **UI/UX:** PASS (deletion-only refactor -- no rendered surface; all four criteria N/A). DESIGN_SYSTEM.md line 2614 is historical audit trail in §18, not a Component Inventory entry; no doc update required on deletion. The PROVIDER_COLORS map with hardcoded hex values (e.g., anthropic: #d97706) duplicating tokens.css provider color tokens is the CLAUDE.md §9 pitfall-15 silent-token-drift pattern; deletion is the correct resolution.
+- **Reviewer:** PASS. All R-checks: (1) pre-deletion greps match; (2) `displayModel.test.ts` diff empty; (3) only `/* ===== Timeline ===== */` block removed, Model Map banner untouched; (4) `grep -n "Timeline" DESIGN_SYSTEM.md` returns only §18 audit trail entry; (5) one commit, conventional subject under 72 chars, body references 2026-06-10 review and verdicts file; (6) no em dashes; (7) no forbidden vocabulary; (8) no spend-gate tokens; (9) only three paths modified; (10) no new dependency, no schema change, no token change. Bundle delta non-positive.
+- **Tester:** `npm run test` 148 passed, matching the 2026-06-10 baseline. No test transitioned from pass to fail.
