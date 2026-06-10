@@ -16,7 +16,7 @@
 | CR-T2 | Impact paragraph for follow-up interviews | A | Pending |
 | CR-T3 | Taxonomy disclosure | A | Pending |
 | CR-T5 | Successful-records section in Collection records tab | B | Pending T4 |
-| CR-T6 | Counts caption update | B | Pending T5 |
+| CR-T6 | Counts caption update | B | SHIPPED |
 | CR-T7 | Raw-exchange exposure on InformantRecord-derived rows | C | Pending T4+T5 |
 | CR-T8 | Per-attempt retry-transcript exposure | C | Pending |
 
@@ -496,4 +496,104 @@
 
 ---
 
-*T6-T8 verdicts to be appended as subsequent tasks complete.*
+## CR-T6: Counts caption update
+
+**Task scope:** Update `countsCaptionText()` in `copy/failures_findings.ts` to accept optional `nParsedResponses?: number`; implement four-cell empty-state matrix per CDA SME N1-N5; update caption call site in `FailuresFindings.tsx`; add vitest cases 27-32; extend case 9; amend DESIGN_SYSTEM.md §19.4 step 6 + add §19.16, bump to v0.19.5.
+
+### CDA SME verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-axis scorecard:**
+
+| Axis | Score | Notes |
+|---|---|---|
+| Protocol validity | PASS | "Parsed primary-step responses" is parser-state language; correctly describes a property of the LSB pipeline's parsing outcome, not a quality judgment on model output. |
+| Analytical validity | N/A | No analysis claim made. Count of pipeline parsing outcomes only. |
+| Claims validity | PASS | No leading total (N1 Option C). No "successful" in caption. Three-clause template byte-identical to N2. §1.5.4 clean. |
+| Audience translation | PASS | Four-cell matrix covers all first-class states. S-clause-only and failure-clause-only gracefully degrade on partially available data. |
+
+**Binding notes (applied by Coder):**
+
+- N1 (BINDING): No leading total. Option C adopted. Summing n_informants and n_records is a category error.
+- N2 (BINDING): Byte-identical template: `"{S} parsed primary-step responses, {F} collection {failure|failures}, {D} follow-up {interview|interviews}."` with pluralization matching existing L158-159 pattern.
+- N3 (BINDING): Four-cell matrix: (>0,>0) full, (>0,0) drop S clause, (0,>0) S clause only, (0,0) caption omitted.
+- N4 (BINDING): Records-side fetch-not-ready renders failures-only caption (undefined nParsedResponses). Independent fetches must not couple.
+- N5 (BINDING): `nParsedResponses` is optional (`number | undefined`); parameter name mirrors surface vocabulary.
+- N6 (BINDING): Case-9 chrome-isolation scan affirmatively confirms "parsed primary-step responses" present AND "successful"/"successfully" absent.
+- N7 (ADVISORY): "Parsed primary-step responses" is parser-state language; mitigated by surrounding CR-T5 framing. T14 carry-forward for glossary link.
+- N8 (ADVISORY): Register lock load-bearing across three surfaces now. T14 methodology page should define "primary step" once normatively.
+- N9 (BINDING ON ARCHITECT, resolved): Plan corrections per N1-N5+N10 applied before Coder dispatch.
+- N10 (ADVISORY): Case 31 asserts caption paragraph NOT in DOM, not empty string render. Implemented via `querySelectorAll('.failures-findings__counts').length === 0`.
+
+---
+
+### UI/UX verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-question scorecard:**
+
+| Question | Score | Notes |
+|---|---|---|
+| OWID design fidelity | PASS | Reuses `.failures-findings__counts`. No new tokens. No new CSS classes. |
+| 30-second journalist test | PASS | Caption now names all three count categories; cold reader gets a complete picture from the caption line alone. |
+| Researcher reproduce-and-cite test | PASS | Parser-state vocabulary consistent with DATA_DICTIONARY §12.6 and the records summary framing_note. |
+| WCAG AA accessibility | PASS | No change to existing `.failures-findings__counts` styling. No new classes. |
+
+**Notes (binding on Coder):**
+
+- DESIGN_SYSTEM.md updated from v0.19.4 to v0.19.5. Changes: version header; changelog entry (v0.19.5); §19 heading extended; §19.4 heading extended; §19.4 step 6 expanded with four-cell matrix and records-not-ready semantics; new §19.16 added specifying caption template, four-cell matrix, render condition, function signature, and vitest case specs; closing line updated to v0.19.5.
+- No new visual decisions. No new tokens. No new CSS classes. Pitfall 15 not implicated.
+- WCAG AA not implicated (no visual change to existing `.failures-findings__counts`).
+
+---
+
+### Reviewer verdict: PASS
+
+**Date:** 2026-06-10
+
+**Checks:**
+
+- AC1. `countsCaptionText()` signature grows optional `nParsedResponses?: number` as fourth parameter; existing three parameters unchanged in order and name. JSDoc updated. PASS.
+- AC2. Returned string byte-identical to CDA SME N2 template for all-positive case; all pluralization rules preserved. PASS.
+- AC3. `IMPACT_PARAGRAPH_FAILURES`, `IMPACT_PARAGRAPH_FOLLOWUPS`, `TAXONOMY_BLOCK`, `RECORDS_*`, `SECTION_HEADING`, `EMPTY_CAPTION`, badges, blocks, loading/error/malformed strings, `FAILURES_TAB_LABEL`, `DOMAIN_LABEL` unchanged byte-for-byte. PASS.
+- AC4. `FailuresFindings.tsx` caption call site sources `nParsedResponses` from `recordsFetchState.data.n_informants` when ready; passes `undefined` when not ready. Render condition gates on `countsCaptionText()` returning non-empty string. PASS.
+- AC5. Four-cell empty-state matrix implemented per N3; each cell verified by a vitest case. PASS.
+- AC6. No edits to `cdb_core/schemas.py`, `cdb_publish/`, `failures-findings.css`, or any dashboard component other than `FailuresFindings.tsx`. PASS.
+- AC7. Cases 27-32 added. Case 9 extended with N6 affirmative check. PASS.
+- AC8. Existing cases 1-26 unmodified and pass. Case 9 chrome-isolation extended. PASS.
+- AC9. DESIGN_SYSTEM.md §19.16 added; §19.4 step 6 amended; §19 heading extended; §19.4 heading extended; v0.19.5 changelog entry references this verdict file; closing line updated. PASS.
+- AC10. T6 section appended; T1-T5 sections unchanged. PASS.
+- AC11. `npm run build && npm run test && npm run lint` all pass. PASS.
+- AC12. Zero em dashes (U+2014) in entire diff. PASS.
+- AC13. Commit message: `feat(dashboard): counts caption names parsed-response count (CR-T6)`; body references kickoff and verdicts file. No em dashes. PASS.
+- AC14. No new dependency. No `cdb_core/schemas.py` edit. No `DATA_DICTIONARY.md` edit. No spend-gate language. PASS.
+- AC15. No new `var(--...)` references. Pitfall 15 not implicated. PASS.
+- Pitfall 4: no "no parsed responses yet" / "available soon" framing anywhere. PASS.
+- Pitfall 7: no `worldview` / `believes` / `thinks` / `understands` in any new text including JSDoc and comments. PASS.
+- R13: no spend-gate or cost-estimate language. PASS.
+
+---
+
+### Tester verdict: PASS
+
+**Date:** 2026-06-10
+
+**Test run:** `npm run test` from `apps/dashboard/`
+
+**Cases passing (new, CR-T6):**
+- Case 27: counts caption byte-identical to three-clause template under family fixtures. PASS.
+- Case 28: caption paragraph renders when n_records > 0 and parsed > 0. PASS.
+- Case 29: S-clause-only caption under foodJson + recordsFoodJson (n_records=0, parsed=45). PASS.
+- Case 30: failure-clause-only caption under familyJson + mocked by_model:[] records (n_records>0, parsed=0). PASS.
+- Case 31: caption paragraph NOT in DOM under foodJson + mocked n_informants=0 records (both zero). PASS.
+- Case 32: failure-clause-only caption when records fetch returns 404 (records not ready). PASS.
+
+**Cases passing (existing, unmodified):**
+- Case 9: chrome-isolation DOM-walk extended with N6 affirmative check -- "parsed primary-step responses" confirmed present, "successful"/"successfully" confirmed absent. PASS.
+- Cases 1-8, 10-26: all existing cases pass unchanged. PASS.
+
+---
+
+*T7-T8 verdicts to be appended as subsequent tasks complete.*

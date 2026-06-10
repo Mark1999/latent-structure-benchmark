@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.19.4  
+**Version:** v0.19.5  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.19.5** (Counts caption update, CR-T6, 2026-06-10) amends §19.4 step 6 (counts caption): caption now names parsed-primary-step-response count using Option C (no leading total; CDA SME N1 binding). `countsCaptionText()` in `copy/failures_findings.ts` gains an optional `nParsedResponses?: number` parameter (N5). Four-cell empty-state matrix (N3): (n_records > 0, parsed > 0) full three-clause; (n_records > 0, parsed === 0 or undefined) failure-clause-only; (n_records === 0, parsed > 0) S-clause-only; (n_records === 0, parsed === 0 or undefined) caption omitted. Records-not-ready state preserves failures-only caption (N4). Adds new §19.16 specifying the caption template, four-cell matrix, and render conditions. Six new vitest cases (27-32); case 9 extended with N6 affirmative check. No new CSS classes. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T6 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T6 section).
 - **v0.19.4** (Successful-records summary section, CR-T5, 2026-06-10) amends §19.4 content order: adds step 8 (successful-records summary section) below the failures/decline-interviews list (and below EMPTY_CAPTION when n_records === 0). Adds new §19.15 specifying the successful-records summary section structure, element spec, CSS classes, fetch coupling, and vitest cases. TAXONOMY_BLOCK.topLevel[0].description updated (SME N6 conditional revision): drops stale "when the successes section ships" phrasing; now reads "...Surfaced in the per-model summary section below..." New CSS classes in `failures-findings.css`: `.failures-findings__successes`, `.failures-findings__successes-heading`, `.failures-findings__successes-framing`, `.failures-findings__successes-empty`, `.failures-findings__successes-table-wrapper`, `.failures-findings__successes-table`, `.failures-findings__successes-th`, `.failures-findings__successes-tr`, `.failures-findings__successes-td`, `.failures-findings__successes-td--num`, `.failures-findings__successes-code`, `.failures-findings__successes-caption`, `.failures-findings__successes-status`, `.sr-only`. No new tokens. Seven new vitest cases (20-26); case 9 extended. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T5 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T5 section).
 - **v0.19.3** (Taxonomy block, CR-T3, 2026-06-10) amends §19.4 content order: inserts taxonomy block (`TAXONOMY_BLOCK`) as new step 4 (between `IMPACT_PARAGRAPH_FAILURES` step 3 and `framing_note` step 5); former steps 4-6 renumber to 5-7. Adds new §19.14 specifying the taxonomy block structure, element spec, CSS classes, and placement. New CSS classes in `failures-findings.css`: `.failures-findings__taxonomy`, `.failures-findings__taxonomy-heading`, `.failures-findings__taxonomy-bridge`, `.failures-findings__taxonomy-list`, `.failures-findings__taxonomy-enum-label`. No new tokens. Taxonomy block renders in `ready` state including the empty-state path (n_records === 0); does not render in loading/fetch-failed/malformed states. Element structure: `<section aria-labelledby>` + `<h2>` heading + bridge `<p>` + two `<ul>` lists (top-level outcomes and enum values). Four new vitest cases (16-19). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section).
 - **v0.19.2** (Follow-up interviews impact paragraph, CR-T2, 2026-06-10) amends §19.4 content order: step 6 (records list) is now split into two groups with the follow-up impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) inserted between them. Failure records render in a first `<ol className="failures-findings__list">`, then conditionally (when at least one `decline_interview` record is present) the `IMPACT_PARAGRAPH_FOLLOWUPS` `<p className="failures-findings__impact">` renders, then decline records render in a second `<ol className="failures-findings__list">`. CSS class reuses `.failures-findings__impact` (no new class, no new tokens). Follow-up impact paragraph renders only when `data.records.some(r => r.record_type === 'decline_interview')` is true; does not render in loading/fetch-failed/malformed states or when zero decline_interview records are present. Two new vitest cases added: byte-identity under `familyJson` (case 14), absent under `foodJson` (case 15). Also corrects pre-existing closing-line version string from `v0.19.0` to `v0.19.2`. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section).
@@ -2646,7 +2647,7 @@ Round-2 additions (3):
 
 ---
 
-## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10; further amended v0.19.3, CR-T3, 2026-06-10; further amended v0.19.4, CR-T5, 2026-06-10)
+## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10; further amended v0.19.3, CR-T3, 2026-06-10; further amended v0.19.4, CR-T5, 2026-06-10; further amended v0.19.5, CR-T6, 2026-06-10)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`, M1-M4); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`, N1-N7).
 
@@ -2670,7 +2671,7 @@ Three domain options: Family / Holidays / Food (same set as Explore).
 
 `<h1>` element with text `"Collection records and follow-up interviews"` byte-for-byte. This is the T10 SECTION_HEADING string; it is the tab's primary heading.
 
-### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10; further amended v0.19.2 / CR-T2 2026-06-10; further amended v0.19.3 / CR-T3 2026-06-10; further amended v0.19.4 / CR-T5 2026-06-10)
+### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10; further amended v0.19.2 / CR-T2 2026-06-10; further amended v0.19.3 / CR-T3 2026-06-10; further amended v0.19.4 / CR-T5 2026-06-10; further amended v0.19.5 / CR-T6 2026-06-10)
 
 Within the tab region, content renders in this order:
 1. `<h1>` heading (§19.3).
@@ -2678,7 +2679,7 @@ Within the tab region, content renders in this order:
 3. Impact paragraph (`IMPACT_PARAGRAPH_FAILURES`) `<p className="failures-findings__impact">`: Mark-authored, approved verbatim 2026-06-10; renders in the `ready` fetch state only (not in loading/fetch-failed/malformed states); renders in the empty-state path (n_records === 0, AC3). See v0.19.1 CR-T1 for the CSS class spec.
 4. Taxonomy block (`TAXONOMY_BLOCK`) `<section className="failures-findings__taxonomy">`: exports from `copy/failures_findings.ts`; renders in the `ready` fetch state only (not in loading/fetch-failed/malformed states); renders in the empty-state path (n_records === 0) -- the taxonomy is a property of the LSB pipeline, not of the per-domain data. See §19.14 for full spec.
 5. `framing_note` `<p>` -- verbatim, byte-identity from the JSON field. First data-sourced content paragraph (T9 §5.1 / AC5).
-6. Counts caption `<p>` (T10 §4 template) -- OMITTED when `n_records === 0`.
+6. Counts caption `<p className="failures-findings__counts">` -- four-cell matrix per CR-T6 / §19.16: rendered when `countsCaptionText()` returns a non-empty string; omitted when both `n_records === 0` and `nParsedResponses === 0` (or undefined). The `nParsedResponses` argument is sourced from `recordsFetchState.data.n_informants` when records side is ready; `undefined` when not ready (preserves failures-only caption, CDA SME N4). See §19.16 for the full caption template and empty-state matrix.
 7. When `n_records > 0`, records render in two grouped lists with the follow-up impact paragraph between them:
    a. Failure records `<ol className="failures-findings__list">`: all `record_type === 'failure'` records.
    b. Follow-up interviews impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) `<p className="failures-findings__impact">`: Mark-authored, approved verbatim 2026-06-10; renders ONLY when at least one `decline_interview` record is present (`data.records.some(r => r.record_type === 'decline_interview')`). Does not render when zero decline_interview records exist. CSS class reuses `.failures-findings__impact` (no new tokens).
@@ -2965,6 +2966,76 @@ The successful-records summary section is a CDA-SME-approved per-model table sur
 
 **Accessible landmark (binding):** `aria-labelledby="records-summary-heading"` on the `<section>` provides a named landmark. `id="records-summary-heading"` on the `<h2>` is required and must be present in the rendered DOM.
 
+### 19.16 Counts caption template (binding, CR-T6, v0.19.5)
+
+The counts caption is a single `<p className="failures-findings__counts">` rendered at step 6 in §19.4 content order. It names the parsed-primary-step-response count alongside the failure and decline counts. No leading total (CDA SME N1 BINDING: Option C -- summing parsed responses and failure-side records would be a category error with no defensible denominator).
+
+**Caption template (CDA SME N2 BINDING, byte-identical):**
+
+All-positive case (n_records > 0 AND nParsedResponses > 0):
+> `{S} parsed primary-step responses, {F} collection {failure|failures}, {D} follow-up {interview|interviews}.`
+
+Where `{S}` is `nParsedResponses`, `{F}` is `nFailure`, `{D}` is `nDecline`. Pluralization rules mirror the existing L158-159 pattern: "failure" vs "failures" on `nFailure === 1`; "interview" vs "interviews" on `nDecline === 1`. "responses" is always plural (S > 0 when this clause renders).
+
+**Four-cell empty-state matrix (CDA SME N3 BINDING):**
+
+| `n_records` | `nParsedResponses` | Caption renders as |
+|---|---|---|
+| > 0 | > 0 | Full three-clause: `{S} parsed primary-step responses, {F} collection {failure|failures}, {D} follow-up {interview|interviews}.` |
+| > 0 | 0 or undefined | Failure-clause-only: `{F} collection {failure|failures}, {D} follow-up {interview|interviews}.` |
+| 0 | > 0 | S-clause-only: `{S} parsed primary-step responses.` |
+| 0 | 0 or undefined | Caption omitted (empty string returned by `countsCaptionText()`; `<p>` not rendered) |
+
+Each cell is a first-class state. No "no parsed responses yet" / "no failures yet" / "available soon" framing. Absence is an observation (ARCHITECTURE.md §1.5.5 / CLAUDE.md Pitfall 4).
+
+**Records-not-ready state (CDA SME N4 BINDING):** When `recordsFetchState.kind !== 'ready'` (loading, fetch-failed, malformed, or idle), `nParsedResponses` is `undefined`. The caption renders the failure-clause-only form (same as the `nParsedResponses === 0` column above). Independent fetches must not couple: failures caption must not be suppressed by a records-side error.
+
+**`nParsedResponses` parameter (CDA SME N5 BINDING):** The parameter is `number | undefined`. It mirrors the surface vocabulary ("parsed primary-step responses") rather than the raw field name (`n_informants`). Undefined means records side is not ready; 0 means records side resolved with no informants.
+
+**Function signature (AC1):**
+
+```ts
+export function countsCaptionText(
+  nRecords: number,
+  nFailure: number,
+  nDecline: number,
+  nParsedResponses?: number,
+): string
+```
+
+Parameter order: existing parameters first (no reorder); `nParsedResponses` appended last.
+
+**Render condition in component (AC4):**
+
+```tsx
+{(() => {
+  const nParsedResponses =
+    recordsFetchState.kind === "ready"
+      ? recordsFetchState.data.n_informants
+      : undefined;
+  const captionText = countsCaptionText(
+    data.n_records,
+    data.n_failure_records,
+    data.n_decline_interview_records,
+    nParsedResponses,
+  );
+  return captionText ? (
+    <p className="failures-findings__counts">{captionText}</p>
+  ) : null;
+})()}
+```
+
+**No new CSS class (binding):** Reuses `.failures-findings__counts` (existing class from v0.15.0). No new tokens.
+
+**Vitest cases (binding, AC7):**
+- Case 27: byte-identity assertion on full three-clause caption under `familyJson` + `recordsFamilyJson` (both non-zero); caption contains "parsed primary-step responses" and does NOT contain "successful" or "successfully".
+- Case 28: DOM-presence assertion -- caption `<p>` in DOM when n_records > 0 and n_informants > 0 (same fixtures as case 27).
+- Case 29: S-clause-only caption under `foodJson` (n_records === 0) + `recordsFoodJson` (n_informants=45 > 0); caption contains "parsed primary-step responses" and NOT "collection failure" or "follow-up interview".
+- Case 30: failure-clause-only caption under `familyJson` + mocked `by_model: []` records (n_informants=0); caption does NOT contain "parsed primary-step responses".
+- Case 31: caption `<p>` NOT in DOM under `foodJson` + mocked n_informants=0 records (both zero); asserts via `querySelectorAll('.failures-findings__counts').length === 0`.
+- Case 32: failure-clause-only caption when records fetch returns HTTP 404 (records side fetch-failed, nParsedResponses = undefined); caption present and does NOT contain "parsed primary-step responses".
+- Case 9 (existing, extended with N6 binding check): chrome-isolation walk affirmatively confirms "parsed primary-step responses" IS present in chrome text AND "successful"/"successfully" is absent.
+
 ---
 
 ## 20. Data Page visual specification (v0.16.0 — Phase 9a task 6, 2026-06-09)
@@ -3151,6 +3222,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.19.4. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.19.5. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

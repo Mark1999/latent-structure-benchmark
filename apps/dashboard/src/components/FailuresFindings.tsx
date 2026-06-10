@@ -9,12 +9,13 @@
  * Framing: these records are LSB pipeline output properties, not
  * claims about model intent or state-of-mind. See ARCHITECTURE.md §1.5.6.
  *
- * Design bindings: DESIGN_SYSTEM.md §19 (v0.19.4).
+ * Design bindings: DESIGN_SYSTEM.md §19 (v0.19.5).
  * CDA SME: Phase 9a T1 verdict (2026-06-08), M1-M4 applied;
  *           CR-T1 (2026-06-10); CR-T2 (2026-06-10); CR-T3 (2026-06-10);
- *           CR-T5 (2026-06-10), N1-N6 applied.
+ *           CR-T5 (2026-06-10), N1-N6 applied;
+ *           CR-T6 (2026-06-10), N1-N10 applied.
  * UI/UX: Phase 9a T1 verdict (2026-06-08), N1-N7 applied;
- *         CR-T1 through CR-T5 verdicts (2026-06-10) applied.
+ *         CR-T1 through CR-T6 verdicts (2026-06-10) applied.
  *
  * NO Explore chrome: no chart-lede, no Smith's S, no SelectionBar,
  * no VizTabs, no consensus strings (M4 / N7).
@@ -454,16 +455,25 @@ export function FailuresFindings() {
                 Step 5 in §19.4 content order (after taxonomy block). */}
             <p className="failures-findings__framing-note">{data.framing_note}</p>
 
-            {/* Counts caption — omitted when n_records === 0 (UI/UX N1) */}
-            {data.n_records > 0 && (
-              <p className="failures-findings__counts">
-                {countsCaptionText(
-                  data.n_records,
-                  data.n_failure_records,
-                  data.n_decline_interview_records,
-                )}
-              </p>
-            )}
+            {/* Counts caption (CR-T6, v0.19.5): four-cell empty-state matrix per CDA SME N3.
+                nParsedResponses sourced from recordsFetchState.data.n_informants when ready;
+                undefined when records side not ready (CDA SME N4: failures-only caption, no inline
+                spinner). Caption omitted when countsCaptionText returns empty string. */}
+            {(() => {
+              const nParsedResponses =
+                recordsFetchState.kind === "ready"
+                  ? recordsFetchState.data.n_informants
+                  : undefined;
+              const captionText = countsCaptionText(
+                data.n_records,
+                data.n_failure_records,
+                data.n_decline_interview_records,
+                nParsedResponses,
+              );
+              return captionText ? (
+                <p className="failures-findings__counts">{captionText}</p>
+              ) : null;
+            })()}
 
             {/* Records list or empty state */}
             {data.n_records === 0 ? (

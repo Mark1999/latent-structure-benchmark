@@ -141,22 +141,64 @@ export const BLOCK_REASONING = "Reasoning trace the provider surfaced";
 /** Block label for provenance identifiers. */
 export const BLOCK_PROVENANCE = "Provenance IDs";
 
-// ===== Counts caption template (T10 §4 verbatim) =====
+// ===== Counts caption template (v0.19.5, CR-T6, 2026-06-10) =====
 
 /**
- * Counts caption: shown only when n_records > 0.
- * @param nRecords - total record count
+ * Counts caption: shown based on a four-cell empty-state matrix (CDA SME CR-T6 N3).
+ *
+ * Four-cell matrix (N3 BINDING):
+ *   (n_records > 0, nParsedResponses > 0)  -> full three-clause caption
+ *   (n_records > 0, nParsedResponses === 0 or undefined) -> failures-only two-clause caption
+ *   (n_records === 0, nParsedResponses > 0) -> parsed-responses-only single-clause caption
+ *   (n_records === 0, nParsedResponses === 0 or undefined) -> empty string (caption omitted)
+ *
+ * When nParsedResponses is undefined (records side not ready), renders failures-only
+ * caption matching pre-T6 behavior (CDA SME N4 BINDING).
+ *
+ * No leading total (CDA SME N1 BINDING: Option C, no N_total denominator).
+ *
+ * Template for all-positive case (CDA SME N2 BINDING, byte-identical):
+ *   "{S} parsed primary-step responses, {F} collection {failure|failures},
+ *    {D} follow-up {interview|interviews}."
+ *
+ * @param nRecords - total failure-side record count (n_records from failures JSON)
  * @param nFailure - failure record count
  * @param nDecline - decline interview record count
+ * @param nParsedResponses - parsed primary-step response count (n_informants from records JSON);
+ *   optional: pass undefined when records side is not yet ready (N5 BINDING)
  */
 export function countsCaptionText(
   nRecords: number,
   nFailure: number,
   nDecline: number,
+  nParsedResponses?: number,
 ): string {
+  const hasFailures = nRecords > 0;
+  const hasParsed = typeof nParsedResponses === "number" && nParsedResponses > 0;
+
+  if (!hasFailures && !hasParsed) {
+    // (0, 0): caption omitted (N3 cell 4)
+    return "";
+  }
+
+  if (!hasFailures && hasParsed) {
+    // (0, >0): S clause only (N3 cell 3)
+    return `${nParsedResponses} parsed primary-step responses.`;
+  }
+
+  const failureClause =
+    `${nFailure} collection ${nFailure === 1 ? "failure" : "failures"}, ` +
+    `${nDecline} follow-up ${nDecline === 1 ? "interview" : "interviews"}.`;
+
+  if (hasFailures && !hasParsed) {
+    // (>0, 0): drop S clause (N3 cell 2)
+    return failureClause;
+  }
+
+  // (>0, >0): full three-clause caption (N3 cell 1, N2 BINDING byte-identical template)
   return (
-    `${nRecords} records: ${nFailure} collection ${nFailure === 1 ? "failure" : "failures"}, ` +
-    `${nDecline} follow-up ${nDecline === 1 ? "interview" : "interviews"}.`
+    `${nParsedResponses} parsed primary-step responses, ` +
+    failureClause
   );
 }
 

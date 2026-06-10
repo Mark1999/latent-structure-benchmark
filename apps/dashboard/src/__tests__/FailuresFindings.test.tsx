@@ -31,6 +31,12 @@
  * 24. Records fetch-failed string when records fetch rejects (CR-T5 AC9/AC13).
  * 25. Records section absent in records-side loading state (CR-T5 AC11/AC13).
  * 26. Records section renders BELOW EMPTY_CAPTION in DOM order (food fixture) (CR-T5 AC13).
+ * 27. Counts caption byte-identity: full three-clause under familyJson + recordsFamilyJson (CR-T6 AC2/AC7).
+ * 28. Counts caption cell (n_records > 0, parsed > 0): caption visible in DOM (CR-T6 AC5/AC7).
+ * 29. Counts caption cell (n_records === 0, parsed > 0): S-clause-only under foodJson + recordsFoodJson (CR-T6 AC5/AC7).
+ * 30. Counts caption cell (n_records > 0, parsed === 0): failure-clause-only under familyJson + mocked by_model:[] (CR-T6 AC5/AC7).
+ * 31. Counts caption cell (n_records === 0, parsed === 0): caption paragraph NOT in DOM (CR-T6 AC5/AC7 + N10).
+ * 32. Counts caption records-not-ready: failures-only two-clause caption when records fetch returns 404 (CR-T6 AC4/N4).
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -44,6 +50,7 @@ import {
   TAXONOMY_BLOCK,
   RECORDS_SECTION_HEADING,
   RECORDS_FETCH_FAILED_TEXT,
+  countsCaptionText,
 } from '../copy/failures_findings';
 
 // -- Fixtures: load the production JSON files -----------------------------------
@@ -313,6 +320,21 @@ describe('FailuresFindings', () => {
     // must contain response_verbatim bytes. This guarantees the chrome-isolation
     // check above is not vacuously passing because all <pre> blocks were empty.
     expect(prEls_haveResponseBytes(preEls)).toBe(true);
+
+    // CR-T6 N6 BINDING: affirmatively confirm 'parsed primary-step responses' IS present
+    // in the new caption template, AND 'successful'/'successfully' is absent from it.
+    // Check the template string directly (not the entire chrome, which contains
+    // "Successful run" from TAXONOMY_BLOCK.topLevel[0].term -- existing copy from CR-T3).
+    const newCaptionTemplate = countsCaptionText(
+      familyJson.n_records,
+      familyJson.n_failure_records,
+      familyJson.n_decline_interview_records,
+      recordsFamilyJson.n_informants,
+    );
+    expect(newCaptionTemplate).toContain('parsed primary-step responses');
+    expect(newCaptionTemplate.toLowerCase()).not.toContain('successful');
+    // Also confirm the caption is present somewhere in the overall chrome
+    expect(chromeText).toContain('parsed primary-step responses');
   });
 
   // 11. Byte-identity: IMPACT_PARAGRAPH_FAILURES renders verbatim (CR-T1 AC5)
@@ -558,6 +580,157 @@ describe('FailuresFindings', () => {
     const position = emptyCaption.compareDocumentPosition(recordsSection!);
     // DOCUMENT_POSITION_FOLLOWING = 4; result & 4 is non-zero if recordsSection follows emptyCaption
     expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBeTruthy();
+  });
+
+  // 27. Counts caption byte-identity: full three-clause under familyJson + recordsFamilyJson (CR-T6 AC2/AC7)
+  // familyJson: n_records > 0 (failure records exist); recordsFamilyJson: n_informants=631 > 0.
+  // Caption must be byte-identical to countsCaptionText(n_records, n_failure_records,
+  // n_decline_interview_records, n_informants).
+  it('counts caption byte-identical to three-clause template under family fixtures (CR-T6 case 27)', async () => {
+    mockFetchBoth(familyJson, recordsFamilyJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(IMPACT_PARAGRAPH_FAILURES)).toBeInTheDocument();
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const expectedCaption = countsCaptionText(
+      familyJson.n_records,
+      familyJson.n_failure_records,
+      familyJson.n_decline_interview_records,
+      recordsFamilyJson.n_informants,
+    );
+    // Verify the template is the full three-clause form (SME N2 byte-identity check)
+    expect(expectedCaption).toContain('parsed primary-step responses');
+    expect(expectedCaption).not.toContain('successful');
+    expect(expectedCaption).not.toContain('successfully');
+    // The caption must be present in the DOM
+    const captionEl = screen.getByText(expectedCaption);
+    expect(captionEl).toBeInTheDocument();
+    expect(captionEl.tagName.toLowerCase()).toBe('p');
+  });
+
+  // 28. Counts caption cell (n_records > 0, parsed > 0): caption paragraph visible (CR-T6 AC5/AC7)
+  // Reconfirms cell 1 renders -- distinct from byte-identity in case 27.
+  it('caption paragraph renders when both n_records > 0 and parsed > 0 (CR-T6 case 28 / N3 cell 1)', async () => {
+    mockFetchBoth(familyJson, recordsFamilyJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const expectedCaption = countsCaptionText(
+      familyJson.n_records,
+      familyJson.n_failure_records,
+      familyJson.n_decline_interview_records,
+      recordsFamilyJson.n_informants,
+    );
+    expect(screen.getByText(expectedCaption)).toBeInTheDocument();
+  });
+
+  // 29. Counts caption cell (n_records === 0, parsed > 0): S-clause-only (CR-T6 AC5/AC7 + N3 cell 3)
+  // foodJson: n_records=0. recordsFoodJson: n_informants=45 > 0.
+  // Caption must render with only the S clause.
+  it('S-clause-only caption when n_records === 0 and parsed > 0 (CR-T6 case 29 / N3 cell 3)', async () => {
+    mockFetchBoth(foodJson, recordsFoodJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      // Wait for records side to resolve
+      expect(screen.getAllByText(RECORDS_SECTION_HEADING).length).toBeGreaterThanOrEqual(1);
+    });
+
+    const expectedCaption = countsCaptionText(
+      foodJson.n_records,
+      foodJson.n_failure_records,
+      foodJson.n_decline_interview_records,
+      recordsFoodJson.n_informants,
+    );
+    // S-clause-only template: "{S} parsed primary-step responses."
+    expect(expectedCaption).toContain('parsed primary-step responses');
+    expect(expectedCaption).not.toContain('collection failure');
+    expect(expectedCaption).not.toContain('follow-up interview');
+    // Caption must be in DOM
+    expect(screen.getByText(expectedCaption)).toBeInTheDocument();
+    // EMPTY_CAPTION must also be present (food empty state)
+    expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
+  });
+
+  // 30. Counts caption cell (n_records > 0, parsed === 0): failure-clause-only (CR-T6 AC5/AC7 + N3 cell 2)
+  // familyJson: n_records > 0. Mocked records with n_informants=0 and by_model:[].
+  // Caption must drop the S clause.
+  it('failure-clause-only caption when n_records > 0 and parsed === 0 (CR-T6 case 30 / N3 cell 2)', async () => {
+    const zeroRecords = {
+      domain_slug: 'family',
+      generated_at: '2026-06-10T00:00:00.000Z',
+      n_informants: 0,
+      by_model: [],
+      framing_note: recordsFamilyJson.framing_note,
+    };
+    mockFetchBoth(familyJson, zeroRecords);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(IMPACT_PARAGRAPH_FAILURES)).toBeInTheDocument();
+      expect(screen.getByText(RECORDS_SECTION_HEADING)).toBeInTheDocument();
+    });
+
+    const expectedCaption = countsCaptionText(
+      familyJson.n_records,
+      familyJson.n_failure_records,
+      familyJson.n_decline_interview_records,
+      0,
+    );
+    // Failure-clause-only: no "parsed primary-step responses"
+    expect(expectedCaption).not.toContain('parsed primary-step responses');
+    expect(expectedCaption).toContain('collection');
+    expect(expectedCaption).toContain('follow-up');
+    // Caption must be in DOM
+    expect(screen.getByText(expectedCaption)).toBeInTheDocument();
+  });
+
+  // 31. Counts caption cell (n_records === 0, parsed === 0): caption paragraph NOT in DOM (CR-T6 N10 BINDING)
+  // foodJson: n_records=0. Mocked records with n_informants=0 and by_model:[].
+  it('caption paragraph absent when both n_records === 0 and parsed === 0 (CR-T6 case 31 / N3 cell 4 / N10)', async () => {
+    const zeroRecords = {
+      domain_slug: 'food',
+      generated_at: '2026-06-10T00:00:00.000Z',
+      n_informants: 0,
+      by_model: [],
+      framing_note: recordsFamilyJson.framing_note,
+    };
+    mockFetchBoth(foodJson, zeroRecords);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      // Wait for both sides to resolve
+      expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
+      expect(screen.getByText(RECORDS_SECTION_HEADING)).toBeInTheDocument();
+    });
+
+    // Caption paragraph must NOT be in DOM (N10 BINDING: asserts absence, not empty string)
+    const countsCaptions = container.querySelectorAll('.failures-findings__counts');
+    expect(countsCaptions.length).toBe(0);
+  });
+
+  // 32. Counts caption records-not-ready: failures-only two-clause caption when records fetch 404 (CR-T6 N4)
+  // mockFetchFailuresOnly returns 404 for records. nParsedResponses = undefined -> failure-clause-only.
+  it('failure-clause-only caption when records fetch returns 404 (records not ready) (CR-T6 case 32 / N4)', async () => {
+    mockFetchFailuresOnly(familyJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(IMPACT_PARAGRAPH_FAILURES)).toBeInTheDocument();
+      expect(screen.getByText(RECORDS_FETCH_FAILED_TEXT)).toBeInTheDocument();
+    });
+
+    // nParsedResponses = undefined (records fetch failed) -> failure-clause-only per N4
+    const expectedCaption = countsCaptionText(
+      familyJson.n_records,
+      familyJson.n_failure_records,
+      familyJson.n_decline_interview_records,
+      undefined,
+    );
+    // Caption must render (failures side is ready)
+    expect(screen.getByText(expectedCaption)).toBeInTheDocument();
+    // Must not contain parsed-primary-step-responses wording
+    expect(expectedCaption).not.toContain('parsed primary-step responses');
   });
 
   // 10. Domain switch re-fetches (AC4) -- updated for 2-fetch-per-domain model
