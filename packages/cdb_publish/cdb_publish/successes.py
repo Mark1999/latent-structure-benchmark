@@ -3,7 +3,7 @@
 See the kickoff at
 docs/status/2026-06-10-collection-records-rework-kickoff.md §4 Tasks 4 and 7.
 
-Reads data/raw/informants.jsonl (InformantRecord lines — raw dicts) and:
+Reads data/raw/informants.jsonl (InformantRecord lines, raw dicts) and:
   - Emits one apps/dashboard/public/data/records/{slug}.json per domain.
     Each file is a per-domain SUMMARY (counts and per-model aggregates) of
     collection sessions for which the LSB pipeline parsed a primary-step
@@ -81,12 +81,12 @@ _FRAMING_NOTE_DETAIL = (
 def _load_informants_jsonl(path: Path) -> list[dict]:
     """Read informants.jsonl and return a list of raw dicts.
 
-    Skips blank lines silently. Read-only access — never writes to path.
+    Skips blank lines silently. Read-only access; never writes to path.
     """
     records: list[dict] = []
     if not path.exists():
         logger.warning(
-            "informants.jsonl not found at %s — returning empty list", path
+            "informants.jsonl not found at %s; returning empty list", path
         )
         return records
     with open(path, encoding="utf-8") as fh:
@@ -119,14 +119,14 @@ def _group_by_domain(
         slug = rec.get("domain_slug")
         if not slug:
             logger.warning(
-                "Informant record with informant_id=%s has no domain_slug — "
+                "Informant record with informant_id=%s has no domain_slug; "
                 "cannot join to a domain, not counted",
                 rec.get("informant_id", "<unknown>"),
             )
             continue
         if slug not in grouped:
             logger.warning(
-                "Informant record domain %r not in manifest domain list — "
+                "Informant record domain %r not in manifest domain list; "
                 "not counted (informant_id=%s)",
                 slug,
                 rec.get("informant_id", "<unknown>"),
@@ -177,7 +177,7 @@ def _build_by_model_rows(domain_records: list[dict]) -> list[dict]:
         if len(providers) > 1:
             # WARNING message must not use anthropomorphic phrasing (N4).
             logger.warning(
-                "model_id %r has multiple provider strings in raw informants — "
+                "model_id %r has multiple provider strings in raw informants; "
                 "lexicographically smallest selected for summary row; full "
                 "per-informant provider strings remain in the open data bundle",
                 mid,
@@ -190,7 +190,7 @@ def _build_by_model_rows(domain_records: list[dict]) -> list[dict]:
         if version_count > 1:
             logger.warning(
                 "model_id %r has %d distinct model_version_returned strings in "
-                "domain — lexicographically greatest selected for summary row; "
+                "domain; lexicographically greatest selected for summary row; "
                 "full per-informant version strings remain in the open data bundle",
                 mid,
                 version_count,
@@ -229,7 +229,7 @@ def build_successes(
     Returns the records-path dict for the manifest (every slug has a
     non-null entry).
 
-    Source file is read-only — never modified. SHA256 of
+    Source file is read-only, never modified. SHA256 of
     raw_informants_path must be byte-identical before and after this
     function runs (Reviewer R4).
 
@@ -314,7 +314,7 @@ def build_record_details(
     (they should not exist for valid InformantRecords but may appear in legacy
     or malformed lines).
 
-    Source file is read-only — never modified. The SHA256 of
+    Source file is read-only, never modified. The SHA256 of
     raw_informants_path must be byte-identical before and after (Reviewer R4).
 
     All string fields are passed through sanitize_record_strings() before
@@ -346,7 +346,7 @@ def build_record_details(
         informant_id = rec.get("informant_id")
         if not informant_id:
             logger.warning(
-                "Informant record with no informant_id in domain %r — skipping",
+                "Informant record with no informant_id in domain %r; skipping",
                 slug,
             )
             continue
@@ -358,7 +358,7 @@ def build_record_details(
         if freelist is None or pile_sort is None or interview is None:
             logger.warning(
                 "Informant record %r in domain %r is missing one or more step "
-                "fields (freelist=%s pile_sort=%s interview=%s) — skipping "
+                "fields (freelist=%s pile_sort=%s interview=%s); skipping "
                 "detail emission for this record",
                 informant_id,
                 slug,
