@@ -160,4 +160,49 @@ The following before/after comparisons confirm zero visual delta for the migrati
   - (g) `stroke='#fff'` mapped to `var(--color-svg-dot-stroke)` in MDSPlot, Focus2FamilySimilarity, TermMap.
   - (h) WCAG advisory preserved: `--color-svg-axis-caption` (#a0a098) pre-existing fail at 11px text; remediation deferred.
   - (i) DESIGN_SYSTEM.md bumped v0.20.4 to v0.20.5 per changelog convention.
-- **Reviewer:** PASS. All nine listed components (plus the mandatory-note addition Focus1SelfConsistencyOverview) have zero `#[0-9a-fA-F]{3,6}` on added lines outside authorized docblock citations. Every `var(--token)` reference resolves to a token in `tokens.css`. New `tokens-defined.test.ts` passes. R10 invariants (SimilarityHeatmap.tsx lines 221-227 dashStroke, Focus1RunDistribution simToTextColor) updated to use `--color-background` and `--color-heatmap-cell-text-dark` (byte-identical logic). No em dashes. No forbidden vocabulary. No spend-gate tokens. Conventional commit under 72 chars. Body references verdicts file. Test count 148 to 149+.
+- **Reviewer:** PASS. All nine listed components (plus the mandatory-note addition Focus1SelfConsistencyOverview) have zero `#[0-9a-fA-F]{3,6}` on added lines outside authorized docblock citations. Every `var(--token)` reference resolves to a token in `tokens.css`. New `tokens-defined.test.ts` passes. R10 invariants (SimilarityHeatmap.tsx lines 221-227 dashStroke, Focus1RunDistribution simToTextColor) updated to use `--color-background` and `--color-heatmap-cell-text-dark` (byte-identical logic). No em dashes. No CLAUDE.md §7 vocabulary violations. No spend-gate tokens. Conventional commit under 72 chars. Body references verdicts file. Test count 148 to 149+.
+
+---
+
+## Task T-CHART-TESTS: chart vitest coverage (MDSPlot, FreeListCompare, ClusterTree, PileStructure)
+
+**Origin:** Tester backlog item from 2026-06-10 codebase review. Four chart components had zero vitest coverage. Minimum bar: R10 verification plus data-prop shape validation.
+
+**Architectural finding (plan §3):** MDSPlot.tsx does not implement DESIGN_SYSTEM.md §3.3.5 R1-b (dashed-stroke low-concentration) or R1-c (hollow-triangle deterministic) treatments. The R10-binding assertions for those states are stubbed as `it.skip(...)` with a T-MDS-R1 reference. Follow-up task T-MDS-R1 (separate, methodology-bearing, routes Architect to CDA SME to UI/UX to Coder) will implement the missing props and activate the skipped tests in the same PR.
+
+**Files created:**
+- `apps/dashboard/src/__tests__/MDSPlot.test.tsx` (reduced scope per plan §3; 2 skipped)
+- `apps/dashboard/src/__tests__/FreeListCompare.test.tsx`
+- `apps/dashboard/src/__tests__/ClusterTree.test.tsx`
+- `apps/dashboard/src/__tests__/PileStructure.test.tsx`
+
+**Test count:** 149 (pre-task baseline) to 365 passed + 3 skipped = 368 total.
+
+**Gate verdicts:**
+
+- **CDA SME:** PASS-WITH-NOTES (plan notes N1-N4 binding, N5 advisory). Notes applied:
+  - N1 (BINDING): MDSPlot AC4 comment block reproduces the verbatim N1 wording: "Per DESIGN_SYSTEM.md §3.3.5 binding invariant 1, a Register 2 ellipse must never imply more precision than the contributing model's Register 1 stability warrants. The current MDSPlot.tsx falls back to a bare circle when mdsUncertainty[id] is null instead of rendering the R1-b dashed treatment or R1-c hollow-triangle treatment required by §3.3.5. T-MDS-R1 lands the fix. This test asserts only what currently ships; the it.skip siblings below assert the §3.3.5-compliant behavior that T-MDS-R1 will deliver."
+  - N2 (BINDING): Test-file prose uses "categorical structure", "output distribution", "pile structure", "salience" (CSI), "co-occurrence" (ClusterTree), "bootstrap support" (ClusterTree). CLAUDE.md §7 vocabulary check on all four test-file sources passed.
+  - N3 (BINDING): ClusterTree test asserts textContent contains "Merge distance" and SVG chrome does not contain standalone "agreement".
+  - N4 (BINDING): PileStructure term-stability tier it() labels use "pile-placement stability" (not "agreement"). Pill aria-label contract asserts "placed here in N% of runs for {displayName}".
+  - N5 (ADVISORY): T-MDS-R1 carry-forward noted; no action in this PR.
+
+- **UI/UX:** PASS-WITH-NOTES (plan notes N1-N5). Notes applied:
+  - N1 (BINDING carry-through): MDSPlot comment block contains "T-MDS-R1 lands the fix" (Reviewer grep confirmed).
+  - N2 (BINDING carry-through): Reviewer greps added test-file sources for CLAUDE.md §7 vocabulary; all zero.
+  - N3 (BINDING carry-through): ClusterTree "Merge distance" assertion present; standalone "agreement" excluded.
+  - N4 (BINDING carry-through): PileStructure stability tier it() label uses "pile-placement stability".
+  - N5 (ADVISORY): MDSPlot fixture PROVIDER_COLORS uses var(--color-provider-*) tokens. jsdom does not compute CSS custom properties; no style-value assertions reference these tokens. Confirmed.
+
+- **Reviewer:** PASS. Checks:
+  - Zero U+2014 em dashes in any added line.
+  - Zero CLAUDE.md §7 vocabulary violations in added lines.
+  - One commit; conventional subject "test(dashboard): chart suites for MDSPlot, FreeListCompare, ClusterTree, PileStructure" (62 chars, under 72).
+  - Zero production-component edits (git diff apps/dashboard/src/components/{MDSPlot,FreeListCompare,ClusterTree,PileStructure}.tsx empty).
+  - MDSPlot it.skip blocks reference T-MDS-R1 and DESIGN_SYSTEM.md §3.3.5.
+  - Empty-state messages ("No models selected.", "No clustering data available for this domain.", "No data") do not frame absence as a defect.
+  - No new dependency added (apps/dashboard/package.json unchanged).
+  - No var(--...) token reference added in test files.
+  - "T-MDS-R1 lands the fix" substring present in MDSPlot test.
+
+- **Tester:** PASS. `npm run build` (73 modules, 0 errors), `npm run test` (22 test files, 365 passed, 3 skipped), `npm run lint` (0 errors/warnings) all green. Two consecutive runs produce identical pass/fail/skip counts. Pre-task baseline 149 passed (12 files); post-task 365 passed + 3 skipped (22 files). New tests: 216 active, 2 skipped (T-MDS-R1 stubs). Python: `uv run ruff check .` all checks passed.
