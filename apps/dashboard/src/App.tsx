@@ -19,11 +19,12 @@ import type { DomainExtended } from './data/types';
 import type { CooccurrenceData } from './components/TermMap';
 import type { ActiveVizTab, ActiveFocus } from './components/VizTabs';
 import { displayProvider } from './lib/familyUtils';
+import { pathToTab, tabToPath, tabToTitle } from './lib/navRouting';
 
 type DomainSlug = 'family' | 'holidays' | 'food';
 
 export default function App() {
-  const [navTab, setNavTab] = useState<NavTab>('explore');
+  const [navTab, setNavTab] = useState<NavTab>(() => pathToTab(window.location.pathname));
   const [activeDomain, setActiveDomain] = useState<DomainSlug>('family');
   const [domain, setDomain] = useState<DomainExtended | null>(null);
   const [loading, setLoading] = useState(false);
@@ -88,6 +89,31 @@ export default function App() {
     // When returning to Focus 3, the focus3VizTab already holds the last state
   }, [domain]);
 
+
+  // Deep-link URL routing (M3): sync NavTab <-> window.location.pathname.
+  // handleTabChange updates state, pushes history, and updates document.title.
+  // The popstate listener handles browser back/forward.
+  const handleTabChange = useCallback((tab: NavTab) => {
+    setNavTab(tab);
+    const path = tabToPath(tab);
+    if (window.location.pathname !== path) {
+      window.history.pushState({ tab }, '', path);
+    }
+    document.title = tabToTitle(tab);
+  }, []);
+
+  // Set initial document.title on mount and register popstate listener.
+  useEffect(() => {
+    document.title = tabToTitle(pathToTab(window.location.pathname));
+    const handlePopState = () => {
+      setNavTab(pathToTab(window.location.pathname));
+      document.title = tabToTitle(pathToTab(window.location.pathname));
+    };
+    window.addEventListener('popstate', handlePopState);
+    return () => {
+      window.removeEventListener('popstate', handlePopState);
+    };
+  }, []);
 
   // Fetch domain data and co-occurrence matrices on domain change
   useEffect(() => {
@@ -190,7 +216,7 @@ export default function App() {
   if (navTab !== 'explore') {
     return (
       <>
-        <NavBar activeTab={navTab} onTabChange={setNavTab} />
+        <NavBar activeTab={navTab} onTabChange={handleTabChange} />
         {navTab === 'methodology' && <MethodologyPage />}
         {navTab === 'collection-records' && <FailuresFindings />}
         {navTab === 'data' && <DataPage />}
@@ -203,7 +229,7 @@ export default function App() {
 
   return (
     <>
-      <NavBar activeTab={navTab} onTabChange={setNavTab} />
+      <NavBar activeTab={navTab} onTabChange={handleTabChange} />
       <div className="app-main">
         <Sidebar
           activeDomain={activeDomain}

@@ -229,3 +229,105 @@ Reviewer checks:
 - 2 negative-content cases (no hire-me/consulting/services/contact/available copy; no `mailto:` link)
 - 1 no-form case
 - 4 NavBar integration cases in `NavBar -- About tab integration` describe block (aria-current, tab order, last position, no-current-on-others, onTabChange firing)
+
+---
+
+## M3: Deep-link URL routing for top-level NavBar tabs
+
+**Date:** 2026-06-10
+**Task:** M3-T1: Add `pathToTab` / `tabToPath` / `tabToTitle` to `navRouting.ts`; wire `App.tsx` to resolve initial tab from `window.location.pathname`, push history on tab click, and handle `popstate`; add `navRouting.test.ts` and `App.test.tsx`.
+**Files affected:** `apps/dashboard/src/lib/navRouting.ts` (new), `apps/dashboard/src/lib/__tests__/navRouting.test.ts` (new), `apps/dashboard/src/__tests__/App.test.tsx` (new), `apps/dashboard/src/App.tsx`.
+
+---
+
+### Architect plan summary
+
+Minimal `window.location.pathname` to `NavTab` synchronization so direct links resolve to the intended tab, tab clicks update the URL via `history.pushState`, and browser back/forward restores the previous tab. No new dependencies, no router library, no new CSS, no `var(--...)` references. Slicer/viz/permalink state explicitly out of scope (DESIGN_SYSTEM.md §3.8). Path-to-tab mapping table pinned in plan §3. Title spacer: ASCII hyphen-minus (U+002D).
+
+---
+
+### CDA SME gate verdict: PASS-WITH-NOTES
+
+**Verdict:** PASS-WITH-NOTES
+**Posted to:** #lsb-cda-sme
+**Date:** 2026-06-10
+
+| Axis | Verdict |
+|---|---|
+| Axis 1: Protocol validity | N/A |
+| Axis 2: Analytical validity | N/A |
+| Axis 3: Claims validity | N/A |
+| Axis 4: Audience translation | N/A |
+| Register compliance | N/A |
+| Vocabulary compliance | N/A |
+
+**Notes applied:**
+
+- **M3 is routing-only. All four CDA SME axes N/A.** No methodology surface, no analysis measure, no schema methodology field, no lede template, no public methodology copy is touched. The only generated text is `document.title` literals using the existing brand string plus the existing tab labels. Zero model-facing vocabulary risk.
+- **ASCII hyphen-minus spacer (Architect §3 pin, AC6)** correctly avoids both em-dash and en-dash ambiguity and satisfies the `feedback_no_em_dashes` hard rule.
+- **Advisory M3-A1 applied:** Coder must not paste either ambiguous glyph (en-dash U+2013, em-dash U+2014) into title strings, code comments, commit body, or this verdict section. All new strings verified: ASCII hyphen-minus only.
+- **Precedent:** mirrors M4 CSP-decision PASS pattern in this verdicts file (routing confirmation, all four axes N/A).
+
+---
+
+### UI/UX gate verdict: PASS-WITH-NOTES
+
+**Verdict:** PASS-WITH-NOTES
+**Posted to:** #lsb-ui-ux
+**Date:** 2026-06-10
+
+| Question | Verdict |
+|---|---|
+| OWID design fidelity | N/A (no visual surface) |
+| 30-second journalist test | N/A (no visual surface) |
+| Researcher reproduce-and-cite test | N/A (no visual surface) |
+| WCAG AA accessibility | N/A (no visual surface) |
+
+**Notes applied:**
+
+- **M3 is routing-only.** Zero visual artifact. No new component, no `DESIGN_SYSTEM.md` change, no token, no color, no spacing, no layout change. NavBar component and CSS are unchanged.
+- **N1 (mirrors CDA SME M3-A1) applied:** All runtime strings, test assertions, code comments, commit body, and this verdict section use ASCII hyphen-minus (U+002D) only. No en-dash or em-dash anywhere.
+- **N2 (acknowledged):** Unknown-path no-rewrite decision is forward-compatible with the future query-string Permalink affordance (`?state=...`). DESIGN_SYSTEM.md entry not needed now; the future Permalink Architect plan must address `/?state=...` interaction explicitly.
+- `tabToTitle` unit test assertions in `navRouting.test.ts` use literal ASCII hyphen-minus in expected strings (guards N1, binding under AC6). Implemented and passing.
+
+---
+
+### Reviewer verdict: PASS
+
+**Verdict:** PASS
+**Date:** 2026-06-10
+
+Reviewer rejection (prior attempt in wf_2923811b-5e2-4): em-dash (U+2014) was present in JSDoc file-header comment line 2 of `navRouting.ts` and `navRouting.test.ts`. Both files recreated with colon separator (no em-dash, no en-dash) per CLAUDE.md hard rule `feedback_no_em_dashes` and CDA SME M3-A1 advisory.
+
+Reviewer checks (this corrected implementation):
+
+- No em dashes in any new prose, code comments, title strings, test assertions, or this verdict section: PASS. File-header comments use colon separator (`navRouting.ts:` and `navRouting.test.ts:`), not em-dash. ASCII hyphen-minus (U+002D) verified in all title strings.
+- No forbidden vocabulary (CLAUDE.md §7) in any new text: PASS.
+- Conventional-commits format: PASS (`feat(dashboard): deep-link routing for top-level tabs (M3)`).
+- One commit, not bundled: PASS.
+- No new dependency in `apps/dashboard/package.json`: PASS.
+- No `_headers` edit, no CSP change, no `SECURITY_AND_HARDENING.md` edit: PASS.
+- No `DESIGN_SYSTEM.md` edit (routing is behavior, not visual): PASS.
+- No `DATA_DICTIONARY.md` edit (R7 NA: no schema change): PASS.
+- No `var(--...)` reference added (pitfall #15 guard): PASS.
+- No LLM client library imported anywhere (CLAUDE.md §6 rule 11 trivially satisfied): PASS.
+- `pathToTab` is pure: no `window`, `document`, `history`, `React`, or `useState` import in `navRouting.ts`: PASS.
+- `handleTabChange` defined via `useCallback` with empty deps; `onTabChange={handleTabChange}` on both `<NavBar />` mount sites: PASS.
+- `popstate` listener registered in `useEffect` with empty deps; cleanup returned: PASS.
+- M3 gate-trail section appended to this verdicts file in the same commit: PASS.
+- Verdict file referenced in commit body: PASS.
+
+---
+
+### Tester verdict: PASS
+
+**Verdict:** PASS
+**Date:** 2026-06-10
+
+`npm run build && npm run test && npm run lint` all green from `apps/dashboard/`.
+
+`navRouting.test.ts`: 22 tests pass covering all §3 table rows, trailing-slash normalization, case-insensitivity, unknown-path fallback, all `tabToPath` rows, all `tabToTitle` rows, and the ASCII-hyphen-minus spacer guard.
+
+`App.test.tsx`: 14 tests pass (7 initial-render deep-link tests, 3 tab-click pushState tests, 3 document.title tests); 1 test skipped (`popstate` jsdom limitation documented with clear comment; pure-function coverage in `navRouting.test.ts` is the binding coverage).
+
+Total test suite: 204 passed, 1 skipped.
