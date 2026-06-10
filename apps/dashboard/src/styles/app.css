@@ -581,6 +581,11 @@ body {
   padding: 16px 20px;
   overflow-y: auto;
   overflow-x: hidden;
+  /* Reserve the scrollbar lane on classic-scrollbar platforms (Windows).
+     Without this, a content-height wobble toggles the scrollbar, which
+     changes the inner width, rewraps labels, and re-fires the TermMap
+     ResizeObserver in a visible jitter loop (2026-06-10 live regression). */
+  scrollbar-gutter: stable;
   display: flex;
   flex-direction: column;
   min-height: 0;

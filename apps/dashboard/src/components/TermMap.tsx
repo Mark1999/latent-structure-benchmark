@@ -790,10 +790,23 @@ export function TermMap({
     setHiddenClusterLabels(newHiddenLabels);
   }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds, showUncertainty, showClusterLabels, termUncertainty, salienceRanks]);
 
-  // Re-render on resize or term/coord change
+  // Re-render on resize or term/coord change.
+  // Delta guard (2026-06-10 live jitter fix): render() rebuilds the SVG, which
+  // can change the observed box by sub-pixel amounts or toggle a classic
+  // scrollbar (Windows), re-firing the observer in a visible refresh loop.
+  // Only re-render when the box actually changed by >= 1 CSS px.
   useEffect(() => {
     render();
-    const observer = new ResizeObserver(() => render());
+    let lastW = -1;
+    let lastH = -1;
+    const observer = new ResizeObserver((entries) => {
+      const box = entries[entries.length - 1]?.contentRect;
+      if (!box) return;
+      if (Math.abs(box.width - lastW) < 1 && Math.abs(box.height - lastH) < 1) return;
+      lastW = box.width;
+      lastH = box.height;
+      render();
+    });
     if (wrapRef.current) observer.observe(wrapRef.current);
     return () => observer.disconnect();
   }, [render]);
