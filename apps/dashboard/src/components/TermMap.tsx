@@ -41,8 +41,10 @@ import { smacof } from '../lib/smacof';
 import { procrustesAlign } from '../lib/procrustes';
 import { poolCooccurrence, cooccurrenceToDistances } from '../lib/cooccurrence';
 import { ahcCluster } from '../lib/ahcCluster';
+import { placeLabels } from '../lib/labelPlacement';
+import type { LabelSpec } from '../lib/labelPlacement';
 // displayModel moved to ChartToolbar (TM-B: overlay selector lifted from TermMap)
-import type { EllipseParams } from '../data/types';
+import type { EllipseParams, SutropCsiEntry } from '../data/types';
 
 /** Shape of the family-cooccurrence.json file */
 export interface CooccurrenceData {
@@ -152,6 +154,14 @@ interface TermMapProps {
    * ContentArea uses this to keep ChartToolbar's lens checkbox in sync.
    */
   onLensDisabledByZoomChange?: (disabled: boolean) => void;
+  /**
+   * Sutrop CSI salience rankings per model_id, as published in the domain JSON.
+   * Each array is sorted descending by CSI (Sutrop CSI salience measure).
+   * Used for zoom-dependent term-label density gate: top 50% shown at k=1,
+   * all shown at k>1.5 (§3.1.1(c) AC4, CDA SME N2).
+   * Salience source: Sutrop CSI (published field, not recomputed client-side).
+   */
+  salienceRanks?: Record<string, SutropCsiEntry[]>;
 }
 
 export function TermMap({
@@ -168,6 +178,7 @@ export function TermMap({
   showUncertainty: showUncertaintyProp,
   showClusterLabels: showClusterLabelsProp,
   onLensDisabledByZoomChange,
+  salienceRanks,
 }: TermMapProps) {
   // wrapRef: the .chart-wrap div — ResizeObserver target and render() W×H source.
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -178,6 +189,14 @@ export function TermMap({
   // so re-renders driven by setZoomDisplay() re-assert the correct transform instead
   // of wiping it (fixes the dangerouslySetInnerHTML-rebuild/imperative-reset race).
   const [svgContent, setSvgContent] = useState<string>('');
+  // hiddenClusterLabels: labels that could not be placed due to collision.
+  // Rendered in the footnote list below the chart (UI/UX verdict: footnote-list fallback).
+  const [hiddenClusterLabels, setHiddenClusterLabels] = useState<string[]>([]);
+  // hasSalienceData: true when salienceRanks is populated (used in JSX for caption/gate).
+  const hasSalienceData = useMemo(
+    () => !!salienceRanks && Object.keys(salienceRanks).length > 0,
+    [salienceRanks]
+  );
   // svgBaseDims: the un-scaled logical W×H from the most recent render() call.
   // SVG width/height = baseDims × zoomDisplay; updated by render(), never by zoom.
   const [svgBaseDims, setSvgBaseDims] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
@@ -435,7 +454,9 @@ export function TermMap({
     const sx = (v: number) => pad.l + ((v - xMin) / (xMax - xMin)) * pw;
     const sy = (v: number) => pad.t + (1 - (v - yMin) / (yMax - yMin)) * ph;
 
-    // Compass label offset algorithm to prevent overlaps
+    // ── Term-label layout: compass placement (8-direction penalty search) ────
+    // Kept for term labels (small labels near dots).
+    // Cluster labels now use placeLabels() from labelPlacement.ts (AC1, AC2).
     const labelLayouts: { x: number; y: number; anchor: string }[] = [];
     const placedBoxes: { x1: number; x2: number; y1: number; y2: number }[] = [];
 
@@ -465,8 +486,8 @@ export function TermMap({
       let bestDirIdx = 0;
       let minPenalty = Infinity;
 
-      for (let k = 0; k < 8; k++) {
-        const dir = DIRECTIONS[k];
+      for (let kk = 0; kk < 8; kk++) {
+        const dir = DIRECTIONS[kk];
         const bx1 = dir.bx(cx, w);
         const bx2 = bx1 + w;
         const by1 = dir.by(cy, h);
@@ -500,11 +521,11 @@ export function TermMap({
         }
 
         // Slight preference for East (original standard)
-        penalty += k * 0.5;
+        penalty += kk * 0.5;
 
         if (penalty < minPenalty) {
           minPenalty = penalty;
-          bestDirIdx = k;
+          bestDirIdx = kk;
         }
       }
 
@@ -519,6 +540,30 @@ export function TermMap({
         y2: bestDir.by(cy, h) + h,
       });
     });
+
+    // ── Salience density gate (AC4, §3.1.1(c)) ────────────────────────────
+    // Compute per-term salience visibility set: which terms are in the top 50%
+    // by Sutrop CSI across all models (salience source: published sutrop_csi field).
+    // A term is "top salience" if its max CSI across all selected models ranks it
+    // in the top 50% of the union of all terms for that model.
+    // Per CDA SME N2: salience source is Sutrop CSI, a published-finding measure.
+    // Not recomputed client-side (Decision C binding).
+    const topSalienceTerms = new Set<string>();
+    if (salienceRanks) {
+      const modelsToConsider = selectedModelIds && selectedModelIds.size > 0
+        ? Array.from(selectedModelIds)
+        : Object.keys(salienceRanks);
+      for (const modelId of modelsToConsider) {
+        const entries = salienceRanks[modelId];
+        if (!entries || entries.length === 0) continue;
+        const cutoff = Math.ceil(entries.length / 2); // top 50%
+        for (let i = 0; i < cutoff; i++) {
+          topSalienceTerms.add(entries[i].item);
+        }
+      }
+    }
+    // hasSalienceData derived from prop (also mirrored as component-level useMemo for JSX).
+    const localHasSalienceData = !!salienceRanks && Object.keys(salienceRanks).length > 0;
 
     // Group by AHC cluster (for dot color — always computed)
     const clusters: Record<number, TermEntry[]> = {};
@@ -553,20 +598,78 @@ export function TermMap({
     const plotCx = pad.l + pw / 2;
     const plotCy = pad.t + ph / 2;
 
-    // ── Cluster label rendering ────────────────────────────────────────────
-    // If a model is selected in the dropdown, use that model's pile labels.
-    // Otherwise (selectedLabelModel === null), no labels are rendered.
+    // ── Cluster label rendering (TM-C: collision-aware via placeLabels) ──────
+    // §3.1.1(c) binding: cluster labels must not overlap each other or occlude
+    // term point markers. Minimum separation 16px. Fallback: footnote list.
+    // Leader lines use var(--color-text-caption) per UI/UX token correction.
+    // Cluster label font: var(--font-body) at var(--font-size-sm) = 14px,
+    // color: var(--color-text-primary) per §3.1.1(c).
+    // Decision D token pre-check (pitfall 15): all tokens confirmed present in tokens.css.
+    const CLUSTER_LABEL_FONT_SIZE = 14; // --font-size-sm (confirmed in tokens.css)
+    const CLUSTER_LABEL_HEIGHT = 16;    // slightly taller than font-size for bbox
+    const LEADER_LINE_COLOR = 'var(--color-text-caption)'; // #6c757d ~4.60:1 (UI/UX WCAG fix)
+    const CLUSTER_LABEL_COLOR = 'var(--color-text-primary)'; // #2c3e50 body text
+
+    // Collect all term SVG positions for occlusion avoidance.
+    const termPoints: [number, number][] = terms.map((t) => [sx(t.x), sy(t.y)]);
+
+    // Chart bounds for placement module.
+    const placementBounds = {
+      x1: pad.l, y1: pad.t, x2: pad.l + pw, y2: pad.t + ph,
+    };
+
+    // Build label specs from group centroids (pushed outward from plot center).
+    const clusterLabelSpecs: LabelSpec[] = [];
+    const clusterLabelTextMap: Record<string, string> = {}; // key -> display text
+    const newHiddenLabels: string[] = [];
+
+    const buildClusterLabelSpecs = (
+      labelGroups: Record<string, TermEntry[]>,
+    ) => {
+      // Process in stable key order for determinism (AC1).
+      const sortedLabels = Object.keys(labelGroups).sort();
+      for (const label of sortedLabels) {
+        const groupTerms = labelGroups[label];
+        if (groupTerms.length < 1) continue;
+
+        const cx = groupTerms.reduce((s, t) => s + sx(t.x), 0) / groupTerms.length;
+        const cy = groupTerms.reduce((s, t) => s + sy(t.y), 0) / groupTerms.length;
+
+        // Initial anchor: term farthest from plot center, pushed outward.
+        let anchorX = cx, anchorY = cy;
+        if (groupTerms.length >= 2) {
+          let maxDist = 0;
+          groupTerms.forEach((t) => {
+            const px = sx(t.x), py = sy(t.y);
+            const d = Math.sqrt((px - plotCx) ** 2 + (py - plotCy) ** 2);
+            if (d > maxDist) { maxDist = d; anchorX = px; anchorY = py; }
+          });
+          const ddx = anchorX - plotCx, ddy = anchorY - plotCy;
+          const dd = Math.sqrt(ddx * ddx + ddy * ddy) || 1;
+          anchorX += (ddx / dd) * 28;
+          anchorY += (ddy / dd) * 14;
+        }
+
+        const estWidth = label.length * 7.5; // approximate at 14px font
+        clusterLabelSpecs.push({
+          key: label,
+          anchorX,
+          anchorY,
+          width: estWidth,
+          height: CLUSTER_LABEL_HEIGHT,
+          avoidPoints: termPoints,
+        });
+        clusterLabelTextMap[label] = label;
+      }
+    };
+
     if (showClusterLabels && selectedLabelModel && centroidPiles && centroidPiles[selectedLabelModel]) {
       const modelPiles = centroidPiles[selectedLabelModel];
-
-      // Build term → pile label map for the selected model
       const termToPileLabel: Record<string, string> = {};
       modelPiles.piles.forEach((pile, i) => {
         const label = modelPiles.labels[i] || `Pile ${i + 1}`;
         pile.forEach((term) => { termToPileLabel[term] = label; });
       });
-
-      // Group terms (from current coords) by their pile label
       const labelGroups: Record<string, TermEntry[]> = {};
       terms.forEach((t) => {
         const label = termToPileLabel[t.term];
@@ -575,72 +678,52 @@ export function TermMap({
           labelGroups[label].push(t);
         }
       });
-
-      // For each group, compute centroid in SVG space and render label
-      Object.entries(labelGroups).forEach(([label, groupTerms]) => {
-        if (groupTerms.length < 1) return;
-
-        const cx = groupTerms.reduce((s, t) => s + sx(t.x), 0) / groupTerms.length;
-        const cy = groupTerms.reduce((s, t) => s + sy(t.y), 0) / groupTerms.length;
-
-        // Position label at the term farthest from plot center, pushed outward
-        let bestX = cx, bestY = cy;
-        if (groupTerms.length >= 2) {
-          let maxDist = 0;
-          groupTerms.forEach((t) => {
-            const px = sx(t.x), py = sy(t.y);
-            const d = Math.sqrt((px - plotCx) ** 2 + (py - plotCy) ** 2);
-            if (d > maxDist) { maxDist = d; bestX = px; bestY = py; }
-          });
-          const dx = bestX - plotCx, dy = bestY - plotCy;
-          const dd = Math.sqrt(dx * dx + dy * dy) || 1;
-          bestX += (dx / dd) * 28;
-          bestY += (dy / dd) * 14;
-        }
-
-        if (groupTerms.length >= 3) {
-          svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="26" font-weight="700" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
-          );
-        } else {
-          svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="20" font-weight="600" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
-          );
-        }
-      });
+      buildClusterLabelSpecs(labelGroups);
     } else if (showClusterLabels && !centroidPiles && selectedLabelModel !== null) {
       // Fallback: no centroidPiles available — use aggregate clusterLabels
+      const labelGroups: Record<string, TermEntry[]> = {};
       Object.entries(clusters).forEach(([cidStr, clusterTerms]) => {
         const cid = parseInt(cidStr, 10);
         const label = clusterLabels[cid] || `Cluster ${cid + 1}`;
-        const cx = clusterTerms.reduce((s, t) => s + sx(t.x), 0) / clusterTerms.length;
-        const cy = clusterTerms.reduce((s, t) => s + sy(t.y), 0) / clusterTerms.length;
-
-        let bestX = cx, bestY = cy;
-        if (clusterTerms.length >= 2) {
-          let maxDist = 0;
-          clusterTerms.forEach((t) => {
-            const px = sx(t.x), py = sy(t.y);
-            const d = Math.sqrt((px - plotCx) ** 2 + (py - plotCy) ** 2);
-            if (d > maxDist) { maxDist = d; bestX = px; bestY = py; }
-          });
-          const dx = bestX - plotCx, dy = bestY - plotCy;
-          const dd = Math.sqrt(dx * dx + dy * dy) || 1;
-          bestX += (dx / dd) * 28;
-          bestY += (dy / dd) * 14;
-        }
-
-        if (clusterTerms.length >= 3) {
-          svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${bestY.toFixed(1)}" text-anchor="middle" dominant-baseline="middle" font-family="var(--font-body)" font-size="26" font-weight="700" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
-          );
-        } else if (clusterTerms.length >= 1) {
-          svgParts.push(
-            `<text x="${bestX.toFixed(1)}" y="${(bestY + 14).toFixed(1)}" text-anchor="middle" font-family="var(--font-body)" font-size="20" font-weight="600" fill="#000000" opacity="1" pointer-events="none">${escapeXml(label)}</text>`
-          );
-        }
+        if (!labelGroups[label]) labelGroups[label] = [];
+        labelGroups[label].push(...clusterTerms);
       });
+      buildClusterLabelSpecs(labelGroups);
     }
+
+    // Run collision-aware placement (AC2: min 16px separation, point occlusion avoided).
+    if (clusterLabelSpecs.length > 0) {
+      const { placed, hidden } = placeLabels(clusterLabelSpecs, placementBounds);
+
+      // Render placed cluster labels.
+      for (const p of placed) {
+        const labelText = clusterLabelTextMap[p.key] ?? p.key;
+        // Center X of box for text-anchor="middle".
+        const textX = (p.x + p.width / 2).toFixed(1);
+        // Baseline: approximately 12px above bottom of bbox.
+        const textY = (p.y + CLUSTER_LABEL_HEIGHT - 3).toFixed(1);
+
+        // Leader line: drawn when label was displaced significantly from anchor.
+        if (p.hasLeaderLine) {
+          svgParts.push(
+            `<line x1="${p.leaderFromX.toFixed(1)}" y1="${p.leaderFromY.toFixed(1)}" x2="${p.leaderToX.toFixed(1)}" y2="${p.leaderToY.toFixed(1)}" stroke="${LEADER_LINE_COLOR}" stroke-width="1" pointer-events="none"/>`
+          );
+        }
+
+        svgParts.push(
+          `<text x="${textX}" y="${textY}" text-anchor="middle" font-family="var(--font-body)" font-size="${CLUSTER_LABEL_FONT_SIZE}" font-weight="600" fill="${CLUSTER_LABEL_COLOR}" opacity="1" pointer-events="none">${escapeXml(labelText)}</text>`
+        );
+      }
+
+      // Collect hidden labels for footnote list (UI/UX D1 binding: greedy + footnote fallback).
+      for (const h of hidden) {
+        newHiddenLabels.push(clusterLabelTextMap[h.key] ?? h.key);
+      }
+    }
+
+    // Update hidden labels state (deferred to after render() completes via setSvgContent).
+    // We use a local variable and call setHiddenClusterLabels at the end of render().
+    // (Stored in a local and set after setSvgContent to batch the React state update.)
 
     // ── Ellipses rendering ──────────────────────────────────────────────────
     if (showUncertainty && termUncertainty) {
@@ -669,14 +752,20 @@ export function TermMap({
       );
     });
 
-    // Term labels — visible, small, positioned using computed layout offsets
+    // Term labels — visible, small, positioned using computed layout offsets.
+    // data-salience: "top" or "low" for the zoom-dependent density gate (AC4).
+    // At k=1 initial render, "low" labels are hidden via JS after DOM commit.
+    // At k>1.5 (zoom effect), "low" labels are made visible imperatively.
     terms.forEach((t, i) => {
       const layout = labelLayouts[i];
       const px = layout.x.toFixed(1);
       const py = layout.y.toFixed(1);
       const col = getClusterColor(t.cluster);
+      // Salience gate: top-salience if no salience data or if term is in topSalienceTerms.
+      const isTopSalience = !localHasSalienceData || topSalienceTerms.has(t.term);
+      const salienceAttr = isTopSalience ? 'top' : 'low';
       svgParts.push(
-        `<text class="term-label" x="${px}" y="${py}" data-ox="${px}" data-oy="${py}" data-base-size="11" font-family="var(--font-body)" font-size="11" fill="${col}" opacity=".7" text-anchor="${layout.anchor}" pointer-events="none">${escapeXml(t.term)}</text>`
+        `<text class="term-label" x="${px}" y="${py}" data-ox="${px}" data-oy="${py}" data-base-size="11" data-salience="${salienceAttr}" font-family="var(--font-body)" font-size="11" fill="${col}" opacity=".7" text-anchor="${layout.anchor}" pointer-events="none">${escapeXml(t.term)}</text>`
       );
     });
 
@@ -697,7 +786,9 @@ export function TermMap({
     // Also reset zoom display to 1 since render() always produces a k=1 layout.
     setSvgBaseDims({ w: W, h: H });
     setZoomDisplay(1);
-  }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds, showUncertainty, showClusterLabels, termUncertainty]);
+    // Update hidden cluster labels for the footnote list.
+    setHiddenClusterLabels(newHiddenLabels);
+  }, [terms, clusterLabels, centroidPiles, selectedLabelModel, liveCoords, selectedModelIds, showUncertainty, showClusterLabels, termUncertainty, salienceRanks]);
 
   // Re-render on resize or term/coord change
   useEffect(() => {
@@ -864,6 +955,66 @@ export function TermMap({
   useLayoutEffect(() => {
     updateScrollableModifier(kRef.current);
   }, [svgContent, updateScrollableModifier]);
+
+  // ── AC4: Initial low-salience label hide at k=1 ──────────────────────────
+  // After SVG content is committed to DOM, hide "low" salience labels.
+  // This runs once per render() cycle (svgContent change).
+  // The zoom density effect below re-evaluates when zoomDisplay changes.
+  // FREEZE RULE compliance: render() is not called; this effect mutates label
+  // visibility imperatively matching the lens/hover pattern already in use.
+  useLayoutEffect(() => {
+    const panVp = panVpRef.current;
+    if (!panVp) return;
+    const svg = panVp.querySelector<SVGSVGElement>('#term-svg');
+    if (!svg) return;
+    // At k=1 (initial render), hide low-salience labels.
+    svg.querySelectorAll<SVGTextElement>('.term-label[data-salience="low"]').forEach((lbl) => {
+      lbl.setAttribute('opacity', '0');
+      lbl.setAttribute('pointer-events', 'none');
+      lbl.style.display = 'none';
+    });
+  }, [svgContent]);
+
+  // ── AC4: Zoom-dependent term-label density effect ─────────────────────────
+  // Re-evaluates on every zoomDisplay change.
+  // k=1: top-salience only (low hidden).
+  // k in (1, 1.5): linear step — show labels proportionally (see below).
+  // k >= 1.5: all labels shown.
+  // FREEZE RULE: no render() call. Only imperative DOM mutations.
+  useEffect(() => {
+    const panVp = panVpRef.current;
+    if (!panVp) return;
+    const svg = panVp.querySelector<SVGSVGElement>('#term-svg');
+    if (!svg) return;
+
+    const k = zoomDisplay;
+    const showAll = k >= 1.5;
+    const showNone = k <= 1.0;
+
+    svg.querySelectorAll<SVGTextElement>('.term-label').forEach((lbl) => {
+      const salience = lbl.getAttribute('data-salience');
+      if (salience === 'top') {
+        // Top-salience labels always shown.
+        lbl.setAttribute('opacity', '0.7');
+        lbl.removeAttribute('style');
+      } else {
+        // Low-salience labels: hidden at k=1, shown at k>=1.5, linear step between.
+        if (showAll) {
+          lbl.setAttribute('opacity', '0.7');
+          lbl.removeAttribute('style');
+        } else if (showNone) {
+          lbl.setAttribute('opacity', '0');
+          lbl.style.display = 'none';
+        } else {
+          // Linear step: opacity from 0 at k=1 to 0.7 at k=1.5.
+          const t = (k - 1.0) / (1.5 - 1.0);
+          const op = (t * 0.7).toFixed(2);
+          lbl.setAttribute('opacity', op);
+          lbl.style.display = '';
+        }
+      }
+    });
+  }, [zoomDisplay]);
 
   // ── Q2 LOCKED: auto-disable lens when k > 1.02 ───────────────────────────
   // When the user zooms in, deactivate the lens immediately.
@@ -1229,6 +1380,45 @@ export function TermMap({
           )}
         </div>
       </div>
+
+      {/* CDA SME N1 (BINDING): top-salience caption at k=1, hidden at k>=1.5 (AC4).
+          Literal substring 'top-salience' required in render path.
+          Passes AC13 forbidden-vocab grep: no §1.5.4 prohibited terms. */}
+      {hasSalienceData && zoomDisplay <= 1.5 && (
+        <p
+          className="term-map-salience-caption"
+          aria-live="polite"
+          style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-text-caption)',
+            margin: '2px 0 0 0',
+            padding: '0',
+            lineHeight: '1.4',
+          }}
+        >
+          Labels shown for top-salience terms at this zoom level. Zoom in or hover with the magnifying lens to see all terms.
+        </p>
+      )}
+
+      {/* Footnote list for hidden cluster labels (UI/UX D1 binding: greedy + footnote fallback).
+          Renders below chart when one or more cluster labels could not be placed on map. */}
+      {hiddenClusterLabels.length > 0 && showClusterLabels && (
+        <ol
+          className="term-map-cluster-footnotes"
+          aria-label="Cluster labels not shown on map due to space constraints."
+          style={{
+            fontSize: 'var(--font-size-xs)',
+            color: 'var(--color-text-caption)',
+            margin: '4px 0 0 0',
+            paddingLeft: '20px',
+            lineHeight: '1.5',
+          }}
+        >
+          {hiddenClusterLabels.map((label) => (
+            <li key={label}>{label}</li>
+          ))}
+        </ol>
+      )}
 
       {/* Stress + zoom annotation — OUTSIDE pan-viewport (DOM order keeps it fixed, §17.4) */}
       <div

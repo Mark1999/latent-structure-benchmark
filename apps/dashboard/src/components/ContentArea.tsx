@@ -280,6 +280,7 @@ export function ContentArea({
                     showUncertainty={showUncertainty}
                     showClusterLabels={showClusterLabels}
                     onLensDisabledByZoomChange={handleLensDisabledByZoomChange}
+                    salienceRanks={domain.sutrop_csi}
                   />
                 )}
 

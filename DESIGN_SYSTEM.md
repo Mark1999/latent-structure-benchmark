@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.20.2  
+**Version:** v0.20.3  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,26 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.20.3** (Term Map label declutter, TM-C, 2026-06-10) implements
+  §3.1.1(c) label-declutter rule. Six changes from TM-C UI/UX gate:
+  (1) Cluster label font changed from ad-hoc 26px/20px to `var(--font-body)`
+  at `var(--font-size-sm)` (14px) + weight 600, per §3.1.1(c) binding spec.
+  (2) Cluster label color changed from hardcoded `#000000` to
+  `var(--color-text-primary)`, per §3.1.1(c).
+  (3) Fallback variant elected: greedy displacement with leader lines (D1).
+  Leader line color corrected from `var(--color-border)` (~1.13:1, WCAG FAIL)
+  to `var(--color-text-caption)` (#6c757d, ~4.60:1, WCAG 1.4.11 PASS).
+  (4) Hidden cluster labels rendered in `<ol className="term-map-cluster-footnotes">`
+  below chart with `aria-label="Cluster labels not shown on map due to space
+  constraints."` (footnote-list fallback per D1 election).
+  (5) Zoom-dependent term-label density: top-50% salience at k=1, all at k>=1.5,
+  linear step between. Salience source: published Sutrop CSI field (CDA SME N2).
+  (6) CDA SME N1 caption: "Labels shown for top-salience terms at this zoom
+  level. Zoom in or hover with the magnifying lens to see all terms." Rendered
+  at k<=1.5 only. No new tokens. Pitfall 15 token pre-check: all `var(--...)`
+  references confirmed present in `tokens.css`. Gate verdicts: CDA SME
+  PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES
+  (`docs/status/2026-06-10-termmap-layout-verdicts.md`, TM-C section).
 - **v0.20.2** (Per-record raw-exchange detail surface, CR-T7, 2026-06-10) adds §19.17 specifying the per-record expand affordance on the successful-records summary table, the per-record detail body structure, the step-section layout, the provenance block, and mobile/accessibility rules. Navigation pattern decision: expand button in a new rightmost column of the §19.15 per-model table, revealing a sibling full-width detail row (colSpan={6}). New CSS classes in `failures-findings.css`: `.failures-findings__detail-row`, `.failures-findings__detail-cell`, `.failures-findings__expand-btn`, `.failures-findings__detail-step`, `.failures-findings__detail-step-heading`. No new tokens. Eight new vitest cases (33-40); case 9 extended over the expanded detail DOM. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T7 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T7 section).
 - **v0.20.1** (ChartToolbar chrome and lede-column overflow ruling, TM-B UI/UX gate, 2026-06-10)
   amends §3.1.1(b)(ii) with binding ChartToolbar visual chrome rules: background
@@ -490,11 +510,30 @@ must detect collision between rendered label bounding boxes and retry with offse
 falling back to a footnote list. Minimum separation between any two cluster labels: 16px.
 Cluster labels use `var(--color-text-primary)` and `var(--font-body)` at `--font-size-sm` (14px).
 
+**Fallback variant (D1, UI/UX TM-C election, binding):** greedy displacement with leader lines.
+When a cluster label cannot be placed cleanly on the map without violating the 16px minimum
+separation or occluding a term-point marker, it is moved to a non-conflicting position with a
+leader line connecting it to its anchor point. Leader lines use `var(--color-text-caption)`
+(#6c757d, ~4.60:1 on white, WCAG 1.4.11 PASS) at 1px stroke. If no placement satisfies bounds
+and separation after all displacement candidates are exhausted, the cluster label is omitted from
+the map and appended to the `<ol className="term-map-cluster-footnotes">` below the chart, with
+`aria-label="Cluster labels not shown on map due to space constraints."` The footnote list
+uses `var(--font-size-xs)` at `var(--color-text-caption)`.
+
 **Term-label density (binding):**
 At zoom level k = 1, term labels are shown for all terms whose salience rank is in the top 50%
-for the active domain-model pair. At k > 1.5, all term labels are shown. The density step is
+for the active domain-model pair. At k >= 1.5, all term labels are shown. The density step is
 linear between k=1 and k=1.5. This rule applies per-model; a term visible for one model may be
 suppressed for another at the same zoom level if its relative salience rank is below threshold.
+Salience source: published Sutrop CSI field (`domain.sutrop_csi` in the domain JSON) -- not
+recomputed client-side (CDA SME N2 binding).
+
+**CDA SME N1 caption (binding):** At k <= 1.5, the following caption renders below the chart
+(or below the footnote list if present):
+"Labels shown for top-salience terms at this zoom level. Zoom in or hover with the magnifying
+lens to see all terms."
+The literal substring 'top-salience' must appear in the AC4 render path. The caption does not
+render at k > 1.5. CSS: `var(--font-size-xs)`, `var(--color-text-caption)`.
 
 **Interaction with §3.3 item 5 (binding):**
 §3.3 item 5 ("Model labels - positioned to minimize overlap") applies to model-level labels.
@@ -502,7 +541,7 @@ This §3.1.1(c) rule applies to cluster-level labels and term-level labels. The 
 without conflict.
 
 Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES
-(`docs/status/2026-06-10-termmap-layout-verdicts.md`).
+(`docs/status/2026-06-10-termmap-layout-verdicts.md`, TM-C section).
 
 ---
 
@@ -3575,6 +3614,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.20.2. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.20.3. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

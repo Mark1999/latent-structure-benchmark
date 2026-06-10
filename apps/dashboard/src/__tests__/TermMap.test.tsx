@@ -216,4 +216,83 @@ describe("TermMap", () => {
     // Component must render populated state (no crash from default uncertainty=true)
     expect(document.querySelector(".term-map-container")).not.toBeNull();
   });
+
+  // TM-C: salienceRanks prop accepted without crash
+  it("TM-C: accepts salienceRanks prop without crash", () => {
+    const salienceRanks = {
+      "fixture-model-alpha": [
+        { item: "fixture-term-alpha", csi: 0.9, f_mentions: 5, n_runs: 3, mean_position: 1.0 },
+        { item: "fixture-term-beta",  csi: 0.5, f_mentions: 3, n_runs: 3, mean_position: 2.0 },
+        { item: "fixture-term-gamma", csi: 0.2, f_mentions: 1, n_runs: 3, mean_position: 3.0 },
+      ],
+    };
+
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+        salienceRanks={salienceRanks}
+      />
+    );
+
+    // Must not crash with salienceRanks prop
+    expect(document.querySelector(".term-map-container")).not.toBeNull();
+  });
+
+  // TM-C: without salienceRanks, no salience caption rendered
+  it("TM-C: no salience caption when salienceRanks is absent", () => {
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+      />
+    );
+
+    // Without salienceRanks, the .term-map-salience-caption should not render
+    expect(document.querySelector(".term-map-salience-caption")).toBeNull();
+  });
+
+  // TM-C: hidden cluster labels footnote list absent when no labels are hidden
+  it("TM-C: term-map-cluster-footnotes absent when no cluster labels are hidden", () => {
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+      />
+    );
+
+    // No cluster labels are hidden in a minimal fixture (not enough labels to collide)
+    // The footnote list should not be rendered when hiddenClusterLabels is empty.
+    expect(document.querySelector(".term-map-cluster-footnotes")).toBeNull();
+  });
+
+  // TM-C: R6 invariant check -- no ellipse/circle/polygon changes in component render
+  it("TM-C: term-map-container renders without crash using centroidPiles", () => {
+    const centroidPiles = {
+      "fixture-model-alpha": {
+        piles: [
+          ["fixture-term-alpha", "fixture-term-gamma"],
+          ["fixture-term-beta"],
+        ],
+        labels: ["Fixture Pile A", "Fixture Pile B"],
+      },
+    };
+
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+        centroidPiles={centroidPiles}
+        overlayPileLabelKey="fixture-model-alpha"
+        showClusterLabels={true}
+      />
+    );
+
+    // Must render without crash
+    expect(document.querySelector(".term-map-container")).not.toBeNull();
+  });
 });

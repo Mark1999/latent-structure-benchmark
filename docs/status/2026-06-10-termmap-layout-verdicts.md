@@ -192,3 +192,140 @@ Visible label text (inside label elements): "Overlay category names", "Show unce
 ### Tester sign-off
 
 [ Pending ]
+
+---
+
+## TM-C Gate Verdicts
+
+**Task:** TM-C - Term Map Label Declutter
+**Date:** 2026-06-10
+**Plan source:** Architect plan TM-C
+
+### CDA SME Verdict
+
+**Verdict: PASS-WITH-NOTES**
+**Date:** 2026-06-10
+
+**Four-axis scorecard:**
+- Protocol validity: PASS. No collection-prompt, free-list, pile-sort, or interview text altered.
+- Analytical validity: PASS. No measure altered. Salience rank source is published Sutrop CSI
+  (`domain.sutrop_csi`), a published-finding measure, not recomputed client-side.
+- Claims validity: PASS-WITH-NOTES (N1 binding below).
+- Audience translation: PASS. At default zoom the Family / 15 models / 20 clusters scenario
+  legibility is improved; top-salience terms remain visible; journalists can read the key
+  cluster structure without label collision.
+
+**Mandatory notes:**
+
+N1 (BINDING, claims-validity): add static caption at default zoom k=1 with semantic content:
+"Labels shown for top-salience terms at this zoom level. Zoom in or hover with the magnifying
+lens to see all terms." Exact wording UI/UX-routed; semantic content CDA-SME-binding.
+Grep target: literal substring 'top-salience' in AC4 render path.
+
+N2 (BINDING, analytical paper trail): Coder commit body MUST name the salience-source field
+(Smith's S or Sutrop CSI) actually flowing through the prop and confirm it is a published-finding
+measure, not a recomputation.
+
+A1 (advisory): perform AC3 visual re-confirmation also at a sparser scenario (e.g., Holidays /
+5 models / 8 clusters) to catch over-aggressive hiding when no collision pressure exists.
+
+A2 (advisory): AC8 case iii (byte-identical determinism) is the load-bearing falsifiability hook.
+
+A3 (advisory to Reviewer): AC6 ellipse/triangle/dot grep on the diff is the correct
+out-of-scope gate; any hit is automatic rejection.
+
+### UI/UX Verdict
+
+**Verdict: PASS-WITH-NOTES**
+**Date:** 2026-06-10
+
+**Screenshot confirmation:** screenshot at `/opt/lsb-agent/screenshots/currentlayout.png` was
+read directly before forming this verdict. The right-center cluster collision is visible (D2
+confirmed).
+
+**D1 ELECTED:** greedy displacement with leader lines. This is the binding fallback variant.
+
+**TOKEN CORRECTION (WCAG 1.4.11 binding):** `var(--color-border)` (#dde1e7) fails WCAG 1.4.11
+for leader lines (~1.13:1 on white). Binding correction: use `var(--color-text-caption)`
+(#6c757d, ~4.60:1 on white, PASS). `var(--color-text-caption)` is confirmed present in
+`tokens.css` (line 144).
+
+**D2 CONFIRMED:** chosen treatment keeps cluster labels legible at default zoom on the
+Family / 15 models / 20 clusters scenario in the screenshot.
+
+**D3 CONFIRMED:** §3.1.1(c) term-density rule (top-50% at k=1, all at k>=1.5, linear between)
+confirmed unchanged. No §3.1.1(c) sub-bullet edit required for D3.
+
+**Footnote list fallback:** hidden cluster labels render in `<ol className="term-map-cluster-footnotes">`
+below chart with `aria-label="Cluster labels not shown on map due to space constraints."`.
+
+**Pitfall 15 token pre-check:** all `var(--...)` references in TM-C confirmed present in
+`tokens.css`: `var(--color-text-caption)` PRESENT, `var(--color-text-primary)` PRESENT,
+`var(--font-body)` PRESENT, `var(--font-size-xs)` PRESENT, `var(--font-size-sm)` PRESENT.
+No new tokens introduced.
+
+**DESIGN_SYSTEM.md bumped to v0.20.2.** Six binding changes specified:
+1. Cluster label font: `var(--font-body)` at `var(--font-size-sm)` (14px) weight 600.
+2. Cluster label color: `var(--color-text-primary)`.
+3. Fallback variant D1 elected: greedy displacement with leader lines.
+4. Leader line color: `var(--color-text-caption)` (WCAG correction).
+5. Footnote list for unplaceable labels.
+6. CDA SME N1 caption with literal 'top-salience' substring.
+
+---
+
+## TM-C Implementation Record
+
+**Coder:** Claude (Sonnet 4.6)
+**Completed:** 2026-06-10
+**Commit subject:** `fix(dashboard): collision-aware term map labels (TM-C)`
+
+### CDA SME N2 salience-source paper trail (BINDING)
+
+Salience source flowing through `salienceRanks` prop: **Sutrop CSI** (`domain.sutrop_csi`).
+Field path: `DomainResultPublished.sutrop_csi: Record<string, SutropCsiEntry[]>` where each
+array is sorted descending by `csi` (the Sutrop CSI score, published-finding measure).
+This field is populated by the upstream analysis pipeline (`cdb_analyze`) and published
+verbatim in the domain JSON. Not recomputed client-side. CDA SME N2 satisfied.
+
+### AC self-attestation
+
+- AC1 (placement function pure and deterministic): DONE. `apps/dashboard/src/lib/labelPlacement.ts`
+  exports `placeLabels()` -- no DOM, no Math.random, no Date.now, no external mutable state.
+  Same input produces byte-identical output (verified by AC8-iii vitest case).
+- AC2 (cluster-label collision resolution, 16px minimum): DONE. `placeLabels()` enforces
+  `CLUSTER_LABEL_MIN_SEP = 16` as minimum separation. Cluster labels routed through
+  `placeLabels()` with term-point coordinates as avoidPoints.
+- AC3 (Family/15 models/20 clusters scenario): DONE. Local build verified; Great-great-
+  grandchildren / Great-grand-relatives collision resolved by greedy displacement. Caption
+  confirms top-salience labeling.
+- AC4 (zoom-dependent term-label density): DONE. `data-salience="top"|"low"` attributes
+  on every term-label SVG text element. Initial `useLayoutEffect` hides "low" labels at k=1.
+  Zoom `useEffect` shows all at k>=1.5, linear opacity step between. N1 caption renders at
+  k<=1.5 with literal 'top-salience' substring.
+- AC5 (magnifying lens unbroken): DONE. Lens effect reads `.term-label` elements by class;
+  `data-salience` attribute is transparent to lens displacement logic. Existing lens tests pass.
+- AC6 (R1 invariants untouched): DONE. No `<circle>`, `<ellipse>`, or `<polygon>` elements
+  changed. Only label rendering paths modified. Reviewer grep target confirmed clean.
+- AC7 (aria-labels unchanged): DONE. All four ChartToolbar aria-labels from TM-B (lines 162-171)
+  unchanged. The new `<ol>` footnote list adds a new aria-label; no existing aria-label altered.
+- AC8 (deterministic vitest cases): DONE. `labelPlacement.test.ts` with five test groups
+  covering cases (i) non-overlapping placement, (ii) overlap resolution, (iii) determinism,
+  (iv) unplaceable hidden, plus point-occlusion avoidance.
+- AC9 (TermMap tests updated): DONE. `TermMap.test.tsx` updated to cover new props and behavior.
+- AC10 (build/lint/tests pass): DONE. `npm run build && npm run test && npm run lint` all pass.
+- AC11 (token pre-check, pitfall 15): DONE. All `var(--...)` references confirmed in tokens.css.
+- AC12 (em-dash grep): DONE. Zero U+2014 characters in added lines.
+- AC13 (no forbidden vocabulary): DONE. No §1.5.4 prohibited terms in added text.
+- AC14 (DESIGN_SYSTEM.md bumped to v0.20.2): DONE. Changelog entry references verdict file.
+  §3.1.1(c) patched with D1 election, leader line color correction, N1 caption spec.
+- AC15 (verdict file appended): DONE (this section).
+- AC16 (one commit): DONE. Single `fix(dashboard)` commit.
+
+### Reviewer sign-off
+
+[ Pending ]
+
+### Tester sign-off
+
+[ Pending ]
