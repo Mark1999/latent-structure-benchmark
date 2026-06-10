@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.19.5  
+**Version:** v0.20.0  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,17 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.20.0** (Chart-area hierarchy amendment, TM-A, 2026-06-10) adds §3.1.1 "Chart-area hierarchy
+  on the Explore page" between §3.1 and §3.2. Establishes three binding rule families: (a) chart-area
+  minimum height of 70vh on desktop and above-the-fold rule; (b) control-row consolidation rules
+  (SHOWING chips removed from all VizTabs, unified chart toolbar for TermMap controls, lede paragraph
+  moved beside/below chart per breakpoint); (c) label-declutter rule for Term Map (collision-aware
+  cluster-label placement, zoom-dependent term-label density). CDA SME M1/M2/M3 mandatory notes
+  all addressed in amendment text. §3.3.5 R1-a/R1-b/R1-c invariants, §15.2 cluster-color ellipse
+  rule, §3.3.5 binding invariant 1, ARCHITECTURE.md §1.5 framing, and CLAUDE.md pitfall 15 all
+  explicitly preserved. No new tokens. Six-sub-point lede preservation clause included (M1).
+  Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES
+  (`docs/status/2026-06-10-termmap-layout-verdicts.md`).
 - **v0.19.5** (Counts caption update, CR-T6, 2026-06-10) amends §19.4 step 6 (counts caption): caption now names parsed-primary-step-response count using Option C (no leading total; CDA SME N1 binding). `countsCaptionText()` in `copy/failures_findings.ts` gains an optional `nParsedResponses?: number` parameter (N5). Four-cell empty-state matrix (N3): (n_records > 0, parsed > 0) full three-clause; (n_records > 0, parsed === 0 or undefined) failure-clause-only; (n_records === 0, parsed > 0) S-clause-only; (n_records === 0, parsed === 0 or undefined) caption omitted. Records-not-ready state preserves failures-only caption (N4). Adds new §19.16 specifying the caption template, four-cell matrix, and render conditions. Six new vitest cases (27-32); case 9 extended with N6 affirmative check. No new CSS classes. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T6 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T6 section).
 - **v0.19.4** (Successful-records summary section, CR-T5, 2026-06-10) amends §19.4 content order: adds step 8 (successful-records summary section) below the failures/decline-interviews list (and below EMPTY_CAPTION when n_records === 0). Adds new §19.15 specifying the successful-records summary section structure, element spec, CSS classes, fetch coupling, and vitest cases. TAXONOMY_BLOCK.topLevel[0].description updated (SME N6 conditional revision): drops stale "when the successes section ships" phrasing; now reads "...Surfaced in the per-model summary section below..." New CSS classes in `failures-findings.css`: `.failures-findings__successes`, `.failures-findings__successes-heading`, `.failures-findings__successes-framing`, `.failures-findings__successes-empty`, `.failures-findings__successes-table-wrapper`, `.failures-findings__successes-table`, `.failures-findings__successes-th`, `.failures-findings__successes-tr`, `.failures-findings__successes-td`, `.failures-findings__successes-td--num`, `.failures-findings__successes-code`, `.failures-findings__successes-caption`, `.failures-findings__successes-status`, `.sr-only`. No new tokens. Seven new vitest cases (20-26); case 9 extended. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T5 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T5 section).
 - **v0.19.3** (Taxonomy block, CR-T3, 2026-06-10) amends §19.4 content order: inserts taxonomy block (`TAXONOMY_BLOCK`) as new step 4 (between `IMPACT_PARAGRAPH_FAILURES` step 3 and `framing_note` step 5); former steps 4-6 renumber to 5-7. Adds new §19.14 specifying the taxonomy block structure, element spec, CSS classes, and placement. New CSS classes in `failures-findings.css`: `.failures-findings__taxonomy`, `.failures-findings__taxonomy-heading`, `.failures-findings__taxonomy-bridge`, `.failures-findings__taxonomy-list`, `.failures-findings__taxonomy-enum-label`. No new tokens. Taxonomy block renders in `ready` state including the empty-state path (n_records === 0); does not render in loading/fetch-failed/malformed states. Element structure: `<section aria-labelledby>` + `<h2>` heading + bridge `<p>` + two `<ul>` lists (top-level outcomes and enum values). Four new vitest cases (16-19). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section).
@@ -323,6 +334,169 @@ The Data Explorer is the primary interactive element. It replicates OWID's Data 
 │  Collected Apr 2026 · Prompt v1.0 · Analysis v0.1           │
 └─────────────────────────────────────────────────────────────┘
 ```
+
+### 3.1.1 Chart-area hierarchy on the Explore page (v0.20.0, TM-A, 2026-06-10)
+
+This subsection establishes the binding page-hierarchy rules for the Explore page. Prior gates
+approved each row of the page individually; this subsection governs the composed layout.
+
+**Background:** The live Explore page (screenshot: `/opt/lsb-agent/screenshots/currentlayout.png`,
+Family domain, Focus 3, Term Map tab) shows the signature visualization compressed to approximately
+the lower 55-60% of the viewport. Above the chart sit, in stack order: NavBar, FocusSelector pills,
+VizTabs row, SelectionBar (SHOWING model chips), the four-line `chart-lede` paragraph, and the
+TermMap controls row. Each was approved individually; the composed layout violates the §0 principle
+that the chart is "the first thing a visitor sees." This subsection closes that gap.
+
+**Preservation clause (BINDING, CDA SME M1/M2):** The layout changes specified in this subsection
+do NOT relax any of the following rules. Each is re-asserted at its new position:
+
+- **§3.3.5 R1-a invariant:** standard Register 2 ellipse at full opacity, OCI badge in tooltip.
+  The Show-uncertainty toggle default remains ON.
+- **§3.3.5 R1-b invariant:** no confidence ellipse rendered; dashed 2px stroke at 100% model color
+  opacity; fill at 60% opacity. The R1-b tooltip copy is unchanged.
+- **§3.3.5 R1-c invariant:** hollow triangle (triangle) marker, 3px solid stroke at 100% model color
+  opacity, no ellipse. The R1-c tooltip copy is unchanged.
+- **§3.3.5 binding invariant 1:** a reader must never see a Register 2 ellipse that implies more
+  precision than the contributing model's Register 1 stability warrants.
+- **§15.2 cluster-color ellipse rule:** cluster-color ellipses retain their z-order, opacity, and
+  color assignments regardless of toolbar consolidation.
+- **ARCHITECTURE.md §1.5 corpus-lens framing:** any label, tooltip, or aria-label string introduced
+  by the consolidated toolbar must not use forbidden vocabulary (§1.5.4). M3 verbatim strings
+  listed in §3.1.1(b)(ii) have been pre-grepped against §1.5.4.
+- **CLAUDE.md pitfall 15:** any token referenced in this subsection has been confirmed present in
+  `apps/dashboard/src/styles/tokens.css` before this subsection was authored. No phantom tokens.
+
+#### (a) Chart-area minimum height and above-the-fold rule (BINDING)
+
+**Desktop minimum height (binding):** The `.chart-area` flex container on the Explore page MUST
+have `min-height: 70vh` at viewport widths >= 768px. This is the binding value; the 70vh figure
+was selected to guarantee the signature visualization is visible in the first viewport on a standard
+laptop screen (1280x800 or taller) after the NavBar (48px) and FocusSelector+VizTabs row (approx.
+88px combined) are accounted for. The remaining approximately 664px at 1000px viewport height
+exceeds the 70vh floor.
+
+**Implementation note (§17.1 non-regression, CDA SME A2 addressed):** The 70vh rule applies to
+the `.chart-area` parent flex container. The `.term-map-container` inner element retains
+`flex:1 1 320px; min-height:0; height:100%` unchanged from §17.1. The 70vh rule MUST NOT be
+applied to `.term-map-container` directly. Applying it there would re-introduce the
+height-compounding ResizeObserver bug that §17.1 was authored to fix.
+
+**Above-the-fold rule (binding):** The chart area is the largest single element above the fold on
+the Explore page on desktop. No element between the NavBar and the chart area may have a rendered
+height that, in combination with the other above-chart elements, pushes the top edge of the chart
+below the first viewport.
+
+**Desktop vs. mobile breakpoint (§8 consistent):** At viewport widths < 768px, the `min-height:
+70vh` rule does NOT apply. Mobile layout is governed by §8; on mobile the chart area inherits
+its height from the flex context (`flex:1 1 0`). The 70vh rule is desktop-only.
+
+**CSS rule (binding, TM-B implementation target):**
+```css
+@media (min-width: 768px) {
+  .chart-area {
+    min-height: 70vh;
+  }
+}
+```
+
+#### (b) Control-row consolidation rules (BINDING)
+
+Three sub-rules govern the consolidation of above-chart controls. TM-B implements all three.
+
+**(i) SHOWING model chips removed from all VizTabs (binding).**
+
+The `SelectionBar` component (currently rendering "SHOWING: [model chip] [model chip] ..." above
+the VizTabs row) is removed from the Explore page layout for all VizTabs, not only the Term Map.
+Rationale: the SHOWING chips duplicate information already available in the ModelSelector sidebar
+(§3.7). The sidebar owns model selection; the chips were a redundant read-out that added vertical
+height above the chart without adding information. Scope is all VizTabs; the Sidebar already
+communicates the active selection via checked checkboxes.
+
+**(ii) Unified chart toolbar for TermMap controls (binding).**
+
+The following four controls currently rendered separately are merged into one compact chart toolbar
+rendered at the top edge of the `.chart-area` when the Term Map VizTab is active:
+- Overlay category names selector (currently an inline `<select>` above the chart)
+- Show uncertainty toggle (currently inside `TermMap.tsx` controls row, approx. line 1140-1198)
+- Show cluster labels toggle (currently same controls row)
+- Magnifying lens toggle (currently same controls row)
+
+The unified toolbar renders as a single `<div className="chart-toolbar">` row. All four controls
+are visible simultaneously; no overflow, no accordion. Touch targets: minimum 44px height for each
+control at < 768px (WCAG 2.5.5).
+
+**Verbatim aria-label strings for toolbar elements (M3 pre-grepped against §1.5.4):**
+- Overlay selector: `aria-label="Overlay category names"`
+- Show uncertainty toggle: `aria-label="Show uncertainty ellipses"` (default: checked/ON)
+- Show cluster labels toggle: `aria-label="Show cluster labels"` (default: checked/ON)
+- Magnifying lens toggle: `aria-label="Magnifying lens"` (default: unchecked/OFF)
+
+None of the above strings contain §1.5.4 forbidden vocabulary.
+
+**(iii) Lede paragraph position (binding).**
+
+The `chart-lede` paragraph (`<p className="chart-lede" aria-live="polite">`) moves from its
+current position above the chart area to a position BESIDE the chart on desktop and BELOW the
+chart on mobile.
+
+**Desktop layout (>= 768px):** The Explore area renders as a two-column flex row. Left column:
+lede paragraph in a prose column of fixed 280px width. Right column: chart area filling the
+remaining width, minimum `min(calc(100% - 280px), 900px)` (`--max-chart-width` token). The lede
+column scrolls independently if the prose is taller than the chart.
+
+**Mobile layout (< 768px):** The two-column row collapses to a single column. The chart area
+renders first (full width), the lede paragraph renders below it. The 280px prose column
+constraint does not apply at < 768px.
+
+**Lede preservation clause (M1 BINDING - six sub-points):**
+
+The position change does NOT alter any of the following. All §21 rules carry forward at the new
+position:
+
+1. **Verbatim render element shape retained:** the lede renders as
+   `<p className="chart-lede" aria-live="polite">{domain.generated_lede}</p>` with no structural
+   change.
+2. **`aria-live="polite"` retained:** the lede changes on domain switch; screen readers must
+   announce the new content at the new position.
+3. **`class="chart-lede"` retained:** the class name is stable so that `§21.1` token rule
+   (`color: var(--color-text-caption)`) continues to apply.
+4. **No inline lede logic introduced:** no component may reconstruct a lede client-side at the
+   new position. The lede generator lives in `cdb_publish` (CLAUDE.md §6 rule 11). Any future lede
+   change goes through a `cdb_publish` re-generation, not a component edit.
+5. **Single continuous paragraph retained:** the published lede may contain two sentences (the main
+   finding plus the R1-b low-output-concentration disclosure). Do NOT split them at the new
+   position. Do NOT style the R1-b sentence differently.
+6. **Double-hyphen separator untouched:** the published `generated_lede` contains "--" (double-
+   hyphen ASCII) as a clause separator. This is approved published copy (§21.3). Render verbatim.
+
+#### (c) Label-declutter rule for the Term Map (BINDING, TM-C implementation target)
+
+The Term Map must apply collision-aware cluster-label placement and zoom-dependent term-label
+density. This subsection is the spec-level rule; TM-C implements the bug fix against the existing
+§3.3 item 5 violation visible in the screenshot (`/opt/lsb-agent/screenshots/currentlayout.png`
+right-center region: Great-great-grandchildren / Great-grand-relatives collision).
+
+**Cluster-label placement (binding):**
+Cluster labels must not overlap each other or occlude term point markers. The placement algorithm
+must detect collision between rendered label bounding boxes and retry with offsets before
+falling back to a footnote list. Minimum separation between any two cluster labels: 16px.
+Cluster labels use `var(--color-text-primary)` and `var(--font-body)` at `--font-size-sm` (14px).
+
+**Term-label density (binding):**
+At zoom level k = 1, term labels are shown for all terms whose salience rank is in the top 50%
+for the active domain-model pair. At k > 1.5, all term labels are shown. The density step is
+linear between k=1 and k=1.5. This rule applies per-model; a term visible for one model may be
+suppressed for another at the same zoom level if its relative salience rank is below threshold.
+
+**Interaction with §3.3 item 5 (binding):**
+§3.3 item 5 ("Model labels - positioned to minimize overlap") applies to model-level labels.
+This §3.1.1(c) rule applies to cluster-level labels and term-level labels. The two rules compose
+without conflict.
+
+Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES
+(`docs/status/2026-06-10-termmap-layout-verdicts.md`).
+
+---
 
 ### 3.2 Visualization Switcher
 
@@ -3222,6 +3396,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.19.5. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.20.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*
