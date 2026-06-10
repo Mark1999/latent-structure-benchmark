@@ -11,7 +11,7 @@
  * "model failures" framing / cognition attribution. See M1-M4 (CDA SME verdict).
  */
 
-// ===== Impact paragraph (v0.15.1 — CR-T1, 2026-06-10) =====
+// ===== Impact paragraph (v0.15.1, CR-T1, 2026-06-10) =====
 
 /**
  * Impact paragraph for the collection failures surface.
@@ -21,7 +21,7 @@
 export const IMPACT_PARAGRAPH_FAILURES =
   "Some sessions do not produce a usable answer. A model declines, or returns something our pipeline cannot parse, or the request fails on the provider's side. We keep all of it. Which prompts a model will not answer, and how it says no, is as much a part of its behavior as the answers it gives. Deleting these records would make every model look equally cooperative, and that would be misleading. So they are published here, verbatim.";
 
-// ===== Follow-up interviews impact paragraph (v0.19.2 — CR-T2, 2026-06-10) =====
+// ===== Follow-up interviews impact paragraph (v0.19.2, CR-T2, 2026-06-10) =====
 
 /**
  * Impact paragraph for the follow-up interviews surface.
