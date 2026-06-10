@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.24 (aligned with `ARCHITECTURE.md` v0.7.5; see changelog for history)  
+**Version:** v0.1.25 (aligned with `ARCHITECTURE.md` v0.7.5; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.25** (2026-06-10) — CR-T4: Added §12.6 documenting the published successful-records summary JSON shape emitted by `packages/cdb_publish/cdb_publish/successes.py` to `apps/dashboard/public/data/records/{slug}.json`. New publish-layer schemas in `packages/cdb_publish/cdb_publish/schemas/successes.py` (`PublishedSuccessesFile`, `PublishedSuccessesByModelRow`). `Manifest` schema gains `records: dict[str, str] = {}` field. `build.py` calls `build_successes()` after `build_failures()`. No changes to `cdb_core/schemas.py`. This is a publish-layer shape, not a `cdb_core` schema change; no §6 Architect-sign-off-on-schema gate triggered. "Successful" means the LSB pipeline parsed a primary-step response — NOT a quality judgment on the model output (CDA SME N5 binding note). Architect plan: `docs/status/2026-06-10-collection-records-rework-kickoff.md` §4 Task 4. CDA SME verdict: `docs/status/2026-06-10-collection-records-rework-verdicts.md` CR-T4 (PASS-WITH-NOTES; N1–N6 applied).
 - **v0.1.24** (2026-05-29) — Remedy B T2: Added `centrality_ci: dict[str, tuple[float, float]] = {}` to `DomainResult` (§2 table updated; §2.10 new). This is the Register 2 model-resampling bootstrap CI for `cultural_centrality_scores`. The field was added to resolve the register error documented in `docs/status/2026-05-28-viz-fixes-cda-sme-verdict.md` F2 — the pre-Remedy-B dashboard displayed a normal-approximation R1 CI mislabeled as "bootstrap". Under Remedy B, `centrality_ci` is computed by `bootstrap_centrality_ci()` in `cdb_analyze.bootstrap` (T1) and populated by `pipeline.py` (T3). Non-breaking addition — field is optional with falsy default. Architect sign-off: `docs/status/2026-05-28-remedy-b-architect-plan.md` §3 schema sign-off (conditional on CDA SME PASS, now obtained). CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-28-remedy-b-cda-sme-verdict.md` Q4, N4, N5).
 - **v0.1.23** (2026-05-27) — Focus 1 (Individual Model Consistency) schema additions: Added `RunSummary` Pydantic model to `cdb_core/schemas.py` (§2.9 new). Added three new optional fields to `WithinModelResult` (§2.1 table updated): `within_model_mds_stress` (`float | None`, default `None`), `run_agreement_matrix` (`list[list[float]]`, default `[]`), `run_summaries` (`list[RunSummary]`, default `[]`). The existing `salience_stability_rho` field (already in schema, previously null) will be populated by F1-T2. All additions are optional with falsy defaults — no breaking changes. The run agreement matrix was previously computed and discarded after OCI extraction in `two_level.py`; it is now retained for the Focus 1 dashboard view and open data bundle. `RunSummary` carries lightweight per-run metadata (not full pile memberships — those remain in `informants.jsonl`). Architect sign-off: Focus 1 plan (2026-05-27). CDA SME verdict: PASS-WITH-NOTES (2026-05-27; binding notes S1–S6, S8 applied).
 - **v0.1.22** (2026-05-24) — Phase 9a term-truncation task: Added `compute_cross_model_term_frequency()` to `cdb_analyze/cooccurrence.py`. Added `item_subset: list[str] | None = None` parameter to `build_pooled_cooccurrence_matrix()`. Added truncation step in `cdb_analyze/pipeline.py` `run_pipeline()` between step 2 (per-model matrices) and step 2b (pooled matrix): computes cross-model term frequency, pre-filters terms with f_models < 2, applies `find_salience_elbow()` (min_items=15, max_items=300) to the frequency curve, passes the truncated item list to the pooled matrix builder. Added four new optional fields to `DomainResult` in `cdb_core/schemas.py` (§2 table updated): `term_truncation_method` (`str`, default `""`), `term_truncation_params` (`dict[str, Any]`, default `{}`), `term_n_total_before_truncation` (`int`, default `0`), `term_n_after_truncation` (`int`, default `0`). All additions are optional with falsy defaults — no breaking changes. Added §2.8 to this document. Per-model item MDS (Register 1) is NOT truncated — each model's matrix uses its full vocabulary per CDA SME T4. CDA SME ruling: PASS-WITH-NOTES (`docs/status/2026-05-24-phase9a-term-truncation-sme-ruling.md` T1–T6). Architect sign-off in SME ruling document.
@@ -1411,6 +1412,99 @@ Every published failures JSON file carries a top-level `framing_note` field. The
 The `framing_note` text:
 
 > These records preserve verbatim outputs from collection sessions that did not produce a parseable primary-step response. Each record is a property of the LSB collection pipeline's output distribution, not a claim about the model's intent or state-of-mind. The `originating_outcome_class` field names the LSB-side detection rule (e.g., `refusal_string_match` describes a string-pattern match by the LSB pipeline, not a model decision to refuse). See the methodology page for the failures-as-findings framing.
+
+---
+
+### 12.6 Published successful-records summary JSON shape (CR-T4)
+
+**Files:** `apps/dashboard/public/data/records/{domain_slug}.json`
+
+**Produced by:** `packages/cdb_publish/cdb_publish/successes.py:build_successes()`, called from `cdb_publish.build.build()`.
+
+**Source data:** `data/raw/informants.jsonl` (InformantRecord raw dicts). The file is read-only; its SHA256 is byte-identical before and after the build (Reviewer R4).
+
+**"Successful" defined:** Successful here means the LSB pipeline parsed a primary-step response for that session. It is NOT a quality judgment on the model output. A "successful" collection record means the pipeline received and parsed a response; it says nothing about the quality, accuracy, or completeness of that response. This anti-attribution clause is the symmetric twin of the failures-as-findings posture in §12.
+
+**Relationship to open data:** the published records summary is a per-domain aggregate over `informants.jsonl`, which is published in full under CC0. Researchers who need per-record verbatim bytes should use the open data bundle; the summary artifact closes the "where are the successful records?" dashboard gap at KB-scale payload.
+
+---
+
+#### 12.6.1 Top-level structure
+
+```json
+{
+  "domain_slug": "family",
+  "generated_at": "2026-06-10T12:34:56.789012+00:00",
+  "n_informants": 437,
+  "by_model": [
+    {
+      "model_id": "claude-opus-4-6",
+      "provider": "anthropic",
+      "n_runs": 30,
+      "n_qa_passed": 30,
+      "model_version_returned": "claude-opus-4-6-20251015",
+      "model_version_returned_count": 1
+    }
+  ],
+  "framing_note": "These records summarise collection sessions for which the LSB pipeline parsed a primary-step response..."
+}
+```
+
+| Field | Type | Description |
+|---|---|---|
+| `domain_slug` | `str` | The domain slug. Mirrors the same field in the per-domain `DomainResult` JSON. |
+| `generated_at` | `str` (ISO-8601 UTC) | Build-time wallclock when this file was written. |
+| `n_informants` | `int` | Total count of `InformantRecord` lines in this domain, including records with `qa_passed=False`. This is the full run count, not a QA-filtered subset. |
+| `by_model` | `list` | Per-model-id summary rows, sorted lexicographically by `model_id` ascending. Empty list for a domain with zero informants. |
+| `framing_note` | `str` | LSB-authored corpus-lens framing note. Verbatim text from `docs/status/2026-06-10-collection-records-rework-verdicts.md` CR-T4 CDA SME verdict. T5 is contracted to render this field adjacent to the summary. |
+
+**Empty-domain case:** every domain in the manifest has an entry in this directory, even if it has zero informants (`by_model: []`, `n_informants: 0`). This is the first-class empty state per ARCHITECTURE.md §1.5.5. "Zero records observed for this domain" is a normal observation, not a placeholder.
+
+---
+
+#### 12.6.2 Per-model-id row fields
+
+| Field | Type | Description |
+|---|---|---|
+| `model_id` | `str` | The user-supplied API alias. NOT the same as `model_version_returned` (see CLAUDE.md §9 pitfall #1 and §1.1 of this dictionary). |
+| `provider` | `str` | Literal provider string from `InformantRecord.provider`. Populated from the lexicographically smallest provider string observed for this `model_id` in this domain; a WARNING is logged if multiple provider strings are found (should not occur in normal operation). |
+| `n_runs` | `int` | Count of `InformantRecord` lines for this `model_id` in this domain, including records with `qa_passed=False`. |
+| `n_qa_passed` | `int` | Count of `InformantRecord` lines for this `model_id` in this domain where `qa_passed=True`. The gap between `n_runs` and `n_qa_passed` is itself a finding under the failures-are-findings directive. |
+| `model_version_returned` | `str` | The lexicographically greatest `model_version_returned` string observed for this `model_id` in this domain. See `model_version_returned_count` for the snapshot-roll case (CLAUDE.md §9 pitfall #1). |
+| `model_version_returned_count` | `int` | Count of distinct `model_version_returned` strings observed for this `model_id` in this domain. Value is 1 in the normal case. When greater than 1 the provider rolled a snapshot mid-cohort; a WARNING is logged and the lex-greatest string is reported. |
+
+---
+
+#### 12.6.3 Sanitization policy
+
+The same three-pass sanitization described in §12.3 is applied to every string field in every per-model row before writing. `model_id`, `provider`, and `model_version_returned` are not expected to carry secrets, but the pass applies uniformly as defense-in-depth per SECURITY_AND_HARDENING.md §3.3.
+
+---
+
+#### 12.6.4 Manifest integration
+
+The `Manifest` schema (`packages/cdb_publish/cdb_publish/schemas/manifest.py`) carries a `records: dict[str, str] = {}` field that maps every domain slug to its published records summary JSON path relative to `apps/dashboard/public/`. This mirrors the `failures: dict[str, str]` field (§12.4). Example:
+
+```json
+{
+  "records": {
+    "family": "data/records/family.json",
+    "holidays": "data/records/holidays.json"
+  }
+}
+```
+
+Every domain in the manifest's `domains` list has an entry in `records`. The value is never `null` — empty-domain files are emitted with `by_model: []` and the manifest entry still points to them.
+
+---
+
+#### 12.6.5 Framing note
+
+Every published records summary JSON file carries a top-level `framing_note` field. The verbatim text of this field was reviewed line-by-line against ARCHITECTURE.md §1.5.4 by the CDA SME and is binding. T5 is contracted to render this field adjacent to the summary in the dashboard UI.
+
+The `framing_note` text:
+
+> These records summarise collection sessions for which the LSB pipeline parsed a primary-step response. Each row reports the run count, the QA-pass count, and the provider-returned model-version string for a single `model_id` in this domain. A row is a property of the LSB collection pipeline's parsing outcome, not a quality judgment on the model output. The full per-record bytes are available in the open data bundle under CC0; the unsuccessful counterpart sessions are surfaced under `data/failures/{slug}.json`. See the methodology page for the corpus-lens framing.
 
 ---
 

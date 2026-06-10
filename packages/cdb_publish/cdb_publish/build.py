@@ -39,6 +39,7 @@ from cdb_publish.derived import TOP_TERMS_METRIC, r1_state_for, top_freelist_ter
 from cdb_publish.failures import build_failures
 from cdb_publish.lede import generate_lede
 from cdb_publish.schemas.manifest import Manifest, ManifestDomain
+from cdb_publish.successes import build_successes
 
 logger = logging.getLogger(__name__)
 
@@ -231,8 +232,9 @@ def build(
       3. Compute the display sub-object (r1_states, top_terms, top_terms_metric).
       4. Write {slug}.json and {slug}.v{version}.json to output_dir.
       5. Build failures JSON files per domain (T9 failures-as-findings layer).
-      6. Write manifest.json with oci_low_concentration_threshold = 3.0 and
-         the failures map from step 5.
+      6. Build per-domain successful-records summary JSON files (CR-T4).
+      7. Write manifest.json with oci_low_concentration_threshold = 3.0 and
+         the failures map from step 5 and the records map from step 6.
 
     Parameters
     ----------
@@ -360,11 +362,22 @@ def build(
         domain_slugs=domain_slugs,
     )
 
+    # Build per-domain successful-records summary JSON files (CR-T4).
+    # Every domain slug gets a file; empty-domain files have by_model: [].
+    # "Successful" means the LSB pipeline parsed a primary-step response,
+    # not a quality judgment on the model output.
+    records_map = build_successes(
+        raw_informants_path=raw_informants_path,
+        output_dir=output_dir / "records",
+        domain_slugs=domain_slugs,
+    )
+
     manifest = Manifest(
         built_at=datetime.now(tz=UTC),
         domains=manifest_domains,
         failures=failures_map,
         focus1=focus1_map,
+        records=records_map,
     )
 
     manifest_path = output_dir / "manifest.json"

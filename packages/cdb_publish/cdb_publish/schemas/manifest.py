@@ -76,3 +76,19 @@ class Manifest(BaseModel):
     navigates to Focus 1 tabs. They contain per-model run agreement
     matrices, run summaries, and within-model analysis data.
     """
+
+    records: dict[str, str] = {}
+    """Map from domain_slug to the published successful-records summary
+    JSON path, relative to apps/dashboard/public/. Always present and
+    always non-null for every domain in ``domains`` — empty-domain files
+    are emitted with ``by_model: []`` and ``n_informants: 0``.
+
+    "Successful" here means the LSB pipeline parsed a primary-step
+    response. It is NOT a quality judgment on the model output.
+
+    Example: ``{"family": "data/records/family.json", "holidays": "data/records/holidays.json"}``
+
+    See docs/status/2026-06-10-collection-records-rework-kickoff.md §4
+    Task 4 and docs/DATA_DICTIONARY.md §12.6 for the published shape
+    documentation.
+    """
