@@ -206,3 +206,179 @@ The following before/after comparisons confirm zero visual delta for the migrati
   - "T-MDS-R1 lands the fix" substring present in MDSPlot test.
 
 - **Tester:** PASS. `npm run build` (73 modules, 0 errors), `npm run test` (22 test files, 365 passed, 3 skipped), `npm run lint` (0 errors/warnings) all green. Two consecutive runs produce identical pass/fail/skip counts. Pre-task baseline 149 passed (12 files); post-task 365 passed + 3 skipped (22 files). New tests: 216 active, 2 skipped (T-MDS-R1 stubs). Python: `uv run ruff check .` all checks passed.
+
+
+---
+
+## T-MDS-R1: gate artifacts (pre-implementation; first Coder correctly STOPPED on unpinned geometry)
+
+The plan gates PASSED-WITH-NOTES but the binding pins lived only in verdict summaries, which the pipeline forwards as short notes. Persisted here verbatim so the implementation worktree carries them (same remedy as CR-T7).
+
+### CDA SME plan verdict (F1-F10; F2 resolves F5 disposition; F3/F4 tooltip strings; F5 aria-labels)
+
+CDA SME VERDICT on T-MDS-R1 (MDSPlot R1-b/R1-c implementation): PASS-WITH-NOTES.
+
+Axis 1: Protocol validity:      N/A
+Axis 2: Analytical validity:    PASS
+Axis 3: Claims validity:        PASS-WITH-NOTES
+Axis 4: Audience translation:   PASS-WITH-NOTES
+
+Register compliance:             PASS
+Vocabulary compliance:           PASS-WITH-NOTES (em-dash substitutions binding)
+
+The plan correctly identifies the §3.3.5 binding invariants as the doctrinal source, correctly preserves no-frontend-analysis posture (A5), and correctly routes F5 + aria-label + tooltip-copy as SME-bound. Plan is dispatch-ready with 6 binding notes.
+
+FINDINGS:
+
+F1 (Axis 2) Step-zero is correct. r1_states already on disk; SoT at packages/cdb_publish/cdb_publish/derived.py:34-56 canonical; A5 grep-for-zero-hits on `oci`, `deterministic_output`, `OCI_LOW_CONCENTRATION_THRESHOLD` inside MDSPlot.tsx is the load-bearing falsifiability hook.
+
+F2 (Axis 3, F5 disposition: BINDING per §5(a)) T-MDS-R1 proceeds. F5 (R1-a degenerate ellipse `semi_major<=0`) is the LIMIT case of a low-variance R1-a sample (bootstrap converged on near-point), not a low-concentration finding. Re-classifying as R1-b would be category error. F5 stays its own logged-degenerate-edge-case task.
+
+F3 (Axis 3+4, R1-b tooltip: BINDING IN SCOPE) Approved verbatim (em-dash substituted from §3.3.5 row R1-b): "Position uncertain. This model's within-model output concentration is low (OCI = X.X; higher means runs converge on one structure). See model profile for within-model distribution." If WithinModelResult.oci is not currently a MDSPlot prop, Architect must add `ociValues: Record<string, number>` as a read-only DISPLAY value (NOT classification input; A5 grep remains valid because oci would appear only in tooltip-rendering, not branching).
+
+F4 (Axis 4, R1-c tooltip: BINDING IN SCOPE) Approved verbatim (em-dash substituted from §3.3.5 impl-req-5): "Deterministic output. This model produced the same categorical structure on every run. Its position on the map is consistent, but there is no uncertainty range to show. See the methodology page for why this is the least informative case, not the most."
+
+F5 (Axis 4, aria-label strings: BINDING per §5(b)) Approved verbatim. R1-b: `aria-label="{displayName}, low output concentration. Position shown without confidence ellipse."` R1-c: `aria-label="{displayName}, deterministic output. Same categorical structure on every run."` Screen-reader strings: NOT redundant with tooltip; assistive-tech users do not see the marker-shape distinction.
+
+F6 (Axis 4, A3 italic-tag scoping: BINDING) §3.3.5 R1-b's "small italic 'low OCI' tag" is a LEGEND affordance only. Legend correctly deferred per plan §6 item 6. Therefore NO inline italic tag on the R1-b label in this task; disclosure flows through tooltip + aria-label only. Plan A3 italic-tag bullet must be DELETED.
+
+F7 (Axis 2) Plan A2 outerHTML byte-equality snapshot for R1-a verbatim invariant is the load-bearing methodological gate. Confirmed correct falsifiability hook.
+
+F8 (Axis 4, em-dash compliance: BINDING) Coder uses SUBSTITUTED strings in F3/F4/F5, NOT literal §3.3.5 lines 616/649 (which contain em dashes). Reviewer greps `\x{2014}` on diff (including A16 verdicts-file append at docs/status/2026-06-10-codebase-review-fixes-verdicts.md) with empty stdout binding.
+
+F9 (Axis 3) Approved strings are register-clean: "output concentration", "categorical structure", "uncertainty range", "within-model distribution". No forbidden vocabulary introduced.
+
+F10 (Axis 4, advisory) §3.3.5 item 8 clarifies R1-c triangle is STATE encoding, not ORIGIN encoding. Plan correctly does not collide; advisory only.
+
+REQUIRED BEFORE MERGE:
+1. F2 disposition adopted: T-MDS-R1 proceeds; F5 logged as separate task.
+2. F3 + F4: tooltip copy in-scope, byte-identical substitution. If WithinModelResult.oci not in props, Architect adds ociValues prop (display-only).
+3. F5: aria-label strings byte-identical.
+4. F6: plan A3 amended to delete italic-tag bullet.
+5. F8: em-dash grep on diff + on verdicts-file append; empty stdout in Reviewer verdict.
+6. F1, F7, F9, F10 accept as-planned.
+
+Plan §5 verdict-required answers all answered: (a) F5 disposition = proceed; (b) aria-label = approved verbatim above; (c) tooltip copy = in-scope, approved verbatim above.
+
+Post to #lsb-cda-sme. Next gate: UI/UX (per plan §8 dependency order: UI/UX must pin stroke-dasharray value and triangle geometry before Coder dispatch).
+
+Relevant file paths:
+- /opt/lsb-agent/DESIGN_SYSTEM.md (§3.3.5 lines 605-660, binding source of all R1 invariants; em-dash substitution required at lines 616, 649)
+- /opt/lsb-agent/apps/dashboard/src/components/MDSPlot.tsx (lines 180-201 R1-a paths to preserve verbatim; lines 252-270 tooltip path)
+- /opt/lsb-agent/apps/dashboard/src/__tests__/MDSPlot.test.tsx (lines 238, 246 placeholders to activate; line 255-291 forbidden-vocab guard to keep green)
+- /opt/lsb-agent/apps/dashboard/src/data/types.ts (lines 28-31 R1State, 53-66 WithinModelResult.oci, 82-90 DisplayBlock.r1_states)
+- /opt/lsb-agent/packages/cdb_publish/cdb_publish/derived.py (lines 34-56 r1_state_for SoT, read-only reference)
+- /opt/lsb-agent/apps/dashboard/src/config/analysis.ts (OCI_LOW_CONCENTRATION_THRESHOLD = 3.0; do not touch)
+- /opt/lsb-agent/docs/status/2026-06-10-codebase-review-fixes-verdicts.md (T-MDS-R1 verdict-append target; em-dash grep applies)
+
+### UI/UX plan verdict (geometry pins; DESIGN_SYSTEM v0.20.6 amendment text; blocking notes)
+
+UI/UX VERDICT: PASS-WITH-NOTES
+
+1. OWID design fidelity:      PASS
+2. 30-second journalist:      PASS
+3. Researcher cite path:      PASS
+4. WCAG AA:                   PASS
+
+DESIGN_SYSTEM.md update:      REQUIRED
+See detailed update specification below.
+
+---
+
+CRITERION 1 -- OWID DESIGN FIDELITY: PASS
+
+The plan correctly implements the "no point estimate without uncertainty" rule (ARCHITECTURE.md §4.2.6) through the three-state R1 framework from DESIGN_SYSTEM.md §3.3.5. R1-b and R1-c render without ellipses but are visually flagged as lower-information states -- this is the correct OWID-style approach where the absence of an uncertainty envelope is itself communicated rather than silently omitted. The R1-a path is preserved verbatim. Axis labels with units are present in the existing component. The plan correctly prohibits client-side OCI recomputation (A5), which preserves the single-source-of-truth posture required for reproducibility.
+
+CRITERION 2 -- 30-SECOND JOURNALIST TEST: PASS
+
+The plan's tooltip copy (SME F3, F4) and aria-label copy (SME F5) together make the R1-b and R1-c visual treatments legible without prior methodology context. The R1-b tooltip "Position uncertain. This model's within-model output concentration is low (OCI = X.X...)" is a quotable sentence. The R1-c tooltip "Deterministic output. This model produced the same categorical structure on every run..." is a quotable sentence. The §3.3.5 "mismatch is the finding" framing is preserved. Required: note N1 below (tooltip OCI value requires the ociValues prop data path to be specified).
+
+CRITERION 3 -- RESEARCHER CITE PATH: PASS
+
+The plan introduces no new cite-path obligations. The existing methodology link in the R1-c tooltip copy directs researchers to the methodology page. The open-data bundle reference is unchanged. No new visualizations requiring independent cite paths are introduced.
+
+CRITERION 4 -- WCAG AA: PASS
+
+The R1-c 3px hollow triangle at 100% model color opacity on white background passes 3:1 graphical-object contrast for all palette slots per §3.3.5 implementation requirement 2 (this was already resolved). The R1-b dashed stroke at 100% model color opacity per requirement 3 also passes. Shape encoding (circle vs triangle vs dashed-circle) is not color-alone: the plan's A7 requires aria-labels byte-identical to the SME-approved strings, providing screen-reader alternatives. Both new marker types carry data-model and data-r1-state attributes enabling non-visual identification.
+
+---
+
+DESIGN_SYSTEM.md UPDATE REQUIRED (version bump: v0.20.5 to v0.20.6)
+
+The following changes to /opt/lsb-agent/DESIGN_SYSTEM.md must be made before Coder dispatch. This UI/UX agent specifies them here; the Coder is blocked on frontend work until these updates are committed.
+
+UPDATE 1 -- Version header (line 4):
+Change: **Version:** v0.20.5
+To: **Version:** v0.20.6
+
+UPDATE 2 -- Changelog (insert before the v0.20.5 entry at line 12):
+Insert the following as the new first changelog entry:
+- **v0.20.6** (T-MDS-R1 geometry and prop pins, 2026-06-10) adds implementation requirements 9, 10, 11 to §3.3.5, pins the R1-b stroke-dasharray value, pins the R1-c triangle polygon geometry, specifies the new ociValues prop contract for MDSPlot.tsx, and corrects the em-dash-containing tooltip copy in the R1-b table entry and implementation requirements 5 and 6 to the CDA SME F3/F4/F8 approved em-dash-free versions. No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (this update, 2026-06-10); CDA SME binding strings per T-MDS-R1 SME verdict.
+
+UPDATE 3 -- R1-b table entry tooltip copy (line 616): remove em dash.
+In the R1-b table row, change:
+  Tooltip surfaces: *"Position uncertain -- this model's within-model output concentration is low (OCI = X.X; higher means runs converge on one structure). See model profile for within-model distribution."*
+(Note: the current file uses an em dash U+2014 here. Replace the em dash between "uncertain" and "this" with a period and space.)
+To: Tooltip surfaces: *"Position uncertain. This model's within-model output concentration is low (OCI = X.X; higher means runs converge on one structure). See model profile for within-model distribution."*
+(This matches SME note F3 verbatim, which is the binding version.)
+
+UPDATE 4 -- Implementation requirement 5 tooltip copy (line 649): remove em dash.
+Change:
+   > *"Deterministic output -- this model produced the same categorical structure on every run. Its position on the map is consistent, but there is no uncertainty range to show. See the methodology page for why this is the least informative case, not the most."*
+(em dash between "output" and "this")
+To:
+   > *"Deterministic output. This model produced the same categorical structure on every run. Its position on the map is consistent, but there is no uncertainty range to show. See the methodology page for why this is the least informative case, not the most."*
+(This matches SME note F4 verbatim, which is the binding version.)
+
+UPDATE 5 -- Implementation requirement 6 all-R1-c lede copy (line 654): remove em dash.
+Change:
+   > *"All selected models produced deterministic output on this domain -- the same categorical structure on every run. Cross-model comparison remains valid; see below. Methodology page explains what deterministic output signals about model architecture."*
+(em dash between "domain" and "the")
+To:
+   > *"All selected models produced deterministic output on this domain. The same categorical structure appeared on every run. Cross-model comparison remains valid; see below. Methodology page explains what deterministic output signals about model architecture."*
+
+UPDATE 6 -- Add implementation requirements 9, 10, 11 after requirement 8 (after line 660, before the blank line before '### 3.4'):
+
+9. **R1-b stroke-dasharray value: "4 2" (binding, T-MDS-R1).** The dashed stroke for R1-b markers uses `stroke-dasharray="4 2"` (4px dash, 2px gap). This value is pinned here because the §3.3.5 table and prior implementation requirements described a dashed stroke without specifying the dash/gap ratio. The "4 2" value is consistent with the existing dashed-ring usage in TermMap.tsx (`'4 2'`) and provides sufficient ink density for a 6px-radius circle boundary. No other stroke-dasharray value is acceptable for R1-b without a new UI/UX gate verdict. The Coder must use `stroke-dasharray="4 2"` verbatim in the SVG string template. Test assertion: the R1-b test in MDSPlot.test.tsx must assert `strokeDasharray === "4 2"` or `getAttribute("stroke-dasharray") === "4 2"`.
+
+10. **R1-c triangle polygon geometry: circumradius 8px, apex-up (binding, T-MDS-R1).** The hollow triangle for R1-c markers is an equilateral triangle centered at `(cx, cy)` with circumradius 8px and apex pointing up. The three polygon vertices in SVG coordinate space (y increases downward) are: top `(cx, cy-8)`, bottom-left `(cx-6.93, cy+4)`, bottom-right `(cx+6.93, cy+4)`. The Coder MUST use a `<polygon>` element (not a `<path>`) with `points="{cx},{cy-8} {cx-6.93},{cy+4} {cx+6.93},{cy+4}"` where cx and cy are the same scale-projected coordinates used for R1-a and R1-b circles at the same model_id. The triangle is centered identically to the R1-a/R1-b circle: the centroid of the triangle polygon coincides with the data point. Rationale for circumradius 8px: at 10px logical size (diameter 20px), an equilateral triangle with circumradius 8px has a total bounding height of 12px and width of 13.86px, providing optical weight broadly equivalent to the 6px-radius R1-a circle (area ~113 sq px vs triangle area ~83 sq px, partially compensated by the more visually prominent 3px solid stroke). The 6.93 value is floor(8 * sin(60deg) * 100) / 100 = floor(6.9282 * 100) / 100 = 6.92; use 6.93 for correct rounding. The Coder must not use a different circumradius or a path-based implementation without a new UI/UX gate verdict.
+
+11. **ociValues prop required for R1-b tooltip OCI display (binding, T-MDS-R1).** The CDA SME F3 binding specifies that the R1-b tooltip must display the actual OCI value inline: "OCI = X.X". This value is not available through the r1States prop (which carries only the state classification, not the raw numeric). A second new prop is required on MDSPlot.tsx: `ociValues: Record<string, number>`, carrying the per-model OCI score as a display value. This prop is display-only: the component MUST NOT use ociValues to compute or reclassify the R1 state (A5 prohibition). ContentArea.tsx must wire this prop by extracting OCI values from `domain.within_model_results` (the `WithinModelResult[]` array already present in DomainResultPublished at the `within_model_results` field) and constructing the record: `Object.fromEntries(domain.within_model_results.map(r => [r.model_id, r.oci]))`. The defensive fallback in ContentArea is `ociValues={ociValues ?? {}}` where `ociValues` is computed from `domain.within_model_results`. When a model_id is absent from ociValues (legacy JSON edge case), the tooltip omits the OCI value clause rather than rendering "OCI = NaN" or "OCI = undefined". The acceptance criterion A1 in the Architect plan must be understood as amended: MDSPlot.tsx gains TWO new required props: `r1States: Record<string, R1State>` and `ociValues: Record<string, number>`. The R1-b tooltip template is: "Position uncertain. This model's within-model output concentration is low (OCI = {ociValues[m.model_id]?.toFixed(1) ?? 'n/a'}; higher means runs converge on one structure). See model profile for within-model distribution." The Coder must use `.toFixed(1)` for consistent one-decimal display matching the §3.3.5 table example "OCI = X.X".
+
+UPDATE 7 -- Closing line version string (line 3706):
+Change: *End of DESIGN_SYSTEM.md v0.20.4.
+To: *End of DESIGN_SYSTEM.md v0.20.6.
+
+---
+
+FINDINGS:
+
+F1 -- BLOCKING NOTE (N1): The ociValues prop is not specified in the Architect plan's acceptance criterion A1, but is required by SME F3 binding (R1-b tooltip "OCI = X.X" requires the numeric value, which is absent from r1States). The plan §5(c) acknowledges this possibility ("May require new ociValues prop") but does not commit it to the acceptance criteria. DESIGN_SYSTEM.md update 11 above formalizes the requirement. The Coder must implement both r1States AND ociValues props. ContentArea.tsx must wire both. MDSPlot.test.tsx fixtures must include ociValues for R1-b test assertions. This is a plan amendment, not a redesign.
+
+F2 -- BLOCKING NOTE (N2): The stroke-dasharray value was not pinned in the existing design system. DESIGN_SYSTEM.md update 9 pins it as "4 2". The R1-b vitest assertion in A7 must include `getAttribute("stroke-dasharray") === "4 2"`.
+
+F3 -- BLOCKING NOTE (N3): The triangle geometry was not pinned (only "10px logical size or equivalent"). DESIGN_SYSTEM.md update 10 pins circumradius=8px, polygon element, apex-up. The Coder must not use a path element or a different circumradius.
+
+F4 -- ADVISORY (N4): The existing null-uncertainty test at MDSPlot.test.tsx line 198-222 asserts that the null-uncertainty model (fixture-model-beta) renders as a circle. After T-MDS-R1 this test's assertion on tagName === "circle" will still be correct IF the fixture's r1States does not set beta to "low_concentration" or "deterministic". The plan's A8 guidance to "replace the fixture so beta has a non-null uncertainty AND an explicit typical_concentration r1-state" is the cleaner path and is recommended to avoid ambiguity. Either approach is acceptable as long as the test remains meaningful for R1-a coverage.
+
+F5 -- ADVISORY (N5): The plan correctly defers the legend (§3.3.5 implementation requirement 4) to a follow-up task per plan §6 item 6 and SME F6 binding. This is confirmed acceptable. The legend deferred state does not violate WCAG non-text contrast requirements for the current tooltip-and-aria-label disclosure path.
+
+F6 -- ADVISORY (N6): The A3 bullet about "a small italic 'low OCI' tag affordance" is overridden by SME F6 binding, which restricts the italic tag to the legend only (and legend is deferred). Plan A3 contains a bullet that must be deleted per SME F6. The Coder must confirm this deletion. The design system update 9 does not re-introduce the inline italic tag.
+
+F7 -- ADVISORY (N7): The descriptive paragraph at MDSPlot.tsx line 238-241 reads "Ellipses show 95% confidence regions from bootstrap resampling -- smaller ellipses mean more stable positions." After T-MDS-R1 ships, this paragraph will be partially inaccurate for R1-b/R1-c models (which have no ellipses). The Coder should update this paragraph to something like "Ellipses show 95% confidence regions from bootstrap resampling -- smaller ellipses mean more stable positions. Models without ellipses are flagged with a different marker shape indicating low output concentration or deterministic output." This is not a blocker but should be included in the PR.
+
+---
+
+REQUIRED BEFORE MERGE (numbered, all binding):
+
+1. DESIGN_SYSTEM.md must be updated with all 7 changes above (version bump, changelog, 3 em-dash fixes, 3 new implementation requirements, closing version) BEFORE the Coder begins implementation. Post the update to #lsb-ui-ux. This is the stop condition per CLAUDE.md pitfall 6.
+
+2. Architect must amend acceptance criterion A1 in the plan to include the ociValues prop: "MDSPlot.tsx accepts TWO new required props: r1States: Record<string, R1State> and ociValues: Record<string, number>." ContentArea.tsx wiring must include both props.
+
+3. Architect must delete the A3 bullet about "small italic 'low OCI' tag affordance" in the R1-b label pass (superseded by SME F6 binding; label pass matches R1-a byte-for-byte).
+
+4. R1-b vitest assertion in A7 must include stroke-dasharray="4 2" (now pinned in design system).
+
+5. R1-c vitest assertion in A7 must assert polygon element (not circle) with the circumradius-8px vertex coordinates per design system update 10.
+
+6. The Coder must grep for em dashes in any aria-label or tooltip string and confirm zero hits before committing (per A12 scope, which already covers this but needs to encompass the new SME-approved strings verbatim as written without em dashes).
