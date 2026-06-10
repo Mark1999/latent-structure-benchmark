@@ -506,7 +506,7 @@ export function FailuresFindings() {
         );
       })()}
 
-      {/* Records summary section (CR-T5, v0.19.4) — independent of failures side (AC3).
+      {/* Records summary section (CR-T5, v0.19.4): independent of failures side (AC3).
           Placement: below the failures/decline-interviews list (or below EMPTY_CAPTION
           when n_records === 0). See DESIGN_SYSTEM.md §19.15. */}
       <RecordsSummarySection recordsFetchState={recordsFetchState} />
@@ -571,7 +571,7 @@ function RecordsSummarySection({ recordsFetchState }: RecordsSummarySectionProps
         {RECORDS_SECTION_HEADING}
       </h2>
 
-      {/* framing_note verbatim (AC6) — byte-identical to the CR-T4-published string */}
+      {/* framing_note verbatim (AC6): byte-identical to the CR-T4-published string */}
       <p className="failures-findings__framing-note failures-findings__successes-framing">
         {data.framing_note}
       </p>
@@ -624,7 +624,7 @@ function RecordsSummarySection({ recordsFetchState }: RecordsSummarySectionProps
         </div>
       )}
 
-      {/* Link-out caption (AC12) — points to Data tab, no external links */}
+      {/* Link-out caption (AC12): points to Data tab, no external links */}
       <p className="failures-findings__successes-caption">
         {RECORDS_LINK_OUT_CAPTION}
       </p>
