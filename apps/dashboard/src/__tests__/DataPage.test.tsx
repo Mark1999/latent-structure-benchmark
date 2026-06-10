@@ -3,7 +3,7 @@
  *
  * No fetch calls — DataPage is fully static. No real API calls per CLAUDE.md §6 rule 9.
  *
- * Test cases (Architect plan §6):
+ * Test cases (original 12 + M1 additions):
  * 1.  renders + <main aria-label="Data download">
  * 2.  HF link: exact href + target=_blank + rel=noopener noreferrer
  * 3.  DOI link: exact href + target=_blank + rel=noopener noreferrer
@@ -16,10 +16,20 @@
  * 10. Every external <a> has an "opens" sr-only span
  * 11. No forbidden vocabulary (ARCHITECTURE.md §1.5.4 / CLAUDE.md §7)
  * 12. All four licenses present
+ * 13. Section render order: B(HF) → D(Cite) → A(header) → C(tarball)
+ * 14. [M1] "Data provenance" heading renders on DataPage (moved from MethodologyPage)
+ * 15. [M1] "Cross-model term map and uncertainty" heading renders on DataPage
+ *          (moved from MethodologyPage)
+ * 16. [M1] provenance.json link on DataPage has correct href, target, rel, and sr-only text
+ * 17. [M1] No duplicate <h2> ids on DataPage (Section H renamed to data-provenance-pointer-heading)
+ * 18. [M1] Extended section render order: moved sections follow Section H (Provenance pointer)
  *
- * Gate verdicts:
+ * Gate verdicts (original):
  *   CDA SME PASS-WITH-NOTES: docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md
  *   UI/UX PASS-WITH-NOTES:   docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md
+ * Gate verdicts (M1 additions):
+ *   CDA SME PASS-WITH-NOTES: docs/status/2026-06-10-site-copy-verdicts.md
+ *   UI/UX PASS-WITH-NOTES:   docs/status/2026-06-10-site-copy-verdicts.md
  */
 
 import { render, screen } from '@testing-library/react';
@@ -210,6 +220,70 @@ describe('DataPage', () => {
     // A precedes C
     expect(
       headerHeading!.compareDocumentPosition(tarballHeading!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+  });
+
+  // ── M1 additions (2026-06-10) ────────────────────────────────────────────────
+
+  // 14. [M1] "Data provenance" heading renders on DataPage (moved from MethodologyPage)
+  it('[M1] renders "Data provenance" heading on DataPage', () => {
+    render(<DataPage />);
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Data provenance' })
+    ).toBeInTheDocument();
+  });
+
+  // 15. [M1] "Cross-model term map and uncertainty" heading renders on DataPage
+  it('[M1] renders "Cross-model term map and uncertainty" heading on DataPage', () => {
+    render(<DataPage />);
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Cross-model term map and uncertainty' })
+    ).toBeInTheDocument();
+  });
+
+  // 16. [M1] provenance.json link on DataPage: correct href, target, rel, and sr-only text
+  it('[M1] provenance.json link on DataPage has correct href, target, rel, and sr-only', () => {
+    const { container } = render(<DataPage />);
+    const link = container.querySelector('a[href="/data/provenance.json"]') as HTMLAnchorElement | null;
+    expect(link).not.toBeNull();
+    expect(link).toHaveAttribute('target', '_blank');
+    expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+    const srSpan = link!.querySelector('.sr-only');
+    expect(srSpan).not.toBeNull();
+    expect(srSpan!.textContent?.toLowerCase()).toMatch(/opens data provenance manifest in new tab/);
+  });
+
+  // 17. [M1] No duplicate h2 ids: Section H renamed to data-provenance-pointer-heading
+  //     and the canonical data-provenance-heading now belongs to the moved section.
+  it('[M1] no duplicate h2 ids on DataPage', () => {
+    const { container } = render(<DataPage />);
+    const allH2Ids = Array.from(container.querySelectorAll('h2[id]')).map((el) => el.id);
+    const idSet = new Set(allH2Ids);
+    expect(allH2Ids.length).toBe(idSet.size); // no duplicates
+    // Verify the renamed pointer heading id is present
+    expect(container.querySelector('#data-provenance-pointer-heading')).not.toBeNull();
+    // Verify the canonical data-provenance-heading belongs to the moved section
+    expect(container.querySelector('#data-provenance-heading')).not.toBeNull();
+  });
+
+  // 18. [M1] Extended section render order: moved sections follow Section H (Provenance pointer)
+  //     Section H (data-provenance-pointer-heading) precedes moved data-provenance-heading,
+  //     which precedes term-mds-heading.
+  it('[M1] moved sections follow Section H in DOM order', () => {
+    const { container } = render(<DataPage />);
+    const pointerHeading    = container.querySelector('#data-provenance-pointer-heading');
+    const provenanceHeading = container.querySelector('#data-provenance-heading');
+    const termMdsHeading    = container.querySelector('#term-mds-heading');
+    expect(pointerHeading).not.toBeNull();
+    expect(provenanceHeading).not.toBeNull();
+    expect(termMdsHeading).not.toBeNull();
+    // Section H (pointer) precedes canonical Data provenance
+    expect(
+      pointerHeading!.compareDocumentPosition(provenanceHeading!) & Node.DOCUMENT_POSITION_FOLLOWING
+    ).toBeTruthy();
+    // Data provenance precedes Cross-model term map
+    expect(
+      provenanceHeading!.compareDocumentPosition(termMdsHeading!) & Node.DOCUMENT_POSITION_FOLLOWING
     ).toBeTruthy();
   });
 

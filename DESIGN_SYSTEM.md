@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.17.0  
+**Version:** v0.18.0  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.18.0** (Methodology rewrite + provenance section move — M1, 2026-06-10) replaces the v0.17.0 Coder-built placeholder prose in sections 1-6 of `MethodologyPage.tsx` with Mark-authored final text (eight sections; CDA tradition, forebears credit with verified links). Moves the §15.5(a) `Data provenance` section and the §16.2 `Cross-model term map and uncertainty` section from `MethodologyPage.tsx` to `DataPage.tsx` (placement: after Section H Provenance pointer). Adds a new "Provenance" pointer section at the end of `MethodologyPage.tsx` (in-app `/data` link, §6.3). Fixes a duplicate-id defect introduced by the move (DataPage Section H heading id renamed to `data-provenance-pointer-heading`). Adds §6.3 (provenance-pointer note, in §6 methodology page architecture section). Updates §15.5(a), §16.2 placement paragraphs, and §11 inventory entries. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`).
 - **v0.17.0** (Published lede wire-up — Phase 9a T2, 2026-06-09) adds §21 (`.chart-lede` binding token spec). `ContentArea.tsx` Focus-3 lede strip now renders `domain.generated_lede` verbatim in a single `<p className="chart-lede" aria-live="polite">`. Inline-computed lede block (lines 199-220, `selectedModelIds.size` branching, "Consensus baseline (all tested models):" label, inline Smith's S computation) removed. WCAG AA contrast fix: `.chart-lede` color changed from `var(--color-text-secondary)` (~3.40:1, FAILS AA) to `var(--color-text-caption)` (~4.60:1, PASS). R1-b low-output-concentration disclosure restored on family and food domains. §12.9 SR-template boundary note updated: `generated_lede` now rendered in `ContentArea.tsx` (not only `ArticleHeader.tsx`). No new tokens. Gate verdicts: CDA SME PASS (`docs/status/2026-06-08-phase9a-T2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T2-uiux-verdict.md`).
 - **v0.16.0** (Data download tab — Phase 9a task 6, 2026-06-09) adds §20 and the `--color-surface-note` semantic alias token (§1.2). New component `DataPage.tsx` replaces the `navTab === 'data'` placeholder. Section render order B/D/A/C/E/F/G/H (UI/UX binding). No new dependencies. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md`).
 - **v0.15.0** (Collection records tab — Phase 9a T1, 2026-06-09) adds §19. New top-level NavBar tab "Collection records" at position [Explore][Methodology][Collection records][Data]. New files: `FailuresFindings.tsx`, `copy/failures_findings.ts`, `styles/failures-findings.css`, `__tests__/FailuresFindings.test.tsx`. No new tokens. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`).
@@ -586,6 +587,19 @@ The methodology page is a first-class deliverable, not an afterthought. It is wr
 ### 6.2 Tone
 
 The methodology page is written in plain English, not academic jargon. It assumes a reader who is intelligent and curious but has not read cognitive anthropology. It does not assume the reader will believe the findings — it gives them the tools to evaluate the findings themselves. Every limitation is stated plainly. No defensiveness.
+
+### 6.3 Provenance pointer section (M1, 2026-06-10)
+
+The methodology page closes with a single-sentence "Provenance" section that links readers to the Data page for detailed technical provenance. This section replaced the previously embedded `Data provenance` and `Cross-model term map and uncertainty` sections, which moved to `DataPage.tsx` (see §15.5(a) and §16.2).
+
+**Section structure:**
+- Container: `.methodology-page__section` with `aria-labelledby="provenance-pointer-heading"`
+- Heading: `<h2 id="provenance-pointer-heading">Provenance</h2>` (sentence case)
+- Paragraph: single sentence linking to `/data` (root-relative in-app SPA route)
+- Link: `<a href="/data" className="methodology-page__link">Data page</a>`
+- **No `target="_blank"` on this link** — it is an in-app SPA route, not an external resource. The UI/UX §20.6 external-link contract applies only to `href^="http"` links.
+
+The pointer section follows section 8 ("Do not take my word for it"), which is Mark's deliberate closing rhetorical beat. The provenance pointer is mechanical wayfinding and must not interrupt the closing section. See §11 Component Inventory entry for `MethodologyPage.tsx`.
 
 ---
 
@@ -1568,11 +1582,11 @@ All components to be built, in implementation order:
 - `apps/dashboard/src/styles/dendrogram.css` — token-only styles for Dendrogram.
 
 **Data download tab (Phase 9a task 6, 2026-06-09):**
-- `DataPage.tsx` — static Data download tab; all prose verbatim from `data/open_bundle/README.md`, `huggingface_dataset_card.md`, and `ARCHITECTURE.md` §6.6. Section render order B/D/A/C/E/F/G/H per UI/UX verdict §20. Uses `--color-surface-note` for the size-warning callout. File: `apps/dashboard/src/components/DataPage.tsx`. Spec: §20.
-- `apps/dashboard/src/__tests__/DataPage.test.tsx` — 12-case vitest suite (no fetch). Spec: Architect plan §6.
+- `DataPage.tsx` — static Data download tab; all prose verbatim from `data/open_bundle/README.md`, `huggingface_dataset_card.md`, and `ARCHITECTURE.md` §6.6. Section render order B/D/A/C/E/F/G/H per UI/UX verdict §20. Uses `--color-surface-note` for the size-warning callout. Carries the moved `Data provenance` (§15.5(a)) and `Cross-model term map and uncertainty` (§16.2) sections from `MethodologyPage.tsx` (M1, 2026-06-10). File: `apps/dashboard/src/components/DataPage.tsx`. Spec: §20, §15.5(a), §16.2.
+- `apps/dashboard/src/__tests__/DataPage.test.tsx` — 18-case vitest suite (no fetch). Spec: Architect plan §6 + M1 additions (2026-06-10).
 
 **Methodology page (Phase 6, Mark writes prose):**
-- `MethodologyPage.tsx` — long-form article template; includes "Data provenance" final section (PROMOTE-2, 2026-05-30). File: `apps/dashboard/src/components/MethodologyPage.tsx`. Spec: §15.5(a) and §6.
+- `MethodologyPage.tsx` — long-form article template; eight Mark-authored sections (M1, 2026-06-10). Final section is a single pointer paragraph to the Data page (§6.3, M1, 2026-06-10). The previously-included "Data provenance" section (PROMOTE-2, 2026-05-30) moved to `DataPage.tsx` (M1, 2026-06-10). File: `apps/dashboard/src/components/MethodologyPage.tsx`. Spec: §6 and §6.3.
 - `CitationBlock.tsx` — formatted academic citation component
 - `LimitationCard.tsx` — each known limitation as a card
 
@@ -2255,16 +2269,18 @@ This exception does NOT apply anywhere outside the dark-inverted tooltip. Any 10
 
 Visual decisions and component specifications for the two provenance surfaces shipped with the family+holidays re-baseline promotion. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-05-30-promote2-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-05-30-promote-ui-ux-verdict.md`); Architect sign-off (`docs/status/2026-05-30-provenance-json-architect-signoff.md`). No new tokens.
 
-### §15.5(a) Methodology "Data provenance" section
+### §15.5(a) "Data provenance" section (moved to DataPage.tsx — M1, 2026-06-10)
 
-The `MethodologyPage.tsx` component contains a final `<section>` with its own `<h2 id="data-provenance-heading">Data provenance</h2>`. The paragraph text is verbatim from CDA SME PROMOTE-2 verdict §3 Option 1 (byte-locked; do not paraphrase). The link to `/data/provenance.json` is:
+**Amendment (M1, 2026-06-10):** this section has moved from `MethodologyPage.tsx` to `DataPage.tsx`. The `MethodologyPage.tsx` closing pointer section (§6.3) links to `/data` for readers who want provenance details.
 
-- `href="/data/provenance.json"` (root-relative — prevents 404 from the `/methodology` route)
+The `DataPage.tsx` component contains a `<section>` with its own `<h2 id="data-provenance-heading">Data provenance</h2>`. The paragraph text is verbatim from CDA SME PROMOTE-2 verdict §3 Option 1 (byte-locked; do not paraphrase). The link to `/data/provenance.json` is:
+
+- `href="/data/provenance.json"` (root-relative — prevents 404 from the `/data` route)
 - `target="_blank" rel="noopener noreferrer"`
 - Link text: "provenance.json" followed by "(JSON)" as a visible affordance (outside the `<a>` but adjacent), since the target is a raw JSON file, not HTML
 - `aria-label` via `<span class="sr-only">` inside the `<a>`: "(opens data provenance manifest in new tab)"
 
-No new tokens. Section container reuses `.methodology-page__section` CSS class. Heading reuses `.methodology-page__heading`. Paragraph reuses `.methodology-page__text`. Link uses `.methodology-page__link` (color: `--color-info`).
+No new tokens. Section container reuses `.data-page__section` CSS class. Heading reuses `.data-page__heading`. Paragraph reuses `.data-page__text`. Link uses `.data-page__link` (color: `--color-info`).
 
 ### §15.5(b) Global provenance footer landmark
 
@@ -2281,19 +2297,22 @@ The `ProvenanceFooter.tsx` component renders a `<footer>` landmark in the global
 
 **Note:** Footer vitest tests deferred to T7 (per task acceptance). Per-domain conditional rendering is mechanically enforced by the `activeDomain` prop check at runtime.
 
-### §16.2 Term-MDS methodology disclosure placement (v0.12.0 — food-promote, 2026-05-31)
+### §16.2 Term-MDS disclosure placement (moved to DataPage.tsx — M1, 2026-06-10)
 
-A stub `<section aria-labelledby="term-mds-heading">` with heading "Cross-model term map and uncertainty" is added to `MethodologyPage.tsx` to carry two binding disclosures required before food's term-MDS ships:
+**Amendment (M1, 2026-06-10):** this section has moved from `MethodologyPage.tsx` to `DataPage.tsx`. The binding prose is byte-identical to the v0.12.0 content; only the CSS class-name prefix changed from `.methodology-page__*` to `.data-page__*`.
+
+A `<section aria-labelledby="term-mds-heading">` with heading "Cross-model term map and uncertainty" is present in `DataPage.tsx`, after the `Data provenance` section (§15.5(a)), carrying two binding disclosures:
 
 1. **M4a sentence (Phase 9a binding, CDA SME C4):** "Term position confidence reflects agreement across models, not within-model sampling variance." This sentence was a carry-forward obligation from Phase 9a sign-off and must be present for all three domains (family, holidays, food).
 
 2. **C3 n-count sentence (CDA SME C3):** "The cross-model term map is computed from 15 model informants on family, 14 on holidays, and 8 on food; ellipse widths and branch-probability values are derived from model-resample bootstrap (B=200), so a sparser informant pool produces a different bootstrap envelope shape than a denser one even when the per-model agreement is similar." This closes the audience-translation gap: readers who notice food's bootstrap ellipse shapes may otherwise incorrectly attribute the difference to consensus strength rather than informant-pool size.
 
-**Placement:** immediately before the "Data provenance" section in MethodologyPage.tsx. Both sentences reuse `.methodology-page__section`, `.methodology-page__heading`, and `.methodology-page__text` CSS classes — no new visual decisions. No new tokens. Full methodology prose deferred (section carries a placeholder structure only; Mark fills prose in a later task).
+**Placement:** at the end of `DataPage.tsx`, after the `Data provenance` section. Both sentences reuse `.data-page__section`, `.data-page__heading`, and `.data-page__text` CSS classes — no new visual decisions. No new tokens.
 
-**Researcher cite-path requirement (UI/UX F3a):** this stub section is the minimum viable cite path for food's term-MDS. Without it, a researcher citing the food term-MDS has no methods-page anchor to reference for the model-resample bootstrap framing. The stub satisfies the cite-path floor; full methods prose is a separate task.
+**Researcher cite-path requirement (UI/UX F3a):** this section is the minimum viable cite path for food's term-MDS. Without it, a researcher citing the food term-MDS has no page anchor to reference for the model-resample bootstrap framing.
 
-Gate verdict: UI/UX PASS-WITH-NOTES F3a (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`); CDA SME PASS-WITH-NOTES C3/C4 (`docs/status/2026-05-31-food-promote-cda-sme-verdict.md`).
+Gate verdicts (original): UI/UX PASS-WITH-NOTES F3a (`docs/status/2026-05-31-food-promote-ui-ux-verdict.md`); CDA SME PASS-WITH-NOTES C3/C4 (`docs/status/2026-05-31-food-promote-cda-sme-verdict.md`).
+Gate verdicts (M1 move): CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md`).
 
 ---
 

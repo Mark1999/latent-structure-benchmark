@@ -224,11 +224,65 @@ Zenodo. https://doi.org/10.5281/zenodo.20293554`}</code></pre>
         </section>
 
         {/* ── Section H: Provenance pointer ──────────────────────────────── */}
-        <section className="data-page__section" aria-labelledby="data-provenance-heading">
-          <h2 id="data-provenance-heading" className="data-page__heading">Provenance</h2>
+        {/* id renamed to data-provenance-pointer-heading (M1, 2026-06-10) to avoid */}
+        {/* duplicate-id collision with the moved canonical data-provenance-heading  */}
+        {/* section below (WCAG 4.1.1 / aria-labelledby resolution fix).             */}
+        <section className="data-page__section" aria-labelledby="data-provenance-pointer-heading">
+          <h2 id="data-provenance-pointer-heading" className="data-page__heading">Provenance</h2>
           <p className="data-page__text">
             Toolchain pinning, analytical version strings, and SHA256 manifests are recorded in the
             provenance footer at the bottom of every page on this site.
+          </p>
+        </section>
+
+        {/* ── Moved from MethodologyPage.tsx (M1, 2026-06-10) ──────────── */}
+        {/* §15.5(a) Data provenance (PROMOTE-2, CDA SME §3 Option 1, verbatim) */}
+        {/* DESIGN_SYSTEM.md §15.5(a): own <h2>, root-relative link, new tab, (JSON) affordance */}
+        <section className="data-page__section" aria-labelledby="data-provenance-heading">
+          <h2 id="data-provenance-heading" className="data-page__heading">Data provenance</h2>
+          <p className="data-page__text">
+            The published family, holidays, and food corpora were recomputed on 2026-05-30 under a
+            pinned analytical toolchain (NumPy 2.4.4, SciPy 1.17.1, Python 3.12) so that any
+            researcher with the open data bundle can reproduce the published numerics on their
+            own machine. The prior figures were valid under the toolchain that produced them;
+            what changed is that LSB now pins the NumPy and SciPy versions used for all
+            bootstrap and MDS computations, where previously those versions were whatever the
+            host environment happened to have installed. Values shifted at the third or fourth
+            decimal in bootstrap- and MDS-derived quantities; at two-decimal display rounding,
+            the visible effects on this site are family&rsquo;s Smith&rsquo;s S moving from 0.80
+            to 0.81 and its 95% confidence interval upper bound from 0.94 to 0.95, and
+            holidays&rsquo; 95% confidence interval moving from [0.76, 0.96] to [0.77, 0.97].
+            Deterministic quantities such as Smith&rsquo;s S values before display rounding,
+            OCI, and the Romney eigenratios that drive the consensus-type classification are
+            unaffected at any boundary, and no consensus classification, model ordering, or
+            relative geometry on the MDS maps has changed on either domain. The pinned versions
+            and the exact git commit are recorded in{' '}
+            <a
+              href="/data/provenance.json"
+              target="_blank"
+              rel="noopener noreferrer"
+              className="data-page__link"
+            >
+              provenance.json
+              <span className="sr-only"> (opens data provenance manifest in new tab)</span>
+              {' '}(JSON)
+            </a>
+            , which is regenerated on every published bundle.
+          </p>
+        </section>
+
+        {/* §16.2 — Cross-model term map and uncertainty (food-promote C3/C4, UI/UX F3a) */}
+        {/* Moved from MethodologyPage.tsx (M1, 2026-06-10). */}
+        {/* M4a sentence: Phase 9a binding disclosure (C4). */}
+        {/* C3 sentence: informant-count disclosure for term-MDS bootstrap envelope (C3). */}
+        <section className="data-page__section" aria-labelledby="term-mds-heading">
+          <h2 id="term-mds-heading" className="data-page__heading">Cross-model term map and uncertainty</h2>
+          <p className="data-page__text">
+            Term position confidence reflects agreement across models, not within-model sampling variance.
+            The cross-model term map is computed from 15 model informants on family, 14 on holidays, and
+            8 on food; ellipse widths and branch-probability values are derived from model-resample
+            bootstrap (B=200), so a sparser informant pool produces a different bootstrap envelope
+            shape than a denser one even when the per-model agreement is similar.
           </p>
         </section>
 
