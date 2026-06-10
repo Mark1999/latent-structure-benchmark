@@ -1,7 +1,7 @@
-# Site copy verdicts — M1 (Methodology rewrite + provenance section move)
+# Site copy verdicts: M1 (Methodology rewrite + provenance section move)
 
 **Date:** 2026-06-10
-**Task:** M1 — Replace methodology page with Mark-authored final; move Data provenance and Cross-model term map and uncertainty sections to DataPage.tsx
+**Task:** M1: Replace methodology page with Mark-authored final; move Data provenance and Cross-model term map and uncertainty sections to DataPage.tsx
 **Files affected:** `apps/dashboard/src/components/MethodologyPage.tsx`, `apps/dashboard/src/components/DataPage.tsx`, `apps/dashboard/src/__tests__/MethodologyPage.test.tsx`, `apps/dashboard/src/__tests__/DataPage.test.tsx`, `DESIGN_SYSTEM.md`
 
 ---
@@ -12,7 +12,7 @@ Replace the v0.17.0 Coder-built placeholder prose in sections 1-6 of `Methodolog
 
 ---
 
-## CDA SME gate verdict — PASS-WITH-NOTES
+## CDA SME gate verdict: PASS-WITH-NOTES
 
 **Verdict:** PASS-WITH-NOTES
 **Posted to:** #lsb-cda-sme
@@ -20,10 +20,10 @@ Replace the v0.17.0 Coder-built placeholder prose in sections 1-6 of `Methodolog
 
 | Axis | Verdict |
 |---|---|
-| Axis 1 — Protocol validity | PASS |
-| Axis 2 — Analytical validity | PASS |
-| Axis 3 — Claims validity | PASS |
-| Axis 4 — Audience translation | PASS |
+| Axis 1: Protocol validity | PASS |
+| Axis 2: Analytical validity | PASS |
+| Axis 3: Claims validity | PASS |
+| Axis 4: Audience translation | PASS |
 | Register compliance | PASS |
 | Vocabulary compliance | PASS |
 
@@ -37,13 +37,13 @@ Replace the v0.17.0 Coder-built placeholder prose in sections 1-6 of `Methodolog
 
 - **ADVISORY M1-A3 (acknowledged, no fix required):** Mark's draft Section 4 omits inline names for Smith's S, OCI, and Romney CCM that the v0.17.0 placeholder named in prose. This is an authorial simplification consistent with the journalist-30-second audience tier; the names remain present on the Data page via §16.2 and elsewhere.
 
-- **Register compliance PASS:** Section 7 "Consensus" bullet correctly phrases between-model convergence ("models converge on a shared structure for the domain") — no Register 1 mislabeling.
+- **Register compliance PASS:** Section 7 "Consensus" bullet correctly phrases between-model convergence ("models converge on a shared structure for the domain"): no Register 1 mislabeling.
 
 - **Atomic move integrity:** §16.2 model-resample bootstrap sentence (B=200, 15/14/8 informant counts on family/holidays/food) preserved byte-identical from MethodologyPage.tsx to the moved DataPage section. Permitted CSS class-name prefix swap (.methodology-page__* to .data-page__*) is the only normalization.
 
 ---
 
-## UI/UX gate verdict — PASS-WITH-NOTES
+## UI/UX gate verdict: PASS-WITH-NOTES
 
 **Verdict:** PASS-WITH-NOTES
 **Posted to:** #lsb-ui-ux
@@ -68,7 +68,7 @@ Replace the v0.17.0 Coder-built placeholder prose in sections 1-6 of `Methodolog
 
 ---
 
-## Reviewer verdict — PASS
+## Reviewer verdict: PASS
 
 **Verdict:** PASS
 **Date:** 2026-06-10
@@ -79,7 +79,7 @@ Reviewer checks:
 - No em dashes in new prose or commit message: PASS.
 - Conventional-commits format: PASS (`feat(dashboard): replace methodology page with Mark-authored final (M1)`).
 - One commit, not bundled: PASS.
-- DATA_DICTIONARY.md not edited (R7 NA — no schema change): PASS.
+- DATA_DICTIONARY.md not edited (R7 NA: no schema change): PASS.
 - Duplicate-id fix landed (Section H heading id renamed to `data-provenance-pointer-heading`): PASS.
 - Two moved sections appear exactly once on DataPage and zero times on MethodologyPage: PASS.
 - DESIGN_SYSTEM.md version bumped to v0.18.0: PASS.
@@ -92,7 +92,7 @@ Reviewer checks:
 
 ---
 
-## Tester verdict — PASS
+## Tester verdict: PASS
 
 **Verdict:** PASS
 **Date:** 2026-06-10
@@ -102,3 +102,24 @@ Reviewer checks:
 MethodologyPage.test.tsx: 12 tests pass (7 retained + 3 dropped (tests 8, 9, 11) + 2 new heading tests + 1 pointer test).
 
 DataPage.test.tsx: 15 tests pass (12 original + 1 provenance.json link test + 1 Data provenance heading test + 1 Cross-model term map heading test with extended test-13 section-order coverage).
+
+## M4: CSP vs Cloudflare Web Analytics (Insights)
+
+**Decision:** Option B (Cloudflare Web Analytics auto-injection OFF).
+
+**Rationale.** Two doctrinal blockers make Option A (widen the CSP to permit the beacon) the wrong choice:
+
+1. `SECURITY_AND_HARDENING.md` §3.1 `connect-src 'self'` row: this directive is the architectural commitment from `ARCHITECTURE.md` §4.5 ("static JSON only"): "no third-party API calls, no telemetry, no fonts loaded from CDNs." Widening `connect-src` to permit telemetry to `cloudflareinsights.com` directly contradicts the stated "no telemetry" posture.
+2. Reviewer rule R3 (`SECURITY_AND_HARDENING.md` §9): any `_headers` change that broadens the CSP requires Architect sign-off and a documented resolved decision in `ARCHITECTURE.md`. Sign-off is possible but unnecessary because the analytics value does not justify the maintenance burden of carrying two external origins indefinitely.
+
+Option B requires no `_headers` change, no `SECURITY_AND_HARDENING.md` change, and no `ARCHITECTURE.md` §7 entry, because it formalizes the existing posture rather than changing it.
+
+**Documentation added.** `HOSTING_AND_DEV_OPS.md` §2.7 "Web Analytics (Insights): disabled" records: the policy, the reason (citing §3.1 and R3), the symptom if accidentally re-enabled (console CSP violations on every page load, matching what Mark observed in the 2026-06-10 review), the click-path for verifying and disabling auto-injection, and the three co-updates required if analytics are ever revisited.
+
+**Mark-action checklist:**
+
+- [ ] Confirm Cloudflare Pages Web Analytics auto-injection is OFF on `lsb-dashboard` (Cloudflare Dashboard: Pages, select `lsb-dashboard`, open Settings, scroll to Web Analytics, toggle should be Disabled).
+
+**CDA SME verdict:** PASS (routing confirmation, all four axes N/A; no methodology surface touched).
+
+**UI/UX verdict:** PASS (routing confirmation; no frontend source, copy, visual artifact, or `DESIGN_SYSTEM.md` change).

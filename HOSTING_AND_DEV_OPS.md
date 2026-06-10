@@ -13,6 +13,7 @@
 **Stability.** Changes to this document require Architect sign-off if they affect cost, latency, availability, or backup integrity. Cosmetic or clarifying changes do not.
 
 **Changelog:**
+- **v0.1.5** (2026-06-10): §2.7 added: Cloudflare Web Analytics auto-injection policy (disabled) for CSP integrity. See `docs/status/2026-06-10-site-copy-verdicts.md` M4.
 - **v0.1.4** (2026-04-23) — Dev posture correction: Linode is the sole dev + production host. Surface Laptop Studio is no longer used for LSB work. Mark reviews via Cursor over SSH into the Linode. §3.1 "Dev posture" paragraph and the top-of-doc status banner updated; prior "Surface = primary dev" language in `docs/status/2026-04-22-vps-handoff.md` §2 and `docs/status/2026-04-22-b2-backup-architect-verdict.md` is historical and superseded.
 - **v0.1.3** (2026-04-22) — Linode production VPS brought up as `lsb-agent-02` (`172.238.170.9`, Ubuntu 24.04, Shared 4GB). B2 backup layer implemented and verified: `scripts/backup.py` using `b2sdk`, `deploy/systemd/lsb-backup.{service,timer}` installed and enabled on the VPS, `check_9_backup_freshness` added to `scripts/qa_check.py`, canary test-restore PASS (`docs/status/2026-04-22-b2-test-restore.md`). §3.1, §3.4, and §4.1 updated; remaining Hetzner-era framing in other sections is deferred to a dedicated rewrite pass.
 - **v0.1.2** (2026-04-19) — Infra pivot. `lsb-agent-01` decommissioned following a test-data loss on the VPS working copy (see `docs/INCIDENTS/2026-04-19-test-data-loss.md`). Development moved to Mark's local Surface Laptop Studio. New VPS TBD. Added top-of-doc status banner; VPS-specific sections carry the historical framing until rewritten. Tightened backup posture to a precondition, not a parallel deliverable.
@@ -96,6 +97,20 @@ This pattern is `ARCHITECTURE.md` §4.4.4 in operational form. No cache rules ne
 ### 2.6 Preview deployments
 
 Every PR against `main` gets an automatic preview deployment at a Cloudflare-generated URL. The UI/UX agent uses preview URLs to verify visual changes before approving frontend PRs (per `ARCHITECTURE.md` §5.1 UI/UX agent row). The Reviewer agent's frontend rule (rule 6) requires that any PR touching `apps/dashboard/` link the preview URL in the PR description so it can be reviewed visually, not just code-reviewed.
+
+### 2.7 Web Analytics (Insights): disabled
+
+**Policy:** Cloudflare Web Analytics auto-injection MUST remain OFF for the `lsb-dashboard` Pages project (`cogstructurelab.com`).
+
+**Why.** The dashboard's `Content-Security-Policy` sets `connect-src 'self'` and `script-src 'self'`. Both are architectural commitments per `SECURITY_AND_HARDENING.md` §3.1: `connect-src 'self'` is the "no telemetry" guarantee from `ARCHITECTURE.md` §4.5 ("static JSON only"), and `script-src 'self'` restricts scripts to same-origin only. If Cloudflare Pages auto-injects the Web Analytics beacon, the beacon's script loads from `static.cloudflareinsights.com` (blocked by `script-src`) and its telemetry POSTs go to `cloudflareinsights.com` (blocked by `connect-src`). The result is console CSP violations on every page load. Widening either directive to accommodate the beacon would violate Reviewer rule R3 (`SECURITY_AND_HARDENING.md` §9: no CSP weakening without Architect sign-off and a documented `ARCHITECTURE.md` §7 resolved decision). The Architect's decision (2026-06-10) is that the analytics value does not justify that cost; auto-injection stays OFF.
+
+**Symptom if accidentally re-enabled.** Browser console will show CSP violations on every page load: a `script-src` block on the beacon script and a `connect-src` block on the telemetry POST. This is the symptom Mark observed in the 2026-06-10 review.
+
+**How to verify the current state.** In the Cloudflare Dashboard: Pages, select `lsb-dashboard`, open Settings, scroll to the Web Analytics section. The toggle should read "Disabled" (or the equivalent; Cloudflare UI wording may vary). If it is ON, turn it OFF.
+
+**If you ever want to re-enable analytics later.** Three co-updates are required in the same commit: (a) Architect sign-off with a documented resolved decision added to `ARCHITECTURE.md` §7, (b) widened `script-src` and `connect-src` directives in `apps/dashboard/public/_headers` referencing the resolved decision, and (c) updated `connect-src` rationale in `SECURITY_AND_HARDENING.md` §3.1. All three must ship together; a partial update leaves the enforcement docs and the `_headers` file out of sync.
+
+**Note on standard Cloudflare metrics.** The free-tier Cloudflare dashboard already surfaces request-level analytics (page views, country distribution, cache hit rate) without the JS beacon. These metrics are available and do not conflict with the CSP.
 
 ---
 
