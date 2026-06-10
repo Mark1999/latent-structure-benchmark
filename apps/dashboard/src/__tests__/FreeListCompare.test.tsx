@@ -85,7 +85,7 @@ const ALPHA_ONLY = new Set(["fixture-model-alpha"]);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("FreeListCompare — canonical fixture (3 models, 5 entries each)", () => {
+describe("FreeListCompare: canonical fixture (3 models, 5 entries each)", () => {
   it("renders without crash with full canonical data", () => {
     const { container } = render(
       <FreeListCompare
@@ -110,7 +110,7 @@ describe("FreeListCompare — canonical fixture (3 models, 5 entries each)", () 
   });
 });
 
-describe("FreeListCompare — empty fixture (no selected models)", () => {
+describe("FreeListCompare: empty fixture (no selected models)", () => {
   it("renders the .freelist-empty element when selectedModelIds is empty", () => {
     const { container } = render(
       <FreeListCompare
@@ -135,7 +135,7 @@ describe("FreeListCompare — empty fixture (no selected models)", () => {
   });
 });
 
-describe("FreeListCompare — per-model empty (sutropCsi[id] = [])", () => {
+describe("FreeListCompare: per-model empty (sutropCsi[id] = [])", () => {
   it("renders .freelist-empty-col with 'No data' when a model has empty CSI array", () => {
     const emptyCsi = {
       ...FIXTURE_CSI,
@@ -155,7 +155,7 @@ describe("FreeListCompare — per-model empty (sutropCsi[id] = [])", () => {
   });
 });
 
-describe("FreeListCompare — malformed fixture (entry without mean_position)", () => {
+describe("FreeListCompare: malformed fixture (entry without mean_position)", () => {
   it("renders without crash when an entry lacks the optional mean_position field", () => {
     const { container } = render(
       <FreeListCompare
@@ -169,7 +169,7 @@ describe("FreeListCompare — malformed fixture (entry without mean_position)", 
   });
 });
 
-describe("FreeListCompare — CSI bar-wrap aria-label contract", () => {
+describe("FreeListCompare: CSI bar-wrap aria-label contract", () => {
   it("each .freelist-item__bar-wrap carries aria-label='CSI {value.toFixed(2)}'", () => {
     const { container } = render(
       <FreeListCompare
@@ -193,7 +193,7 @@ describe("FreeListCompare — CSI bar-wrap aria-label contract", () => {
   });
 });
 
-describe("FreeListCompare — top-20 cap", () => {
+describe("FreeListCompare: top-20 cap", () => {
   it("renders exactly 20 .freelist-item nodes when fixture has 25 entries", () => {
     const { container } = render(
       <FreeListCompare
@@ -207,7 +207,7 @@ describe("FreeListCompare — top-20 cap", () => {
   });
 });
 
-describe("FreeListCompare — forbidden vocabulary guard", () => {
+describe("FreeListCompare: forbidden vocabulary guard", () => {
   /**
    * ARCHITECTURE.md §1.5.4 + CLAUDE.md §7 forbidden vocabulary.
    * Rendered DOM text must not contain model-cognition vocabulary.
@@ -236,7 +236,7 @@ describe("FreeListCompare — forbidden vocabulary guard", () => {
   });
 });
 
-describe("FreeListCompare — determinism", () => {
+describe("FreeListCompare: determinism", () => {
   it("is deterministic: same outerHTML across two renders of canonical fixture", () => {
     function renderAndSerialize() {
       const { container } = render(

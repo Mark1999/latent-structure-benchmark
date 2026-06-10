@@ -95,7 +95,7 @@ if (_belowThresholdCount !== 1) {
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("ClusterTree — canonical fixture (6 terms, 5 linkage rows, with bpValues)", () => {
+describe("ClusterTree: canonical fixture (6 terms, 5 linkage rows, with bpValues)", () => {
   it("renders without crash with full canonical data", async () => {
     const { container } = render(
       <ClusterTree
@@ -129,7 +129,7 @@ describe("ClusterTree — canonical fixture (6 terms, 5 linkage rows, with bpVal
   });
 });
 
-describe("ClusterTree — empty fixture (items = [], linkage = [])", () => {
+describe("ClusterTree: empty fixture (items = [], linkage = [])", () => {
   it("renders .cluster-tree--empty with the standard message when items is empty", () => {
     const { container } = render(
       <ClusterTree
@@ -154,7 +154,7 @@ describe("ClusterTree — empty fixture (items = [], linkage = [])", () => {
   });
 });
 
-describe("ClusterTree — bpValues absent (branches render, no BP annotations)", () => {
+describe("ClusterTree: bpValues absent (branches render, no BP annotations)", () => {
   it("renders without crash when bpValues prop is not provided", async () => {
     const { container } = render(
       <ClusterTree
@@ -199,7 +199,7 @@ describe("ClusterTree — bpValues absent (branches render, no BP annotations)",
   });
 });
 
-describe("ClusterTree — bootstrap support rendering", () => {
+describe("ClusterTree: bootstrap support rendering", () => {
   /**
    * Nodes with BP below DENDROGRAM_SUPPORT_THRESHOLD must render with
    * stroke-dasharray="5 3" (dashed) and a % annotation.
@@ -259,7 +259,7 @@ describe("ClusterTree — bootstrap support rendering", () => {
   });
 });
 
-describe("ClusterTree — axis label register guard", () => {
+describe("ClusterTree: axis label register guard", () => {
   /**
    * CDA SME N3 (BINDING carry-through from T-CHART-TESTS plan):
    * The axis label must be exactly "Merge distance" -- not "agreement" or "similarity".
@@ -314,7 +314,7 @@ describe("ClusterTree — axis label register guard", () => {
   });
 });
 
-describe("ClusterTree — forbidden vocabulary guard", () => {
+describe("ClusterTree: forbidden vocabulary guard", () => {
   /**
    * ARCHITECTURE.md §1.5.4 + CLAUDE.md §7 forbidden vocabulary.
    * The component docblock at lines 21-22 explicitly commits to never using
@@ -348,7 +348,7 @@ describe("ClusterTree — forbidden vocabulary guard", () => {
   });
 });
 
-describe("ClusterTree — determinism (fixed ResizeObserver width)", () => {
+describe("ClusterTree: determinism (fixed ResizeObserver width)", () => {
   it("is deterministic: same SVG content across two renders with the same inputs", async () => {
     async function renderAndExtractSvg() {
       const { container } = render(

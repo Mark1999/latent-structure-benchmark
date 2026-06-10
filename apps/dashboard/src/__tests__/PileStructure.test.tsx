@@ -96,7 +96,7 @@ const ALPHA_ONLY = new Set(["fixture-model-alpha"]);
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("PileStructure — canonical fixture (3 models, 3+ piles each)", () => {
+describe("PileStructure: canonical fixture (3 models, 3+ piles each)", () => {
   it("renders without crash with full canonical data", () => {
     const { container } = render(
       <PileStructure
@@ -121,7 +121,7 @@ describe("PileStructure — canonical fixture (3 models, 3+ piles each)", () => 
   });
 });
 
-describe("PileStructure — empty fixture (no selected models)", () => {
+describe("PileStructure: empty fixture (no selected models)", () => {
   it("renders .pile-empty with 'No models selected.' when selectedModelIds is empty", () => {
     const { container } = render(
       <PileStructure
@@ -146,7 +146,7 @@ describe("PileStructure — empty fixture (no selected models)", () => {
   });
 });
 
-describe("PileStructure — per-model absent (centroidPiles[id] missing for one model)", () => {
+describe("PileStructure: per-model absent (centroidPiles[id] missing for one model)", () => {
   it("renders .pile-empty-col 'No pile data' for the model whose pileData is absent", () => {
     const partialPiles = {
       "fixture-model-alpha": FIXTURE_CENTROID_PILES["fixture-model-alpha"],
@@ -167,7 +167,7 @@ describe("PileStructure — per-model absent (centroidPiles[id] missing for one 
   });
 });
 
-describe("PileStructure — malformed fixture (entry without term_stability)", () => {
+describe("PileStructure: malformed fixture (entry without term_stability)", () => {
   it("renders without crash when term_stability is absent (defaults to 1.0)", () => {
     const { container } = render(
       <PileStructure
@@ -195,7 +195,7 @@ describe("PileStructure — malformed fixture (entry without term_stability)", (
   });
 });
 
-describe("PileStructure — pile-column aria-label contract (CDA SME N4)", () => {
+describe("PileStructure: pile-column aria-label contract (CDA SME N4)", () => {
   it("each .pile-column carries aria-label='Pile structure for {displayName}'", () => {
     const { container } = render(
       <PileStructure
@@ -226,7 +226,7 @@ describe("PileStructure — pile-column aria-label contract (CDA SME N4)", () =>
   });
 });
 
-describe("PileStructure — term pill aria-label contract (CDA SME N4)", () => {
+describe("PileStructure: term pill aria-label contract (CDA SME N4)", () => {
   /**
    * CDA SME N4 (BINDING): the % in the pill is a within-model placement
    * consistency statistic (pile-placement stability within this model's runs),
@@ -252,7 +252,7 @@ describe("PileStructure — term pill aria-label contract (CDA SME N4)", () => {
   });
 });
 
-describe("PileStructure — term-stability tier classification (pile-placement stability)", () => {
+describe("PileStructure: term-stability tier classification (pile-placement stability)", () => {
   /**
    * CDA SME N4 (BINDING) per T-CHART-TESTS plan:
    * describe label must use "pile-placement stability" (not "agreement").
@@ -330,7 +330,7 @@ describe("PileStructure — term-stability tier classification (pile-placement s
   });
 });
 
-describe("PileStructure — forbidden vocabulary guard", () => {
+describe("PileStructure: forbidden vocabulary guard", () => {
   /**
    * ARCHITECTURE.md §1.5.4 + CLAUDE.md §7 forbidden vocabulary.
    * The % displayed in pills is a within-model placement-consistency statistic;
@@ -358,7 +358,7 @@ describe("PileStructure — forbidden vocabulary guard", () => {
   });
 });
 
-describe("PileStructure — determinism", () => {
+describe("PileStructure: determinism", () => {
   it("is deterministic: same outerHTML across two renders of canonical fixture (no hover state, no time-dependent content)", () => {
     function renderAndSerialize() {
       const { container } = render(

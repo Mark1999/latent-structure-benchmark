@@ -66,7 +66,7 @@ const ALL_SELECTED = new Set(FIXTURE_MODELS.map((m) => m.model_id));
 
 // ── Tests ─────────────────────────────────────────────────────────────────────
 
-describe("MDSPlot — canonical fixture (3 models, full uncertainty)", () => {
+describe("MDSPlot: canonical fixture (3 models, full uncertainty)", () => {
   it("renders without crash with full uncertainty data", () => {
     const { container } = render(
       <MDSPlot
@@ -134,7 +134,7 @@ describe("MDSPlot — canonical fixture (3 models, full uncertainty)", () => {
   });
 });
 
-describe("MDSPlot — empty fixture (no selected models)", () => {
+describe("MDSPlot: empty fixture (no selected models)", () => {
   it("renders the placeholder when selectedModelIds is empty", () => {
     const { container } = render(
       <MDSPlot
@@ -164,7 +164,7 @@ describe("MDSPlot — empty fixture (no selected models)", () => {
   });
 });
 
-describe("MDSPlot — null-uncertainty fixture (one model has mdsUncertainty[id] = null)", () => {
+describe("MDSPlot: null-uncertainty fixture (one model has mdsUncertainty[id] = null)", () => {
   it("renders without crash when one model's uncertainty is null", () => {
     const { container } = render(
       <MDSPlot
@@ -222,7 +222,7 @@ describe("MDSPlot — null-uncertainty fixture (one model has mdsUncertainty[id]
   });
 });
 
-describe("MDSPlot — R1-b/R1-c invariants (skipped pending T-MDS-R1)", () => {
+describe("MDSPlot: R1-b/R1-c invariants (skipped pending T-MDS-R1)", () => {
   /**
    * These tests assert the DESIGN_SYSTEM.md §3.3.5-compliant behavior that
    * T-MDS-R1 will deliver. They are skipped here because the current MDSPlot.tsx
@@ -235,7 +235,7 @@ describe("MDSPlot — R1-b/R1-c invariants (skipped pending T-MDS-R1)", () => {
    * DESIGN_SYSTEM.md §3.3.5 R1-b and R1-c invariants.
    */
 
-  it.skip("TODO(T-MDS-R1): R1-b — low-concentration model renders dashed stroke, no ellipse", () => {
+  it.skip("TODO(T-MDS-R1): R1-b: low-concentration model renders dashed stroke, no ellipse", () => {
     // When ociScores[id] < OCI_LOW_CONCENTRATION_THRESHOLD and deterministicOutputs[id] === false,
     // the model point must render a dashed 2px stroke with fill at 60% opacity (§3.3.5 R1-b).
     // No <ellipse> must be present for this model.
@@ -243,7 +243,7 @@ describe("MDSPlot — R1-b/R1-c invariants (skipped pending T-MDS-R1)", () => {
     expect(true).toBe(false); // placeholder: will fail if accidentally un-skipped without implementation
   });
 
-  it.skip("TODO(T-MDS-R1): R1-c — deterministic model renders hollow-triangle marker, no ellipse", () => {
+  it.skip("TODO(T-MDS-R1): R1-c: deterministic model renders hollow-triangle marker, no ellipse", () => {
     // When deterministicOutputs[id] === true, the model point must render as a hollow
     // triangle (△) with a 3px solid stroke at 100% model color opacity (§3.3.5 R1-c).
     // No <ellipse> must be present for this model.
@@ -252,7 +252,7 @@ describe("MDSPlot — R1-b/R1-c invariants (skipped pending T-MDS-R1)", () => {
   });
 });
 
-describe("MDSPlot — forbidden vocabulary scan", () => {
+describe("MDSPlot: forbidden vocabulary scan", () => {
   /**
    * ARCHITECTURE.md §1.5.4 + CLAUDE.md §7 forbidden vocabulary guard.
    * The rendered DOM text (excluding SVG data text rendered via dangerouslySetInnerHTML)
