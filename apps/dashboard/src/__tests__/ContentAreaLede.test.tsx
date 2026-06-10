@@ -1,5 +1,5 @@
 /**
- * ContentArea lede tests (Phase 9a T2)
+ * ContentArea lede tests (Phase 9a T2 + TM-B)
  *
  * Verifies:
  * 1. For each of family/holidays/food: the Focus-3 rendered lede text matches
@@ -8,6 +8,10 @@
  *    R1-b disclosure phrases "low output concentration" and
  *    "without a confidence ellipse".
  * 3. The inline-computed label "Consensus baseline (all tested models)" is GONE.
+ * 4. TM-B AC2: SelectionBar (SHOWING chips) is absent for Focus 1, 2, 3.
+ * 5. TM-B AC4: lede element is a <p> with className chart-lede + aria-live=polite.
+ * 6. TM-B AC4(6): lede is a single <p> element, not split.
+ * 7. TM-B AC4(4): no inline lede assembly patterns in rendered DOM.
  *
  * CLAUDE.md §6 rule 9: no real API calls. All data is fixture-based.
  * ARCHITECTURE.md §4.2: lede logic lives in cdb_publish, not in components.
@@ -91,7 +95,7 @@ function getLedeText(): string {
 // Tests
 // ---------------------------------------------------------------------------
 
-describe("ContentArea Focus-3 lede (Phase 9a T2)", () => {
+describe("ContentArea Focus-3 lede (Phase 9a T2 + TM-B)", () => {
   afterEach(() => {
     // Clear DOM between tests
     document.body.innerHTML = "";
@@ -194,7 +198,148 @@ describe("ContentArea Focus-3 lede (Phase 9a T2)", () => {
         activeDomain="family"
       />
     );
-    // The old inline lede would produce "Across 0 model(s)" — that string must not appear
+    // The old inline lede would produce "Across 0 model(s)" -- that string must not appear
     expect(document.body.textContent).not.toMatch(/Across \d+ model\(s\)/);
+  });
+
+  // TM-B AC4: lede element shape (§3.1.1(b)(iii) M1 six sub-points)
+  it("AC4: lede element is <p> with className chart-lede and aria-live=polite", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    const lede = document.querySelector('p.chart-lede[aria-live="polite"]');
+    expect(lede).not.toBeNull();
+    expect(lede!.tagName).toBe("P");
+    expect(lede!.className).toContain("chart-lede");
+    expect(lede!.getAttribute("aria-live")).toBe("polite");
+  });
+
+  // TM-B AC4(5) + N1: lede is a single <p> element, not split
+  it("AC4(6): lede renders as a single <p> element, not split into multiple paragraphs", () => {
+    const LEDE_WITH_TWO_SENTENCES = FAMILY_LEDE; // contains two sentences including R1-b
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        domain={makeDomain("family", LEDE_WITH_TWO_SENTENCES)}
+        activeDomain="family"
+      />
+    );
+    // Only one <p class="chart-lede"> should exist in the DOM
+    const ledes = document.querySelectorAll('p.chart-lede');
+    expect(ledes.length).toBe(1);
+  });
+
+  // TM-B AC2: SelectionBar must be absent for Focus 3
+  it("AC2: SelectionBar SHOWING chips are absent for Focus 3", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        activeFocus="focus-3"
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    // No selection-bar element should be present
+    expect(document.querySelector('[data-testid="selection-bar"]')).toBeNull();
+    expect(document.querySelector('.selection-bar')).toBeNull();
+  });
+
+  // TM-B AC2: SelectionBar must be absent for Focus 1
+  it("AC2: SelectionBar SHOWING chips are absent for Focus 1", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        activeFocus="focus-1"
+        activeVizTab="f1-self-consistency"
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    expect(document.querySelector('.selection-bar')).toBeNull();
+  });
+
+  // TM-B AC2: SelectionBar must be absent for Focus 2
+  it("AC2: SelectionBar SHOWING chips are absent for Focus 2", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        activeFocus="focus-2"
+        activeVizTab="f2-overview"
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    expect(document.querySelector('.selection-bar')).toBeNull();
+  });
+
+  // TM-B AC4(4): no inline lede assembly patterns (SME N3 expanded grep)
+  it("AC4(4): no inline lede assembly patterns in rendered DOM", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    const bodyText = document.body.textContent ?? "";
+    // These strings would indicate an inline-reconstructed lede (must not appear)
+    expect(bodyText).not.toContain("Consensus baseline");
+    expect(bodyText).not.toContain("eigenratio");
+    expect(bodyText).not.toContain("Sutrop");
+    expect(bodyText).not.toContain("Romney");
+    expect(bodyText).not.toContain("Procrustes");
+    expect(bodyText).not.toContain("Mantel");
+    expect(bodyText).not.toContain("Bootstrapped");
+  });
+
+  // TM-B lede position: lede is inside .focus3-layout__lede-col
+  it("TM-B: lede is rendered inside focus3-layout__lede-col container", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    const ledeCol = document.querySelector('.focus3-layout__lede-col');
+    expect(ledeCol).not.toBeNull();
+    const lede = ledeCol!.querySelector('p.chart-lede[aria-live="polite"]');
+    expect(lede).not.toBeNull();
+  });
+
+  // TM-B layout: chart column is present in .focus3-layout__chart-col
+  it("TM-B: focus3-layout__chart-col is present in DOM", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    expect(document.querySelector('.focus3-layout__chart-col')).not.toBeNull();
+  });
+
+  // TM-B DOM source order: chart-col precedes lede-col in source (for correct mobile order)
+  it("TM-B: chart-col DOM precedes lede-col DOM in source order", () => {
+    render(
+      <ContentArea
+        {...BASE_PROPS}
+        domain={makeDomain("family", FAMILY_LEDE)}
+        activeDomain="family"
+      />
+    );
+    const layout = document.querySelector('.focus3-layout');
+    expect(layout).not.toBeNull();
+    const children = Array.from(layout!.children);
+    const chartColIdx = children.findIndex(el => el.classList.contains('focus3-layout__chart-col'));
+    const ledeColIdx = children.findIndex(el => el.classList.contains('focus3-layout__lede-col'));
+    expect(chartColIdx).toBeGreaterThanOrEqual(0);
+    expect(ledeColIdx).toBeGreaterThanOrEqual(0);
+    // Chart column must come BEFORE lede column in DOM order (mobile: chart first)
+    expect(chartColIdx).toBeLessThan(ledeColIdx);
   });
 });

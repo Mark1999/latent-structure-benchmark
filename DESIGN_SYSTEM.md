@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.20.0  
+**Version:** v0.20.1  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,13 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.20.1** (ChartToolbar chrome and lede-column overflow ruling, TM-B UI/UX gate, 2026-06-10)
+  amends §3.1.1(b)(ii) with binding ChartToolbar visual chrome rules: background
+  `var(--color-surface)`, border-bottom `1px solid var(--color-border)` only (no top border, no
+  box-shadow). Amends §3.1.1(b)(iii) lede-column scroll note to specify `overflow-y: auto` on the
+  lede column wrapper and confirm no `prefers-reduced-motion` exception is required. No new tokens.
+  Gate verdict: UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-termmap-layout-verdicts.md`,
+  TM-B section).
 - **v0.20.0** (Chart-area hierarchy amendment, TM-A, 2026-06-10) adds §3.1.1 "Chart-area hierarchy
   on the Explore page" between §3.1 and §3.2. Establishes three binding rule families: (a) chart-area
   minimum height of 70vh on desktop and above-the-fold rule; (b) control-row consolidation rules

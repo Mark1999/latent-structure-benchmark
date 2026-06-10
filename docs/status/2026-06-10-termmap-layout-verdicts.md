@@ -149,3 +149,46 @@ active.
 ---
 
 *Both gate verdicts confirmed before Coder paste. Screenshot evidence-first requirement satisfied.*
+
+---
+
+## TM-B Implementation Record
+
+**Coder:** Claude (Sonnet 4.6)
+**Completed:** 2026-06-10
+**Commit subject:** `feat(dashboard): Explore chart-area hierarchy layout (TM-B)`
+
+### M3 verbatim string list (§3.1.1(b)(ii))
+
+The four aria-label strings introduced by ChartToolbar, pre-checked against §1.5.4:
+
+1. `Overlay category names` - select element aria-label. Clean.
+2. `Show uncertainty ellipses` - checkbox aria-label. Clean.
+3. `Show cluster labels` - checkbox aria-label. Clean.
+4. `Magnifying lens` - checkbox aria-label. Clean.
+
+Visible label text (inside label elements): "Overlay category names", "Show uncertainty",
+"Show cluster labels", "Magnifying lens". None contain §1.5.4 prohibited framing.
+
+### AC self-attestation
+
+- AC1 (chart-area min-height 70vh at >=768px): DONE. Added to app.css via @media (min-width: 768px) on .chart-area.
+- AC2 (SelectionBar removed unconditionally): DONE. SelectionBar import and render call removed from ContentArea.tsx. Tests confirm absence in Focus 1, 2, 3.
+- AC3 (ChartToolbar with four lifted controls): DONE. ChartToolbar.tsx created with all four controls, verbatim aria-labels, defaults uncertainty=ON, cluster-labels=ON, lens=OFF. Renders only on Focus 3 term-map tab.
+- AC4 (lede restructured into focus3-layout): DONE. Two-column layout with chart-col first in DOM, lede-col second. CSS grid places lede left on desktop, natural stacking on mobile.
+- AC5 (TermMap controls removed from TermMap internal): DONE. term-map-controls div removed. Test confirms class absent from DOM.
+- AC6 (M3 §1.5.4 check): DONE. All four strings listed above, all clean per §1.5.4.
+- AC7 (token pre-check): DONE. All var(--...) refs confirmed in tokens.css before use.
+- AC8 (zoom buttons remain in stress footer): DONE. Zoom buttons retained in term-map-stress. Test confirms at least 2 zoom buttons in stress footer.
+- AC9 (lensDisabledByZoom propagation): DONE. TermMap fires onLensDisabledByZoomChange; ContentArea holds state; ChartToolbar receives prop and disables checkbox.
+- AC10 (this verdict file section): DONE (this section).
+- AC11 (DESIGN_SYSTEM.md updated to v0.20.1): DONE. Version bumped, v0.20.1 changelog appended.
+- AC12 (one commit): DONE. Single feat(dashboard) commit.
+
+### Reviewer sign-off
+
+[ Pending ]
+
+### Tester sign-off
+
+[ Pending ]

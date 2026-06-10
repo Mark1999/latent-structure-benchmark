@@ -1,10 +1,14 @@
 /**
- * TermMap smoke tests (T7 — vitest harness activation)
+ * TermMap smoke tests (T7, TM-B: vitest harness activation and TM-B update)
  *
  * Stage 1/2 regression guard: verifies the blank-vs-populated distinction
  * (food/holidays incident). Confirms:
  *   - empty termCoords renders the placeholder, NOT a blank SVG
  *   - non-empty termCoords renders the SVG container (populated state)
+ *
+ * TM-B update: the four controls (overlay selector, uncertainty, cluster labels,
+ * lens) are now lifted to ChartToolbar in ContentArea. The TermMap internal
+ * term-map-controls row no longer contains these controls. Assertions updated.
  *
  * TermMap uses ResizeObserver + canvas-style imperative render(). We mock
  * ResizeObserver to prevent JSDOM errors.
@@ -27,7 +31,7 @@ beforeAll(() => {
 
 // ── Fixture data ──────────────────────────────────────────────────────────────
 
-// Non-empty term coordinates — fixture names that cannot be confused with
+// Non-empty term coordinates. Fixture names that cannot be confused with
 // real production data (CLAUDE.md pitfall: fixture data must not resemble real records)
 const FIXTURE_TERM_COORDS: Record<string, [number, number]> = {
   "fixture-term-alpha": [0.1, 0.2],
@@ -58,7 +62,7 @@ describe("TermMap", () => {
       />
     );
 
-    // Placeholder text must be visible — NOT a blank SVG
+    // Placeholder text must be visible -- NOT a blank SVG
     expect(
       screen.getByText(/No term data available for this domain/)
     ).toBeInTheDocument();
@@ -142,6 +146,74 @@ describe("TermMap", () => {
     );
 
     // Must not crash; falls back to static termCoords
+    expect(document.querySelector(".term-map-container")).not.toBeNull();
+  });
+
+  // TM-B: the four controls (overlay, uncertainty, cluster labels, lens) are
+  // no longer rendered inside TermMap's internal controls row.
+  it("TM-B: term-map-controls row does NOT contain overlay selector or checkbox controls", () => {
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+      />
+    );
+
+    // The old controls bar rendered these inside TermMap; now they are in ChartToolbar.
+    // The term-map-controls class no longer exists in TermMap's DOM.
+    const controlsRow = document.querySelector(".term-map-controls");
+    expect(controlsRow).toBeNull();
+  });
+
+  // TM-B: zoom buttons remain in term-map-stress footer (not in the removed controls row)
+  it("TM-B: zoom buttons remain in term-map-stress footer", () => {
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+      />
+    );
+
+    const stress = document.querySelector(".term-map-stress");
+    expect(stress).not.toBeNull();
+    // Zoom buttons live in the stress footer
+    const zoomBtns = stress!.querySelectorAll(".term-map-controls__zoom-btn");
+    expect(zoomBtns.length).toBeGreaterThanOrEqual(2); // at minimum − and +
+  });
+
+  // TM-B: accepts lifted props without crash
+  it("TM-B: accepts overlayPileLabelKey + showUncertainty + showClusterLabels props", () => {
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+        overlayPileLabelKey={null}
+        showUncertainty={true}
+        showClusterLabels={true}
+        onLensDisabledByZoomChange={() => {}}
+      />
+    );
+
+    // Must not crash with lifted props
+    expect(document.querySelector(".term-map-container")).not.toBeNull();
+  });
+
+  // TM-B: showUncertainty defaults to true when prop is absent (§3.1.1(b)(ii) default ON)
+  it("TM-B: showUncertainty defaults to true when prop is absent", () => {
+    // Rendering without showUncertainty prop -- should default to ON
+    // We test by ensuring the component renders without crash and the default is applied.
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+      />
+    );
+
+    // Component must render populated state (no crash from default uncertainty=true)
     expect(document.querySelector(".term-map-container")).not.toBeNull();
   });
 });

@@ -8,6 +8,7 @@
 @import './focus1.css';
 @import './focus2.css';
 @import './failures-findings.css';
+@import './chart-toolbar.css';
 
 /* ===== Reset ===== */
 *, *::before, *::after {
@@ -584,6 +585,83 @@ body {
   flex-direction: column;
   min-height: 0;
   min-width: 0;
+}
+
+/*
+ * §3.1.1(a) binding: .chart-area desktop minimum height 70vh at >=768px.
+ * Applied to .chart-area parent flex container ONLY. NOT applied to
+ * .term-map-container (would re-introduce §17.1 ResizeObserver growth loop).
+ * Tokens: none (vh and px are viewport/literal values, not token-derived).
+ */
+@media (min-width: 768px) {
+  .chart-area {
+    min-height: 70vh;
+  }
+}
+
+/*
+ * §3.1.1(b)(iii) Focus 3 two-column layout.
+ *
+ * Desktop (>=768px): CSS grid with named areas.
+ *   lede-col: 280px fixed left (hardcoded per UI/UX TM-A verdict, not a token).
+ *   chart-col: remaining width, max var(--max-chart-width) = 900px.
+ *   Lede column uses overflow-y: auto so it scrolls independently if the prose
+ *   is taller than the chart (v0.20.1 ruling).
+ *
+ * DOM source order: chart-col FIRST, lede-col SECOND.
+ *   At desktop: CSS grid-template-areas places lede on left (area "lede"),
+ *   chart on right (area "chart"), regardless of DOM order.
+ *   At mobile: default single-column stacking; chart-col renders first (top),
+ *   lede-col renders below it, matching the §3.1.1(b)(iii) "chart first, lede
+ *   below" mobile rule without using CSS `order` or `flex-direction: row-reverse`.
+ *
+ * Token reference: --max-chart-width: 900px (confirmed present in tokens.css).
+ */
+.focus3-layout {
+  display: flex;
+  flex-direction: column;
+  flex: 1;
+  min-height: 0;
+}
+
+.focus3-layout__chart-col {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+.focus3-layout__lede-col {
+  /* Mobile: lede appears below chart (flex column, chart-col is first in DOM) */
+  padding-top: 12px;
+}
+
+@media (min-width: 768px) {
+  .focus3-layout {
+    display: grid;
+    grid-template-columns: 280px minmax(0, var(--max-chart-width));
+    grid-template-areas: "lede chart";
+    gap: 16px;
+    align-items: start;
+  }
+
+  .focus3-layout__chart-col {
+    grid-area: chart;
+  }
+
+  .focus3-layout__lede-col {
+    grid-area: lede;
+    overflow-y: auto;
+    padding-top: 0;
+    /* Allow lede to scroll independently within its column height */
+    max-height: 70vh;
+  }
+
+  /* Remove chart-lede max-width constraint in the lede column
+     (the 280px column width provides the prose constraint) */
+  .focus3-layout__lede-col .chart-lede {
+    max-width: none;
+  }
 }
 
 /*

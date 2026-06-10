@@ -41,7 +41,7 @@ import { smacof } from '../lib/smacof';
 import { procrustesAlign } from '../lib/procrustes';
 import { poolCooccurrence, cooccurrenceToDistances } from '../lib/cooccurrence';
 import { ahcCluster } from '../lib/ahcCluster';
-import { displayModel } from '../lib/familyUtils';
+// displayModel moved to ChartToolbar (TM-B: overlay selector lifted from TermMap)
 import type { EllipseParams } from '../data/types';
 
 /** Shape of the family-cooccurrence.json file */
@@ -125,6 +125,33 @@ interface TermMapProps {
   onLensToggle?: () => void;
   /** 95% bootstrap confidence ellipses for each term */
   termUncertainty?: Record<string, EllipseParams | null>;
+  /**
+   * Lifted state: the effective pile-label model key (or null for None).
+   * Owned by ContentArea and passed to ChartToolbar for the overlay selector.
+   * §3.1.1(b)(ii) TM-B.
+   */
+  overlayPileLabelKey?: string | null;
+  /** Called when the overlay selector changes. */
+  onOverlayPileLabelKeyChange?: (key: string | null) => void;
+  /**
+   * Lifted state: whether uncertainty ellipses are shown.
+   * Default: true (Show uncertainty ON per §3.1.1(b)(ii)).
+   */
+  showUncertainty?: boolean;
+  /** Called when the Show uncertainty checkbox changes. */
+  onShowUncertaintyChange?: (v: boolean) => void;
+  /**
+   * Lifted state: whether cluster labels are shown.
+   * Default: true (Show cluster labels ON per §3.1.1(b)(ii)).
+   */
+  showClusterLabels?: boolean;
+  /** Called when the Show cluster labels checkbox changes. */
+  onShowClusterLabelsChange?: (v: boolean) => void;
+  /**
+   * Called when zoom-level exceeds 1.02 (lens auto-disable threshold).
+   * ContentArea uses this to keep ChartToolbar's lens checkbox in sync.
+   */
+  onLensDisabledByZoomChange?: (disabled: boolean) => void;
 }
 
 export function TermMap({
@@ -137,6 +164,10 @@ export function TermMap({
   lensEnabled = false,
   onLensToggle,
   termUncertainty,
+  overlayPileLabelKey,
+  showUncertainty: showUncertaintyProp,
+  showClusterLabels: showClusterLabelsProp,
+  onLensDisabledByZoomChange,
 }: TermMapProps) {
   // wrapRef: the .chart-wrap div — ResizeObserver target and render() W×H source.
   const wrapRef = useRef<HTMLDivElement>(null);
@@ -151,8 +182,11 @@ export function TermMap({
   // SVG width/height = baseDims × zoomDisplay; updated by render(), never by zoom.
   const [svgBaseDims, setSvgBaseDims] = useState<{ w: number; h: number }>({ w: 0, h: 0 });
   const [zoomDisplay, setZoomDisplay] = useState(1);
-  const [showUncertainty, setShowUncertainty] = useState(false);
-  const [showClusterLabels, setShowClusterLabels] = useState(true);
+  // showUncertainty / showClusterLabels: lifted state, controlled by parent via props.
+  // Defaults: ON for uncertainty (§3.1.1(b)(ii) binding), ON for cluster labels.
+  // Fall back to true if props are undefined (backwards-compat when rendered standalone).
+  const showUncertainty = showUncertaintyProp ?? true;
+  const showClusterLabels = showClusterLabelsProp ?? true;
 
   // Stage 2 zoom state: k = content scale factor.
   // viewBox is ALWAYS frozen at "0 0 W H" — never mutated.
@@ -173,25 +207,31 @@ export function TermMap({
     () => (centroidPiles ? Object.keys(centroidPiles).sort() : []),
     [centroidPiles]
   );
-  // userLabelChoice tracks the user's explicit selection; null means "None".
-  // We use an explicit sentinel '__default__' to mean "user hasn't picked yet;
-  // fall back to the first model key from centroidPiles."
-  const [userLabelChoice, setUserLabelChoice] = useState<string | null | '__default__'>('__default__');
 
-  // Derive the effective label model: when the user hasn't explicitly chosen,
-  // or when the previously chosen model is no longer present (domain switch),
-  // fall back to the first available key.
+  // When overlayPileLabelKey prop is provided (TM-B lifted state), use it directly.
+  // When not provided (standalone usage or legacy callers), fall back to internal state.
+  // userLabelChoice: internal uncontrolled path (used when overlayPileLabelKey prop is absent).
+  // The setter is intentionally not exposed; TM-B lifted state replaces the old controls.
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
+  const [userLabelChoice, _setUserLabelChoice] = useState<string | null | '__default__'>('__default__');
+
+  // Derive the effective label model from either prop (lifted state) or internal state.
   const selectedLabelModel: string | null = useMemo(() => {
+    if (overlayPileLabelKey !== undefined) {
+      // Controlled by parent: use the prop value directly.
+      // Map null to null (None), any key to that key if still present, else first.
+      if (overlayPileLabelKey === null) return null;
+      if (centroidPiles && overlayPileLabelKey in centroidPiles) return overlayPileLabelKey;
+      return pileModelKeys[0] ?? null;
+    }
+    // Uncontrolled (internal) path
     if (userLabelChoice === '__default__') {
       return pileModelKeys[0] ?? null;
     }
-    // If user chose null (None), honour that
     if (userLabelChoice === null) return null;
-    // If user chose a specific model that still exists, use it;
-    // otherwise fall back to the first key (handles domain switches)
     if (centroidPiles && userLabelChoice in centroidPiles) return userLabelChoice;
     return pileModelKeys[0] ?? null;
-  }, [userLabelChoice, pileModelKeys, centroidPiles]);
+  }, [overlayPileLabelKey, userLabelChoice, pileModelKeys, centroidPiles]);
 
   // ── SMACOF stress display state ───────────────────────────────────────────
   const [liveStress, setLiveStress] = useState<number | null>(null);
@@ -840,6 +880,12 @@ export function TermMap({
     }
   }, [lensDisabledByZoom, lensEnabled, onLensToggle]);
 
+  // Notify parent when lens-disabled-by-zoom state changes so ChartToolbar
+  // can reflect the disabled state in the lifted control.
+  useEffect(() => {
+    onLensDisabledByZoomChange?.(lensDisabledByZoom);
+  }, [lensDisabledByZoom, onLensDisabledByZoomChange]);
+
   // ── Magnifying lens interaction ───────────────────────────────────────────
   // rafRef: pending requestAnimationFrame id (used to cancel on cleanup)
   const rafRef = useRef<number | null>(null);
@@ -1136,68 +1182,12 @@ export function TermMap({
 
   return (
     <div className="term-map-container">
-      {/* Controls bar — OUTSIDE the pan-viewport so it stays fixed when scrolling (DOM order, §17.4) */}
-      <div className="term-map-controls" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '12px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
-          <label className="term-map-controls__label" htmlFor="pile-label-select">
-            Overlay category names from:
-          </label>
-          <select
-            id="pile-label-select"
-            className="term-map-controls__select"
-            value={selectedLabelModel ?? '__none__'}
-            onChange={(e) => {
-              const v = e.target.value;
-              setUserLabelChoice(v === '__none__' ? null : v);
-            }}
-            aria-label="Choose which model's pile labels to display on the term map"
-          >
-            {pileModelKeys.map((key) => (
-              <option key={key} value={key}>
-                {displayModel(key)}
-              </option>
-            ))}
-            <option value="__none__">None</option>
-          </select>
-        </div>
-
-        <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={showUncertainty}
-              onChange={(e) => setShowUncertainty(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            Show uncertainty
-          </label>
-          <label style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: 'var(--color-text-primary)', userSelect: 'none' }}>
-            <input
-              type="checkbox"
-              checked={showClusterLabels}
-              onChange={(e) => setShowClusterLabels(e.target.checked)}
-              style={{ cursor: 'pointer' }}
-            />
-            Show cluster labels
-          </label>
-          {/* Q2 LOCKED: lens checkbox disabled when zoomed in (§17 Stage 2) */}
-          <label
-            style={{ display: 'flex', alignItems: 'center', gap: '6px', cursor: lensDisabledByZoom ? 'default' : 'pointer', fontSize: '12px', fontFamily: 'var(--font-body)', color: lensDisabledByZoom ? 'var(--color-text-caption)' : 'var(--color-text-primary)', userSelect: 'none' }}
-            title={lensDisabledByZoom ? 'Zoom out to 100% to use the magnifying lens' : 'Hover to magnify and separate crowded term labels'}
-          >
-            <input
-              type="checkbox"
-              checked={lensEnabled && !lensDisabledByZoom}
-              onChange={onLensToggle}
-              disabled={lensDisabledByZoom}
-              style={{ cursor: lensDisabledByZoom ? 'default' : 'pointer' }}
-            />
-            Magnifying lens
-          </label>
-        </div>
-      </div>
-
       {/* chart-wrap: outer border container — ResizeObserver target.
+          Note: the term-map-controls bar was removed (TM-B). The four controls
+          (overlay selector, uncertainty, cluster labels, lens) are now in
+          ChartToolbar rendered by ContentArea above the chart-area. Zoom buttons
+          remain in the term-map-stress footer below.
+          Controls bar: OUTSIDE the pan-viewport so it stays fixed when scrolling (DOM order, §17.4).
           Overflow hidden (scoped via .term-map-container > .chart-wrap in CSS).
           This is the stable bounding box that render() measures W×H from. */}
       <div

@@ -1,10 +1,20 @@
 /**
- * ContentArea — wraps focus selector + viz tabs + selection bar + chart
+ * ContentArea: wraps focus selector + viz tabs + chart area.
+ *
+ * TM-B changes (DESIGN_SYSTEM.md §3.1.1, v0.20.1):
+ *   - SelectionBar (SHOWING chips) removed unconditionally for all VizTabs (§3.1.1(b)(i)).
+ *   - Four TermMap controls lifted here from TermMap.tsx; ChartToolbar renders them
+ *     above the chart when activeVizTab === 'term-map' (§3.1.1(b)(ii)).
+ *   - Focus 3 chart area restructured into two-column desktop / one-column mobile flex
+ *     layout: lede (280px left) beside chart (right) on desktop; chart first / lede
+ *     below on mobile (§3.1.1(b)(iii)).
+ *   - chart-area gets min-height: 70vh on desktop via app.css media query (§3.1.1(a)).
  */
 
+import { useState, useMemo, useCallback } from 'react';
 import { VizTabs, type ActiveVizTab, type ActiveFocus } from './VizTabs';
 import { FocusSelector } from './FocusSelector';
-import { SelectionBar } from './SelectionBar';
+import { ChartToolbar } from './ChartToolbar';
 import { TermMap, type CooccurrenceData } from './TermMap';
 import { MDSPlot } from './MDSPlot';
 import { CentralityChart } from './CentralityChart';
@@ -20,7 +30,6 @@ import { Focus2FamilySimilarity } from './Focus2FamilySimilarity';
 import { Focus2FamilySalience } from './Focus2FamilySalience';
 import { Focus2FamilyPiles } from './Focus2FamilyPiles';
 import type { DomainExtended } from '../data/types';
-import { displayModel, displayProvider } from '../lib/familyUtils';
 
 // Provider display color map
 const PROVIDER_COLORS: Record<string, string> = {
@@ -57,7 +66,7 @@ interface ContentAreaProps {
   lensEnabled?: boolean;
   /** Callback to toggle magnifying lens */
   onLensToggle?: () => void;
-  /** Active domain slug — needed for Focus 1 data loading */
+  /** Active domain slug (needed for Focus 1 data loading) */
   activeDomain: string;
 }
 
@@ -68,7 +77,7 @@ export function ContentArea({
   loading,
   error,
   selectedModelIds,
-  onRemoveModel,
+  // onRemoveModel: kept in interface for API compatibility; not used after SelectionBar removal (TM-B)
   activeVizTab,
   onVizTabChange,
   activeFocus,
@@ -82,19 +91,42 @@ export function ContentArea({
   onLensToggle,
   activeDomain,
 }: ContentAreaProps) {
-  // Build selection bar chips
-  const selectedChips = domain
-    ? domain.models
-        .filter((m) => selectedModelIds.has(m.model_id))
-        .map((m) => ({
-          id: m.model_id,
-          shortName: displayModel(m.model_id),
-          providerColor: PROVIDER_COLORS[displayProvider(m)] || '#888',
-        }))
-    : [];
-
   const isFocus1 = activeFocus === 'focus-1';
   const isFocus2 = activeFocus === 'focus-2';
+
+  // ── Lifted TermMap toolbar state (§3.1.1(b)(ii)) ──────────────────────────
+  // overlayPileLabelKey: the effective pile-label model key (or null for None).
+  // '__default__' sentinel means "user hasn't picked; fall back to first key."
+  const [overlayPileLabelChoice, setOverlayPileLabelChoice] = useState<string | null | '__default__'>('__default__');
+
+  // showUncertainty: default ON per §3.1.1(b)(ii) binding.
+  const [showUncertainty, setShowUncertainty] = useState(true);
+  // showClusterLabels: default ON per §3.1.1(b)(ii) binding.
+  const [showClusterLabels, setShowClusterLabels] = useState(true);
+  // lensDisabledByZoom: notified by TermMap when zoom exceeds 1.02 (Q2 LOCKED).
+  const [lensDisabledByZoom, setLensDisabledByZoom] = useState(false);
+
+  // Sorted pile model keys; computed from domain.centroid_piles.
+  const pileModelKeys = useMemo(
+    () => (domain?.centroid_piles ? Object.keys(domain.centroid_piles).sort() : []),
+    [domain]
+  );
+
+  // Derive the effective overlay key from the user's choice + available keys.
+  const effectiveOverlayKey: string | null = useMemo(() => {
+    if (overlayPileLabelChoice === '__default__') return pileModelKeys[0] ?? null;
+    if (overlayPileLabelChoice === null) return null;
+    if (domain?.centroid_piles && overlayPileLabelChoice in domain.centroid_piles) return overlayPileLabelChoice;
+    return pileModelKeys[0] ?? null;
+  }, [overlayPileLabelChoice, pileModelKeys, domain]);
+
+  const handleOverlayChange = useCallback((key: string | null) => {
+    setOverlayPileLabelChoice(key);
+  }, []);
+
+  const handleLensDisabledByZoomChange = useCallback((disabled: boolean) => {
+    setLensDisabledByZoom(disabled);
+  }, []);
 
   // When a card is clicked in Focus 1 Self-Consistency, select model and
   // auto-navigate to Run Distribution so the user sees immediate results.
@@ -107,12 +139,28 @@ export function ContentArea({
     <div className="content-area">
       <FocusSelector active={activeFocus} onChange={onFocusChange} />
       <VizTabs active={activeVizTab} onChange={onVizTabChange} activeFocus={activeFocus} />
-      {!isFocus1 && !isFocus2 && <SelectionBar selected={selectedChips} onRemove={onRemoveModel} />}
+      {/* SelectionBar (SHOWING chips) removed unconditionally per §3.1.1(b)(i). */}
+
+      {/* ChartToolbar: renders only on Focus 3 term-map tab (§3.1.1(b)(ii)) */}
+      {!isFocus1 && !isFocus2 && activeVizTab === 'term-map' && (
+        <ChartToolbar
+          pileModelKeys={pileModelKeys}
+          overlayPileLabelKey={effectiveOverlayKey}
+          onOverlayPileLabelKeyChange={handleOverlayChange}
+          showUncertainty={showUncertainty}
+          onShowUncertaintyChange={setShowUncertainty}
+          showClusterLabels={showClusterLabels}
+          onShowClusterLabelsChange={setShowClusterLabels}
+          lensEnabled={lensEnabled ?? false}
+          onLensToggle={onLensToggle ?? (() => {})}
+          lensDisabledByZoom={lensDisabledByZoom}
+        />
+      )}
 
       <div className="chart-area">
         {loading && (
           <div className="chart-lede">
-            Loading domain data…
+            Loading domain data...
           </div>
         )}
         {error && (
@@ -197,110 +245,142 @@ export function ContentArea({
         {/* ===== Focus 3 tabs ===== */}
         {!loading && !error && !isFocus1 && !isFocus2 && domain && (
           <>
-            <p className="chart-lede" aria-live="polite">{domain.generated_lede}</p>
+            {/*
+              Two-column desktop / one-column mobile layout (§3.1.1(b)(iii)).
+              DOM source order: chart column FIRST, lede column SECOND.
+              This matches the mobile single-column layout (chart first visually)
+              and the UI/UX gate TM-B requirement that DOM source order is correct
+              for each breakpoint without CSS order or flex-direction: row-reverse.
 
-            {activeVizTab === 'term-map' && domain.term_mds_coordinates && (
-              <TermMap
-                termCoords={domain.term_mds_coordinates}
-                termClusters={domain.term_cluster_assignments ?? {}}
-                clusterLabels={domain.term_cluster_labels ?? []}
-                centroidPiles={domain.centroid_piles}
-                cooccurrenceData={cooccurrenceData}
-                selectedModelIds={selectedModelIds}
-                lensEnabled={lensEnabled}
-                onLensToggle={onLensToggle}
-                termUncertainty={domain.term_mds_uncertainty}
-              />
-            )}
+              On desktop (>=768px): CSS grid with grid-template-areas places the lede
+              column on the LEFT and the chart column on the RIGHT, using explicit
+              grid-area placement. This achieves the correct visual layout without
+              reordering DOM elements via CSS `order` property.
 
-            {activeVizTab === 'mds-plot' && domain.mds_coordinates && (
-              <MDSPlot
-                mdsCoordinates={domain.mds_coordinates}
-                mdsUncertainty={domain.mds_uncertainty}
-                models={domain.models}
-                selectedModelIds={selectedModelIds}
-                topTerms={domain.display?.top_terms ?? {}}
-                centralityScores={domain.cultural_centrality_scores ?? {}}
-              />
-            )}
+              Lede column: 280px fixed (hardcoded per UI/UX TM-A verdict, not a token).
+              Chart column: min(calc(100% - 280px), var(--max-chart-width)).
+              Lede column overflow-y: auto (§3.1.1(b)(iii) lede-column scroll, v0.20.1).
 
-            {activeVizTab === 'centrality' && (
-              <div className="chart-wrap">
-                <p className="chart-wrap__desc">
-                  Cultural centrality measures how typical each model&apos;s categorical
-                  structure is relative to the group. Higher scores mean the model organizes
-                  vocabulary more like the consensus.
-                </p>
-                <CentralityChart
-                  centralityScores={domain.cultural_centrality_scores ?? {}}
-                  centralityCi={domain.centrality_ci}
-                  models={domain.models}
-                  selectedModelIds={selectedModelIds}
-                  consensusType={domain.consensus_type}
-                  domainSlug={domain.domain_slug}
-                />
+              The layout classes are defined in app.css.
+            */}
+            <div className="focus3-layout">
+              <div className="focus3-layout__chart-col">
+                {activeVizTab === 'term-map' && domain.term_mds_coordinates && (
+                  <TermMap
+                    termCoords={domain.term_mds_coordinates}
+                    termClusters={domain.term_cluster_assignments ?? {}}
+                    clusterLabels={domain.term_cluster_labels ?? []}
+                    centroidPiles={domain.centroid_piles}
+                    cooccurrenceData={cooccurrenceData}
+                    selectedModelIds={selectedModelIds}
+                    lensEnabled={lensEnabled}
+                    onLensToggle={onLensToggle}
+                    termUncertainty={domain.term_mds_uncertainty}
+                    overlayPileLabelKey={effectiveOverlayKey}
+                    showUncertainty={showUncertainty}
+                    showClusterLabels={showClusterLabels}
+                    onLensDisabledByZoomChange={handleLensDisabledByZoomChange}
+                  />
+                )}
+
+                {activeVizTab === 'mds-plot' && domain.mds_coordinates && (
+                  <MDSPlot
+                    mdsCoordinates={domain.mds_coordinates}
+                    mdsUncertainty={domain.mds_uncertainty}
+                    models={domain.models}
+                    selectedModelIds={selectedModelIds}
+                    topTerms={domain.display?.top_terms ?? {}}
+                    centralityScores={domain.cultural_centrality_scores ?? {}}
+                  />
+                )}
+
+                {activeVizTab === 'centrality' && (
+                  <div className="chart-wrap">
+                    <p className="chart-wrap__desc">
+                      Cultural centrality measures how typical each model&apos;s categorical
+                      structure is relative to the group. Higher scores mean the model organizes
+                      vocabulary more like the consensus.
+                    </p>
+                    <CentralityChart
+                      centralityScores={domain.cultural_centrality_scores ?? {}}
+                      centralityCi={domain.centrality_ci}
+                      models={domain.models}
+                      selectedModelIds={selectedModelIds}
+                      consensusType={domain.consensus_type}
+                      domainSlug={domain.domain_slug}
+                    />
+                  </div>
+                )}
+
+                {activeVizTab === 'similarity' && (
+                  <div className="chart-wrap">
+                    {/*
+                      Two-sentence caption: CDA SME T3 §3 binding (verbatim).
+                      Source: docs/status/2026-06-08-phase9a-T3-cda-sme-verdict.md §3.
+                      Do NOT render this caption inside SimilarityHeatmap.tsx (no duplication).
+                    */}
+                    <p className="chart-wrap__desc">
+                      Each cell shows how similarly two models organize this domain (1.00 = identical
+                      organization; 0.50 = no shared structure). Dashed cells: 95% confidence interval
+                      includes the no-shared-structure value of 0.50.
+                    </p>
+                    <SimilarityHeatmap
+                      similarityMatrix={domain.similarity_matrix ?? []}
+                      similarityCi={domain.similarity_ci ?? []}
+                      models={domain.models}
+                      selectedModelIds={selectedModelIds}
+                    />
+                  </div>
+                )}
+
+                {activeVizTab === 'free-lists' && (
+                  <FreeListCompare
+                    sutropCsi={domain.sutrop_csi}
+                    models={domain.models}
+                    selectedModelIds={selectedModelIds}
+                  />
+                )}
+
+                {activeVizTab === 'pile-structure' && domain.centroid_piles && (
+                  <PileStructure
+                    centroidPiles={domain.centroid_piles}
+                    models={domain.models}
+                    selectedModelIds={selectedModelIds}
+                  />
+                )}
+
+                {activeVizTab === 'pile-structure' && !domain.centroid_piles && (
+                  <div className="chart-wrap">
+                    <div className="viz-placeholder">Pile structure data not available for this domain.</div>
+                  </div>
+                )}
+
+                {activeVizTab === 'cluster-tree' && domain.term_cluster_linkage && domain.term_mds_items && (
+                  <div className="chart-wrap">
+                    <ClusterTree
+                      linkage={domain.term_cluster_linkage}
+                      items={domain.term_mds_items}
+                      clusterAssignments={domain.term_cluster_assignments ?? {}}
+                      bpValues={domain.term_cluster_bp_values}
+                    />
+                  </div>
+                )}
+
+                {activeVizTab === 'cluster-tree' && (!domain.term_cluster_linkage || !domain.term_mds_items) && (
+                  <div className="chart-wrap">
+                    <div className="viz-placeholder">Cluster tree data not available for this domain.</div>
+                  </div>
+                )}
               </div>
-            )}
 
-            {activeVizTab === 'similarity' && (
-              <div className="chart-wrap">
-                {/*
-                  Two-sentence caption: CDA SME T3 §3 binding (verbatim).
-                  Source: docs/status/2026-06-08-phase9a-T3-cda-sme-verdict.md §3.
-                  Do NOT render this caption inside SimilarityHeatmap.tsx (no duplication).
-                */}
-                <p className="chart-wrap__desc">
-                  Each cell shows how similarly two models organize this domain (1.00 = identical
-                  organization; 0.50 = no shared structure). Dashed cells: 95% confidence interval
-                  includes the no-shared-structure value of 0.50.
-                </p>
-                <SimilarityHeatmap
-                  similarityMatrix={domain.similarity_matrix ?? []}
-                  similarityCi={domain.similarity_ci ?? []}
-                  models={domain.models}
-                  selectedModelIds={selectedModelIds}
-                />
+              {/* Lede column: second in DOM (chart-first mobile), grid-placed left on desktop.
+                  §3.1.1(b)(iii): lede beside chart on desktop, below on mobile.
+                  §21 rules + M1 six sub-points all carried forward at this new position.
+                  Single <p>, verbatim, no splitting, aria-live="polite", class="chart-lede". */}
+              <div className="focus3-layout__lede-col">
+                <p className="chart-lede" aria-live="polite">{domain.generated_lede}</p>
               </div>
-            )}
-
-            {activeVizTab === 'free-lists' && (
-              <FreeListCompare
-                sutropCsi={domain.sutrop_csi}
-                models={domain.models}
-                selectedModelIds={selectedModelIds}
-              />
-            )}
-
-            {activeVizTab === 'pile-structure' && domain.centroid_piles && (
-              <PileStructure
-                centroidPiles={domain.centroid_piles}
-                models={domain.models}
-                selectedModelIds={selectedModelIds}
-              />
-            )}
-
-            {activeVizTab === 'pile-structure' && !domain.centroid_piles && (
-              <div className="chart-wrap">
-                <div className="viz-placeholder">Pile structure data not available for this domain.</div>
-              </div>
-            )}
-
-            {activeVizTab === 'cluster-tree' && domain.term_cluster_linkage && domain.term_mds_items && (
-              <div className="chart-wrap">
-                <ClusterTree
-                  linkage={domain.term_cluster_linkage}
-                  items={domain.term_mds_items}
-                  clusterAssignments={domain.term_cluster_assignments ?? {}}
-                  bpValues={domain.term_cluster_bp_values}
-                />
-              </div>
-            )}
-
-            {activeVizTab === 'cluster-tree' && (!domain.term_cluster_linkage || !domain.term_mds_items) && (
-              <div className="chart-wrap">
-                <div className="viz-placeholder">Cluster tree data not available for this domain.</div>
-              </div>
-            )}
+            </div>
           </>
         )}
 
