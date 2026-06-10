@@ -752,7 +752,7 @@ export function TermMap({
       );
     });
 
-    // Term labels — visible, small, positioned using computed layout offsets.
+    // Term labels: visible, small, positioned using computed layout offsets.
     // data-salience: "top" or "low" for the zoom-dependent density gate (AC4).
     // At k=1 initial render, "low" labels are hidden via JS after DOM commit.
     // At k>1.5 (zoom effect), "low" labels are made visible imperatively.
@@ -978,7 +978,7 @@ export function TermMap({
   // ── AC4: Zoom-dependent term-label density effect ─────────────────────────
   // Re-evaluates on every zoomDisplay change.
   // k=1: top-salience only (low hidden).
-  // k in (1, 1.5): linear step — show labels proportionally (see below).
+  // k in (1, 1.5): linear step; show labels proportionally (see below).
   // k >= 1.5: all labels shown.
   // FREEZE RULE: no render() call. Only imperative DOM mutations.
   useEffect(() => {
