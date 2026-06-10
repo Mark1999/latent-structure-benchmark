@@ -19,6 +19,7 @@
 import { useState, useEffect, useRef } from 'react';
 import type { FailuresFile, FailuresRecord, FailureRecord, DeclineInterviewRecord } from '../data/types';
 import {
+  IMPACT_PARAGRAPH_FAILURES,
   SECTION_HEADING,
   BADGE_FAILURE,
   BADGE_DECLINE,
@@ -310,6 +311,10 @@ export function FailuresFindings() {
         const data = fetchState.data;
         return (
           <>
+            {/* Impact paragraph (CR-T1, v0.15.1) — Mark-authored; renders in ready-state only (AC4).
+                Placed before framing_note per UI/UX F3 / §19.4 step 3. */}
+            <p className="failures-findings__impact">{IMPACT_PARAGRAPH_FAILURES}</p>
+
             {/* Framing note verbatim — first <p> below heading (T9 §5.1 / AC5) */}
             <p className="failures-findings__framing-note">{data.framing_note}</p>
 

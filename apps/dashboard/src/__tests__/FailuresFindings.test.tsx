@@ -23,6 +23,7 @@ import {
   SECTION_HEADING,
   EMPTY_CAPTION,
   FAILURES_TAB_LABEL,
+  IMPACT_PARAGRAPH_FAILURES,
 } from '../copy/failures_findings';
 
 // ── Fixtures: load the production JSON files ─────────────────────────────────
@@ -246,6 +247,35 @@ describe('FailuresFindings', () => {
     // must contain response_verbatim bytes. This guarantees the chrome-isolation
     // check above is not vacuously passing because all <pre> blocks were empty.
     expect(prEls_haveResponseBytes(preEls)).toBe(true);
+  });
+
+  // 11. Byte-identity: IMPACT_PARAGRAPH_FAILURES renders verbatim (CR-T1 AC5)
+  it('renders IMPACT_PARAGRAPH_FAILURES byte-for-byte in ready state (CR-T1 AC5)', async () => {
+    mockFetchWith(familyJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(IMPACT_PARAGRAPH_FAILURES)).toBeInTheDocument();
+    });
+  });
+
+  // 12. Empty-state path (food) also renders the impact paragraph (CR-T1 AC3 / AC7)
+  it('empty state (food fixture): IMPACT_PARAGRAPH_FAILURES renders (CR-T1 AC3)', async () => {
+    mockFetchWith(foodJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(IMPACT_PARAGRAPH_FAILURES)).toBeInTheDocument();
+    });
+    // Confirm the empty-state caption is also present
+    expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
+  });
+
+  // 13. Impact paragraph does NOT render in loading state (CR-T1 AC4)
+  it('impact paragraph absent before fetch resolves (CR-T1 AC4)', () => {
+    // Never resolve the fetch — component stays in loading state
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+    render(<FailuresFindings />);
+    // The paragraph must not be present in loading state
+    expect(screen.queryByText(IMPACT_PARAGRAPH_FAILURES)).not.toBeInTheDocument();
   });
 
   // 10. Domain switch re-fetches

@@ -57,6 +57,17 @@
   cursor: pointer;
 }
 
+/* ===== Impact paragraph (v0.15.1 — CR-T1, 2026-06-10) ===== */
+
+/* UI/UX F1: font-size-base, color-text-primary, line-height-body, space-6, max-prose-width. */
+.failures-findings__impact {
+  font-size: var(--font-size-base);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+  margin-bottom: var(--space-6);
+  max-width: var(--max-prose-width);
+}
+
 /* ===== Framing note ===== */
 
 .failures-findings__framing-note {
