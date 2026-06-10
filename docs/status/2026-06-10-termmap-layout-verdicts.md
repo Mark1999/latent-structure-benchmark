@@ -329,3 +329,19 @@ verbatim in the domain JSON. Not recomputed client-side. CDA SME N2 satisfied.
 ### Tester sign-off
 
 [ Pending ]
+
+---
+
+## Post-deploy hotfix trail (2026-06-10 evening, orchestrator fix-forward)
+
+Three live regressions surfaced after the TM-B/TM-C deploys, all reported by Mark from the live site, all invisible to the gate pipeline (gates review text; vitest runs in jsdom with no real layout):
+
+1. **Crushed hero** (`1ac0b7b`): the desktop focus3-layout grid used align-items: start with an auto row, collapsing the chart column to the legacy 320px flex-basis floor inside the 70vh area. Fix: grid-template-rows: minmax(0, 1fr).
+2. **Jitter, layer 1** (`aed6206`): on classic-scrollbar platforms (Windows) a content-height wobble toggled the .chart-area scrollbar, changing inner width and re-firing the TermMap ResizeObserver in a rebuild loop. Fix: scrollbar-gutter: stable plus a 1px delta guard on the observer. Necessary but not sufficient.
+3. **Jitter, layer 2, root cause** (`aaaba0b`): render() unconditionally set hiddenClusterLabels; the footnote list (height-unconstrained sibling in the same fixed-height container) resized .chart-wrap by a line-height per item change, re-firing render(), which at the new height could hide a different label set: a bistable oscillation. Mark identified the footnote list as the suspect. Fix, three independent breaks: constant-height footnote band (48px, internal scroll, always present with a placeholder when empty), equality-guarded setHiddenClusterLabels, and 8px quantization of the measured box in render().
+
+Verification: live-DOM stability watches (MutationObserver, multi-size) show zero mutations and a single layout state per viewport; Mark confirmed the map still on his machine 2026-06-10 evening.
+
+Process lessons persisted to orchestrator memory: layout-affecting changes require real-browser getBoundingClientRect verification against spec numbers; scroll-adjacent layouts get a multi-second mutation watch; headless overlay scrollbars cannot reproduce classic-scrollbar feedback loops; any value that feeds its own measured size back into rendering needs a constant boundary or an equality guard.
+
+Open cosmetic follow-up (UI/UX gate when desired): the footnote band's fixed-strip presentation (placeholder line when empty) shipped as the loop-breaking contract; styling refinements are safe as long as the height stays constant.
