@@ -118,7 +118,7 @@ Option B requires no `_headers` change, no `SECURITY_AND_HARDENING.md` change, a
 
 **Mark-action checklist:**
 
-- [ ] Confirm Cloudflare Pages Web Analytics auto-injection is OFF on `lsb-dashboard` (Cloudflare Dashboard: Pages, select `lsb-dashboard`, open Settings, scroll to Web Analytics, toggle should be Disabled).
+- [x] Confirm Cloudflare Pages Web Analytics auto-injection is OFF (done by Mark, 2026-06-10) on `lsb-dashboard` (Cloudflare Dashboard: Pages, select `lsb-dashboard`, open Settings, scroll to Web Analytics, toggle should be Disabled).
 
 **CDA SME verdict:** PASS (routing confirmation, all four axes N/A; no methodology surface touched).
 
