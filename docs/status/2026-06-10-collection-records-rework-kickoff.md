@@ -358,3 +358,15 @@ When the next Architect cycle expands one of these tasks into a Coder plan, the 
 ---
 
 *End of Collection Records Rework kickoff. Decision surface, not an implementation plan. Architect awaits Mark's D1-D5 answers (and any reorderings) before decomposing the first task to the CDA SME and UI/UX gates.*
+
+---
+
+## 10. Decisions resolved (Mark, 2026-06-10 evening)
+
+- **D1 = b.** Per-domain summary + per-record detail JSON. T4, T5, T6, T7 unblocked.
+- **D2 = a.** Mark authors the T1/T2 impact paragraphs; Architect stubs the points to hit; CDA SME gates the prose. Train A blocked only on Mark's drafts.
+- **D3 = proceed** under the bundle CC0 precedent. A cheap per-provider TOS skim is still advisable before T7 ships but is not blocking.
+- **D4 = plumbing here, chart-side affordance later.** T7's per-record JSON shape serves both surfaces; the chart-side "see provenance" deep links are a follow-up cycle.
+- **D5 = no rename.**
+
+Execution order: T4 dispatches immediately (publish layer, no Mark dependency). T1/T2 dispatch when Mark's paragraphs arrive. T3 follows Train A. T5/T6 follow T4. T7 follows T4+T5. T8 last (may bounce if retry_attempts is unpopulated in raw).
