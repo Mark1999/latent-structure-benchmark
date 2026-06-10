@@ -25,6 +25,7 @@ import {
   FAILURES_TAB_LABEL,
   IMPACT_PARAGRAPH_FAILURES,
   IMPACT_PARAGRAPH_FOLLOWUPS,
+  TAXONOMY_BLOCK,
 } from '../copy/failures_findings';
 
 // ── Fixtures: load the production JSON files ─────────────────────────────────
@@ -297,6 +298,64 @@ describe('FailuresFindings', () => {
       expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
     });
     expect(screen.queryByText(IMPACT_PARAGRAPH_FOLLOWUPS)).not.toBeInTheDocument();
+  });
+
+  // 16. Byte-identity: TAXONOMY_BLOCK heading, bridge, and all seven enum id values
+  //     are present in the rendered DOM under familyJson fixture (CR-T3 AC2)
+  it('renders TAXONOMY_BLOCK heading, bridge, and all seven enum ids in ready state (CR-T3 AC2)', async () => {
+    mockFetchWith(familyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(container.querySelectorAll('details').length).toBeGreaterThan(0);
+    });
+
+    // Heading must be present
+    expect(screen.getByText(TAXONOMY_BLOCK.heading)).toBeInTheDocument();
+
+    // Bridge must be present verbatim
+    expect(screen.getByText(TAXONOMY_BLOCK.bridge)).toBeInTheDocument();
+
+    // All seven enum id values must be present somewhere in the DOM text
+    for (const row of TAXONOMY_BLOCK.enumValues) {
+      expect(container.textContent).toContain(row.id);
+    }
+  });
+
+  // 17. Each of the seven originating_outcome_class enum id strings appears inside
+  //     a <code> element in the rendered DOM under familyJson (CR-T3 AC3)
+  it('each of the seven enum ids appears inside a <code> element (CR-T3 AC3)', async () => {
+    mockFetchWith(familyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(container.querySelectorAll('details').length).toBeGreaterThan(0);
+    });
+
+    const codeEls = Array.from(container.querySelectorAll('code'));
+    const codeTexts = codeEls.map((el) => el.textContent ?? '');
+
+    for (const row of TAXONOMY_BLOCK.enumValues) {
+      expect(codeTexts.some((t) => t === row.id)).toBe(true);
+    }
+  });
+
+  // 18. Taxonomy block renders in the food empty-state path (n_records === 0) (CR-T3 AC5)
+  it('taxonomy block heading renders in food empty-state path (CR-T3 AC5)', async () => {
+    mockFetchWith(foodJson);
+    render(<FailuresFindings />);
+    await waitFor(() => {
+      expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
+    });
+    // Taxonomy block heading must be present even in empty-state path
+    expect(screen.getByText(TAXONOMY_BLOCK.heading)).toBeInTheDocument();
+  });
+
+  // 19. Taxonomy block does NOT render in loading state (CR-T3 AC6)
+  it('taxonomy block absent before fetch resolves (loading state) (CR-T3 AC6)', () => {
+    // Never resolve the fetch -- component stays in loading state
+    vi.spyOn(globalThis, 'fetch').mockReturnValue(new Promise(() => {}));
+    render(<FailuresFindings />);
+    // Taxonomy block heading must not be present in loading state
+    expect(screen.queryByText(TAXONOMY_BLOCK.heading)).not.toBeInTheDocument();
   });
 
   // 10. Domain switch re-fetches

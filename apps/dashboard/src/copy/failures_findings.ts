@@ -32,6 +32,80 @@ export const IMPACT_PARAGRAPH_FAILURES =
 export const IMPACT_PARAGRAPH_FOLLOWUPS =
   "When a model declines, we ask it one more question: why? Its answer is recorded here word for word. Read these with care. The explanation a model gives for refusing is itself just output, produced the same way as everything else it says. It may be consistent, it may be boilerplate, it may contradict what actually happened. That is exactly why we keep it: how a model accounts for its own refusal is one more observable behavior, not the inside story.";
 
+// ===== Taxonomy block (v0.19.3, CR-T3, 2026-06-10) =====
+
+/**
+ * Taxonomy block: CDA SME-approved static disclosure surface naming the three
+ * top-level collection outcomes and the seven originating_outcome_class enum
+ * values. Structure is a typed object literal so the JSX renderer can map over
+ * topLevel and enumValues arrays.
+ *
+ * All string values are byte-identical to the CDA SME CR-T3 verdict
+ * (docs/status/2026-06-10-collection-records-rework-verdicts.md T3 section).
+ * The seven id values are byte-identical to cdb_core/schemas.py lines 734-742.
+ *
+ * Do NOT paraphrase these strings. Byte-identity assertion in
+ * FailuresFindings.test.tsx enforces this.
+ */
+export const TAXONOMY_BLOCK = {
+  heading: "What LSB records as a collection outcome",
+  bridge:
+    "Every category below is a property of how the LSB pipeline classified the session, not a property of what the model decided.",
+  topLevel: [
+    {
+      term: "Successful run",
+      description:
+        "LSB parsed primary-step output from the session. Surfaced separately on this tab when the successes section ships. The per-domain summary artifact already exists under /data/records/{slug}.json.",
+    },
+    {
+      term: "Collection failure",
+      description:
+        "The session did not produce a parseable primary-step response. The LSB pipeline recorded the verbatim output and the error context. Rendered on this tab with the badge \"Collection failure\".",
+    },
+    {
+      term: "Follow-up interview",
+      description:
+        "After an LSB-classified refusal or empty output, the LSB pipeline asked the model one follow-up question and recorded the verbatim exchange. Rendered on this tab with the badge \"Follow-up interview\".",
+    },
+  ],
+  enumSubheading:
+    "originating_outcome_class ENUM VALUES (seven, byte-identical to the schema):",
+  enumValues: [
+    {
+      id: "empty_output",
+      description: "LSB parsed zero items from the model's primary-step response.",
+    },
+    {
+      id: "refusal_string_match",
+      description:
+        "LSB matched a refusal-string pattern against the model's response. The match is a pipeline classification, not a model statement of refusal.",
+    },
+    {
+      id: "single_degenerate_pile",
+      description:
+        "LSB parsed exactly one pile in a pile-sort step, with that pile holding at least 95 percent of the free-list items.",
+    },
+    {
+      id: "parse_failure",
+      description:
+        "LSB could not parse the model's response into the expected step structure (for example, malformed JSON or a missing required field).",
+    },
+    {
+      id: "http_error",
+      description:
+        "The provider's HTTP transport returned an error before LSB received a parseable response.",
+    },
+    {
+      id: "timeout",
+      description: "The provider's response did not arrive within the LSB request timeout.",
+    },
+    {
+      id: "other",
+      description: "A fall-through bucket for outcomes that did not match the rules above.",
+    },
+  ],
+} as const;
+
 // ===== NavBar tab label (N1 / CDA SME M1 Option A) =====
 
 /** NavBar tab label — "Collection records" (CDA SME M1 Option A preferred). */

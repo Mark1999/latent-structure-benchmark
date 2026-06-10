@@ -21,6 +21,7 @@ import type { FailuresFile, FailuresRecord, FailureRecord, DeclineInterviewRecor
 import {
   IMPACT_PARAGRAPH_FAILURES,
   IMPACT_PARAGRAPH_FOLLOWUPS,
+  TAXONOMY_BLOCK,
   SECTION_HEADING,
   BADGE_FAILURE,
   BADGE_DECLINE,
@@ -316,7 +317,44 @@ export function FailuresFindings() {
                 Placed before framing_note per UI/UX F3 / §19.4 step 3. */}
             <p className="failures-findings__impact">{IMPACT_PARAGRAPH_FAILURES}</p>
 
-            {/* Framing note verbatim — first <p> below heading (T9 §5.1 / AC5) */}
+            {/* Taxonomy block (CR-T3, v0.19.3): CDA SME-approved; renders in ready-state only.
+                Renders in empty-state path (n_records === 0): taxonomy is a property of the LSB
+                pipeline, not of the per-domain data. Placement: §19.4 step 4 (between impact
+                paragraph and framing_note). See DESIGN_SYSTEM.md §19.14. */}
+            <section
+              aria-labelledby="taxonomy-block-heading"
+              className="failures-findings__taxonomy"
+            >
+              <h2
+                id="taxonomy-block-heading"
+                className="failures-findings__taxonomy-heading"
+              >
+                {TAXONOMY_BLOCK.heading}
+              </h2>
+              <p className="failures-findings__taxonomy-bridge">
+                {TAXONOMY_BLOCK.bridge}
+              </p>
+              <ul className="failures-findings__taxonomy-list">
+                {TAXONOMY_BLOCK.topLevel.map(row => (
+                  <li key={row.term}>
+                    <strong>{row.term}</strong>{' '}{row.description}
+                  </li>
+                ))}
+              </ul>
+              <p className="failures-findings__taxonomy-enum-label">
+                <code>originating_outcome_class</code>{' '}ENUM VALUES (seven, byte-identical to the schema):
+              </p>
+              <ul className="failures-findings__taxonomy-list">
+                {TAXONOMY_BLOCK.enumValues.map(row => (
+                  <li key={row.id}>
+                    <code>{row.id}</code>{' '}{row.description}
+                  </li>
+                ))}
+              </ul>
+            </section>
+
+            {/* Framing note verbatim: first data-sourced content paragraph (T9 §5.1 / AC5).
+                Step 5 in §19.4 content order (after taxonomy block). */}
             <p className="failures-findings__framing-note">{data.framing_note}</p>
 
             {/* Counts caption — omitted when n_records === 0 (UI/UX N1) */}

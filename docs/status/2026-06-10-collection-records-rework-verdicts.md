@@ -297,4 +297,101 @@
 
 ---
 
-*T3-T8 verdicts to be appended as subsequent tasks complete.*
+## T3: Taxonomy disclosure
+
+**Task scope:** Add `TAXONOMY_BLOCK` export to `copy/failures_findings.ts`, render it in `FailuresFindings.tsx` between impact paragraph and framing_note, add CSS classes, add vitest cases 16-19, amend DESIGN_SYSTEM.md §19.4 + new §19.14, bump to v0.19.3.
+
+### CDA SME verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-axis scorecard:**
+
+| Axis | Score | Notes |
+|---|---|---|
+| Protocol validity | PASS-WITH-NOTES | N1, N2 binding: single_degenerate_pile and parse_failure rows corrected per actual classifier rules. |
+| Analytical validity | N/A | No analysis claim made. |
+| Claims validity | PASS-WITH-NOTES | N3 bridge sentence, N4 refusal register lock, N6 no cognition attribution applied. |
+| Audience translation | PASS-WITH-NOTES | N5 enum subheading naming, N8 CR-T5 carry-forward applied. |
+
+**Binding notes applied by Coder:**
+
+- N1 (BINDING): `single_degenerate_pile` row corrected to "exactly one pile in a pile-sort step, with that pile holding at least 95 percent of the free-list items."
+- N2 (BINDING): `parse_failure` row broadened to "malformed JSON or a missing required field" as illustrative examples.
+- N3 (BINDING): Bridge sentence: "Every category below is a property of how the LSB pipeline classified the session, not a property of what the model decided."
+- N4 (BINDING): Follow-up interview row uses "an LSB-classified refusal"; `refusal_string_match` row retains negation pattern "not a model statement of refusal." No bare "refusal" in surrounding code comments, DESIGN_SYSTEM.md narration, or commit message body.
+- N5 (BINDING): Enum subheading text: "originating_outcome_class ENUM VALUES (seven, byte-identical to the schema):" with `originating_outcome_class` in `<code>` in the JSX renderer.
+- N6 (BINDING): Zero model-cognition attribution in all wording.
+- N7 (BINDING): Zero instances of §19.13 forbidden substrings in TAXONOMY_BLOCK wording. "classified/classification" (root: classif-) used over "categorized" (root: categoriz-).
+- N8 (ADVISORY): Successful run row says "LSB parsed primary-step output from the session" (not "response from the model") per CR-T5 forward-carry.
+
+---
+
+### UI/UX verdict: PASS-WITH-NOTES
+
+**Date:** 2026-06-10
+
+**Four-question scorecard:**
+
+| Question | Score | Notes |
+|---|---|---|
+| OWID design fidelity | PASS | Token-only classes. No new tokens. All tokens verified against tokens.css. |
+| 30-second journalist test | PASS | Three top-level rows scannable; enum values below for researchers. |
+| Researcher reproduce-and-cite test | PASS | Enum ids in backtick code elements; byte-identical to schema. |
+| WCAG AA accessibility | PASS | `<section aria-labelledby>` + `<h2>` heading landmark. `<ul>` semantics correct. |
+
+**Binding notes applied by Coder:**
+
+- F1 (BINDING): `<section aria-labelledby="taxonomy-block-heading">` + `<h2 id="taxonomy-block-heading">` + `<ul>` (not `<dl>`) for both list structures.
+- F2 (BINDING): New CSS classes `.failures-findings__taxonomy`, `.failures-findings__taxonomy-heading`, `.failures-findings__taxonomy-bridge`, `.failures-findings__taxonomy-list`, `.failures-findings__taxonomy-enum-label` -- all token-only, no new tokens.
+- F3 (BINDING): Taxonomy block placed as step 4 in §19.4 content order (between impact paragraph and framing_note).
+- F4 (BINDING): Renders in ready state including n_records === 0 empty-state path. NOT gated on n_records > 0.
+- F5 (BINDING): `TAXONOMY_BLOCK` is a structured object literal (`as const`) with `heading`, `bridge`, `topLevel`, `enumSubheading`, `enumValues` fields.
+- F6 (BINDING): Vitest cases 16-19 added.
+- F7 (CONFIRMATORY): Case 9 chrome-isolation passes unchanged. "classified" root used, not "categoriz".
+- F8 (ADVISORY): No bare "refusal" in code comments, commit message, or DESIGN_SYSTEM.md §19.14 narration.
+- F9 (CONFIRMATORY): Zero em dashes in any text written for this task.
+
+---
+
+### Reviewer verdict: PASS
+
+**Date:** 2026-06-10
+
+**Checks:**
+
+- R1. `TAXONOMY_BLOCK` export added to `copy/failures_findings.ts` as a structured `as const` object. All seven `id` values byte-identical to `cdb_core/schemas.py` lines 734-742: `empty_output`, `refusal_string_match`, `single_degenerate_pile`, `parse_failure`, `http_error`, `timeout`, `other`. PASS.
+- R2. Export is purely additive; `IMPACT_PARAGRAPH_FAILURES`, `IMPACT_PARAGRAPH_FOLLOWUPS`, and all other existing exports unchanged (no rename, reorder, or modification). PASS.
+- R3. Taxonomy block renders in `ready` state for all three domains including food empty-state (n_records === 0). Does not render in loading/fetch-failed/malformed states. PASS.
+- R4. Vitest cases 16 (byte-identity + enum ids in DOM), 17 (enum ids in `<code>`), 18 (empty-state path), 19 (absent in loading state) added and pass. Case 9 chrome-isolation passes unchanged. PASS.
+- R5. DESIGN_SYSTEM.md §19.4 amended under v0.19.3; new §19.14 added; changelog entry added at top; closing-line version updated from v0.19.2 to v0.19.3. PASS.
+- R6. No em dashes (U+2014) anywhere in the diff (code, comments, docs, commit message). PASS.
+- R7. No bare "refusal" in code comments, commit message body, or DESIGN_SYSTEM.md §19.14 narration. PASS.
+- R8. No banned vocabulary (worldview, believes, thinks, understands) in any new text. PASS.
+- R9. All CSS classes use `.failures-findings__taxonomy*` prefix. All `var(--...)` tokens verified against `tokens.css`. No new token definitions. PASS.
+- R10. No edits to CDA-SME-bound byte-identical strings (`framing_note` JSON, `SECTION_HEADING`, `EMPTY_CAPTION`, badges, blocks, `IMPACT_PARAGRAPH_FAILURES`, `IMPACT_PARAGRAPH_FOLLOWUPS`, loading/error strings). PASS.
+- R11. No `cdb_core/schemas.py` edits. No `DATA_DICTIONARY.md` update required (publish-layer copy-only task). PASS.
+- R12. No spend-gate or cost-estimate language anywhere in the diff. PASS.
+- R13. One commit on master with message `feat(dashboard): collection outcome taxonomy disclosure (CR-T3)`; body references kickoff and verdict file; no em dashes. PASS.
+
+---
+
+### Tester verdict: PASS
+
+**Date:** 2026-06-10
+
+**Test run:** `npm run test` from `apps/dashboard/`
+
+**Cases passing (new, CR-T3):**
+- Case 16: TAXONOMY_BLOCK heading, bridge, and all seven enum ids present in DOM under familyJson. PASS.
+- Case 17: all seven enum id strings appear inside `<code>` elements in DOM under familyJson. PASS.
+- Case 18: taxonomy block heading present in food empty-state path (n_records === 0). PASS.
+- Case 19: taxonomy block absent in loading state. PASS.
+
+**Cases passing (existing, unmodified):**
+- Case 9: chrome-isolation DOM-walk -- zero forbidden substrings in LSB chrome text. PASS.
+- Cases 1-8, 10-15: all existing cases pass unchanged. PASS.
+
+---
+
+*T4-T8 verdicts to be appended as subsequent tasks complete.*

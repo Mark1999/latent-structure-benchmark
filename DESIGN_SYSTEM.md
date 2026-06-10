@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.19.2  
+**Version:** v0.19.3  
 **Status:** Draft — for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.19.3** (Taxonomy block, CR-T3, 2026-06-10) amends §19.4 content order: inserts taxonomy block (`TAXONOMY_BLOCK`) as new step 4 (between `IMPACT_PARAGRAPH_FAILURES` step 3 and `framing_note` step 5); former steps 4-6 renumber to 5-7. Adds new §19.14 specifying the taxonomy block structure, element spec, CSS classes, and placement. New CSS classes in `failures-findings.css`: `.failures-findings__taxonomy`, `.failures-findings__taxonomy-heading`, `.failures-findings__taxonomy-bridge`, `.failures-findings__taxonomy-list`, `.failures-findings__taxonomy-enum-label`. No new tokens. Taxonomy block renders in `ready` state including the empty-state path (n_records === 0); does not render in loading/fetch-failed/malformed states. Element structure: `<section aria-labelledby>` + `<h2>` heading + bridge `<p>` + two `<ul>` lists (top-level outcomes and enum values). Four new vitest cases (16-19). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T3 section).
 - **v0.19.2** (Follow-up interviews impact paragraph, CR-T2, 2026-06-10) amends §19.4 content order: step 6 (records list) is now split into two groups with the follow-up impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) inserted between them. Failure records render in a first `<ol className="failures-findings__list">`, then conditionally (when at least one `decline_interview` record is present) the `IMPACT_PARAGRAPH_FOLLOWUPS` `<p className="failures-findings__impact">` renders, then decline records render in a second `<ol className="failures-findings__list">`. CSS class reuses `.failures-findings__impact` (no new class, no new tokens). Follow-up impact paragraph renders only when `data.records.some(r => r.record_type === 'decline_interview')` is true; does not render in loading/fetch-failed/malformed states or when zero decline_interview records are present. Two new vitest cases added: byte-identity under `familyJson` (case 14), absent under `foodJson` (case 15). Also corrects pre-existing closing-line version string from `v0.19.0` to `v0.19.2`. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T2 section).
 - **v0.19.1** (Impact paragraph for collection failures, CR-T1, 2026-06-10) amends §19.4 content order: inserts "Impact paragraph (`IMPACT_PARAGRAPH_FAILURES`) `<p>`" as new step 3 (between heading step 1 and domain selector step 2); old steps 3-5 renumber to 4-6. Adds new CSS class `.failures-findings__impact` to `failures-findings.css` (tokens: `--font-size-base`, `--color-text-primary`, `--line-height-body`, `--space-6`, `--max-prose-width`). No new tokens. The paragraph renders inside the `ready` fetch state only (AC4); renders in the empty-state path (n_records === 0, AC3). Three new vitest cases added: byte-identity (case 11), empty-state paragraph present (case 12), absent in loading state (case 13). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T1 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T1 section).
 - **v0.19.0** (About page, M2, 2026-06-10) adds `AboutPage.tsx` (Mark-authored text). Adds NavBar fifth tab "About" at rightmost position (binding least-prominent slot: benchmark and data presentation remain primary; About entry must not dominate the nav). Mirrors `MethodologyPage.tsx` class structure (`.methodology-page`, `.methodology-page__container`, `.methodology-page__section`, `.methodology-page__heading`, `.methodology-page__text`); no new tokens, no new CSS. Adds §22 About page spec. Updates §11 Component Inventory. Corrects pre-existing closing-line version string from `v0.17.0` to `v0.19.0` (UI/UX N3 advisory). Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md` M2 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-site-copy-verdicts.md` M2 section).
@@ -2644,7 +2645,7 @@ Round-2 additions (3):
 
 ---
 
-## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10)
+## 19. Collection records tab (v0.15.0, Phase 9a T1, 2026-06-09; §19.4 amended v0.19.1, CR-T1, 2026-06-10; further amended v0.19.2, CR-T2, 2026-06-10; further amended v0.19.3, CR-T3, 2026-06-10)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-cda-sme-verdict.md`, M1-M4); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-T1-failures-restore-uiux-verdict.md`, N1-N7).
 
@@ -2668,18 +2669,19 @@ Three domain options: Family / Holidays / Food (same set as Explore).
 
 `<h1>` element with text `"Collection records and follow-up interviews"` byte-for-byte. This is the T10 SECTION_HEADING string; it is the tab's primary heading.
 
-### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10; further amended v0.19.2 / CR-T2 2026-06-10)
+### 19.4 Content order (binding N1; amended v0.19.1 / CR-T1 2026-06-10; further amended v0.19.2 / CR-T2 2026-06-10; further amended v0.19.3 / CR-T3 2026-06-10)
 
 Within the tab region, content renders in this order:
 1. `<h1>` heading (§19.3).
-2. Domain selector row (§19.2) — rendered below the heading, before impact paragraph.
+2. Domain selector row (§19.2) -- rendered below the heading, before impact paragraph.
 3. Impact paragraph (`IMPACT_PARAGRAPH_FAILURES`) `<p className="failures-findings__impact">`: Mark-authored, approved verbatim 2026-06-10; renders in the `ready` fetch state only (not in loading/fetch-failed/malformed states); renders in the empty-state path (n_records === 0, AC3). See v0.19.1 CR-T1 for the CSS class spec.
-4. `framing_note` `<p>` — verbatim, byte-identity from the JSON field. First data-sourced content paragraph (T9 §5.1 / AC5).
-5. Counts caption `<p>` (T10 §4 template) — OMITTED when `n_records === 0`.
-6. When `n_records > 0`, records render in two grouped lists with the follow-up impact paragraph between them:
+4. Taxonomy block (`TAXONOMY_BLOCK`) `<section className="failures-findings__taxonomy">`: exports from `copy/failures_findings.ts`; renders in the `ready` fetch state only (not in loading/fetch-failed/malformed states); renders in the empty-state path (n_records === 0) -- the taxonomy is a property of the LSB pipeline, not of the per-domain data. See §19.14 for full spec.
+5. `framing_note` `<p>` -- verbatim, byte-identity from the JSON field. First data-sourced content paragraph (T9 §5.1 / AC5).
+6. Counts caption `<p>` (T10 §4 template) -- OMITTED when `n_records === 0`.
+7. When `n_records > 0`, records render in two grouped lists with the follow-up impact paragraph between them:
    a. Failure records `<ol className="failures-findings__list">`: all `record_type === 'failure'` records.
    b. Follow-up interviews impact paragraph (`IMPACT_PARAGRAPH_FOLLOWUPS`) `<p className="failures-findings__impact">`: Mark-authored, approved verbatim 2026-06-10; renders ONLY when at least one `decline_interview` record is present (`data.records.some(r => r.record_type === 'decline_interview')`). Does not render when zero decline_interview records exist. CSS class reuses `.failures-findings__impact` (no new tokens).
-   c. Decline-interview records `<ol className="failures-findings__list">`: all `record_type === 'decline_interview'` records. Rendered only when at least one such record exists (same condition as 6b).
+   c. Decline-interview records `<ol className="failures-findings__list">`: all `record_type === 'decline_interview'` records. Rendered only when at least one such record exists (same condition as 7b).
    When `n_records === 0`: empty-state `<p>` only (§19.9); no grouped lists.
 
 No chart-lede, no Smith's S, no SelectionBar, no VizTabs, no consensus-score strings (M4 / N7 chrome isolation).
@@ -2770,6 +2772,90 @@ Edited files:
 ### 19.13 Chrome isolation (M4 / N7)
 
 The rendered Collection records tab text content (excluding `<pre>` verbatim model bytes) must not contain: `consensus`, `Smith's S`, `agree`, `believe`, `think` (as \bthink), `worldview`, `categoriz`. The vitest suite's case 9 enforces this with a DOM-walk that excludes `<pre>` nodes.
+
+### 19.14 Taxonomy block (binding, CR-T3, v0.19.3)
+
+The taxonomy block is a CDA-SME-approved static disclosure surface that names the three top-level collection outcomes and the seven `originating_outcome_class` enum values. It renders as step 4 in §19.4 content order.
+
+**Element structure (binding F1):**
+
+```tsx
+<section
+  aria-labelledby="taxonomy-block-heading"
+  className="failures-findings__taxonomy"
+>
+  <h2
+    id="taxonomy-block-heading"
+    className="failures-findings__taxonomy-heading"
+  >
+    {TAXONOMY_BLOCK.heading}
+  </h2>
+  <p className="failures-findings__taxonomy-bridge">
+    {TAXONOMY_BLOCK.bridge}
+  </p>
+  <ul className="failures-findings__taxonomy-list">
+    {TAXONOMY_BLOCK.topLevel.map(row => (
+      <li key={row.term}>
+        <strong>{row.term}</strong>{' '}{row.description}
+      </li>
+    ))}
+  </ul>
+  <p className="failures-findings__taxonomy-enum-label">
+    <code>originating_outcome_class</code>{' '}ENUM VALUES (seven, byte-identical to the schema):
+  </p>
+  <ul className="failures-findings__taxonomy-list">
+    {TAXONOMY_BLOCK.enumValues.map(row => (
+      <li key={row.id}>
+        <code>{row.id}</code>{' '}{row.description}
+      </li>
+    ))}
+  </ul>
+</section>
+```
+
+**Heading level (binding F1):** `<h2>` is required. The tab has one `<h1>` per §19.3; the taxonomy block is a major conceptual section warranting `<h2>` for correct document outline and screen-reader navigation. A `<p>` with `<strong>` heading would break WCAG 2.4.6 (headings and labels).
+
+**Element choice rationale (binding F1):** `<ul>` is used over `<dl>` because no `<dl>`/`<dt>`/`<dd>` CSS rules exist in `failures-findings.css`; introducing `<dl>` would require new CSS class definitions with no semantic gain over `<ul>` + `<strong>`/`<code>` markers for a taxonomy list on this surface.
+
+**CSS classes (binding F2, all token-only, no new tokens):**
+
+- `.failures-findings__taxonomy` -- section container; `margin-bottom: var(--space-8)`; `max-width: var(--max-prose-width)`.
+- `.failures-findings__taxonomy-heading` -- h2 heading; `font-size: var(--font-size-base)`; `font-weight: var(--font-weight-bold)`; `color: var(--color-text-primary)`; `line-height: var(--line-height-tight)`; `margin-bottom: var(--space-3)`.
+- `.failures-findings__taxonomy-bridge` -- bridge sentence paragraph; `font-size: var(--font-size-sm)`; `color: var(--color-text-primary)`; `line-height: var(--line-height-body)`; `margin-bottom: var(--space-4)`.
+- `.failures-findings__taxonomy-list` -- both ul elements; `list-style: disc`; `padding-left: var(--space-6)`; `margin-bottom: var(--space-4)`; `display: flex`; `flex-direction: column`; `gap: var(--space-2)`.
+- `.failures-findings__taxonomy-list li` -- list items; `font-size: var(--font-size-sm)`; `color: var(--color-text-primary)`; `line-height: var(--line-height-body)`.
+- `.failures-findings__taxonomy-list li code` -- inline code in list items; `font-family: var(--font-mono)`; `font-size: var(--font-size-xs)`; `color: var(--color-text-primary)`.
+- `.failures-findings__taxonomy-enum-label` -- subheading paragraph for enum section; `font-size: var(--font-size-sm)`; `color: var(--color-text-secondary)`; `font-weight: var(--font-weight-medium)`; `margin-bottom: var(--space-2)`; `margin-top: var(--space-2)`.
+- `.failures-findings__taxonomy-enum-label code` -- the originating_outcome_class identifier in the subheading; `font-family: var(--font-mono)`; `font-size: var(--font-size-xs)`; `color: var(--color-text-primary)`.
+
+**TAXONOMY_BLOCK export shape (binding F5):**
+
+The `TAXONOMY_BLOCK` export in `copy/failures_findings.ts` is a structured object literal (`as const`):
+
+- `heading: string` -- SME-approved heading text
+- `bridge: string` -- SME-approved bridge sentence
+- `topLevel: Array<{ term: string; description: string }>` -- three rows
+- `enumSubheading: string` -- SME-approved subheading (with `originating_outcome_class` named)
+- `enumValues: Array<{ id: string; description: string }>` -- seven rows; id is byte-identical to schema enum
+
+All string values are the CDA SME-approved wording (T3 verdict). The seven `id` values are byte-identical to `cdb_core/schemas.py` lines 734-742: `empty_output`, `refusal_string_match`, `single_degenerate_pile`, `parse_failure`, `http_error`, `timeout`, `other`.
+
+**Render conditions (binding F4):**
+- Renders inside `fetchState.kind === 'ready'` branch only.
+- Renders when `n_records === 0` (empty-state path) -- the taxonomy is a property of the LSB pipeline.
+- Does NOT render in `loading`, `fetch-failed`, or `malformed` states.
+- NOT gated on `n_records > 0`.
+
+**Vitest cases (binding F6):**
+- Case 16: byte-identity -- TAXONOMY_BLOCK heading text, bridge text, and all seven enum `id` values are present in the rendered DOM under familyJson fixture.
+- Case 17: each of the seven originating_outcome_class enum identifier strings appears inside a `<code>` element in the rendered DOM under familyJson fixture.
+- Case 18: taxonomy block renders (heading text present) in the food empty-state path (foodJson fixture, n_records === 0).
+- Case 19: taxonomy block does NOT render in loading state (mirrors case 13 pattern -- never-resolving fetch mock).
+- Case 9 (existing): chrome-isolation DOM-walk passes unchanged; SME wording contains zero instances of §19.13 forbidden substrings.
+
+**Accessible landmark (binding F1):** `aria-labelledby="taxonomy-block-heading"` on the `<section>` provides a named landmark for screen-reader navigation. The `id="taxonomy-block-heading"` on the `<h2>` is required and must be present in the rendered DOM.
+
+**No new tokens (binding §19.11 posture):** All CSS rules use only tokens already defined in `tokens.css`. No new `--*` custom properties introduced by this section.
 
 ---
 
@@ -2957,6 +3043,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.19.2. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.19.3. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

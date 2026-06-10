@@ -68,6 +68,66 @@
   max-width: var(--max-prose-width);
 }
 
+/* ===== Taxonomy block (v0.19.3, CR-T3, 2026-06-10) ===== */
+
+/* UI/UX F2: all token-only, no new token definitions.
+   pitfall #15: every var(--...) verified against tokens.css before use. */
+
+.failures-findings__taxonomy {
+  margin-bottom: var(--space-8);
+  max-width: var(--max-prose-width);
+}
+
+.failures-findings__taxonomy-heading {
+  font-size: var(--font-size-base);
+  font-weight: var(--font-weight-bold);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-tight);
+  margin-bottom: var(--space-3);
+}
+
+.failures-findings__taxonomy-bridge {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+  margin-bottom: var(--space-4);
+}
+
+.failures-findings__taxonomy-list {
+  list-style: disc;
+  padding-left: var(--space-6);
+  margin-bottom: var(--space-4);
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.failures-findings__taxonomy-list li {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+}
+
+.failures-findings__taxonomy-list li code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
+.failures-findings__taxonomy-enum-label {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-secondary);
+  font-weight: var(--font-weight-medium);
+  margin-bottom: var(--space-2);
+  margin-top: var(--space-2);
+}
+
+.failures-findings__taxonomy-enum-label code {
+  font-family: var(--font-mono);
+  font-size: var(--font-size-xs);
+  color: var(--color-text-primary);
+}
+
 /* ===== Framing note ===== */
 
 .failures-findings__framing-note {
