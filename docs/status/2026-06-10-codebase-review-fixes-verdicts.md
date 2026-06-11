@@ -531,3 +531,7 @@ Checklist:
 - `apps/dashboard/src/components/Focus2FamilySimilarity.tsx` (line 182 guard replaced; line ~222 family-member dot aria-label branch)
 
 **CDA SME ruling reference:** `.claude/agent-memory/cda_sme/project_f5_degenerate_ellipse_verdict.md` (S1-S4 bound strings, B1-B10 notes). F2 semantic authority: `.claude/agent-memory/cda_sme/project_t_mds_r1_verdict.md`.
+
+### F5 S1 ratification (2026-06-11)
+
+The UI/UX jargon edit to the SME-bound S1 tooltip (removal of the internal "R1-a" label per the no-schema-identifiers-in-copy rule, canonicalized in DESIGN_SYSTEM 3.3.5 impl req 12) is RATIFIED by the CDA SME: the three load-bearing claims (stable position; bootstrap converged so the region is too small to render; limit case of high stability, not missing uncertainty) are intact, register intact, R10 floor preserved. Carry-forward: future SME-bound tooltip/aria strings should use plain-language phrasing at bind time.
