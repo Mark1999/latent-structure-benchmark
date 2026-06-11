@@ -113,7 +113,7 @@ export interface SimilarityHeatmapProps {
    * Authoritative row/column order for similarityMatrix and similarityCi.
    * When non-empty, matrix index i corresponds to similarityModelIds[i].
    * Models in models but absent here were excluded from the similarity basis.
-   * When empty/absent: legacy fallback — matrix dims == models.length,
+   * When empty/absent: legacy fallback, matrix dims == models.length,
    * row/column i keyed by models[i].model_id.
    */
   similarityModelIds?: string[];
