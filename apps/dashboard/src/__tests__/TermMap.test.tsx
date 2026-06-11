@@ -313,4 +313,107 @@ describe("TermMap", () => {
     // Must render without crash
     expect(document.querySelector(".term-map-container")).not.toBeNull();
   });
+
+  // F5-T1 (A5): TermMap degenerate bootstrap ellipse converged-state treatment.
+  // DESIGN_SYSTEM.md §3.3.5 impl req 12 + CDA SME F2: semi_major <= 0 is R1-a LIMIT case.
+  // Minimum-radius ellipse floor rendered; S3 aria-label on .term-dot.
+  it("F5 A5a: degenerate termUncertainty (semi_major===0) renders without crash", () => {
+    const degenerateUncertainty: Record<string, { semi_major: number; semi_minor: number; rotation_rad: number; center: [number, number]; n_bootstrap: number } | null> = {
+      "fixture-term-alpha": { semi_major: 0, semi_minor: 0, rotation_rad: 0, center: [0.1, 0.2], n_bootstrap: 200 },
+      "fixture-term-beta":  { semi_major: 0.05, semi_minor: 0.03, rotation_rad: 0.5, center: [-0.3, 0.4], n_bootstrap: 200 },
+      "fixture-term-gamma": { semi_major: 0, semi_minor: 0, rotation_rad: 0, center: [0.5, -0.1], n_bootstrap: 200 },
+    };
+
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+        termUncertainty={degenerateUncertainty}
+        showUncertainty={true}
+      />
+    );
+
+    // Must render without crash; populated state present
+    expect(document.querySelector(".term-map-container")).not.toBeNull();
+  });
+
+  it("F5 A5b: degenerate term-dot gets S3 aria-label; non-degenerate term-dot does not", () => {
+    /**
+     * S3 (byte-identical to CDA SME S3):
+     * "{term}, high positional stability across bootstrap resamples."
+     * Disclosure threads through .term-dot (pointer-events enabled),
+     * NOT .term-ellipse (pointer-events=none), per CDA SME B3.
+     */
+    const degenerateUncertainty: Record<string, { semi_major: number; semi_minor: number; rotation_rad: number; center: [number, number]; n_bootstrap: number } | null> = {
+      "fixture-term-alpha": { semi_major: 0, semi_minor: 0, rotation_rad: 0, center: [0.1, 0.2], n_bootstrap: 200 },
+      "fixture-term-beta":  { semi_major: 0.05, semi_minor: 0.03, rotation_rad: 0.5, center: [-0.3, 0.4], n_bootstrap: 200 },
+      "fixture-term-gamma": { semi_major: -0.001, semi_minor: -0.001, rotation_rad: 0, center: [0.5, -0.1], n_bootstrap: 200 },
+    };
+
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+        termUncertainty={degenerateUncertainty}
+        showUncertainty={true}
+      />
+    );
+
+    // Degenerate term-dots must have data-degenerate-bootstrap="true"
+    const degDotsAlpha = document.querySelectorAll('.term-dot[data-degenerate-bootstrap="true"]');
+    expect(degDotsAlpha.length).toBeGreaterThanOrEqual(2); // alpha (semi_major=0) and gamma (semi_major=-0.001)
+
+    // The degenerate dots must have the S3 aria-label suffix
+    degDotsAlpha.forEach((el) => {
+      const label = el.getAttribute("aria-label") ?? "";
+      expect(label).toContain("high positional stability across bootstrap resamples.");
+    });
+
+    // Non-degenerate term-dot (beta) must NOT have data-degenerate-bootstrap
+    // Find all term-dots without the degenerate attribute
+    const allTermDots = document.querySelectorAll(".term-dot");
+    let nonDegFound = false;
+    allTermDots.forEach((el) => {
+      if (!el.hasAttribute("data-degenerate-bootstrap")) {
+        nonDegFound = true;
+        // Non-degenerate dot must not have the S3 aria-label
+        expect(el.getAttribute("aria-label")).toBeNull();
+      }
+    });
+    expect(nonDegFound).toBe(true);
+  });
+
+  it("F5 A5c: degenerate term-ellipse has data-degenerate-bootstrap and minimum rx/ry (3px)", () => {
+    /**
+     * Minimum-radius ellipse floor: rx=3, ry=3 for degenerate terms.
+     * Ellipse IS rendered (R10: visible artifact), but at minimum size.
+     * Ellipse has data-degenerate-bootstrap="true".
+     */
+    const degenerateUncertainty: Record<string, { semi_major: number; semi_minor: number; rotation_rad: number; center: [number, number]; n_bootstrap: number } | null> = {
+      "fixture-term-alpha": { semi_major: 0, semi_minor: 0, rotation_rad: 0, center: [0.1, 0.2], n_bootstrap: 200 },
+      "fixture-term-beta":  { semi_major: 0.05, semi_minor: 0.03, rotation_rad: 0.5, center: [-0.3, 0.4], n_bootstrap: 200 },
+      "fixture-term-gamma": { semi_major: 0.10, semi_minor: 0.05, rotation_rad: 1.0, center: [0.5, -0.1], n_bootstrap: 200 },
+    };
+
+    render(
+      <TermMap
+        termCoords={FIXTURE_TERM_COORDS}
+        termClusters={FIXTURE_TERM_CLUSTERS}
+        clusterLabels={FIXTURE_CLUSTER_LABELS}
+        termUncertainty={degenerateUncertainty}
+        showUncertainty={true}
+      />
+    );
+
+    // Degenerate ellipse has the marker attribute
+    const degEllipses = document.querySelectorAll('.term-ellipse[data-degenerate-bootstrap="true"]');
+    expect(degEllipses.length).toBeGreaterThanOrEqual(1);
+    // Minimum radius: rx="3.0" and ry="3.0"
+    degEllipses.forEach((el) => {
+      expect(el.getAttribute("rx")).toBe("3.0");
+      expect(el.getAttribute("ry")).toBe("3.0");
+    });
+  });
 });

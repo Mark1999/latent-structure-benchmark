@@ -732,30 +732,50 @@ export function TermMap({
     // (Stored in a local and set after setSvgContent to batch the React state update.)
 
     // ── Ellipses rendering ──────────────────────────────────────────────────
+    // R1-a degenerate sub-state (semi_major <= 0 but u present): bootstrap converged on near-point.
+    // Per DESIGN_SYSTEM.md §3.3.5 impl req 12: render minimum-radius ellipse floor (3px).
+    // Disclosure (S3) threads through .term-dot aria-label below, NOT .term-ellipse (pointer-events=none).
     if (showUncertainty && termUncertainty) {
       terms.forEach((t, i) => {
         const u = termUncertainty[t.term];
-        if (!u || u.semi_major <= 0) return;
+        if (!u) return;
         const cx = sx(t.x);
         const cy = sy(t.y);
-        const rx = (u.semi_major / (xMax - xMin)) * pw;
-        const ry = (u.semi_minor / (yMax - yMin)) * ph;
+        const isDegenerate = u.semi_major <= 0;
+        const rx = isDegenerate ? 3 : (u.semi_major / (xMax - xMin)) * pw;
+        const ry = isDegenerate ? 3 : (u.semi_minor / (yMax - yMin)) * ph;
         const deg = -(u.rotation_rad * 180) / Math.PI;
         const col = getClusterColor(t.cluster);
-        svgParts.push(
-          `<ellipse class="term-ellipse" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" transform="rotate(${deg.toFixed(1)},${cx.toFixed(1)},${cy.toFixed(1)})" fill="${col}" stroke="${col}" fill-opacity="0.08" stroke-opacity="0.25" stroke-width="1" data-idx="${i}" data-ox="${cx.toFixed(1)}" data-oy="${cy.toFixed(1)}" data-deg="${deg.toFixed(1)}" pointer-events="none"/>`
-        );
+        if (isDegenerate) {
+          svgParts.push(
+            `<ellipse class="term-ellipse" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" transform="rotate(${deg.toFixed(1)},${cx.toFixed(1)},${cy.toFixed(1)})" fill="${col}" stroke="${col}" fill-opacity="0.08" stroke-opacity="0.25" stroke-width="1" data-idx="${i}" data-ox="${cx.toFixed(1)}" data-oy="${cy.toFixed(1)}" data-deg="${deg.toFixed(1)}" data-degenerate-bootstrap="true" pointer-events="none"/>`
+          );
+        } else {
+          svgParts.push(
+            `<ellipse class="term-ellipse" cx="${cx.toFixed(1)}" cy="${cy.toFixed(1)}" rx="${rx.toFixed(1)}" ry="${ry.toFixed(1)}" transform="rotate(${deg.toFixed(1)},${cx.toFixed(1)},${cy.toFixed(1)})" fill="${col}" stroke="${col}" fill-opacity="0.08" stroke-opacity="0.25" stroke-width="1" data-idx="${i}" data-ox="${cx.toFixed(1)}" data-oy="${cy.toFixed(1)}" data-deg="${deg.toFixed(1)}" pointer-events="none"/>`
+          );
+        }
       });
     }
 
-    // Term dots — store original coords as data attributes for hover animation
+    // Term dots: store original coords as data attributes for hover animation.
+    // R1-a degenerate sub-state (semi_major <= 0): add aria-label (S3) per §3.3.5 impl req 12.
+    // Disclosure threads through .term-dot (pointer-events enabled), NOT .term-ellipse (none).
     terms.forEach((t, i) => {
       const px = sx(t.x).toFixed(1);
       const py = sy(t.y).toFixed(1);
       const col = getClusterColor(t.cluster);
-      svgParts.push(
-        `<circle class="term-dot" cx="${px}" cy="${py}" r="4" fill="${col}" stroke="var(--color-svg-dot-stroke)" stroke-width=".8" data-cluster="${t.cluster}" data-idx="${i}" data-ox="${px}" data-oy="${py}" cursor="pointer"/>`
-      );
+      const uDot = termUncertainty ? termUncertainty[t.term] : null;
+      const isDegenerateDot = uDot != null && uDot.semi_major <= 0;
+      if (isDegenerateDot) {
+        svgParts.push(
+          `<circle class="term-dot" cx="${px}" cy="${py}" r="4" fill="${col}" stroke="var(--color-svg-dot-stroke)" stroke-width=".8" data-cluster="${t.cluster}" data-idx="${i}" data-ox="${px}" data-oy="${py}" data-degenerate-bootstrap="true" aria-label="${escapeXml(t.term)}, high positional stability across bootstrap resamples." cursor="pointer"/>`
+        );
+      } else {
+        svgParts.push(
+          `<circle class="term-dot" cx="${px}" cy="${py}" r="4" fill="${col}" stroke="var(--color-svg-dot-stroke)" stroke-width=".8" data-cluster="${t.cluster}" data-idx="${i}" data-ox="${px}" data-oy="${py}" cursor="pointer"/>`
+        );
+      }
     });
 
     // Term labels: visible, small, positioned using computed layout offsets.

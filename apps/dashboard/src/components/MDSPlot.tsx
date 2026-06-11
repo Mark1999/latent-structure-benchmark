@@ -197,20 +197,29 @@ export function MDSPlot({
       svg += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t + ph}" stroke="var(--color-svg-grid-line-neutral)" stroke-width="0.5"/>`;
     }
 
-    // Ellipses: R1-a only (models with typical_concentration and valid uncertainty)
+    // Ellipses: R1-a only (models with typical_concentration and valid uncertainty).
+    // R1-a degenerate sub-state (semi_major <= 0 but u present): bootstrap converged on a near-point.
+    // Per DESIGN_SYSTEM.md §3.3.5 impl req 12 and CDA SME T-MDS-R1 F2: this is the LIMIT case of
+    // a high-stability R1-a sample, NOT a missing-uncertainty case. Render minimum-radius ellipse floor.
     visibleModels.forEach((m) => {
       const [x, y] = mdsCoordinates[m.model_id];
       const u = mdsUncertainty[m.model_id];
-      if (!u || u.semi_major <= 0) return;
+      if (!u) return;
       // Only emit ellipse for R1-a (typical_concentration). R1-b and R1-c suppress the ellipse.
       const r1 = r1States[m.model_id];
       if (r1 === 'low_concentration' || r1 === 'deterministic') return;
       const cx = sx(x), cy = sy(y);
-      const rx = (u.semi_major / (xMax - xMin)) * pw;
-      const ry = (u.semi_minor / (yMax - yMin)) * ph;
+      const isDegenerate = u.semi_major <= 0;
+      // Minimum-radius ellipse floor (3px) per §3.3.5 impl req 12: converged-state insurance.
+      const rx = isDegenerate ? 3 : (u.semi_major / (xMax - xMin)) * pw;
+      const ry = isDegenerate ? 3 : (u.semi_minor / (yMax - yMin)) * ph;
       const deg = -(u.rotation_rad * 180) / Math.PI;
       const color = PROVIDER_COLORS[displayProvider(m)] || 'var(--color-svg-marker-stroke)';
-      svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${color}" stroke="${color}" fill-opacity="0.07" stroke-opacity="0.2" stroke-width="1"/>`;
+      if (isDegenerate) {
+        svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${color}" stroke="${color}" fill-opacity="0.07" stroke-opacity="0.2" stroke-width="1" data-degenerate-bootstrap="true"/>`;
+      } else {
+        svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${color}" stroke="${color}" fill-opacity="0.07" stroke-opacity="0.2" stroke-width="1"/>`;
+      }
     });
 
     // Points + labels
@@ -232,8 +241,16 @@ export function MDSPlot({
         const ptBR  = `${(cx + 6.93).toFixed(2)},${(cy + 4).toFixed(2)}`;
         svg += `<polygon points="${ptTop} ${ptBL} ${ptBR}" fill="none" stroke="${color}" stroke-width="3" stroke-opacity="1" data-model="${m.model_id}" data-r1-state="deterministic" aria-label="${name}, deterministic output. Same categorical structure on every run." style="cursor:pointer"/>`;
       } else {
-        // R1-a: standard filled circle with dot stroke (byte-identical to pre-change output)
-        svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5" data-model="${m.model_id}" style="cursor:pointer"/>`;
+        // R1-a: standard filled circle with dot stroke (byte-identical to pre-change output for non-degenerate).
+        // R1-a degenerate sub-state: same circle but with data-r1-state + data-degenerate-bootstrap + aria-label (S2).
+        // The degenerate path is the LIMIT case of high-stability R1-a per DESIGN_SYSTEM.md §3.3.5 impl req 12.
+        const uDot = mdsUncertainty[m.model_id];
+        const isDegenerateDot = uDot != null && uDot.semi_major <= 0;
+        if (isDegenerateDot) {
+          svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5" data-model="${m.model_id}" data-r1-state="typical_concentration" data-degenerate-bootstrap="true" aria-label="${name}, high positional stability. Bootstrap resamples converged on a near-point; confidence region is too small to display." style="cursor:pointer"/>`;
+        } else {
+          svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5" data-model="${m.model_id}" style="cursor:pointer"/>`;
+        }
       }
       svg += `<text x="${layout.x.toFixed(1)}" y="${layout.y.toFixed(1)}" text-anchor="${layout.anchor}" font-family="var(--font-body)" font-size="12" fill="var(--color-svg-label-secondary)" style="pointer-events:none">${name}</text>`;
     });
@@ -299,6 +316,12 @@ export function MDSPlot({
           )}
           {r1States[tooltip.id] === 'deterministic' && (
             <div>Deterministic output. This model produced the same categorical structure on every run. Its position on the map is consistent, but there is no uncertainty range to show. See the methodology page for why this is the least informative case, not the most.</div>
+          )}
+          {/* R1-a degenerate sub-state: bootstrap converged on a near-point (§3.3.5 impl req 12, CDA SME F2).
+              Tooltip body S1 (UI/UX-corrected: "R1-a sample" -> "sample" per §3.3.5 impl req 5). */}
+          {r1States[tooltip.id] !== 'low_concentration' && r1States[tooltip.id] !== 'deterministic' &&
+           mdsUncertainty[tooltip.id] != null && (mdsUncertainty[tooltip.id] as { semi_major: number }).semi_major <= 0 && (
+            <div>Position highly stable. Bootstrap resamples converged on a near-point, so the confidence region is too small to show as an ellipse. This is the limit case of a high-stability sample, not missing uncertainty.</div>
           )}
           {tooltipCentrality != null && (
             <div>Centrality: <span className="chart-tooltip__mono">{tooltipCentrality.toFixed(3)}</span></div>

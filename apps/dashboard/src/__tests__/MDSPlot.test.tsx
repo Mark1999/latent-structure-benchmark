@@ -557,3 +557,217 @@ describe("MDSPlot: G7-FOLLOWUP-T1 chart-to-record pivot affordance", () => {
     expect(onPivot).toHaveBeenCalledWith("fixture-model-beta");
   });
 });
+
+describe("MDSPlot: F5 degenerate bootstrap ellipse (converged-state treatment)", () => {
+  /**
+   * F5-T1 acceptance criteria A4 (MDSPlot fixture tests).
+   *
+   * A degenerate bootstrap envelope (semi_major <= 0) is the LIMIT case of a
+   * high-stability R1-a sample where the bootstrap CONVERGED on a near-point.
+   * Per DESIGN_SYSTEM.md §3.3.5 impl req 12 and CDA SME T-MDS-R1 F2:
+   * - Bare-point fall-through is impossible.
+   * - Minimum-radius ellipse floor rendered (3px).
+   * - Dot carries data-r1-state="typical_concentration" + data-degenerate-bootstrap="true".
+   * - Aria-label byte-identical to CDA SME S2 string.
+   * - R10 invariant: a visible artifact is always present.
+   *
+   * CLAUDE.md §6 rule 10: no point estimate without uncertainty.
+   */
+
+  // Degenerate fixture: beta has semi_major === 0
+  const FIXTURE_UNCERTAINTY_DEGENERATE_ZERO: Record<string, {
+    semi_major: number; semi_minor: number; rotation_rad: number;
+    center: [number, number]; n_bootstrap: number;
+  } | null> = {
+    "fixture-model-alpha": { semi_major: 0.08, semi_minor: 0.04, rotation_rad: 0.3, center: [0.3, 0.2], n_bootstrap: 200 },
+    "fixture-model-beta":  { semi_major: 0, semi_minor: 0, rotation_rad: 0.0, center: [-0.2, 0.4], n_bootstrap: 200 },
+    "fixture-model-gamma": { semi_major: 0.10, semi_minor: 0.05, rotation_rad: 1.1, center: [0.1, -0.3], n_bootstrap: 200 },
+  };
+
+  // Degenerate fixture: beta has semi_major === -0.001 (negative precision artifact)
+  const FIXTURE_UNCERTAINTY_DEGENERATE_NEG: Record<string, {
+    semi_major: number; semi_minor: number; rotation_rad: number;
+    center: [number, number]; n_bootstrap: number;
+  } | null> = {
+    "fixture-model-alpha": { semi_major: 0.08, semi_minor: 0.04, rotation_rad: 0.3, center: [0.3, 0.2], n_bootstrap: 200 },
+    "fixture-model-beta":  { semi_major: -0.001, semi_minor: -0.001, rotation_rad: 0.0, center: [-0.2, 0.4], n_bootstrap: 200 },
+    "fixture-model-gamma": { semi_major: 0.10, semi_minor: 0.05, rotation_rad: 1.1, center: [0.1, -0.3], n_bootstrap: 200 },
+  };
+
+  it("F5 A4a: semi_major===0 degenerate model renders with data-r1-state='typical_concentration' and data-degenerate-bootstrap='true'", () => {
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_DEGENERATE_ZERO}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    const betaEl = container.querySelector('[data-model="fixture-model-beta"]');
+    expect(betaEl).not.toBeNull();
+    // Still a circle (R1-a dot marker shape)
+    expect(betaEl!.tagName.toLowerCase()).toBe("circle");
+    // Degenerate sub-state attributes
+    expect(betaEl!.getAttribute("data-r1-state")).toBe("typical_concentration");
+    expect(betaEl!.getAttribute("data-degenerate-bootstrap")).toBe("true");
+    // Aria-label byte-identical to CDA SME S2 string
+    expect(betaEl!.getAttribute("aria-label")).toBe(
+      "fixture-model-beta, high positional stability. Bootstrap resamples converged on a near-point; confidence region is too small to display."
+    );
+  });
+
+  it("F5 A4b: semi_major===-0.001 degenerate (numerical-precision artifact) renders identical treatment", () => {
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_DEGENERATE_NEG}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    const betaEl = container.querySelector('[data-model="fixture-model-beta"]');
+    expect(betaEl).not.toBeNull();
+    expect(betaEl!.tagName.toLowerCase()).toBe("circle");
+    expect(betaEl!.getAttribute("data-r1-state")).toBe("typical_concentration");
+    expect(betaEl!.getAttribute("data-degenerate-bootstrap")).toBe("true");
+    expect(betaEl!.getAttribute("aria-label")).toBe(
+      "fixture-model-beta, high positional stability. Bootstrap resamples converged on a near-point; confidence region is too small to display."
+    );
+  });
+
+  it("F5 A4c bare-point negative test: degenerate model has pinned-treatment marker; non-degenerate R1-a does NOT", () => {
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_DEGENERATE_ZERO}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    // Degenerate model (beta) MUST have data-degenerate-bootstrap="true"
+    const betaEl = container.querySelector('[data-model="fixture-model-beta"]');
+    expect(betaEl).not.toBeNull();
+    expect(betaEl!.getAttribute("data-degenerate-bootstrap")).toBe("true");
+
+    // Non-degenerate R1-a models (alpha, gamma) must NOT have data-degenerate-bootstrap attribute.
+    // They also must not have data-r1-state (R1-a byte-identity gate, A3).
+    const alphaEl = container.querySelector('[data-model="fixture-model-alpha"]');
+    expect(alphaEl).not.toBeNull();
+    expect(alphaEl!.getAttribute("data-degenerate-bootstrap")).toBeNull();
+    expect(alphaEl!.getAttribute("data-r1-state")).toBeNull();
+
+    const gammaEl = container.querySelector('[data-model="fixture-model-gamma"]');
+    expect(gammaEl).not.toBeNull();
+    expect(gammaEl!.getAttribute("data-degenerate-bootstrap")).toBeNull();
+    expect(gammaEl!.getAttribute("data-r1-state")).toBeNull();
+  });
+
+  it("F5 A4: degenerate model gets minimum-radius ellipse (visible artifact, R10 contract met)", () => {
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_DEGENERATE_ZERO}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    // All three models have u present and typical_concentration: all three get ellipses.
+    // Beta gets a minimum-radius (3px) ellipse.
+    const allEllipses = container.querySelectorAll("ellipse");
+    expect(allEllipses.length).toBe(3);
+
+    // The degenerate ellipse is marked data-degenerate-bootstrap="true"
+    const degEllipse = container.querySelector('ellipse[data-degenerate-bootstrap="true"]');
+    expect(degEllipse).not.toBeNull();
+    // Minimum radius: both rx and ry are 3
+    expect(degEllipse!.getAttribute("rx")).toBe("3");
+    expect(degEllipse!.getAttribute("ry")).toBe("3");
+  });
+
+  it("F5 A3 (R1-a byte-identity gate preserved): degenerate branch is dormant on FIXTURE_UNCERTAINTY_FULL", () => {
+    /**
+     * A3 contract: the non-degenerate R1-a path is byte-identical to pre-change output.
+     * FIXTURE_UNCERTAINTY_FULL has zero degenerate entries (all semi_major > 0).
+     * The new degenerate branch must NOT activate on this fixture.
+     */
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_FULL}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    // No degenerate markers on any model
+    const allMarkers = container.querySelectorAll('[data-model]');
+    allMarkers.forEach((el) => {
+      expect(el.getAttribute("data-degenerate-bootstrap")).toBeNull();
+      expect(el.getAttribute("data-r1-state")).toBeNull();
+    });
+
+    // No degenerate ellipses
+    const degEllipses = container.querySelectorAll('ellipse[data-degenerate-bootstrap="true"]');
+    expect(degEllipses.length).toBe(0);
+  });
+
+  it("F5 S1 tooltip body: degenerate model shows converged-state copy on hover", () => {
+    /**
+     * S1 (UI/UX-corrected): "Position highly stable. Bootstrap resamples converged on a
+     * near-point, so the confidence region is too small to show as an ellipse. This is the
+     * limit case of a high-stability sample, not missing uncertainty."
+     * Must NOT say "R1-a sample" (UI/UX correction per §3.3.5 impl req 5).
+     */
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_DEGENERATE_ZERO}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    // Hover over beta to show tooltip
+    const betaEl = container.querySelector('[data-model="fixture-model-beta"]');
+    expect(betaEl).not.toBeNull();
+    fireEvent.mouseMove(betaEl!, { clientX: 100, clientY: 100 });
+
+    // Tooltip must contain S1 converged-state body
+    const tooltip = container.querySelector(".chart-tooltip");
+    expect(tooltip).not.toBeNull();
+    expect(tooltip!.textContent).toContain("Position highly stable.");
+    expect(tooltip!.textContent).toContain("Bootstrap resamples converged on a near-point");
+    expect(tooltip!.textContent).toContain("limit case of a high-stability sample");
+    expect(tooltip!.textContent).toContain("not missing uncertainty");
+    // Must NOT contain "R1-a sample" (UI/UX correction)
+    expect(tooltip!.textContent).not.toContain("R1-a sample");
+  });
+});

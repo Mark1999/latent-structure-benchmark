@@ -174,18 +174,26 @@ function buildMdsSvg(
       svg += `<line x1="${gx}" y1="${pad.t}" x2="${gx}" y2="${pad.t + ph}" stroke="var(--color-svg-grid-line-neutral)" stroke-width="0.5"/>`;
     }
 
-    // Ellipses (only for family members shown at full opacity)
+    // Ellipses (only for family members shown at full opacity).
+    // R1-a degenerate sub-state (semi_major <= 0 but u present): bootstrap converged on near-point.
+    // Per DESIGN_SYSTEM.md §3.3.5 impl req 12: render minimum-radius ellipse floor (3px).
+    // Disclosure (S4) threads through family-member dot aria-label below.
     visibleModels.forEach((m) => {
       if (!familyIds.has(m.model_id)) return;
       const [x, y] = mdsCoordinates[m.model_id];
       const u = mdsUncertainty[m.model_id];
-      if (!u || u.semi_major <= 0) return;
+      if (!u) return;
       const cx = sx(x), cy = sy(y);
-      const rx = (u.semi_major / (xMax - xMin)) * pw;
-      const ry = (u.semi_minor / (yMax - yMin)) * ph;
+      const isDegenerate = u.semi_major <= 0;
+      const rx = isDegenerate ? 3 : (u.semi_major / (xMax - xMin)) * pw;
+      const ry = isDegenerate ? 3 : (u.semi_minor / (yMax - yMin)) * ph;
       const deg = -(u.rotation_rad * 180) / Math.PI;
       const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || 'var(--color-svg-marker-stroke)';
-      svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${color}" stroke="${color}" fill-opacity="0.07" stroke-opacity="0.2" stroke-width="1"/>`;
+      if (isDegenerate) {
+        svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${color}" stroke="${color}" fill-opacity="0.07" stroke-opacity="0.2" stroke-width="1" data-degenerate-bootstrap="true"/>`;
+      } else {
+        svg += `<ellipse cx="${cx}" cy="${cy}" rx="${rx}" ry="${ry}" transform="rotate(${deg},${cx},${cy})" fill="${color}" stroke="${color}" fill-opacity="0.07" stroke-opacity="0.2" stroke-width="1"/>`;
+      }
     });
 
     // Non-family points (dimmed to opacity 0.45, §14.5)
@@ -201,15 +209,22 @@ function buildMdsSvg(
       svg += `</g>`;
     });
 
-    // Family member points — filled circle + outer ring (§14.5: r=9, fill:none, stroke at 35% opacity)
+    // Family member points: filled circle + outer ring (§14.5: r=9, fill:none, stroke at 35% opacity).
+    // R1-a degenerate sub-state: add aria-label (S4) per DESIGN_SYSTEM.md §3.3.5 impl req 12.
     visibleModels.filter((m) => familyIds.has(m.model_id)).forEach((m) => {
       const [x, y] = mdsCoordinates[m.model_id];
       const cx = sx(x), cy = sy(y);
       const color = PROVIDER_DISPLAY_COLORS[displayProvider(m)] || 'var(--color-svg-marker-stroke)';
       const name = displayModel(m.model_id);
       const layout = labelLayouts.find((l) => l.model_id === m.model_id)!;
-      // Inner filled circle
-      svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5"/>`;
+      const uFam = mdsUncertainty[m.model_id];
+      const isFamDegenerate = uFam != null && uFam.semi_major <= 0;
+      // Inner filled circle (with S4 aria-label if degenerate)
+      if (isFamDegenerate) {
+        svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5" data-degenerate-bootstrap="true" aria-label="${name}, high positional stability across bootstrap resamples."/>`;
+      } else {
+        svg += `<circle cx="${cx}" cy="${cy}" r="6" fill="${color}" stroke="var(--color-svg-dot-stroke)" stroke-width="1.5"/>`;
+      }
       // Outer ring — §14.5: r=9, fill:none, stroke: 2px var(--color-text-primary) at 35% opacity
       svg += `<circle cx="${cx}" cy="${cy}" r="9" fill="none" stroke="rgba(44,62,80,0.35)" stroke-width="2"/>`;
       // Label

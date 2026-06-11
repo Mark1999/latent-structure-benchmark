@@ -489,3 +489,45 @@ All four pivot copy strings are sourced from `apps/dashboard/src/copy/failures_f
 **Carry-forward rule for future SME reviews (the noun-class test):** banned right-hand nouns after "within-model": consensus, cultural consensus, eigenratio, CCM and synonyms. Licit right-hand nouns when scoping R1: output concentration, OCI, distribution, sampling variance, co-occurrence, runs, output, stability. Defend the noun side of the phrase; the adjective is fine.
 
 Full rationale: `.claude/agent-memory/cda_sme/project_within_model_phrase_ruling.md`. The original A5 advisory text in the G7 verdict file remains as written (historical artifact) and is superseded by this ruling.
+
+---
+
+## F5: degenerate bootstrap ellipse converged-state treatment
+
+**Task:** F5-T1 (single commit per plan).
+
+**Commit subject (byte-identical to plan A13):** `fix(dashboard): degenerate bootstrap ellipse renders as converged state (F5)`
+
+**CDA SME:** PASS-WITH-NOTES. Bound strings S1-S4 delivered verbatim in `.claude/agent-memory/cda_sme/project_f5_degenerate_ellipse_verdict.md`. B1-B10 binding and advisory notes applied: S1 through S4 byte-identical; degenerate sub-state is R1-a LIMIT case NOT R1-b (F2 reaffirmation); DESIGN_SYSTEM.md §3.3.5 calls it "R1-a SUB-state" (B5 applied); S3 disclosure threads through .term-dot (B3 applied); vocabulary clean (B10 applied). UI/UX S1 correction applied: "R1-a sample" jargon removed per §3.3.5 impl req 5, becoming "high-stability sample".
+
+**UI/UX:** PASS-WITH-NOTES. Visual treatment: minimum-radius ellipse floor option (a) selected (rx=3, ry=3 px), preferred over distinct marker option (b) which risks visual collision with R1-c hollow-triangle (B9 advisory honored). DESIGN_SYSTEM.md bumped v0.21.1 to v0.22.0 with §3.3.5 impl req 12 block. S1 correction applied (schema identifier removed). No new tokens. WCAG AA: minimum-radius ellipse uses same provider color token as standard R1-a ellipse (existing token audit from T15 covers this).
+
+**Reviewer:** PASS. A8 em-dash grep command and output:
+```
+git diff -- apps/dashboard/src/components/MDSPlot.tsx apps/dashboard/src/components/TermMap.tsx apps/dashboard/src/components/Focus2FamilySimilarity.tsx apps/dashboard/src/__tests__/MDSPlot.test.tsx DESIGN_SYSTEM.md docs/status/2026-06-10-codebase-review-fixes-verdicts.md | grep '^+' | grep -P '\x{2014}'
+```
+Output: (empty)
+
+Checklist:
+- A1: all three ellipse-emission sites render visible artifact (minimum-radius ellipse) on degenerate R1-a record. Bare-point fall-through impossible (`if (!u) return;` guard, degenerate path proceeds).
+- A2: S2/S3/S4 disclosure strings byte-identical to SME-pinned strings. S1 tooltip body carries UI/UX-corrected converged-state copy.
+- A3: non-degenerate R1-a path byte-identical. F7 byte-identity gate test stays green (FIXTURE_UNCERTAINTY_FULL has zero degenerate entries; new branch dormant on that fixture, confirmed by "F5 A3 gate preserved" test).
+- A4: F5 describe block in MDSPlot.test.tsx: semi_major===0 fixture, semi_major===-0.001 fixture, bare-point negative test, minimum-radius ellipse test, A3 gate test, S1 tooltip test. All pass.
+- A5: TermMap.test.tsx F5 A5a-c tests added. Focus2FamilySimilarity.test.tsx created with F5 A5a-d tests. All pass.
+- A6: 378 to 392 passed (delta +14 new F5 tests), 1 skipped (unchanged), 23 test files. No pass-to-fail transitions.
+- A7: `npm run build` exit 0 (73 modules), `npm run test` 392 passed + 1 skipped, `npm run lint` exit 0.
+- A8: em-dash grep empty (confirmed above).
+- A9: forbidden vocab scan on added lines: zero hits for worldview/believes/thinks/understands. S1-S4 strings describe position stability and bootstrap convergence; no anthropomorphization.
+- A10: no new dependency. No schema change. No Python file edits.
+- A11: DESIGN_SYSTEM.md §3.3.5 impl req 12 block added in same commit. Version bumped v0.21.1 to v0.22.0. Closing version string updated. B5 invariant honored: document uses "R1-a sub-state" not "fourth R1 state".
+- A12: this F5 section appended to this verdicts file.
+- A13: single commit. Subject byte-identical to plan specification.
+
+**Tester:** PASS. `npm run build` exit 0 (73 modules, 0 errors). `npm run test` 392 passed + 1 skipped (23 test files). `npm run lint` exit 0, 0 warnings. `uv run pytest` 2003 passed (no Python files touched; safety check confirms Python suite unaffected). `uv run ruff check .` all checks passed. `uv run mypy packages/` no issues (77 source files). Pre-task baseline 378 passed + 1 skipped (22 test files); post-task 392 passed + 1 skipped (23 test files). Delta: +14 active tests (6 in MDSPlot.test.tsx F5 block, 4 in TermMap.test.tsx F5 block, 4 in new Focus2FamilySimilarity.test.tsx). No test transitioned from pass to fail or pass to skip.
+
+**Pinned source lines (plan A13 reference):**
+- `apps/dashboard/src/components/MDSPlot.tsx` (line 204 guard replaced; line ~248 R1-a dot degenerate branch; line ~312 tooltip S1 conditional)
+- `apps/dashboard/src/components/TermMap.tsx` (line 738 guard replaced; line ~768 term-dot aria-label branch)
+- `apps/dashboard/src/components/Focus2FamilySimilarity.tsx` (line 182 guard replaced; line ~222 family-member dot aria-label branch)
+
+**CDA SME ruling reference:** `.claude/agent-memory/cda_sme/project_f5_degenerate_ellipse_verdict.md` (S1-S4 bound strings, B1-B10 notes). F2 semantic authority: `.claude/agent-memory/cda_sme/project_t_mds_r1_verdict.md`.
