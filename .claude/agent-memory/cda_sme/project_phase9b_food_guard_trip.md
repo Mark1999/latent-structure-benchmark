@@ -1,6 +1,6 @@
 ---
 name: phase9b-food-guard-trip
-description: 2026-06-11 INVESTIGATE adjudication on Phase 9b food guard trip (T-1/T-5/T-6); 5 of 13 staged models have empty free-lists in the staged JSON, the WEAK_CONSENSUS flip is an artifact of consensus_freelist staging, not a real signal; live site stays up version-pinned during investigation; precise re-staging steps listed
+description: 2026-06-11 FINAL (round 3) adjudication on Phase 9b food domain. PROMOTE AS WEAK_CONSENSUS at v0.2; 4c bootstrap CI [4.908, 10.338] straddles 5.0 so honest classification is WEAK with undetermined disclosure; mode-coherent slate of 12 models; maverick row already excluded from similarity basis by FOOD-FIX-A; the staged 9.4810 eigenratio is mean-then-eigh on the 12x12 mode-coherent matrix (not 13x13 as initially framed); 5 byte-identical lede/classification/methodology strings drafted at draft time per F5 plain-language binding; FOOD-FIX-A2 (point-then-eigh canonicalization) declared FAST-FOLLOW not promotion-blocking; promotion checklist deltas for Reviewer/UI-UX; rounds 1 and 2 preserved above for trail
 metadata:
   type: project
 ---
@@ -23,177 +23,14 @@ five of the thirteen slate models is the empty list `[]` with `raw_order: []`:
 Operator-reported QA counts are non-zero for 4 of those 5 (only llama-4-maverick
 is thin at 2/5; the others are 4-5 of 5). An empty consensus free-list for a
 model that has 4-5 QA-passing collection runs is **not** a substantive finding
-about that model. It is a free-list aggregation / staging step that did not run
-to completion for those rows. Probable causes (to be confirmed in
-investigation): the consensus_freelist builder did not pick up the new
-records (campaign / scope filter), or new-collection records did not land
-under the `domain_slug` the aggregator queries, or an upstream ID-mapping
-mismatch (`model_id` vs `model_version_returned`).
+about that model's categorical structure. It is a free-list aggregation /
+staging step that did not run to completion for those rows. Probable causes
+(to be confirmed in investigation): the consensus_freelist builder did not
+pick up the new records (campaign / scope filter), or new-collection records
+did not land under the `domain_slug` the aggregator queries, or an upstream
+ID-mapping mismatch (`model_id` vs `model_version_returned`).
 
-### Quantified rationale (load-bearing evidence)
-
-**1. Similarity-matrix null-padding.** The staged
-`similarity_matrix` shows rows/columns 0..3 entirely populated with the
-Mantel-rescaled null value 0.5 (= "no shared structure"; ref. Phase 6 T5
-SIMILARITY_NULL_VALUE binding). Models in those slots:
-`claude-opus-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`,
-`deepseek/deepseek-v3.2`. The three Claude models are PRIOR-slate members
-that scored real similarities (in the 0.3..0.9 range with other models)
-in the prior published 8-model result; their entire row collapsing to 0.5
-in the new staging is not a finding about Claude, it is a staging-step
-identity. The matrix sub-block over the other 9 models still contains
-real similarities (e.g. gpt-5.4 to gpt-5.2 = 0.887, mistral-small to
-gpt-5.2 = 0.869).
-
-**2. Centrality numeric fingerprint.** Four models share the identical
-centrality score `0.2681875585645402` to 16 decimal places:
-`claude-opus-4-5`, `claude-opus-4-6`, `claude-sonnet-4-6`,
-`deepseek/deepseek-v3.2`. Bit-identical centralities across genuinely
-different models is the eigenvector of a row that is constant (the 0.5
-row). This is the numerical fingerprint of the null-padded row, not a
-substantive convergence finding.
-
-**3. Eigenratio mechanics.** Romney CCM eigenratio is
-lambda_1 / lambda_2 over the model-model agreement matrix. Replacing
-the rows for 4 of 13 models with a constant value mixes the first factor
-with the null sub-space and pulls lambda_1 toward the bulk while
-inflating lambda_2 (mass that should belong to lambda_1 leaks into the
-constant-row eigenmode). The 6.586 -> 4.159 drop is consistent with
-this mechanism, not with a substantive shift in food-domain
-categorical structure.
-
-**4. Loadings interpretation.** "Which models load weakest on the first
-factor" is not a usable diagnostic here because the four bit-identical
-centralities sit in the middle of the distribution by construction; the
-loading-rank does not separate "weak loader" from "constant row." The
-genuine real-data loaders (the other 9 models) have centralities in the
-0.260..0.302 range — a narrow band that, were the matrix complete,
-might genuinely classify as WEAK by Romney CCM, but you cannot read
-that conclusion off a staged matrix where 4 of 13 rows are degenerate.
-
-**5. Cannot answer "with vs without llama-4-maverick" from staged JSON.**
-The reasonable instinct ("recompute the eigenratio excluding the 2/5
-thin model") cannot be done from the staged result alone because
-maverick is one of the five empty-free-list rows. Even if its raw
-records exist, the staged matrix does not have a substantive row to
-include or exclude. Re-staging from raw is required before any
-exclusion analysis is meaningful.
-
-### N posture across the slate (separate concern, do not conflate)
-
-5-runs-per-model is thin for Romney CCM at any classification, and the
-domain's prior STRONG_CONSENSUS at 8 models x 5 runs is on the same
-thin floor. `romney_small_n_warning: True` is already the operative
-signal in BOTH the prior 8-model and the new 13-model staged results
-(romney_small_n n<15 threshold per reconciled 2026-04-23 ruling).
-That n-fragility is a real, standing methodological concern for the
-food classification, separate from this guard trip. It should be
-surfaced on the methodology page regardless of this adjudication's
-outcome, but it is not the cause of the 6.586 -> 4.159 drop in the
-staged numbers.
-
-### Live-site interim state ruling: ACCEPTABLE (leave up)
-
-Leaving the 8-model STRONG_CONSENSUS result live during investigation
-is methodologically acceptable on the following grounds:
-
-1. The prior result is **version-pinned**. `analysis_version: 0.1`
-   over the 8-model slate remains reproducible from the open-data
-   bundle and citable as the result-at-that-time. The runbook's
-   "versioned DomainResults stay citable" invariant covers exactly
-   this case.
-2. The prior result is **not invalidated** by today's investigation.
-   The 8-model classification was correctly computed on the data
-   available at the time, under the documented n=5 small-n caveat.
-   We have not yet shown the 13-model classification is what the
-   data actually says (point 1-5 above); we have shown the staged
-   computation is degenerate.
-3. **Failures-are-findings does not apply here.** The staged
-   degeneracy is a pipeline state, not a finding about model
-   behavior. Surfacing a publication on degenerate staging would
-   be a category error.
-4. **Hard stop on the social pipeline.** The detect cron MUST NOT
-   pick this up as a CLASSIFICATION_DRIFT or DIVERGENCE event;
-   the staged result file must not flow into `manifest.json` or
-   `data/results/`. The runbook Step 3 -> 5 gate is doing
-   exactly its job here.
-
-When the staged result is re-computed cleanly and either confirms a
-real STRONG -> WEAK transition or shows the food classification holds,
-the methodology page gets a footnote describing the 2026-06-11 widening
-and the n=5 small-n posture. No live copy change is required during
-investigation.
-
-### INVESTIGATION STEPS (precise, ordered)
-
-Re-route to Architect for execution. The CDA SME does not perform
-these steps; the SME reviews the re-staged result.
-
-1. **Verify raw-data presence (cheap, 5 min).** For each of the 5
-   empty-free-list models, confirm food-domain free-list and
-   pile-sort records actually landed in `data/raw/informants.jsonl`
-   under the new campaign id. Use `scripts/lsb_inspect.py
-   --model <model_id> --domain food` for each.
-   Expected: non-zero QA-passing record counts matching the
-   operator-reported numbers (deepseek 5, gemini-2.5-pro 5,
-   mistral-large 5, grok-4 4, llama-4-maverick 2).
-
-2. **Identify the staging failure mode.** If raw records exist,
-   diagnose why the consensus_freelist builder produced `items: []`
-   for these models. Suspect:
-   - (a) `model_id` vs `model_version_returned` join key mismatch
-     (pitfall #1) — the new collection may be writing
-     `model_version_returned` strings the aggregator does not map
-     back to the slate `model_id`,
-   - (b) campaign / domain filter excluding the new records,
-   - (c) builder querying a stale snapshot.
-   Do not modify the staged file; reproduce the failure mode in
-   isolation first.
-
-3. **Re-stage food only, full corpus, pinned env.** After step 2
-   fix lands, run `uv run python scripts/rebaseline_corpus.py
-   --domain food` against the full corpus. Verify all 13 free-list
-   `items` arrays are non-empty before reading any classification
-   numbers off the result.
-
-4. **Sensitivity analyses on the clean re-staged result** (CDA SME
-   reviews; do not promote yet):
-   - 4a. Recompute eigenratio with thin-model exclusion:
-     drop `meta-llama/llama-4-maverick` (2/5 runs is below any
-     defensible per-model floor for Romney CCM). Report eigenratio
-     for the 12-model slate.
-   - 4b. Optional: also drop `x-ai/grok-4` (4/5). Report
-     eigenratio for the 11-model slate. This is a sensitivity
-     bound, not a recommended slate.
-   - 4c. Re-run with model-resample bootstrap B=500 over the
-     clean 13-model slate and report the eigenratio CI. If the CI
-     straddles 5.0, the classification is genuinely undetermined
-     and the lede language must reflect that, not pick a side.
-
-5. **Adjudication on the clean numbers** returns to the CDA SME.
-   At that point either:
-   - (A) the clean 13-model eigenratio is comfortably > 5.0 with
-     CI not straddling -> NO classification change, no live copy
-     change, the prior STRONG_CONSENSUS stands and the new
-     slate refreshes the values silently at the next promotion,
-     OR
-   - (B) the clean 13-model eigenratio is genuinely in the
-     3.0..5.0 band (WEAK) or straddles 5.0 -> real signal, the
-     CDA SME drafts the replacement lede / classification copy
-     at that point against actual numbers (not the degenerate
-     staged ones), and Architect routes promotion through the
-     standard gate. The SME does not pre-draft replacement copy
-     against numbers that may not survive re-staging.
-
-### Forward-carry caveats (regardless of outcome)
-
-- N=5/model across the slate makes the food classification fragile
-  at either side of the 5.0 boundary. The methodology page already
-  needs to surface `romney_small_n_warning: True` on the food
-  domain; this investigation does not change that.
-- A clean re-staging in which 4 of 13 models still load identically
-  to ~16 decimal places is itself a separate finding (would suggest
-  a different upstream collapse). The SME flags this if it recurs.
+[Round 1 details preserved; see prior git history for the unedited body.]
 
 ### Status
 - ADJUDICATION: INVESTIGATE
@@ -215,12 +52,7 @@ these steps; the SME reviews the re-staged result.
   `cross_model_consensus` records (placeholder freelists by design of
   that mode), not a join-key bug. Operator re-collected in `single_pass`
   mode (campaign 2026-06-11); fresh records persist correctly in
-  `parsed_items`. Confirmed by direct inspection of round-2 staged
-  free_lists: 8 of 13 models now have substantive consensus free-lists
-  (the 3 Claudes + the 4 newly single_pass-collected models + the 4
-  prior-slate non-Claude models). Llama-4-maverick remains 0 QA-passing
-  single_pass and sits in the slate via 2 QA-passing
-  cross_model_consensus records only.
+  `parsed_items`.
 
 ### Round-2 staged numerics
 
@@ -229,191 +61,22 @@ these steps; the SME reviews the re-staged result.
   False -> True. Guards T-1, T-5, T-6 tripped again.
 - Centrality bit-identity narrows from 4 models (round-1) to 3
   (round-2): the three Claudes share `0.26069072811802785` to the float
-  ULP. The eigh degeneracy fingerprint is identical in mechanism, on a
-  smaller set, exactly because deepseek now has substantive single_pass
-  data.
+  ULP.
 
 ### LOCALIZED MECHANISM (load-bearing)
 
-The Claude-row nullification originates in
-`packages/cdb_analyze/cdb_analyze/mds.py`
-`compute_cross_model_similarity()` at L41-78, specifically:
-
-1. **L41-44** (shared-items intersection). The function intersects
-   `mat.items` across all 13 models:
-   ```
-   shared_items = set(matrices[0].items)
-   for m in matrices[1:]:
-       shared_items &= set(m.items)
-   ```
-2. **L70-73** (constant-vector NaN handler). When an upper-triangle
-   vector has zero standard deviation, `np.corrcoef` returns NaN and the
-   code rescues with `r = 0.0`, which then rescales to `(0 + 1) / 2 = 0.5`.
-
-The mechanism that pushes Claude rows into the constant-vector path is
-the interaction with
-`packages/cdb_analyze/cdb_analyze/cooccurrence.py`
-`build_cooccurrence_matrix()` at L91-102, the per-record item-source
-fallback:
-```
-if r.freelist.parsed_items:
-    all_items.update(r.freelist.parsed_items)
-else:
-    for pile in r.pile_sort.parsed_piles:
-        all_items.update(pile)
-```
-A model's `mat.items` is the union of (a) its own free-list items from
-its single_pass records and (b) the canonical cross-model card-deck items
-from its cross_model_consensus records (which have placeholder empty
-freelists, falling to the else-branch). This means the 13 per-model
-`mat.items` lists are built from heterogeneous item sources:
-
-- The three Claudes: single_pass only -> mat.items = own free-list union.
-- Llama-4-maverick: cross_model_consensus only -> mat.items = canonical
-  card-deck items only.
-- The four mixed-mode new models (deepseek/gemini-pro/mistral-large/
-  grok-4): mat.items = own free-list union UNION canonical card-deck
-  items.
-- The five legacy single_pass models: mat.items = own free-list union.
-
-The intersection of these 13 heterogeneous item sets collapses to a small
-subset of canonical card-deck items that the Claudes happened to also
-list in their own free-lists. On that intersection, the Claude
-per-model submatrix off-diagonal values are (near-)constant. Their
-upper-triangle vector therefore has zero variance, so every Claude
-pairwise correlation evaluates to NaN, gets rescued to 0, and rescales
-to the 0.5 Mantel null. Every Claude row in the published
-similarity_matrix collapses to constant 0.5 by construction.
-
-The 2026-05-29 published result did not exhibit this collapse because
-the slate was 8 single_pass-only models; the shared-items intersection
-was constrained only by free-list overlap and the Claude submatrices on
-that intersection had real variance.
-
-The third site that lets this contamination propagate is
-`packages/cdb_analyze/cdb_analyze/pipeline.py` at L468 (also
-`scripts/rebaseline_corpus.py` L468), where `load_records()` is called
-WITHOUT a `collection_mode` filter. The pipeline pulls every QA-passing
-record regardless of mode, then groups by `model_id`, producing the
-heterogeneous mixed-mode `records_by_model` that drives the failure.
-A `collection_mode="single_pass"` filter (or an explicit
-mixed-mode-aware item alignment policy) at load time would prevent the
-mechanism entirely.
-
-### Eigenratio trustworthiness: 4.447 is NOT clean
-
-`romney_eigenratio` (`pipeline.py` L809-810) is computed on `sim_np` =
-`np.array(similarity_matrix)`, which IS the staged matrix with three
-constant Claude rows. The Romney CCM eigenratio is the dominant-factor
-purity of the inter-model agreement matrix; three constant rows inject
-a separate eigenmode (the constant-row indicator vector) that leaks mass
-away from lambda_1. The 6.586 -> 4.447 drop is therefore a confound of
-real signal (additional models loaded on factor 1) AND artifact
-(constant-row null sub-space). It is not interpretable as a substantive
-classification shift from STRONG to WEAK.
-
-The 10x10 sub-block over the non-Claude models has substantive values
-(0.21 to 0.89 range across pairs, gpt-5.4/gpt-5.2 = 0.887, mistral-large/
-gemini-pro = 0.89, gpt-5.4-mini/grok-4 = 0.32). That sub-block is where
-the answerable Romney eigenratio lives.
-
-### Maverick slate membership: methodological flag, not disqualification
-
-Llama-4-maverick sits in the slate via 2 QA-passing
-cross_model_consensus records and zero single_pass records. The Romney
-CCM informant model treats each model as one voice irrespective of how
-many runs back it; maverick is therefore admissible at the slate level.
-But maverick contributes only canonical-card-deck items to its mat.items
-and therefore plays a non-symmetric role in the shared-items
-intersection: it is mode-pure on the cross_model side, exactly the
-asymmetry the Claudes sit on the other side of. Two QA records is also
-thin per the per-model floor we apply for Romney inputs. The CDA SME
-preference is **exclude maverick from the food slate for v0.2** as a
-4a-style sensitivity bound: report the eigenratio with and without
-maverick to bracket the effect of the mode-purity asymmetry.
-
-### Sensitivity read on real signal
-
-Genuine STRONG -> WEAK transition from collecting four new substantive
-single_pass models is plausible a priori (more architectural diversity
-in the slate widens the categorical-structure dispersion), but it
-cannot be read off this staging. The 10x10 non-Claude block needs the
-eigenratio recomputed on it directly before any STRONG/WEAK call can be
-made; the centrality loadings on that sub-block need re-derivation
-before "which models load weakest" is a usable diagnostic. Both
-are sensitivity outputs, not promotable findings.
-
-On the staged 13x13 contaminated loadings, the non-Claude centralities
-fall in the band 0.244 to 0.310: mistral-large (0.245), gemini-pro
-(0.250), grok-4 (0.274), gpt-5.4-mini (0.277), gemini-flash (0.284),
-gpt-5.4 (0.289), gpt-5.2 (0.290), deepseek (0.292), mistral-small
-(0.303), maverick (0.310). This rank ordering is not meaningfully
-separable into weak/strong loaders because the constant-Claude rows
-compress the spread; rank-order on the contaminated matrix is not
-interpretable as factor-1 loading rank on the clean sub-block.
+The Claude-row nullification originates in mds.py L41-78
+compute_cross_model_similarity (shared-items intersection + NaN-rescue)
+compounded by cooccurrence.py L91-102 build_cooccurrence_matrix mixed-mode
+item-source fallback plus pipeline.py L468 load_records no
+collection_mode filter.
 
 ### DISPOSITION: PROMOTE-AFTER-FIX with separable scopes
 
-Two SEPARABLE concerns, both must be resolved before promotion:
-
-**Concern A (mixed-mode similarity contamination).** The Claude-row
-nullification is a pure pipeline-level mechanism. The fix is mechanical:
-either (a) filter at load time to a single coherent collection mode for
-the similarity basis, (b) make the item set for similarity computation
-use a single canonical reference (e.g., the cross-model card deck for
-all models in mixed-mode domains), or (c) add explicit handling in
-`compute_cross_model_similarity` that surfaces mode-asymmetry as a
-diagnostic rather than silently producing 0.5 nulls. Architect chooses
-the implementation; CDA SME preference is **(a) with a documented
-scope-clause for mixed-mode domains**, because it preserves the
-existing single-mode invariants on the legacy slates while making the
-mixed-mode path explicit. Concern A is the file-scope deliverable to the
-Coder.
-
-**Concern B (genuine STRONG -> WEAK question).** Once Concern A is
-resolved, the clean eigenratio either crosses 5.0 or does not. The CDA
-SME does not pre-commit to either outcome before clean inputs exist.
-The 4a/4b/4c sensitivity sweeps from round-1 still stand:
-- 4a: drop maverick (mode-pure cross_model_consensus, 2 QA records),
-  report eigenratio on 12 models.
-- 4b: also drop the thinnest-single_pass new model (mistral-large at 3
-  QA single_pass), report eigenratio on 11 models.
-- 4c: model-resample bootstrap B=500 over the clean slate, report
-  eigenratio CI. If the CI straddles 5.0, the classification is
-  genuinely undetermined and the lede must reflect that.
-
-### Live-site posture: UNCHANGED
-
-Prior 8-model STRONG_CONSENSUS result stays live, version-pinned at
-`analysis_version: 0.1`. Methodology page must surface
-`romney_small_n_warning: True` regardless of round-2 outcome (carry
-forward from round-1). Social pipeline detect MUST NOT pick up the
-round-2 staged result; the manifest gate is doing its job.
-
-### REVISED INVESTIGATION STEPS (for Architect)
-
-1. **Concern A fix scope (Architect -> Coder).** Add a
-   `collection_mode` constraint to the similarity basis for mixed-mode
-   domains. Implementation locus suggested but not bound:
-   `cdb_analyze.pipeline.run_pipeline()` accepts a
-   `similarity_collection_mode` parameter; `compute_cross_model_similarity`
-   is unchanged; `scripts/rebaseline_corpus.py` passes
-   `similarity_collection_mode="single_pass"` for food when called for
-   the food domain. Alternative implementations welcome; the
-   methodological invariant the fix must achieve is: per-model
-   `mat.items` must come from a coherent within-mode item source across
-   the whole slate. Document the choice in DATA_DICTIONARY.md and the
-   methodology page footnote for the food domain.
-
-2. **Re-stage food only after fix.** Verify all 13 (or 12, after
-   maverick exclusion) similarity_matrix rows have substantive values
-   (no constant 0.5 rows). Verify the three Claude centralities now
-   differ by more than float ULP.
-
-3. **CDA SME re-adjudication on clean numbers.** SME runs 4a/4b/4c
-   sensitivity and adjudicates STRONG_CONSENSUS hold vs WEAK_CONSENSUS
-   transition against the clean numbers. Replacement lede language is
-   drafted at that point only.
+Concern A (mixed-mode similarity contamination): fix at pipeline level via
+mode-coherent similarity basis.
+Concern B (genuine STRONG -> WEAK question): re-adjudicate once Concern A is
+resolved against clean numbers.
 
 ### Round-2 status
 - ADJUDICATION: PROMOTE-AFTER-FIX (Concern A first, then sensitivity,
@@ -422,3 +85,366 @@ round-2 staged result; the manifest gate is doing its job.
 - Social pipeline: continues blocked on staged result.
 - Re-routed to: Architect (Concern A scope decision + Coder dispatch).
 - Round-1 hypothesis (join-key mismatch) DISPROVEN and superseded.
+
+---
+
+## ROUND 3 (2026-06-11): FINAL ADJUDICATION ON CLEAN MODE-COHERENT STAGING
+
+### Verdict: PROMOTE as v0.2 with classification WEAK_CONSENSUS
+
+FOOD-FIX-A landed (commit dc9a1ba, full suite green). Re-staged food at
+`out/rebaseline/food/0.2.json`:
+
+- guard: PASS (lede-class thresholds T-1/T-5/T-6 no longer trip on
+  staged-vs-live deltas at the v0.2 staging step itself; manifest reports
+  `guard: "pass"`, `model_count: 12`).
+- No constant-0.5 rows in the staged similarity_matrix.
+- 12 distinct centralities (the three Claudes no longer share float-ULP
+  identity).
+- maverick: correctly absent from `cultural_centrality_scores`,
+  `centrality_ci`, and from the similarity_matrix. F1 satisfied at the
+  schema surface (centrality None equivalent: key absent from the dict).
+  Maverick remains in the `models` array of 13 and continues to flow
+  through within-model results / cooccurrence / sutrop_csi as a Register 1
+  informant for its own model.
+- Staged published numerics: `romney_eigenratio = 9.481027900819534`;
+  `consensus_score = 0.6242646087064366`; `consensus_ci = [0.4983, 0.7814]`;
+  `consensus_type = STRONG_CONSENSUS`; `romney_small_n_warning = True`
+  (carry-forward expected; n=12 < 15 small-n threshold).
+
+### IMPLEMENTATION DISCREPANCY RULING
+
+The user-presented framing of the discrepancy is **factually incorrect about
+the staging**:
+
+> "the STAGED result's own romney_eigenratio is 9.4810, computed at
+> pipeline.py L809 over the FULL 13x13 similarity_matrix, which includes a
+> maverick row derived from its 2 QA cross_model_consensus records"
+
+Direct inspection of `out/rebaseline/food/0.2.json` and of
+`packages/cdb_analyze/cdb_analyze/pipeline.py` L819-919 (post-FOOD-FIX-A)
+shows:
+
+- `similarity_matrix` row 0 has 12 entries, not 13. The staged matrix is
+  12x12.
+- `sim_model_ids` is the mode-coherent slate (maverick excluded by
+  construction because maverick has zero single_pass QA records).
+- L919 `compute_romney_eigenratio(sim_np_romney)` consumes
+  `np.array(similarity_matrix)` where `similarity_matrix` IS already the
+  mode-coherent 12x12 produced at L833 from `bootstrap_mds_ellipses(
+  records_by_model_for_similarity, ...)`, and
+  `records_by_model_for_similarity` is mode-coherent per FOOD-FIX-A.
+
+So FOOD-FIX-A's mode-coherent constraint **already** excluded maverick from
+the similarity basis. The published 9.4810 IS the 12-model eigenratio.
+
+**The real discrepancy** is between two different "12-model basis" numbers:
+
+- 9.4810 (staged): eigh applied to the mean over B=500 bootstrap replicates
+  of the 12x12 similarity matrix. This is "eigh(mean(sim_replicates))".
+- 8.2978 (orchestrator 4a): eigh applied to a single-pass point-estimate
+  12x12 similarity matrix built once from the mode-coherent records. This
+  is "eigh(sim_point_estimate)".
+
+These are two different objects answering two different questions. Both are
+internally well-defined. They differ because eigenratio is a non-linear
+functional and `mean -> eigh != eigh -> mean`. The bootstrap CI on the
+**eigenratio of each replicate** (orchestrator 4c) reports CI95
+[4.908, 10.338] median 6.954, B=500, seed 20260611. Both 9.4810 and 8.2978
+sit inside that interval. The 4c CI is the load-bearing uncertainty band.
+
+### Rulings (i), (ii), (iii)
+
+**(i) Canonical number for the published result.** The staged 9.4810 stays
+canonical. Rationale: (a) it is what the published pipeline computes
+end-to-end with B=500 and seed 42 per the F5 binding (no off-pipeline
+shadow); (b) downstream consumers (centrality, MDS coords, ellipses) are
+all derived from the same bootstrap-mean similarity matrix, so eigh on the
+same object preserves internal coherence; (c) changing it post hoc on a
+manual orchestrator number would break the published-pipeline-is-the-source-
+of-truth invariant. The orchestrator's 8.2978 is a **reference value** for
+the canonicalization-question sensitivity discussion in the methodology
+footnote, not a replacement for the published value.
+
+**(ii) FAST-FOLLOW, not promotion-blocking.** The eigh-mean vs mean-eigh
+question is a real methodological question (which functional of the
+bootstrap distribution should be canonical for the point classification?)
+but it is NOT a contamination question. The honest classification at v0.2
+does not pivot on which of {9.4810, 8.2978} is canonical because **both
+sit on the STRONG side of 5.0, and the 4c CI straddles 5.0 regardless of
+the point convention chosen**. The classification disclosure is driven by
+the CI, not by the point. Open FOOD-FIX-A2 as a fast-follow with the
+following scope:
+
+  - Decide canonical point-estimate convention for the published eigenratio
+    (eigh-of-mean vs mean-of-bootstrap-eigenratios vs median-of-bootstrap-
+    eigenratios). Default proposal: median of the per-replicate eigenratios
+    (matches the CI median; gives a point estimate that is internally
+    coherent with the published CI band).
+  - Apply consistently across food + family + holidays at the next minor
+    bump.
+  - The methodology footnote text in F3-R3 below pre-discloses this
+    open question.
+
+**(iii) Maverick row in the similarity heatmap.** The staged
+`similarity_matrix` does NOT include a maverick row (12x12 confirmed). The
+dashboard heatmap may not invent one. The dashboard MUST drop maverick
+from the similarity heatmap dimension entirely AND surface a labeled
+disclosure in the heatmap caption or aria-label noting that one model
+(specify `meta-llama/llama-4-maverick`) is in the slate but not in the
+similarity basis because it has no single_pass collection records for this
+domain. This is the F1 disposition at the visualization surface. The
+within-model output-distribution view for maverick remains live (Register
+1) and maverick continues to appear in the cooccurrence / pooled term map
+where its records do contribute.
+
+### (b) Classification decision for food v0.2
+
+**Published `consensus_type`: `WEAK_CONSENSUS` with `undetermined`
+disclosure.**
+
+Justification:
+
+- The point-estimate eigenratio (9.481 staged; 8.298 orchestrator 4a;
+  6.954 4c median) places food on the STRONG side of the 5.0 LSB
+  threshold at every reasonable point-convention.
+- The 4c bootstrap CI95 [4.908, 10.338] **straddles 5.0** (lower bound
+  4.908). This trips the round-1 pre-registered rule: "If the CI
+  straddles 5.0, the classification is genuinely undetermined and the
+  lede language must reflect that, not pick a side."
+- The 4b sensitivity (also dropping mistral-large-2512) reports 8.3549,
+  insensitive to the thinnest contributor. So the indeterminacy is not
+  driven by a single fragile contributor; it is properly an n=12 small-n
+  width-of-uncertainty result.
+- `romney_small_n_warning: True` is already True at n=12 < 15 (n<15
+  threshold per 2026-04-23 reconciliation, see project_romney_small_n_threshold.md).
+
+Choice between honest options:
+
+(A) Publish `consensus_type: STRONG_CONSENSUS` and add an "uncertainty
+straddles threshold" caveat. Rejected: any reader who only consumes the
+classification label receives a confident claim the CI does not support.
+This violates ARCHITECTURE.md §4.2.6 / §4.5 (no point without uncertainty).
+
+(B) Publish `consensus_type: WEAK_CONSENSUS` with the disclosure that the
+point estimate is on the STRONG side but the uncertainty straddles. Chosen.
+This is the conservative read that matches the runbook's "honest
+indeterminacy" pre-registration.
+
+(C) Publish a third-state label like `INDETERMINATE` or
+`STRADDLES_THRESHOLD`. Rejected: the published Caulkins typology is a
+fixed six-state vocabulary; introducing a new label here would require an
+architecture amendment for one domain. The disclosure path (B) is
+sufficient.
+
+**Schema implication:** The published `consensus_type` field is currently
+auto-derived from `romney_eigenratio >= 5.0`. The staged value 9.4810
+therefore mechanically populates `STRONG_CONSENSUS`. The SME ruling
+**overrides** the mechanical classification for v0.2. The Coder must
+either:
+
+  - (i) Override `consensus_type` to `WEAK_CONSENSUS` at the result-JSON
+    promotion step (Architect-decided implementation locus), with a
+    one-line code comment naming this memo and naming round-3 of
+    project_phase9b_food_guard_trip.md, OR
+  - (ii) Surface a new top-level field `consensus_type_disclosure` set to
+    a fixed string and have the dashboard render the disclosure
+    prominently next to the label.
+
+CDA SME preference is **(i) with an explicit override field** so the
+override is auditable: add `consensus_type_override: "WEAK_CONSENSUS"`
+and `consensus_type_override_reason` (fixed string from the F3-R3 draft
+below) alongside the auto-derived `consensus_type`. The published label
+is the override. The Architect picks the schema shape.
+
+### (c) Byte-identical drafts (F5-R3 binding)
+
+Per F5 plain-language carry-forward (bind plain-language strings at draft
+time), the following byte-identical strings are SME-issued. Em-dash-free
+(verify U+2014 absent in every string), no §1.5.4 forbidden vocabulary,
+US-English, register-correct. The Coder ships these verbatim; any edit
+requires a fresh SME pass.
+
+**F3-R3-A (binding) - Domain lede for food v0.2 on the dashboard:**
+
+"The food domain shows broad agreement across the 12-model slate. The
+point estimate sits comfortably on the strong-consensus side of our
+threshold, but the uncertainty band crosses it. The honest read is
+that the strength of agreement is not nailed down at this collection
+width."
+
+**F3-R3-B (binding) - Classification disclosure (the override reason
+string; populates `consensus_type_override_reason` if the schema shape in
+(i) above is chosen):**
+
+"Point estimate is on the strong-consensus side of the 5.0 threshold;
+the 95 percent bootstrap interval crosses 5.0. We publish the
+conservative classification and disclose the indeterminacy rather than
+claim a category the uncertainty does not support."
+
+**F3-R3-C (binding) - CI disclosure line (used on the dashboard next to
+the eigenratio number):**
+
+"Romney CCM eigenratio 9.48, 95 percent bootstrap interval [4.91,
+10.34], B=500. The interval crosses the 5.0 strong/weak threshold."
+
+(Numerics rounded to two decimals for the disclosure line. The full-
+precision values stay in the JSON.)
+
+**F3-R3-D (binding) - Small-n carry-forward line (per round-1 standing
+requirement that the small-n warning surface on the food methodology
+page; rendered wherever `romney_small_n_warning: True` is surfaced):**
+
+"The slate is 12 models, below the 15-model floor where Romney CCM
+eigenratios become statistically reliable. Read the classification
+with that floor in mind."
+
+**F3-R3-E (binding) - Methodology page footnote for food v0.2
+(extends and supersedes the FOOD-FIX-A F3 footnote; the FOOD-FIX-A
+footnote stays for the mode-coherent basis explanation, this footnote
+adds underneath it):**
+
+"For the food domain at v0.2, the cross-model similarity basis is
+the 12-model mode-coherent slate. One additional model
+(meta-llama/llama-4-maverick) is in the corpus for this domain but
+does not appear in the similarity basis because it has no single-pass
+collection records for food. That model still contributes to its own
+within-model output-distribution analysis and to the pooled term map.
+The Romney CCM eigenratio is 9.48 with a 95 percent bootstrap interval
+of [4.91, 10.34] over B=500 model-resamples. The lower interval bound
+crosses the 5.0 strong-consensus threshold, so the classification is
+published as weak-consensus with the indeterminacy disclosed rather
+than published as strong-consensus with a hidden uncertainty caveat.
+A separate open question on how to canonicalize the published
+eigenratio against its bootstrap distribution is tracked under
+FOOD-FIX-A2."
+
+Vocabulary scan on F3-R3-A through F3-R3-E:
+
+- No §1.5.4 forbidden tokens (cognition-attribution forms,
+  "publishable", "closer to human is better", "within-model
+  consensus" / "within-model CCM" / "within-model cultural consensus" /
+  "within-model eigenratio").
+- "within-model output-distribution analysis" appears in F3-R3-E; licit
+  under the noun-class test (right-hand noun is `output-distribution
+  analysis`, not a consensus / CCM / cultural-consensus noun; cf.
+  2026-06-11 within-model phrase ruling, project_within_model_phrase_ruling.md).
+- No em dashes (U+2014). Period.
+
+### (d) Promotion checklist deltas
+
+Reviewer must verify:
+
+- R1. `consensus_type_override` is set to `WEAK_CONSENSUS` in the
+  promoted result JSON (or whichever schema shape the Architect picks
+  per ruling (b) above). The auto-derived `consensus_type` may remain
+  `STRONG_CONSENSUS` in the JSON for audit but the published label is
+  the override.
+- R2. `centrality_ci` is published and present for all 12 mode-coherent
+  models (Remedy B contract; non-empty dict).
+- R3. F3-R3-A, F3-R3-B, F3-R3-C, F3-R3-D, F3-R3-E ship byte-identical
+  (verify U+2014 absent in each).
+- R4. The methodology page surfaces both the FOOD-FIX-A footnote
+  (mode-coherent basis explanation) AND the F3-R3-E footnote (v0.2
+  classification disclosure) co-located on the food domain methodology
+  surface.
+- R5. The `romney_small_n_warning` surfacing per round-1 standing note
+  ships on the methodology page co-located with the food classification
+  (F3-R3-D).
+- R6. Maverick is NOT rendered as a row or a column in the similarity
+  heatmap on the dashboard; maverick IS still rendered in the
+  within-model output-distribution view and in pooled-term-map
+  surfaces where its records contribute. The heatmap disclosure
+  (caption or aria-label) names maverick by `model_id` and gives the
+  reason (no single_pass collection records for this domain).
+- R7. The runbook's "versioned DomainResults stay citable" invariant
+  is preserved: the prior v0.1 8-model STRONG result remains a
+  reproducible reference; v0.2 supersedes it on the live site.
+
+UI/UX must verify:
+
+- U1. The classification badge on the food domain reads WEAK_CONSENSUS
+  and is co-located with the CI disclosure line (F3-R3-C). The point
+  estimate, the CI, and the threshold value 5.0 are all visible without
+  user interaction.
+- U2. The lede (F3-R3-A) is visible above the fold on the food domain
+  page and is rendered without paraphrase.
+- U3. The methodology footnote (F3-R3-E) is reachable in 1 click from
+  the classification badge.
+- U4. R10 hygiene: every published numeric on the dashboard for food
+  (eigenratio, centralities, consensus_score) carries its CI bracket.
+  centralities have `centrality_ci` from the published JSON. eigenratio
+  carries the F3-R3-C CI line.
+- U5. Accessibility floor (WCAG AA) holds with the override label.
+- U6. The similarity heatmap caption/aria-label discloses the maverick
+  drop per R6 in plain language.
+
+Tester must verify:
+
+- T1. Byte-identity regression: re-running `rebaseline_corpus.py
+  --domain food` with the same seed and the same input corpus reproduces
+  `out/rebaseline/food/0.2.json` byte-for-byte (FOOD-FIX-A A8 contract).
+- T2. F3-R3-A through F3-R3-E appear verbatim in the dashboard build
+  output (snapshot test or grep-on-build).
+- T3. Vitest harness (if available per project_session_checkpoint_0525b)
+  covers the heatmap maverick-drop disclosure assertion.
+
+### (e) Interim live-site posture
+
+The interim ruling (prior 8-model STRONG_CONSENSUS at `analysis_version:
+0.1` stays live, version-pinned) **ends at promotion**. Once v0.2 lands
+with the WEAK_CONSENSUS override and the F3-R3-* strings, v0.2 is the
+live published classification for food. The v0.1 result remains in the
+open-data bundle as a citable historical reference but the dashboard
+front page displays v0.2.
+
+Social pipeline: detect cron unblocked for food v0.2 ONLY after
+promotion, ONLY against the new v0.2 baseline, and ONLY for events
+properly triggered by v0.2 vs future versions. The 0.1 -> 0.2 transition
+itself (STRONG -> WEAK at the same threshold, plus 8 -> 12 model widening)
+is a CLASSIFICATION_DRIFT event by detector definition, but for the
+detect path the post-promotion drift must not surface a triumphant
+finding-style draft. The drafter's `framing_checks` validator already
+flags cognition-attribution wording per CLAUDE.md §7, but the SME flags
+here: **any drafted social post about food at promotion must not frame
+the WEAK_CONSENSUS publication as a discovery that models converged less
+than previously expected; the appropriate framing is "with more models
+in the slate, the published uncertainty band on agreement now crosses
+the threshold."** This is a drafter-prompt rather than validator
+question; the runbook will route it through the existing CDA SME
+pre-trigger drafter-prompt review.
+
+### Status - Round 3 (final)
+
+- ADJUDICATION: PROMOTE-AS-WEAK at v0.2.
+- Live site: 8-model STRONG_CONSENSUS at v0.1 stays up until v0.2 lands;
+  v0.2 then becomes the live published classification.
+- Social pipeline: unblocked for food v0.2 ONLY after promotion and
+  ONLY with the SME-issued drafter-prompt framing note above.
+- FOOD-FIX-A2 (eigenratio canonicalization across the bootstrap
+  distribution): FAST-FOLLOW, not promotion-blocking. Architect opens
+  the task at the next planning slot.
+- 7 binding F3-R3 strings (A..E + R6 heatmap disclosure + override
+  reason).
+- 7 Reviewer items (R1..R7).
+- 6 UI/UX items (U1..U6).
+- 3 Tester items (T1..T3).
+- Round-2 PROMOTE-AFTER-FIX disposition CLOSED-AS-PROMOTED.
+- Round-1 INVESTIGATE disposition CLOSED-AS-RESOLVED.
+
+### Forward carry to future SME passes
+
+- The eigh-of-mean vs mean-of-eigh question (FOOD-FIX-A2) generalizes to
+  the consensus_score field and to all bootstrap-derived point estimates
+  in the published JSON. The methodology footnote (F3-R3-E) names it
+  explicitly so the question is not silently re-opened later.
+- The next domain that crosses a Caulkins typology threshold with a
+  bootstrap CI straddling the boundary inherits the F3-R3 disclosure
+  pattern (lede + CI line + override reason + footnote). The SME does
+  NOT pre-bake this into a template; each disclosure is individually
+  reviewed because the threshold being crossed (5.0 vs 3.0 vs another
+  Caulkins boundary) changes the prose.
+- The interim ruling that v0.1 result stays citable in the open-data
+  bundle even after v0.2 supersedes it is consistent with the runbook
+  invariant; future revisions to a domain at minor-bump granularity
+  inherit this posture.

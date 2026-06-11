@@ -112,3 +112,18 @@ re-adjudicates on:
 
 Replacement lede language is drafted only after clean numbers exist and the SME
 makes the STRONG/WEAK call. Not pre-staged here.
+
+---
+
+## Round 3: sensitivity sweep and final CDA SME adjudication (2026-06-11)
+
+Staging round 3 (post FOOD-FIX-A): guard=PASS, 12-model mode-coherent basis, no degenerate rows, maverick correctly basis-excluded (centrality null).
+
+**Sensitivity table (Concern B):**
+- 4a baseline (12 models): eigenratio 8.2978 (point-estimate matrix) / 9.4810 (staged, bootstrap-mean matrix; SME ruled canonical; eigh-of-mean vs mean-of-eigh canonicalization tracked as FOOD-FIX-A2 fast-follow).
+- 4b drop thinnest contributor (mistral-large, 11 models): 8.3549. Insensitive.
+- 4c model-resample bootstrap B=500: CI95 [4.908, 10.338], median 6.954. THE INTERVAL CROSSES THE 5.0 THRESHOLD.
+
+**Final adjudication (round 3, PASS-WITH-NOTES):** publish food v0.2 as WEAK_CONSENSUS via a consensus_type_override with auditable reason, per the pre-registered indeterminacy rule (point estimate strong-side, CI straddling). Five byte-identical disclosure strings (F3-R3-A..E) delivered in the SME memory; 7 Reviewer + 6 UI/UX + 3 Tester promotion checklist deltas; maverick dropped from the heatmap dimension with named disclosure; small-n warning co-located; prior v0.1 STRONG stays citable; social drafter framing note binding. Schema implication: consensus_type_override + reason fields (cdb_core change, rule 6: Architect sign-off + DATA_DICTIONARY co-update in the promotion task).
+
+**Awaiting Mark's GO/NO-GO on promotion (published-claim change).**
