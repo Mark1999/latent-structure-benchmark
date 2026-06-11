@@ -340,6 +340,7 @@ export function ContentArea({
                       similarityCi={domain.similarity_ci ?? []}
                       models={domain.models}
                       selectedModelIds={selectedModelIds}
+                      similarityModelIds={domain.similarity_model_ids}
                     />
                     {/*
                       §23.3 Heatmap model-exclusion caption (PROMOTE-FOOD-V02).

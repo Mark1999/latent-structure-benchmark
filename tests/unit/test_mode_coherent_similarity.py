@@ -351,6 +351,9 @@ def test_mixed_mode_without_filter_collapses() -> None:
 def test_mixed_mode_with_filter_no_collapse() -> None:
     """With similarity_collection_mode='single_pass', the mixed-mode corpus
     produces no constant similarity rows and no bit-identical centrality artifact.
+
+    FOOD-V02-FIX-SIMIDS: also asserts that similarity_model_ids equals the
+    expected single_pass model slate (sp-a, sp-b, sp-c; cm-d excluded).
     """
     records = _make_mixed_mode_corpus()
 
@@ -384,6 +387,25 @@ def test_mixed_mode_with_filter_no_collapse() -> None:
         f"All three centrality scores are identical ({score_a}): "
         "bit-identical centrality artifact was not eliminated."
     )
+
+    # FOOD-V02-FIX-SIMIDS T2: similarity_model_ids must equal the mode-coherent
+    # single_pass slate (sp-a, sp-b, sp-c; cm-d excluded).
+    expected_sim_model_ids = sorted(["model-sp-a", "model-sp-b", "model-sp-c"])
+    assert result_filtered.similarity_model_ids == expected_sim_model_ids, (
+        f"similarity_model_ids mismatch: "
+        f"got {result_filtered.similarity_model_ids!r}, "
+        f"expected {expected_sim_model_ids!r}"
+    )
+    # Dimensions consistent: len(similarity_model_ids) == len(similarity_matrix)
+    assert len(result_filtered.similarity_model_ids) == len(result_filtered.similarity_matrix), (
+        "similarity_model_ids length must equal similarity_matrix dimension"
+    )
+    # similarity_model_ids is a subset of model IDs in models
+    all_model_ids = {m.model_id for m in result_filtered.models}
+    for mid in result_filtered.similarity_model_ids:
+        assert mid in all_model_ids, (
+            f"{mid!r} in similarity_model_ids not found in models"
+        )
 
 
 # ---------------------------------------------------------------------------
@@ -436,6 +458,10 @@ def test_single_mode_byte_identical() -> None:
     similarity_collection_mode='single_pass' must produce byte-identical
     values for similarity_matrix, cultural_centrality_scores, romney_eigenratio,
     consensus_type, consensus_score, centrality_ci, and mds_coordinates.
+
+    FOOD-V02-FIX-SIMIDS: also asserts that similarity_model_ids equals
+    [m.model_id for m in result.models] for a single-mode corpus (all models
+    are in the similarity basis; no basis exclusion occurs).
 
     This is the regression guard protecting family and holidays (F8 binding).
     """
@@ -508,3 +534,19 @@ def test_single_mode_byte_identical() -> None:
         assert x_no == x_with and y_no == y_with, (
             f"mds_coordinates[{mid!r}] differs: ({x_no}, {y_no}) vs ({x_with}, {y_with})"
         )
+
+    # FOOD-V02-FIX-SIMIDS T2: for a single-mode corpus, similarity_model_ids
+    # must equal [m.model_id for m in result.models] (all models are in the
+    # similarity basis; no basis exclusion occurs for pure single_pass corpora).
+    expected_ids = sorted(m.model_id for m in result_no_filter.models)
+    actual_ids = sorted(result_no_filter.similarity_model_ids)
+    assert actual_ids == expected_ids, (
+        f"Single-mode corpus: similarity_model_ids {actual_ids!r} "
+        f"does not match model_ids {expected_ids!r}"
+    )
+    # Same check for the with-filter variant
+    actual_with = sorted(result_with_filter.similarity_model_ids)
+    assert actual_with == expected_ids, (
+        f"Single-mode corpus (with filter): similarity_model_ids {actual_with!r} "
+        f"does not match model_ids {expected_ids!r}"
+    )

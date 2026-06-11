@@ -165,3 +165,24 @@ Gate verdicts for the promotion commit:
 **UI/UX §23.2 (CI/small-n lines):** Applied. `.content-area__ci-disclosure` and `.content-area__small-n-line` with `var(--color-text-caption)` at `var(--font-size-xs)`. F3-R3-C and F3-R3-D sourced from `consensus_disclosure.ts`.
 
 **UI/UX §23.3 (heatmap exclusion caption):** Applied. `.heatmap-exclusion-caption` rendered below SimilarityHeatmap in ContentArea.tsx. Visible text uses `displayModel()`; aria-label carries full `model_id`. Exclusion detection: `domain.mds_coordinates` key set vs `domain.models` set difference.
+
+---
+
+## 8. FOOD-V02-FIX-SIMIDS fix trail (2026-06-11)
+
+**Task ID:** FOOD-V02-FIX-SIMIDS
+
+**Trigger:** After PROMOTE-FOOD-V02 (commit 2d5bca0), two vitest assertions in `DomainResultPublished.shape.test.ts` correctly failed for food because they asserted the legacy invariant `matrix.length == models.length` (13 models but 12x12 matrix). No published field declared the matrix row/column order, so open-data consumers could not reconstruct the index mapping.
+
+**Fix summary:** Added `similarity_model_ids: list[str] = []` to `DomainResult` in `cdb_core/schemas.py`. Populated from `list(sim_model_ids)` at the `return DomainResult(...)` site in `pipeline.py`. Injected the field into `data/results/food/0.2.json` (value = 12 sorted single_pass model IDs). Regenerated `apps/dashboard/public/data/food.json` and `food.v0.2.json` via `cdb_publish.build`. Threaded the prop through `SimilarityHeatmap` and `ContentArea.tsx`. Rewrote the two failing shape test assertions to the new gated invariant. Updated heatmap R10 test food render to pass `similarityModelIds`. DATA_DICTIONARY.md updated v0.1.27 to v0.1.28 in the same commit.
+
+**No semantic change to the food finding.** The matrix values, centrality scores, eigenratio, consensus_type_override, and lede are unchanged. Family and holidays retain the empty-default legacy invariant.
+
+**JSON-diff for data/results/food/0.2.json vs HEAD:**
+- New field: `similarity_model_ids` = `["claude-opus-4-5", "claude-opus-4-6", "claude-sonnet-4-6", "deepseek/deepseek-v3.2", "google/gemini-2.5-flash", "google/gemini-2.5-pro", "mistralai/mistral-large-2512", "mistralai/mistral-small-2603", "openai/gpt-5.2", "openai/gpt-5.4", "openai/gpt-5.4-mini", "x-ai/grok-4"]` (12 elements, sorted alphabetically, matches mds_coordinates.keys())
+- No other field changed. generated_at, generated_lede, similarity_matrix, similarity_ci, mds_coordinates, cultural_centrality_scores, models are byte-identical to the HEAD version.
+
+**JSON-diff for apps/dashboard/public/data/food.json vs HEAD:**
+- Same as above: only `similarity_model_ids` added. generated_at and generated_lede unchanged.
+
+**One commit per §8 exception** (schema + DATA_DICTIONARY co-update). Family and holidays results untouched on disk. Legacy fallback branch in the new vitest invariant keeps them green.

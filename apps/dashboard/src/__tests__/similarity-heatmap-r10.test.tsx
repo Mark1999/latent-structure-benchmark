@@ -559,12 +559,15 @@ describe("SimilarityHeatmap — production fixture dashed-cell counts (test case
       models: Array<{ model_id: string; provider: string; family: string }>;
       similarity_matrix: number[][];
       similarity_ci: ([number, number] | null)[][];
+      similarity_model_ids?: string[];
     };
-    const n = foodData.models.length;
+    // Use similarity_matrix.length (basis dimension) not models.length.
+    // food v0.2 has 13 models but 12x12 matrix (maverick excluded from basis).
+    const nb = foodData.similarity_matrix.length;
     const dashed = countDashedCells(
       foodData.similarity_matrix,
       foodData.similarity_ci,
-      n,
+      nb,
     );
     expect(dashed).toBeGreaterThanOrEqual(30);
   });
@@ -574,8 +577,15 @@ describe("SimilarityHeatmap — production fixture dashed-cell counts (test case
       models: Array<{ model_id: string; provider: string; family: string }>;
       similarity_matrix: number[][];
       similarity_ci: ([number, number] | null)[][];
+      similarity_model_ids?: string[];
     };
-    const allIds = new Set(foodData.models.map((m) => m.model_id));
+    // selectedModelIds: only the basis models (similarity_model_ids when present,
+    // else all models). This avoids selecting the maverick-excluded model which
+    // has no valid matrix row (FOOD-V02-FIX-SIMIDS: N2 pixel-identity invariant).
+    const basisIds = foodData.similarity_model_ids && foodData.similarity_model_ids.length > 0
+      ? foodData.similarity_model_ids
+      : foodData.models.map((m) => m.model_id);
+    const allIds = new Set(basisIds);
 
     render(
       <SimilarityHeatmap
@@ -583,6 +593,7 @@ describe("SimilarityHeatmap — production fixture dashed-cell counts (test case
         similarityCi={foodData.similarity_ci}
         models={foodData.models}
         selectedModelIds={allIds}
+        similarityModelIds={foodData.similarity_model_ids}
       />
     );
 
@@ -597,6 +608,7 @@ describe("SimilarityHeatmap — production fixture dashed-cell counts (test case
       models: Array<{ model_id: string; provider: string; family: string }>;
       similarity_matrix: number[][];
       similarity_ci: ([number, number] | null)[][];
+      similarity_model_ids?: string[];
     };
     const n = familyData.models.length;
     const dashed = countDashedCells(
@@ -612,6 +624,7 @@ describe("SimilarityHeatmap — production fixture dashed-cell counts (test case
       models: Array<{ model_id: string; provider: string; family: string }>;
       similarity_matrix: number[][];
       similarity_ci: ([number, number] | null)[][];
+      similarity_model_ids?: string[];
     };
     const allIds = new Set(familyData.models.map((m) => m.model_id));
 
@@ -621,6 +634,7 @@ describe("SimilarityHeatmap — production fixture dashed-cell counts (test case
         similarityCi={familyData.similarity_ci}
         models={familyData.models}
         selectedModelIds={allIds}
+        similarityModelIds={familyData.similarity_model_ids}
       />
     );
 

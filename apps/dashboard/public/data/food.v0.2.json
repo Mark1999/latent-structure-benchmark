@@ -10699,6 +10699,20 @@
       ]
     ]
   ],
+  "similarity_model_ids": [
+    "claude-opus-4-5",
+    "claude-opus-4-6",
+    "claude-sonnet-4-6",
+    "deepseek/deepseek-v3.2",
+    "google/gemini-2.5-flash",
+    "google/gemini-2.5-pro",
+    "mistralai/mistral-large-2512",
+    "mistralai/mistral-small-2603",
+    "openai/gpt-5.2",
+    "openai/gpt-5.4",
+    "openai/gpt-5.4-mini",
+    "x-ai/grok-4"
+  ],
   "consensus_score": 0.6242646087064366,
   "consensus_ci": [
     0.4982918875934026,

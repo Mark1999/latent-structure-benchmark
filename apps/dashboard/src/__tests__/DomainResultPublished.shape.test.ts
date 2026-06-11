@@ -83,29 +83,52 @@ describe('DomainResultPublished published-JSON shape invariants', () => {
         }
       });
 
-      it('similarity_matrix: square 2-D array with length == models.length', () => {
-        const n = data.models.length;
+      it('similarity_matrix: square 2-D array, dims keyed by similarity_model_ids or models', () => {
         const sm = data.similarity_matrix as unknown[][];
         expect(Array.isArray(sm)).toBe(true);
-        expect(sm.length).toBe(n);
-        for (let i = 0; i < n; i++) {
-          expect(Array.isArray(sm[i]), `row ${i} is array`).toBe(true);
-          expect((sm[i] as unknown[]).length, `row ${i} length == ${n}`).toBe(n);
-          expect(typeof (sm[i] as unknown[])[0], `row ${i} col 0 is number`).toBe('number');
+        // New invariant: when similarity_model_ids is present and non-empty,
+        // dims must equal similarity_model_ids.length (not models.length).
+        // Legacy invariant: when absent/empty, dims must equal models.length.
+        const simModelIds = (data as Record<string, unknown>).similarity_model_ids as string[] | undefined;
+        if (simModelIds && simModelIds.length > 0) {
+          const nb = simModelIds.length;
+          expect(sm.length, `similarity_matrix.length == similarity_model_ids.length`).toBe(nb);
+          for (let i = 0; i < nb; i++) {
+            expect(Array.isArray(sm[i]), `row ${i} is array`).toBe(true);
+            expect((sm[i] as unknown[]).length, `row ${i} length == ${nb}`).toBe(nb);
+            expect(typeof (sm[i] as unknown[])[0], `row ${i} col 0 is number`).toBe('number');
+          }
+          // similarity_model_ids must be a subset of models[].model_id
+          const modelIdSet = new Set(data.models.map((m: { model_id: string }) => m.model_id));
+          for (const mid of simModelIds) {
+            expect(modelIdSet.has(mid), `${mid} in similarity_model_ids is in models`).toBe(true);
+          }
+          // no duplicate model ids
+          expect(new Set(simModelIds).size, 'similarity_model_ids has no duplicates').toBe(simModelIds.length);
+        } else {
+          // Legacy branch: family and holidays (pre-FOOD-V02-FIX-SIMIDS)
+          const n = data.models.length;
+          expect(sm.length).toBe(n);
+          for (let i = 0; i < n; i++) {
+            expect(Array.isArray(sm[i]), `row ${i} is array`).toBe(true);
+            expect((sm[i] as unknown[]).length, `row ${i} length == ${n}`).toBe(n);
+            expect(typeof (sm[i] as unknown[])[0], `row ${i} col 0 is number`).toBe('number');
+          }
         }
       });
 
       it('similarity_ci: 2-D array with same dims as similarity_matrix', () => {
-        const n = data.models.length;
+        const sm = data.similarity_matrix as unknown[][];
         const sc = data.similarity_ci as unknown[][];
         expect(Array.isArray(sc)).toBe(true);
-        expect(sc.length).toBe(n);
-        for (let i = 0; i < n; i++) {
+        const nb = sm.length;
+        expect(sc.length, `similarity_ci.length == similarity_matrix.length`).toBe(nb);
+        for (let i = 0; i < nb; i++) {
           expect(Array.isArray(sc[i]), `row ${i} is array`).toBe(true);
           const row = sc[i] as unknown[];
-          expect(row.length, `row ${i} length == ${n}`).toBe(n);
+          expect(row.length, `row ${i} length == ${nb}`).toBe(nb);
           // Each cell is either null or a [lo, hi] pair
-          for (let j = 0; j < n; j++) {
+          for (let j = 0; j < nb; j++) {
             const cell = row[j];
             if (cell === null) continue;
             expect(Array.isArray(cell), `[${i}][${j}] is array or null`).toBe(true);
@@ -114,6 +137,13 @@ describe('DomainResultPublished published-JSON shape invariants', () => {
             expect(typeof pair[0]).toBe('number');
             expect(typeof pair[1]).toBe('number');
           }
+        }
+      });
+
+      it('similarity_model_ids: no duplicates when present', () => {
+        const simModelIds = (data as Record<string, unknown>).similarity_model_ids as string[] | undefined;
+        if (simModelIds && simModelIds.length > 0) {
+          expect(new Set(simModelIds).size, 'no duplicate model ids in similarity_model_ids').toBe(simModelIds.length);
         }
       });
 

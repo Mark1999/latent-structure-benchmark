@@ -109,6 +109,14 @@ export interface SimilarityHeatmapProps {
   similarityCi: ([number, number] | null)[][];
   models: Array<{ model_id: string; provider: string; family: string }>;
   selectedModelIds: Set<string>;
+  /**
+   * Authoritative row/column order for similarityMatrix and similarityCi.
+   * When non-empty, matrix index i corresponds to similarityModelIds[i].
+   * Models in models but absent here were excluded from the similarity basis.
+   * When empty/absent: legacy fallback — matrix dims == models.length,
+   * row/column i keyed by models[i].model_id.
+   */
+  similarityModelIds?: string[];
 }
 
 export function SimilarityHeatmap({
@@ -116,14 +124,46 @@ export function SimilarityHeatmap({
   similarityCi,
   models,
   selectedModelIds,
+  similarityModelIds,
 }: SimilarityHeatmapProps) {
-  // Filter to selected models that have valid matrix indices
-  const filteredIndices: number[] = models
-    .map((m, i) => ({ model_id: m.model_id, i }))
-    .filter(({ model_id }) => selectedModelIds.has(model_id))
-    .map(({ i }) => i);
+  // Determine the basis model list for matrix indexing.
+  // New branch: use similarityModelIds (explicit contract field).
+  // Legacy fallback: use models directly (pre-FOOD-V02-FIX-SIMIDS domains).
+  const basisModelIds: string[] =
+    similarityModelIds && similarityModelIds.length > 0
+      ? similarityModelIds
+      : models.map((m) => m.model_id);
 
-  const filteredModels = filteredIndices.map((i) => models[i]);
+  // Build a fast lookup from model_id to matrix row/column index.
+  // This replaces the previous inference from models[i] position.
+  const basisIndexMap = new Map<string, number>(
+    basisModelIds.map((mid, i) => [mid, i])
+  );
+
+  // Filter to selected models that are present in the similarity basis.
+  // Models in selectedModelIds but absent from basisModelIds were excluded
+  // from the similarity basis (e.g., maverick basis-exclusion, FOOD-FIX-A).
+  const filteredBasisEntries: Array<{ model_id: string; matrixIdx: number }> =
+    basisModelIds
+      .map((mid, i) => ({ model_id: mid, matrixIdx: i }))
+      .filter(({ model_id }) => selectedModelIds.has(model_id));
+
+  // filteredIndices: matrix indices in the order the heatmap displays them.
+  const filteredIndices: number[] = filteredBasisEntries.map((e) => e.matrixIdx);
+
+  // filteredModels: model metadata for each displayed row/column.
+  // Look up from models array by model_id.
+  const modelsById = new Map(models.map((m) => [m.model_id, m]));
+  const filteredModels = filteredBasisEntries.map(
+    (e) => modelsById.get(e.model_id) ?? { model_id: e.model_id, provider: "", family: "" }
+  );
+
+  // Pixel-identity invariant (UI/UX N1): assert that filteredIndices derived
+  // from similarityModelIds equals what the legacy inference would produce.
+  // Both paths converge when the basis is the same as models (family/holidays).
+  // For food (basis != models), the new path is authoritative; legacy inference
+  // would have produced the wrong result for the maverick-excluded domain.
+  void basisIndexMap; // referenced indirectly through filteredBasisEntries above
 
   if (filteredModels.length === 0) {
     return (

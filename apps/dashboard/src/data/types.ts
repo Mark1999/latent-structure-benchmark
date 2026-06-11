@@ -225,6 +225,16 @@ export interface DomainResultPublished {
    */
   similarity_ci: ([number, number] | null)[][];
 
+  /**
+   * Authoritative row/column order for similarity_matrix and similarity_ci.
+   * Length equals similarity_matrix.length. Subset of models[].model_id.
+   * Models in `models` but absent here were excluded from the similarity basis
+   * (e.g., mode-coherent filtering, centrality-null basis exclusion).
+   * Empty array on legacy results pre-FOOD-V02-FIX-SIMIDS; consumers fall back
+   * to the legacy invariant (matrix dims == models.length, row i keyed by models[i]).
+   */
+  similarity_model_ids?: string[];
+
   /** Cultural consensus score (0–1). */
   consensus_score: number;
 

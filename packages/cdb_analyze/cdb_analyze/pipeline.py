@@ -1138,6 +1138,7 @@ def run_pipeline(
         mds_uncertainty=mds_uncertainty,
         similarity_matrix=similarity_matrix,
         similarity_ci=similarity_ci,
+        similarity_model_ids=list(sim_model_ids),
         consensus_score=consensus_score,
         consensus_ci=consensus_ci_vals,
         romney_eigenratio=romney_eigenratio,

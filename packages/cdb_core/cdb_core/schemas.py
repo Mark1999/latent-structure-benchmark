@@ -405,6 +405,27 @@ class DomainResult(BaseModel):
     mds_uncertainty: dict[str, BootstrapEllipse]
     similarity_matrix: list[list[float]]
     similarity_ci: list[list[tuple[float, float]]]
+    similarity_model_ids: list[str] = []
+    """Authoritative row/column order for similarity_matrix and similarity_ci.
+
+    Ordered list of model_id values whose pairwise similarities populate
+    similarity_matrix[i][j] and similarity_ci[i][j]. This is the AUTHORITATIVE
+    row/column order for both matrices.
+
+    len(similarity_model_ids) == len(similarity_matrix) == len(similarity_ci).
+    Every row/column is square against this length.
+
+    set(similarity_model_ids).issubset({m.model_id for m in models}). Models
+    present in models but absent from similarity_model_ids were excluded from
+    the similarity basis (e.g., dropped by mode-coherent filtering, FOOD-FIX-A;
+    or basis-excluded for centrality-null reasons, PROMOTE-FOOD-V02). The
+    exclusion is the finding; consult mds_coordinates.keys() for the same slate.
+
+    Default [] for backward compatibility. When empty (legacy results
+    pre-FOOD-V02-FIX-SIMIDS), consumers fall back to the legacy invariant:
+    matrix dims equal len(models) and models[i].model_id is the row/column
+    key for index i.
+    """
 
     # Register 2 cultural consensus analysis (post-F1 SME review)
     consensus_score: float  # retained as alias for romney_eigenratio;
