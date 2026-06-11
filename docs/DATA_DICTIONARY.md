@@ -1,7 +1,7 @@
 # LSB Data Dictionary
 
 **Document name:** `docs/DATA_DICTIONARY.md`  
-**Version:** v0.1.25 (aligned with `ARCHITECTURE.md` v0.7.5; see changelog for history)  
+**Version:** v0.1.26 (aligned with `ARCHITECTURE.md` v0.7.5; see changelog for history)  
 **Status:** Phase 0 / Phase 1 deliverable per `ARCHITECTURE.md` §4.3  
 **Audience:** External researchers using the LSB open data bundle; LSB internal contributors touching the schema  
 **Companion docs:** `ARCHITECTURE.md` §3.2 (schema source of truth), §4.3 (storage), §6.7 (open data policy)
@@ -9,6 +9,7 @@
 **Stability promise:** this document moves in lockstep with `cdb_core/schemas.py`. Any change to `InformantRecord`, `GroundingRef`, or any other schema documented here requires a matching update to this file in the same PR. The Reviewer agent enforces this (Reviewer rule 5 in `ARCHITECTURE.md` §5.1). Adding new optional fields is non-breaking; removing or renaming a field is a breaking change that requires a major version bump and a migration note in the changelog.
 
 **Changelog:**
+- **v0.1.26** (2026-06-11): FOOD-FIX-A. Added `similarity_collection_mode` parameter to `run_pipeline()` in `cdb_analyze/pipeline.py`. No change to `cdb_core/schemas.py`; this is a pipeline-parameter behavior documented here per the §2.8 precedent. Added §2.11 to this document describing the parameter semantics, the Register 2 / Register 1 boundary it enforces, and the mixed-mode domain motivating case. Updated `scripts/rebaseline_corpus.py` `DOMAIN_CONFIG` to record `similarity_collection_mode` per domain (`None` for single-mode legacy slates family and holidays; `"single_pass"` for the mixed-mode food domain). Added WARNING diagnostic to `compute_cross_model_similarity()` in `mds.py` for NaN rescues. Architect plan: `docs/status/2026-06-11-phase9b-food-campaign.md` §3 Concern A. CDA SME verdict: PASS-WITH-NOTES (`.claude/agent-memory/cda_sme/project_food_fix_a_verdict.md`, F1–F11 binding).
 - **v0.1.25** (2026-06-10) — CR-T4: Added §12.6 documenting the published successful-records summary JSON shape emitted by `packages/cdb_publish/cdb_publish/successes.py` to `apps/dashboard/public/data/records/{slug}.json`. New publish-layer schemas in `packages/cdb_publish/cdb_publish/schemas/successes.py` (`PublishedSuccessesFile`, `PublishedSuccessesByModelRow`). `Manifest` schema gains `records: dict[str, str] = {}` field. `build.py` calls `build_successes()` after `build_failures()`. No changes to `cdb_core/schemas.py`. This is a publish-layer shape, not a `cdb_core` schema change; no §6 Architect-sign-off-on-schema gate triggered. "Successful" means the LSB pipeline parsed a primary-step response — NOT a quality judgment on the model output (CDA SME N5 binding note). Architect plan: `docs/status/2026-06-10-collection-records-rework-kickoff.md` §4 Task 4. CDA SME verdict: `docs/status/2026-06-10-collection-records-rework-verdicts.md` CR-T4 (PASS-WITH-NOTES; N1–N6 applied).
 - **v0.1.24** (2026-05-29) — Remedy B T2: Added `centrality_ci: dict[str, tuple[float, float]] = {}` to `DomainResult` (§2 table updated; §2.10 new). This is the Register 2 model-resampling bootstrap CI for `cultural_centrality_scores`. The field was added to resolve the register error documented in `docs/status/2026-05-28-viz-fixes-cda-sme-verdict.md` F2 — the pre-Remedy-B dashboard displayed a normal-approximation R1 CI mislabeled as "bootstrap". Under Remedy B, `centrality_ci` is computed by `bootstrap_centrality_ci()` in `cdb_analyze.bootstrap` (T1) and populated by `pipeline.py` (T3). Non-breaking addition — field is optional with falsy default. Architect sign-off: `docs/status/2026-05-28-remedy-b-architect-plan.md` §3 schema sign-off (conditional on CDA SME PASS, now obtained). CDA SME verdict: PASS-WITH-NOTES (`docs/status/2026-05-28-remedy-b-cda-sme-verdict.md` Q4, N4, N5).
 - **v0.1.23** (2026-05-27) — Focus 1 (Individual Model Consistency) schema additions: Added `RunSummary` Pydantic model to `cdb_core/schemas.py` (§2.9 new). Added three new optional fields to `WithinModelResult` (§2.1 table updated): `within_model_mds_stress` (`float | None`, default `None`), `run_agreement_matrix` (`list[list[float]]`, default `[]`), `run_summaries` (`list[RunSummary]`, default `[]`). The existing `salience_stability_rho` field (already in schema, previously null) will be populated by F1-T2. All additions are optional with falsy defaults — no breaking changes. The run agreement matrix was previously computed and discarded after OCI extraction in `two_level.py`; it is now retained for the Focus 1 dashboard view and open data bundle. `RunSummary` carries lightweight per-run metadata (not full pile memberships — those remain in `informants.jsonl`). Architect sign-off: Focus 1 plan (2026-05-27). CDA SME verdict: PASS-WITH-NOTES (2026-05-27; binding notes S1–S6, S8 applied).
@@ -507,6 +508,54 @@ The pooled matrix is a Register 2 artifact — its informants are models, not ru
 **Dashboard use (T4):** The dashboard MUST consume `domain.centrality_ci[modelId]` rather than any browser-side computation. At `centrality_ci == {}`, the centrality chart MUST suppress error bars or render a degenerate-data annotation (per UI/UX agent T4 decision). The TypeScript type is `centrality_ci?: Record<string, [number, number]>` on the `DomainExtended` type.
 
 **CDA SME verdict:** PASS-WITH-NOTES (`docs/status/2026-05-28-remedy-b-cda-sme-verdict.md`, Q4 and N4/N5 binding notes). Architect sign-off: `docs/status/2026-05-28-remedy-b-architect-plan.md` §3.
+
+### 2.11 `similarity_collection_mode`: mode-coherent similarity basis (FOOD-FIX-A, 2026-06-11)
+
+`similarity_collection_mode` is a parameter to `run_pipeline()` in `cdb_analyze/pipeline.py`. It is not a schema field on `DomainResult`; it is a pipeline-input parameter controlling which records feed the Register 2 cross-model similarity computation. It is documented here per the §2.8 precedent for pipeline-parameter behaviors that affect the derivation of `DomainResult` fields.
+
+**Problem.** In a mixed-mode corpus (a domain where some models contributed `single_pass` records and others contributed only `cross_model_consensus` records), the per-model `mat.items` lists built by `build_cooccurrence_matrix()` are heterogeneous across the slate: single_pass models get `mat.items` from their own free-list union; cross_model_consensus models get `mat.items` from the canonical card-deck items (because their placeholder freelists are empty, triggering the else-branch at `cooccurrence.py` L98-101). The intersection of these heterogeneous item sets collapses to a small subset of card-deck items that single_pass models happen to share. On that collapsed intersection, single_pass models with identical pile structure across runs produce constant upper-triangle vectors; `np.corrcoef` returns NaN; the rescue path in `compute_cross_model_similarity()` silently sets `r = 0.0`, which rescales to the Mantel null value 0.5. The affected models' entire similarity rows become constant, producing bit-identical centrality scores and artificially deflating the Romney CCM eigenratio. This is not a substantive finding about those models. See `.claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md` round 2 for the full localization.
+
+**Binding methodological invariant (CDA SME round 2).** Per-model `mat.items` must come from a coherent within-mode item source across the whole slate. If the corpus contains records from multiple collection modes, the similarity computation must be restricted to a single coherent mode.
+
+**Fix.** When `similarity_collection_mode` is set, `run_pipeline()` filters the records that feed the per-model co-occurrence matrices for the similarity basis to only those records whose `collection_mode` matches the parameter value. Models with zero matching records are dropped from the similarity slate and logged at INFO level. When `similarity_collection_mode=None` (the default), behavior is byte-identical to the pre-fix pipeline.
+
+**Scope of the mode filter.** The filter applies only to the similarity basis:
+
+| Step | Uses mode-coherent view? |
+|---|---|
+| Step 2: per-model matrices for similarity (sim_matrices) | YES (mode-filtered) |
+| Step 3: `bootstrap_mds_ellipses()`, `compute_cross_model_similarity()` | YES (resamples from mode-coherent records, F5 binding) |
+| Step 3b: `compute_centrality_scores()` | YES (uses mode-coherent `sim_np`) |
+| Step 3b-ii: `bootstrap_centrality_ci()` | YES (uses mode-coherent `sim_np`, F8 binding) |
+| Step 3c: `compute_romney_eigenratio()` | YES (uses mode-coherent `similarity_matrix`) |
+| Step 3d: `classify_consensus()` | YES (uses mode-coherent eigenratio and centrality) |
+| Step 4: `cluster_models()` | YES (uses mode-coherent `sim_matrices`) |
+| Step 5: consensus score | YES (uses mode-coherent `sim_mean`) |
+| Step 1: `run_within_model_analysis()` (Register 1) | NO (full mode-mixed records) |
+| Step 2 (full): per-model matrices for pooled term path | NO (full mode-mixed records) |
+| Step 2b: `build_pooled_cooccurrence_matrix()` | NO (full mode-mixed records) |
+| Step 2d: per-model term MDS (Register 1) | NO (full mode-mixed records) |
+| Step 1b: Sutrop CSI, salience agreement | NO (full mode-mixed records) |
+| Step 1d: `_build_centroid_piles()` | NO (full mode-mixed records) |
+
+The mode filter is scoped to the similarity basis only. Register 1 within-model output-distribution analysis uses all records regardless of mode. Cross_model_consensus records are legitimate Register 1 informants for their own model.
+
+**Production values (binding).** `scripts/rebaseline_corpus.py` `DOMAIN_CONFIG` records the `similarity_collection_mode` per domain:
+- `family`: `None` (single-mode legacy slate, single_pass only, no mode filter needed).
+- `holidays`: `None` (single-mode legacy slate, single_pass only, no mode filter needed).
+- `food`: `"single_pass"` (mixed-mode domain as of the 2026-06-11 campaign widening; cross_model_consensus records from the prior campaign coexist with new single_pass records for the expanded slate).
+
+**Dropped-model behavior.** A model dropped from the similarity slate (zero records matching the filter mode) is absent from `mds_coordinates`, `mds_uncertainty`, `cultural_centrality_scores`, and `centrality_ci`. It is present in `models` (the full model list), `free_lists`, `sutrop_csi`, `salience_index_agreement`, and `within_model_results` (Register 1 paths are unaffected). The dropped-model list is logged at INFO level only; it is not persisted to the result JSON (F1 binding: this must not bleed into any `consensus_score` denominator narrative or lede string).
+
+**Food domain methodology footnote (F2 and F3 binding).** The following text must appear on the food-domain methodology page, co-located with the `romney_small_n_warning` posture that the round-2 CDA SME memo requires for food:
+
+> "For the food domain, the cross-model similarity matrix is computed from single-pass collection records only. Records collected under the cross-model consensus mode use a canonical card-deck item list rather than per-model free-list items, which breaks the cross-model item-source coherence required by the Mantel-based similarity step. Restricting the similarity basis to single-pass records keeps the per-model item sources coherent across the slate. Records collected under the consensus mode remain in the corpus and continue to flow through the within-model output-distribution analysis and the pooled term map."
+
+This is the byte-identical text from the CDA SME F3 ruling. Do not paraphrase.
+
+**Reproducibility.** External researchers wishing to reproduce the food-domain similarity results should run `run_pipeline()` with `similarity_collection_mode="single_pass"`. The `DOMAIN_CONFIG` entry in `scripts/rebaseline_corpus.py` records this value so the exact filter can be recovered without reading the run log.
+
+**CDA SME verdict:** PASS-WITH-NOTES (`.claude/agent-memory/cda_sme/project_food_fix_a_verdict.md`, F1–F11 binding). Architect plan: `docs/status/2026-06-11-phase9b-food-campaign.md`. See also `.claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md` round 2 for the originating mechanism localization.
 
 ---
 

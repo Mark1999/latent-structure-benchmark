@@ -72,12 +72,30 @@ STAGING_ROOT = ROOT / "out" / "rebaseline"
 LOG_PATH = STAGING_ROOT / "rebaseline.log"
 MANIFEST_PATH = STAGING_ROOT / "baseline_manifest.json"
 
-# Domain -> (prior published version, analysis version for the new output)
-# family 0.3 -> new 0.3, holidays 0.3 -> new 0.3, food 0.2 -> new 0.2
+# Domain -> (prior published version, analysis version for the new output,
+#           similarity_collection_mode for run_pipeline()).
+# family and holidays are single-mode legacy slates (single_pass only); no
+# mode filter needed. food is a mixed-mode domain (single_pass + cross_model
+# consensus records coexist in the corpus after 2026-06-11 campaign widening);
+# similarity_collection_mode="single_pass" is required to keep the per-model
+# mat.items coherent across the slate. See FOOD-FIX-A in
+# docs/status/2026-06-11-phase9b-food-campaign.md.
 DOMAIN_CONFIG: dict[str, dict] = {
-    "family":   {"prior_version": "0.3", "new_version": "0.3"},
-    "holidays": {"prior_version": "0.3", "new_version": "0.3"},
-    "food":     {"prior_version": "0.2", "new_version": "0.2"},
+    "family":   {
+        "prior_version": "0.3",
+        "new_version": "0.3",
+        "similarity_collection_mode": None,
+    },
+    "holidays": {
+        "prior_version": "0.3",
+        "new_version": "0.3",
+        "similarity_collection_mode": None,
+    },
+    "food": {
+        "prior_version": "0.2",
+        "new_version": "0.2",
+        "similarity_collection_mode": "single_pass",
+    },
 }
 DOMAIN_ORDER = ["family", "holidays", "food"]
 
@@ -459,7 +477,20 @@ def rebaseline_domain(
     staging_dir.mkdir(parents=True, exist_ok=True)
     staging_path = staging_dir / f"{new_version}.json"
 
+    # similarity_collection_mode from DOMAIN_CONFIG; None for single-mode
+    # legacy slates (family/holidays), "single_pass" for mixed-mode domains
+    # (food). This value is passed to run_pipeline() to constrain the
+    # similarity basis to a coherent within-mode item source across the slate.
+    # See FOOD-FIX-A in docs/status/2026-06-11-phase9b-food-campaign.md.
+    similarity_collection_mode: str | None = cfg.get("similarity_collection_mode")
+
     logger.info("=== [%s] START ===", domain)
+    if similarity_collection_mode is not None:
+        logger.info(
+            "[%s] similarity_collection_mode=%r (mixed-mode domain)",
+            domain,
+            similarity_collection_mode,
+        )
 
     # Late imports — keep module importable without uv environment active
     from cdb_analyze.pipeline import load_records, run_pipeline, write_result  # noqa: PLC0415
@@ -474,7 +505,12 @@ def rebaseline_domain(
 
     # Run analysis pipeline into staging dir
     logger.info("[%s] Running pipeline (bootstrap_B=%d)...", domain, bootstrap_B)
-    result = run_pipeline(records, analysis_version=new_version, n_bootstrap=bootstrap_B)
+    result = run_pipeline(
+        records,
+        analysis_version=new_version,
+        n_bootstrap=bootstrap_B,
+        similarity_collection_mode=similarity_collection_mode,
+    )
     out_path = write_result(result, STAGING_ROOT)
     logger.info("[%s] Wrote staging output: %s", domain, out_path)
 

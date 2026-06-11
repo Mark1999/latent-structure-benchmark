@@ -1,0 +1,114 @@
+# Phase 9b Food Campaign Status (2026-06-11)
+
+**Task:** FOOD-FIX-A — mode-coherent similarity basis for mixed-mode corpora  
+**Status:** Implementation complete, pending Reviewer + Tester + Concern B re-adjudication
+
+---
+
+## 1. Background
+
+The Phase 9b food domain widening (adding 5 new models to the 8-model prior slate)
+triggered a STRONG_CONSENSUS -> WEAK_CONSENSUS flip in the staged result. The CDA SME
+adjudication (two rounds) localized the flip to a pipeline artifact, not a substantive
+finding. See `.claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md` for
+the full investigation trail.
+
+### Round 1 (2026-06-11): INVESTIGATE
+
+Empty consensus free-lists for 5 of 13 models in the staged result. Null-padded
+similarity rows for 4 models. Probable cause: join-key mismatch or staging filter.
+Routed to Architect for investigation.
+
+### Round 2 (2026-06-11): PROMOTE-AFTER-FIX (two separable concerns)
+
+Round-1 hypothesis (join-key mismatch) disproven. The empty free-lists in round 1
+were because the 5 new models had only cross_model_consensus records at that time.
+After re-collection in single_pass mode, round-2 staging showed the correct free-lists
+for 8 of 13 models but still tripped the eigenratio guards (4.447 vs 6.586 prior).
+
+Three-site mechanism localized:
+1. `cooccurrence.py` L91-102: item-source fallback makes per-model mat.items
+   heterogeneous across the slate in a mixed-mode corpus.
+2. `mds.py` L41-78: shared-items intersection collapses to a small subset on which
+   single_pass models with identical pile structure produce constant upper-triangle
+   vectors -> NaN -> 0.5 Mantel null.
+3. `pipeline.py` L468: load_records without collection_mode filter, producing the
+   mixed-mode records_by_model that drives the failure.
+
+Two concerns identified:
+- Concern A (pipeline fix): mode-coherent similarity basis. File scope for Coder.
+- Concern B (genuine STRONG -> WEAK question): requires clean re-staged numbers.
+  Out of scope for this task; handled after Concern A fix lands.
+
+---
+
+## 2. Gate trail (FOOD-FIX-A)
+
+| Stage | Status | File |
+|---|---|---|
+| Architect plan | APPROVED | (this document, §3) |
+| CDA SME round 3 | PASS-WITH-NOTES | `.claude/agent-memory/cda_sme/project_food_fix_a_verdict.md` |
+| Coder | COMPLETE | (this commit) |
+| Reviewer | PENDING | |
+| Tester | PENDING | |
+| Re-run rebaseline_corpus.py food | PENDING | |
+| CDA SME Concern B re-adjudication | PENDING | |
+
+---
+
+## 3. Architect plan scope (Concern A)
+
+Add `similarity_collection_mode: str | None = None` parameter to `run_pipeline()`.
+When set, constrain the cooccurrence matrices and all downstream Register 2
+similarity steps to records with matching collection_mode. Models with zero matching
+records are dropped from the similarity slate. Register 1 paths unaffected.
+
+Pass `similarity_collection_mode="single_pass"` in `scripts/rebaseline_corpus.py`
+for the food domain. Pass `None` for family and holidays (single-mode legacy slates;
+byte-identical behavior preserved).
+
+Add WARNING diagnostic to `compute_cross_model_similarity()` when NaN rescue fires.
+
+---
+
+## 4. Files changed in this commit
+
+- `packages/cdb_analyze/cdb_analyze/mds.py`: added logger + WARNING diagnostic for
+  NaN rescue in compute_cross_model_similarity() (F4 byte-identical text).
+- `packages/cdb_analyze/cdb_analyze/pipeline.py`: added similarity_collection_mode
+  parameter to run_pipeline(); mode-coherent records_by_model_for_similarity view;
+  all Register 2 steps consume the mode-coherent view; Register 1 paths unchanged.
+- `scripts/rebaseline_corpus.py`: DOMAIN_CONFIG gains similarity_collection_mode
+  per domain; rebaseline_domain() passes it to run_pipeline().
+- `tests/unit/test_mode_coherent_similarity.py`: four test cases (A6, A7, A8).
+- `docs/DATA_DICTIONARY.md`: v0.1.26 changelog entry + §2.11 (similarity_collection_mode
+  semantics, scope table, dropped-model behavior, food footnote byte-identical text,
+  reproducibility note, F10 cross-reference to round-2 guard-trip memo).
+- `docs/status/2026-06-11-phase9b-food-campaign.md`: this file.
+
+---
+
+## 5. Live-site posture (unchanged by this commit)
+
+The prior 8-model STRONG_CONSENSUS food result remains live, version-pinned at
+`analysis_version: 0.1`. This commit does NOT promote the 13-model staged result.
+Promotion gate requires Concern B re-adjudication on clean numbers (CDA SME).
+
+Social pipeline detect continues blocked on the staged result until the manifest
+gate is cleared after Concern B.
+
+---
+
+## 6. Concern B posture (out of scope here)
+
+After this fix lands and `uv run python scripts/rebaseline_corpus.py --domain food`
+completes successfully (no threshold crossing on the clean numbers), the CDA SME
+re-adjudicates on:
+- 4a: eigenratio on 12-model slate (dropping maverick: zero single_pass records,
+  mode-pure cross_model_consensus, 2 QA records).
+- 4b: eigenratio on 11-model slate (also dropping thinnest single_pass new model).
+- 4c: model-resample bootstrap B=500, eigenratio CI. If CI straddles 5.0, the
+  classification is genuinely undetermined.
+
+Replacement lede language is drafted only after clean numbers exist and the SME
+makes the STRONG/WEAK call. Not pre-staged here.

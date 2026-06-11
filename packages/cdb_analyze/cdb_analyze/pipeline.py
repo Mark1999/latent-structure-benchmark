@@ -421,6 +421,7 @@ def run_pipeline(
     *,
     analysis_version: str = "0.1",
     n_bootstrap: int = 500,
+    similarity_collection_mode: str | None = None,
 ) -> DomainResult:
     """Run the full analysis pipeline on a set of InformantRecords.
 
@@ -428,6 +429,27 @@ def run_pipeline(
         records: All records for one domain (may span multiple models).
         analysis_version: Semantic version string for this analysis run.
         n_bootstrap: Number of bootstrap resamples.
+        similarity_collection_mode: When set, constrains the cooccurrence
+            matrices and all downstream similarity computations (cross-model
+            similarity, bootstrap MDS, centrality, Romney eigenratio,
+            Caulkins typology, consensus score, model clustering) to records
+            whose collection_mode matches this value. Models with zero
+            matching records are dropped from the similarity slate and logged
+            at INFO level. When None (default), behavior is byte-identical to
+            the previous pipeline (no mode filtering). Register 1 within-model
+            analysis, pooled term matrix, centroid_piles, sutrop, and
+            salience_index_agreement always use the full mode-mixed
+            records_by_model regardless of this parameter.
+
+            Mixed-mode domains (e.g., food in 2026-06-11 corpus, where some
+            models were collected in single_pass and others in
+            cross_model_consensus) require similarity_collection_mode to be
+            set or the per-model mat.items lists become heterogeneous across
+            the slate, causing the shared-items intersection to collapse to a
+            small subset on which some models produce constant vectors,
+            driving NaN rescues to the Mantel null 0.5. See FOOD-FIX-A
+            rationale in docs/status/2026-06-11-phase9b-food-campaign.md and
+            .claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md.
 
     Returns:
         A fully populated DomainResult ready for JSON serialization.
@@ -444,6 +466,47 @@ def run_pipeline(
         "Pipeline: %s, %d models, %d total records",
         domain_slug, len(model_ids), len(records),
     )
+
+    # Derive the mode-coherent records view for the similarity basis.
+    # Register 1 (within-model analysis), pooled term matrix, centroid_piles,
+    # sutrop, and salience_index_agreement always use the full records_by_model.
+    # Only steps 2 (per-model cooccurrence matrices for similarity), 3
+    # (cross-model similarity + MDS + bootstrap), 3b (centrality), 3b-ii
+    # (centrality CI), 3c (Romney eigenratio), 3d (Caulkins), 4 (clustering),
+    # and 5 (consensus score) consume records_by_model_for_similarity.
+    if similarity_collection_mode is not None:
+        # Filter each model's records to the specified collection mode.
+        # Drop models with zero matching records and log them at INFO.
+        sim_rbm: dict[str, list[InformantRecord]] = {}
+        for mid, recs in records_by_model.items():
+            filtered = [r for r in recs if r.collection_mode == similarity_collection_mode]
+            if filtered:
+                sim_rbm[mid] = filtered
+            else:
+                logger.info(
+                    "Pipeline [%s]: model '%s' has zero records with"
+                    " collection_mode='%s'; dropped from similarity slate."
+                    " dropped_zero_%s_models=[%s]",
+                    domain_slug,
+                    mid,
+                    similarity_collection_mode,
+                    similarity_collection_mode,
+                    mid,
+                )
+        records_by_model_for_similarity = sim_rbm
+        sim_model_ids = sorted(records_by_model_for_similarity.keys())
+        logger.info(
+            "Pipeline [%s]: similarity_collection_mode='%s';"
+            " similarity slate: %d of %d models",
+            domain_slug,
+            similarity_collection_mode,
+            len(sim_model_ids),
+            len(model_ids),
+        )
+    else:
+        # No filtering: behavior is byte-identical to pre-FOOD-FIX-A pipeline.
+        records_by_model_for_similarity = records_by_model
+        sim_model_ids = model_ids
 
     # 1. Consensus free lists per model
     free_lists = _build_free_lists(records_by_model)
@@ -489,14 +552,39 @@ def run_pipeline(
         "Built centroid pile data for %d models", len(centroid_piles),
     )
 
-    # 2. Co-occurrence matrices per model
-    matrices: list[CooccurrenceMatrix] = []
+    # 2. Co-occurrence matrices per model.
+    # Two sets are built:
+    #   model_matrices (full): used for Register 1 per-model item MDS (step
+    #       2d) and the pooled term matrix (step 2b). Always built from
+    #       records_by_model (full mode-mixed view). Not mode-filtered.
+    #   sim_matrices / sim_model_matrices (similarity basis): used for
+    #       cross-model similarity and all downstream Register 2 steps (step 3
+    #       onwards). Built from records_by_model_for_similarity (mode-coherent
+    #       view when similarity_collection_mode is set; identical to
+    #       records_by_model when None). Per-model mat.items must come from a
+    #       coherent within-mode item source across the whole slate (FOOD-FIX-A
+    #       binding invariant; see docs/status/2026-06-11-phase9b-food-campaign.md).
     model_matrices: dict[str, CooccurrenceMatrix] = {}
     for mid in model_ids:
-        mat = build_cooccurrence_matrix(records_by_model[mid])
-        matrices.append(mat)
-        model_matrices[mid] = mat
-    logger.info("Built %d co-occurrence matrices", len(matrices))
+        # Full matrices for Register 1 and pooled term paths (not mode-filtered).
+        model_matrices[mid] = build_cooccurrence_matrix(records_by_model[mid])
+    logger.info("Built %d per-model co-occurrence matrices (full)", len(model_matrices))
+
+    # Mode-coherent matrices for similarity basis (step 3 and onwards).
+    sim_matrices: list[CooccurrenceMatrix] = []
+    sim_model_matrices: dict[str, CooccurrenceMatrix] = {}
+    for mid in sim_model_ids:
+        # Mode-coherent inputs: records_by_model_for_similarity is either the
+        # filtered single-mode view (when similarity_collection_mode is set) or
+        # identical to records_by_model (when None). Either way, every model's
+        # mat.items is built from the same item-source type across the slate.
+        mat = build_cooccurrence_matrix(records_by_model_for_similarity[mid])
+        sim_matrices.append(mat)
+        sim_model_matrices[mid] = mat
+    logger.info(
+        "Built %d mode-coherent co-occurrence matrices for similarity basis",
+        len(sim_matrices),
+    )
 
     # 2b-pre. Term-set truncation (Phase 9a term-truncation task).
     # Reduces the pooled term set from the full union to the shared
@@ -728,27 +816,41 @@ def run_pipeline(
                     exc_info=True,
                 )
 
-    # 3. Cross-model similarity + MDS + bootstrap
-    if len(model_ids) >= 2:
+    # 3. Cross-model similarity + MDS + bootstrap.
+    # All similarity-basis computations use records_by_model_for_similarity
+    # (mode-coherent view) and sim_model_ids (the corresponding model list).
+    # This prevents the shared-items intersection collapse described in
+    # FOOD-FIX-A. The bootstrap resamples from records_by_model_for_similarity
+    # so that every replicate's mat.items also comes from the mode-coherent
+    # source (F5 binding: resampling from the mixed view re-injects
+    # contamination on every replicate).
+    if len(sim_model_ids) >= 2:
         coords, ellipses, sim_mean, sim_ci = bootstrap_mds_ellipses(
-            records_by_model, n_bootstrap=n_bootstrap,
+            records_by_model_for_similarity,  # mode-coherent inputs (F5)
+            n_bootstrap=n_bootstrap,
         )
 
         similarity_matrix = sim_mean.tolist()
         similarity_ci = [
             [
                 (float(sim_ci[i, j, 0]), float(sim_ci[i, j, 1]))
-                for j in range(len(model_ids))
+                for j in range(len(sim_model_ids))
             ]
-            for i in range(len(model_ids))
+            for i in range(len(sim_model_ids))
         ]
     else:
-        # Single model — no cross-model comparison possible
-        mid = model_ids[0]
-        coords = {mid: (0.0, 0.0)}
+        # Single model in the similarity slate (or empty after mode filter):
+        # no cross-model comparison possible.
+        if sim_model_ids:
+            _fallback_mid = sim_model_ids[0]
+        elif model_ids:
+            _fallback_mid = model_ids[0]
+        else:
+            _fallback_mid = "_none"
+        coords = {_fallback_mid: (0.0, 0.0)}
         from cdb_core import BootstrapEllipse
         ellipses = {
-            mid: BootstrapEllipse(
+            _fallback_mid: BootstrapEllipse(
                 center=(0.0, 0.0),
                 semi_major=0.0,
                 semi_minor=0.0,
@@ -759,12 +861,17 @@ def run_pipeline(
         similarity_matrix = [[1.0]]
         similarity_ci = [[(1.0, 1.0)]]
 
-    # 3b. Cultural centrality scores (first eigenvector of similarity matrix)
+    # 3b. Cultural centrality scores (first eigenvector of similarity matrix).
+    # Uses sim_model_ids (mode-coherent slate) so that centrality is computed
+    # on the same coherent inputs as the similarity matrix above.
     # n<2 degenerate case: return empty dict (not meaningful for centrality).
-    if len(model_ids) >= 2:
+    if len(sim_model_ids) >= 2:
+        # sim_np is derived from the mode-coherent similarity_matrix.
+        # All downstream steps (3b-ii, 3c, 3d) consume this same sim_np.
         sim_np = np.array(similarity_matrix, dtype=np.float64)
-        cultural_centrality_scores = compute_centrality_scores(model_ids, sim_np)
+        cultural_centrality_scores = compute_centrality_scores(sim_model_ids, sim_np)
     else:
+        sim_np = np.array(similarity_matrix, dtype=np.float64)
         cultural_centrality_scores = {}
     negative_centrality_flag = any(v < 0 for v in cultural_centrality_scores.values())
     negative_centrality_models = [
@@ -776,14 +883,16 @@ def run_pipeline(
     )
 
     # 3b-ii. Cultural centrality bootstrap CI (Remedy B T3).
+    # Consumes the mode-coherent sim_np (F8 binding: centrality_ci must be
+    # derived from the same mode-coherent similarity matrix as centrality scores).
     # Wraps bootstrap_centrality_ci in the same try/except style as
     # bootstrap_term_mds_ellipses. The function self-gates on n < 3 (returns {});
     # we log distinguishable messages for the two {} paths per N6.
     centrality_ci: dict[str, tuple[float, float]] = {}
-    if len(model_ids) >= 3:
+    if len(sim_model_ids) >= 3:
         try:
             centrality_ci = bootstrap_centrality_ci(
-                model_ids, sim_np, n_bootstrap=500, random_state=42,
+                sim_model_ids, sim_np, n_bootstrap=500, random_state=42,
             )
             logger.info(
                 "Cultural centrality CI: %d models, n_bootstrap=%d",
@@ -797,14 +906,15 @@ def run_pipeline(
             )
     else:
         logger.info(
-            "Cultural centrality CI: skipped (n=%d < 3)", len(model_ids),
+            "Cultural centrality CI: skipped (n=%d < 3)", len(sim_model_ids),
         )
 
-    # 3c. Romney CCM eigenratio (λ₁/λ₂ of the inter-model similarity matrix).
-    # Insertion point: immediately after centrality block (commit de6bf73),
-    # before clustering. Both consume sim_np; contiguous placement keeps the
-    # methodology computations together.
-    if len(model_ids) >= 2:
+    # 3c. Romney CCM eigenratio (lambda_1/lambda_2 of the inter-model similarity
+    # matrix). Consumes sim_np from the mode-coherent similarity_matrix so that
+    # the eigenratio is not contaminated by constant-row null sub-space from
+    # heterogeneous item sources (FOOD-FIX-A). Uses sim_model_ids for the
+    # small-n threshold (the mode-coherent slate is the relevant n).
+    if len(sim_model_ids) >= 2:
         sim_np_romney = np.array(similarity_matrix, dtype=np.float64)
         romney_eigenratio: float | None = compute_romney_eigenratio(sim_np_romney)
         if romney_eigenratio is not None:
@@ -817,7 +927,8 @@ def run_pipeline(
             # Grounded in SME_REVIEW.md §1.1 small-n rationale (Anders &
             # Batchelder 2015; RWB 1986 calibration at n=20-40). Supersedes
             # the F2-T02 n<8 threshold from 2026-04-20.
-            romney_small_n_warning: bool = len(model_ids) < 15
+            # Use sim_model_ids (mode-coherent slate count) for small_n check.
+            romney_small_n_warning: bool = len(sim_model_ids) < 15
             logger.info(
                 "Romney CCM: eigenratio=%.3f, pass=%s, warning=%s, small_n=%s",
                 romney_eigenratio,
@@ -826,11 +937,11 @@ def run_pipeline(
                 romney_small_n_warning,
             )
         else:
-            # Rank-1 degenerate (perfect consensus, λ₂ ≈ 0): ratio undefined.
+            # Rank-1 degenerate (perfect consensus, lambda_2 approx 0): ratio undefined.
             romney_consensus_pass = None
             romney_consensus_warning = None
             romney_small_n_warning = False
-            logger.info("Romney CCM: degenerate (second eigenvalue ≈ 0), eigenratio=None")
+            logger.info("Romney CCM: degenerate (second eigenvalue approx 0), eigenratio=None")
     else:
         # n < 2: no inter-model agreement structure.
         romney_eigenratio = None
@@ -842,6 +953,7 @@ def run_pipeline(
     # 3d. Caulkins six-state typology (F2-T01).
     # Requires both eigenratio (T02) and centrality_scores (T03) to be present.
     # Degenerate cases: consensus_type=None when either input is unavailable.
+    # Both inputs are mode-coherent (from the sim_model_ids slate above).
     consensus_type: ConsensusType | None
     if romney_eigenratio is not None and cultural_centrality_scores:
         consensus_type = classify_consensus(
@@ -948,20 +1060,33 @@ def run_pipeline(
     else:
         logger.info("G1 split skipped (single prompt_version)")
 
-    # 4. Clustering
-    if len(model_ids) >= 2:
-        _, sim_for_cluster = compute_cross_model_similarity(matrices)
-        cluster_result = cluster_models(model_ids, sim_for_cluster)
+    # 4. Clustering.
+    # Uses sim_matrices (mode-coherent) and sim_model_ids to keep the
+    # cluster dendrogram consistent with the mode-coherent similarity matrix.
+    # F7 binding: consensus_score denominator reflects the mode-coherent
+    # slate composition; logged below for the rebaseline guard delta.
+    if len(sim_model_ids) >= 2:
+        _, sim_for_cluster = compute_cross_model_similarity(sim_matrices)
+        cluster_result = cluster_models(sim_model_ids, sim_for_cluster)
         logger.info(
             "Clustering: %d clusters", cluster_result.n_clusters,
         )
 
-    # 5. Consensus score (placeholder — full CCA requires Phase 4)
-    # Use mean pairwise similarity as a proxy
-    if len(model_ids) >= 2:
+    # 5. Consensus score (placeholder; full CCA requires Phase 4).
+    # Computed on the mode-coherent similarity matrix (sim_mean from step 3).
+    # F7 binding: when the mode-coherent slate is smaller than the full slate,
+    # consensus_score reflects the mode-coherent n, not the full slate count.
+    # The mode-coherent slate composition is logged here for the rebaseline
+    # guard delta report.
+    if len(sim_model_ids) >= 2:
+        logger.info(
+            "Consensus score: mode-coherent slate = %d models: %s",
+            len(sim_model_ids),
+            sim_model_ids,
+        )
         upper_vals = []
-        for i in range(len(model_ids)):
-            for j in range(i + 1, len(model_ids)):
+        for i in range(len(sim_model_ids)):
+            for j in range(i + 1, len(sim_model_ids)):
                 upper_vals.append(sim_mean[i, j])
         consensus_score = float(np.mean(upper_vals))
         consensus_ci_vals = (
@@ -972,14 +1097,19 @@ def run_pipeline(
         consensus_score = 1.0
         consensus_ci_vals = (1.0, 1.0)
 
-    # 6. Build model refs
+    # 6. Build model refs.
+    # models list covers the full slate (all informants for metadata purposes).
+    # mds_coordinates and mds_uncertainty are keyed on sim_model_ids only
+    # (models in the similarity slate). Models dropped by mode filtering are
+    # absent from these dicts: they have no meaningful position in the
+    # mode-coherent similarity space.
     models = [_model_ref_from_record(records_by_model[mid][0]) for mid in model_ids]
 
     mds_coordinates = {
-        mid: coords[mid] for mid in model_ids
+        mid: coords[mid] for mid in sim_model_ids
     }
     mds_uncertainty = {
-        mid: ellipses[mid] for mid in model_ids
+        mid: ellipses[mid] for mid in sim_model_ids
     }
 
     # Populate mds_within_model on each WithinModelResult.

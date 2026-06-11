@@ -10,10 +10,14 @@ matrices on the shared item set, rescaled from [-1, 1] to [0, 1].
 
 from __future__ import annotations
 
+import logging
+
 import numpy as np
 from cdb_core import CooccurrenceMatrix
 from numpy.typing import NDArray
 from sklearn.manifold import MDS
+
+logger = logging.getLogger(__name__)
 
 
 def compute_cross_model_similarity(
@@ -68,8 +72,24 @@ def compute_cross_model_similarity(
     for i in range(n):
         for j in range(i + 1, n):
             r = np.corrcoef(vectors[i], vectors[j])[0, 1]
-            # Handle NaN (constant vectors) as 0 similarity
+            # Handle NaN (constant vectors) as 0 similarity.
+            # A constant vector arises when the shared-items intersection
+            # produces zero variance for one or both models, typically because
+            # those models' item sources are heterogeneous across the slate
+            # (e.g., mixed single_pass / cross_model_consensus modes). Emit a
+            # WARNING naming both models so that the rescaled 0.5 null cannot
+            # masquerade as a substantive finding. See FOOD-FIX-A rationale in
+            # docs/status/2026-06-11-phase9b-food-campaign.md.
             if np.isnan(r):
+                logger.warning(
+                    "compute_cross_model_similarity: NaN correlation rescued to 0.0 for"
+                    " model pair (%s, %s); shared-items intersection produces a"
+                    " zero-variance vector for at least one model. The resulting cell"
+                    " rescales to the Mantel null value 0.5 and SHOULD NOT be read as"
+                    " a finding.",
+                    model_ids[i],
+                    model_ids[j],
+                )
                 r = 0.0
             scaled = (r + 1.0) / 2.0  # [-1,1] → [0,1]
             sim[i, j] = scaled
