@@ -77,3 +77,15 @@
 ---
 
 *Maintained by hand. When a session mints a term that outlives the session, add it here.*
+
+## Is any of this AI doing the analysis?
+
+A question worth answering precisely, because the project's credibility rests on it.
+
+**No AI computes the numbers.** Every statistic (eigenratio, similarity, centrality, bootstrap interval) is deterministic NumPy/SciPy code under pinned versions. The analysis package may not even import an LLM client; a CI check enforces this mechanically. Anyone can recompute every published number from the open data bundle.
+
+**The guards are not AI.** They are six numeric threshold comparisons in a script. A thermostat, not a judge.
+
+**The gate agents (CDA SME, Reviewer, UI/UX) are AI**, and their role is editorial and procedural: they read the computed numbers, check work against the project's own written rules, recommend dispositions, and draft or veto wording. They cannot compute, alter, or publish anything. Their interpretive judgments are real and are kept honest structurally: pre-registered decision rules where possible (the CI-straddles-threshold rule existed before the data that triggered it), auto-derived values preserved alongside any override, every verdict written to the audit trail, and the standing rule that every numeric claim inside an adjudication is mechanically recomputed before being acted on.
+
+**No AI ships a public-claim change alone.** Guard trips halt the machinery; lede-class changes require Mark's explicit GO. The human is the last gate by design.

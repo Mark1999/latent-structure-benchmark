@@ -129,6 +129,8 @@ of these across a boundary:
 | **T-5** | `romney_consensus_warning` flips |
 | **T-6** | `consensus_type` differs from the prior published value |
 
+**Recompute rule (added 2026-06-11, binding).** Before acting on any SME adjudication of a guard trip, mechanically recompute or directly inspect every load-bearing numeric claim in it (eigenratios, CI bounds, matrix shapes, counts, file-line citations) with a small read-only driver, and quote the recomputed values next to the SME's in the campaign status doc. AI gates do editorial review, not analysis; this rule keeps the boundary checkable. See docs/GLOSSARY.md, "Is any of this AI doing the analysis?".
+
 **A guard trip is not a failure — it's a finding.** It means the new model legitimately
 changed how the domain reads (e.g. a strong-consensus domain became contested because the
 new model is an outlier). **Do NOT promote past a tripped guard.** Escalate to the Architect
