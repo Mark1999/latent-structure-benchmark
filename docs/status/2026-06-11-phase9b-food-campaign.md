@@ -196,3 +196,18 @@ Gate verdicts for the promotion commit:
 | UI/UX | PASS (pixel-identity invariant confirmed) | `docs/status/2026-06-11-food-v02-fix-simids-uiux-verdict.md` |
 | Coder | COMPLETE | FOOD-V02-FIX-SIMIDS commit (cherry-picked from worktree-wf_fe2a2da4-51a-4) |
 | Reviewer | PENDING | |
+
+---
+
+## Promotion complete and live-verified (2026-06-11 evening)
+
+Food v0.2 is LIVE. Step-5 verification on cogstructurelab.com (Playwright, real DOM):
+- Lede renders F3-R3-A verbatim ("...the uncertainty band crosses it. The honest read...").
+- CI disclosure (F3-R3-C, "[4.91, 10.34]") and small-n line (F3-R3-D, "below the 15-model floor") present without interaction.
+- Weak-consensus labeling present; consensus_type_override=WEAK_CONSENSUS in the served food.json with the auditable reason; auto-derived STRONG preserved.
+- Model Map: 12 models, 11 ellipses + 1 dashed R1-b (gpt-5.4-mini) = all points uncertainty-treated; all four new models (deepseek-v3.2, gemini-2.5-pro, mistral-large-2512, grok-4) render.
+- Similarity heatmap: 12x12, maverick absent with the named disclosure in both caption and aria ("...no single-pass collection records for this domain").
+- similarity_model_ids (12 entries) in the served JSON: the matrix order is now an explicit open-data contract.
+- Screenshot: screenshots/food-v02-live.png (local).
+
+Campaign fast-follows queued: FOOD-FIX-A2 (eigenratio canonicalization + eigenratio-CI schema field), collector bug batch (skip-collected semantics, campaign_id regression, http_error failure records, lsb_inspect field read), runbook step-2 mode correction. Social announcement awaits Mark in the admin console under the SME's binding framing.
