@@ -435,3 +435,47 @@ Note: the ContentArea.tsx and ContentArea's pre-existing lines are not checked a
 ### Tester verdict
 
 [pending]
+
+---
+
+## G7-FOLLOWUP-T1: chart-to-record provenance pivot
+
+**Commit:** feat(dashboard): chart-to-record provenance pivot (G7)
+
+**Gate verdicts:** CDA SME PASS-WITH-NOTES (bound strings memo at `.claude/agent-memory/cda_sme/project_g7_followup_t1_sme_bound_strings.md`); UI/UX PASS-WITH-NOTES (§19.19 added to DESIGN_SYSTEM.md v0.21.0).
+
+**Files modified:**
+
+- `DESIGN_SYSTEM.md`: version bump v0.20.6 to v0.21.0; added §19.19 (10 subsections 19.19.1-19.19.10); changelog entry; closing version string.
+- `apps/dashboard/src/copy/failures_findings.ts`: four new exports: `PIVOT_TO_RECORDS_LABEL`, `pivotToRecordsAriaLabel()`, `pivotToRecordsArrivalCaption()`, `pivotToRecordsNoMatchNotice()` (all byte-identical to CDA SME bound strings).
+- `apps/dashboard/src/App.tsx`: `PivotTarget` interface; `pivotTarget` state; `handlePivotToRecords` and `handlePivotTargetConsumed` callbacks; prop threading to FailuresFindings and ContentArea.
+- `apps/dashboard/src/components/ContentArea.tsx`: `onPivotToRecords` prop added; passed to MDSPlot and Focus1SelfConsistencyOverview.
+- `apps/dashboard/src/components/MDSPlot.tsx`: `onPivotToRecords` and `activeDomain` props added; pivot affordance button in tooltip JSX with `pointer-events: auto` override; copy imports from `failures_findings.ts`.
+- `apps/dashboard/src/components/Focus1SelfConsistencyOverview.tsx`: `onPivotToRecords` prop added; pivot affordance button between `.f1-hint` and `.f1-overview`; copy imports from `failures_findings.ts`.
+- `apps/dashboard/src/components/FailuresFindings.tsx`: `FailuresFindingsProps` with `pivotTarget` and `onPivotTargetConsumed`; domain-alignment useEffect; `RecordsSummarySectionProps` extended; `arrivalNotice` state and pivot-consumption useEffect in `RecordsSummarySection`; `rowRefs` map for scrollIntoView; arrival caption and no-match notice rendering; `ExpandableModelRow` highlight class and rowRef; `scrollIntoView` guarded with `typeof trEl.scrollIntoView === 'function'`; two `eslint-disable-line react-hooks/set-state-in-effect` comments; pivot-consumption effect depends on `[pivotTarget, recordsFetchState]`.
+- `apps/dashboard/src/styles/app.css`: `.chart-tooltip__pivot-btn` and `.f1-pivot-btn` CSS rules (G7-FOLLOWUP-T1 section).
+- `apps/dashboard/src/styles/failures-findings.css`: `@keyframes pivot-arrival-fade`; `.failures-findings__successes-tr--pivot-arrival`; `.failures-findings__pivot-arrival-caption`; `.failures-findings__pivot-arrival-notice` (uses `--color-text-caption` per WCAG AA correction N3).
+- `apps/dashboard/src/__tests__/FailuresFindings.test.tsx`: header updated (cases 47-52 added to index comment); copy imports updated; test cases 47-52 added.
+- `apps/dashboard/src/__tests__/MDSPlot.test.tsx`: `fireEvent` added to import; copy imports added; G7-FOLLOWUP-T1 describe block with three cases (48a/48b/49).
+
+**Bug found and fixed during implementation:** `RecordsSummarySection` pivot-consumption `useEffect` depended only on `[pivotTarget]` (not `[pivotTarget, recordsFetchState]`). When `pivotTarget` is set at component mount before the records fetch resolves, the effect fires with `recordsFetchState.kind !== 'ready'` and returns early; then when records arrive (changing `recordsFetchState`), the effect does not re-fire because `pivotTarget` hasn't changed. Fixed by adding `recordsFetchState` to the dependency array. This is the correct React pattern for effects that need both a trigger prop and an async state dependency.
+
+**Bug found and fixed during implementation:** `trEl.scrollIntoView(...)` throws in jsdom (the method is not implemented). Production browsers implement it; the jsdom runtime does not. Fixed with `typeof trEl.scrollIntoView === 'function'` guard before calling. This is defensive-code correct regardless of the test environment.
+
+**Em-dash grep on added lines:**
+
+Command: `git diff -- DESIGN_SYSTEM.md apps/dashboard/src/App.tsx apps/dashboard/src/__tests__/FailuresFindings.test.tsx apps/dashboard/src/__tests__/MDSPlot.test.tsx apps/dashboard/src/components/ContentArea.tsx apps/dashboard/src/components/FailuresFindings.tsx apps/dashboard/src/components/Focus1SelfConsistencyOverview.tsx apps/dashboard/src/components/MDSPlot.tsx apps/dashboard/src/copy/failures_findings.ts apps/dashboard/src/styles/app.css apps/dashboard/src/styles/failures-findings.css | grep '^+' | grep $'—'`
+
+Output: (empty -- zero em dashes on any added line)
+
+**Local gates:**
+
+- `npm run build`: exit 0 (73 modules, 0 errors)
+- `npm run test`: 378 passed | 1 skipped (379) (22 test files)
+- `npm run lint`: exit 0, 0 errors, 0 warnings
+
+**Coder notes:**
+
+CDA SME A5 advisory (preexisting MDSPlot.tsx L284 `This model's` phrase) is out of scope for G7-FOLLOWUP-T1 per CLAUDE.md §8 no-scope-creep. The phrase is not a forbidden-vocabulary violation; it is a tooltip body clause within an already-displayed div. Not touched.
+
+All four pivot copy strings are sourced from `apps/dashboard/src/copy/failures_findings.ts` and are byte-identical to the CDA SME bound strings memo. No inline string literals for UI copy in component files.

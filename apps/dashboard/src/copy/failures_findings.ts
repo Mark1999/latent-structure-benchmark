@@ -432,3 +432,53 @@ export const BLOCK_DETAIL_PROVENANCE_NOTE =
   "The identifiers below name the LSB collection session, the prompt-template version, " +
   "and the provider-returned model-version string. They are properties of the LSB pipeline run, " +
   "not of the model's intent.";
+
+// ===== Chart-to-record provenance pivot (G7-FOLLOWUP-T1, 2026-06-11) =====
+// All four constants below are byte-identical to the CDA SME bound strings
+// delivered in .claude/agent-memory/cda_sme/project_g7_followup_t1_sme_bound_strings.md.
+// Do NOT paraphrase. Both MDSPlot.tsx and Focus1SelfConsistencyOverview.tsx import
+// these constants. No inline string literals of these strings in component files.
+// Parser-state register: records are LSB-pipeline output for the domain, model as informant.
+// Register authority: CDA SME G7-FOLLOWUP-T1 verdict (2026-06-11), Axis 3 PASS.
+
+/**
+ * Affordance button label for the chart-to-record pivot.
+ * Used on both the MDSPlot tooltip pivot control and the Focus 1 individual-model
+ * view header pivot control.
+ * CDA SME-bound (byte-identical). Do NOT paraphrase.
+ * "for this model" is the model-as-informant register: the records are LSB pipeline
+ * output produced with this model as the informant on the currently selected domain.
+ */
+export const PIVOT_TO_RECORDS_LABEL = "See the collection records for this model";
+
+/**
+ * aria-label template for the chart-to-record pivot affordance.
+ * Takes (modelLabel, domainLabel) at call site. SR users need both model and domain context
+ * because both surfaces are domain-scoped views.
+ * CDA SME-bound (byte-identical template). Do NOT paraphrase connective words.
+ */
+export function pivotToRecordsAriaLabel(modelLabel: string, domainLabel: string): string {
+  return `See the collection records for ${modelLabel} on the ${domainLabel} domain`;
+}
+
+/**
+ * Arrival caption template for when the pivot lands and the per-model summary row
+ * is highlighted. Takes (modelLabel, domainLabel) at call site.
+ * CDA SME-bound (byte-identical template). Do NOT paraphrase.
+ * Places LSB as the producing agent and the model as the informant.
+ * "as the informant" is binding; do not substitute "as the subject" etc.
+ */
+export function pivotToRecordsArrivalCaption(modelLabel: string, domainLabel: string): string {
+  return `Showing the collection records LSB produced when running the ${domainLabel} protocol with ${modelLabel} as the informant.`;
+}
+
+/**
+ * No-match notice template when the pivot target model has no successful-run summary
+ * in the requested domain. Takes (modelLabel, domainLabel) at call site.
+ * CDA SME-bound (byte-identical template). Do NOT paraphrase.
+ * Does not say the model "failed" or that records "are missing". States the
+ * table does not list it, with the inclusion criterion stated.
+ */
+export function pivotToRecordsNoMatchNotice(modelLabel: string, domainLabel: string): string {
+  return `The Collection records tab has no successful-run summary for ${modelLabel} on the ${domainLabel} domain. The per-model summary table only lists models that produced a parseable session in this domain.`;
+}

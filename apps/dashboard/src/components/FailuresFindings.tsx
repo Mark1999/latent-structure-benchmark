@@ -15,14 +15,16 @@
  *           CR-T5 (2026-06-10), N1-N6 applied;
  *           CR-T6 (2026-06-10), N1-N10 applied;
  *           CR-T7 (2026-06-10), N1-N8 applied.
+ *           G7-FOLLOWUP-T1 (2026-06-11) arrival highlight + no-match notice applied.
  * UI/UX: Phase 9a T1 verdict (2026-06-08), N1-N7 applied;
- *         CR-T1 through CR-T7 verdicts (2026-06-10) applied.
+ *         CR-T1 through CR-T7 verdicts (2026-06-10) applied;
+ *         G7-FOLLOWUP-T1 (2026-06-11) §19.19 applied.
  *
  * NO Explore chrome: no chart-lede, no Smith's S, no SelectionBar,
  * no VizTabs, no consensus strings (M4 / N7).
  */
 
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import type {
   FailuresFile,
   FailuresRecord,
@@ -85,6 +87,8 @@ import {
   BLOCK_ATTEMPTS,
   ATTEMPTS_FRAMING,
   ATTEMPTS_PARSE_ERROR_LABEL,
+  pivotToRecordsArrivalCaption,
+  pivotToRecordsNoMatchNotice,
 } from '../copy/failures_findings';
 import '../styles/failures-findings.css';
 
@@ -381,7 +385,23 @@ function DeclineInterviewRow({ record, index }: DeclineInterviewRowProps) {
 
 // ===== Main component =====
 
-export function FailuresFindings() {
+/** Props for the FailuresFindings component. */
+interface FailuresFindingsProps {
+  /**
+   * Optional transient pivot target from App.tsx (G7-FOLLOWUP-T1, §19.19.5).
+   * When non-null, the component: (a) aligns internal domain state, (b) after
+   * the records fetch resolves, scrolls to and highlights the matching row,
+   * (c) calls onPivotTargetConsumed to clear the state.
+   */
+  pivotTarget?: { modelId: string; domainSlug: DomainSlug } | null;
+  /** Callback to clear the pivot target after consumption (§19.19.6). */
+  onPivotTargetConsumed?: () => void;
+}
+
+export function FailuresFindings({
+  pivotTarget = null,
+  onPivotTargetConsumed,
+}: FailuresFindingsProps = {}) {
   // OWN domain state, defaults to 'family' per UI/UX N1 binding.
   // NOT inherited from Explore.
   const [domain, setDomain] = useState<DomainSlug>('family');
@@ -391,6 +411,14 @@ export function FailuresFindings() {
   // Abort controller ref for cancellation on domain change.
   // Both fetches share one AbortController (AC2).
   const abortRef = useRef<AbortController | null>(null);
+
+  // Align domain state when a pivot target arrives (G7-FOLLOWUP-T1, §19.19.6 step 1).
+  // The records fetch in RecordsSummarySection will re-fire once domain state updates.
+  useEffect(() => {
+    if (pivotTarget != null && pivotTarget.domainSlug !== domain) {
+      setDomain(pivotTarget.domainSlug); // eslint-disable-line react-hooks/set-state-in-effect
+    }
+  }, [pivotTarget]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     // Cancel any in-flight requests
@@ -617,8 +645,14 @@ export function FailuresFindings() {
 
       {/* Records summary section (CR-T5, v0.19.4): independent of failures side (AC3).
           Placement: below the failures/decline-interviews list (or below EMPTY_CAPTION
-          when n_records === 0). See DESIGN_SYSTEM.md §19.15. */}
-      <RecordsSummarySection recordsFetchState={recordsFetchState} domainSlug={domain} />
+          when n_records === 0). See DESIGN_SYSTEM.md §19.15.
+          G7-FOLLOWUP-T1: pivot target + consumed callback passed for arrival highlight. */}
+      <RecordsSummarySection
+        recordsFetchState={recordsFetchState}
+        domainSlug={domain}
+        pivotTarget={pivotTarget}
+        onPivotTargetConsumed={onPivotTargetConsumed}
+      />
 
       {/* idle state renders nothing (initial state before first fetch resolves) */}
     </div>
@@ -734,6 +768,10 @@ function RecordDetailBody({ detail }: RecordDetailBodyProps) {
 interface RecordsSummarySectionProps {
   recordsFetchState: RecordsFetchState;
   domainSlug: string;
+  /** Transient pivot target to scroll to and highlight (G7-FOLLOWUP-T1, §19.19.6). */
+  pivotTarget?: { modelId: string; domainSlug: DomainSlug } | null;
+  /** Callback to clear the pivot target after consumption (§19.19.6). */
+  onPivotTargetConsumed?: () => void;
 }
 
 /**
@@ -742,7 +780,84 @@ interface RecordsSummarySectionProps {
  * Section structure mirrors §19.14 taxonomy block pattern (AC5, §19.15).
  * CR-T7: adds expand column + per-row detail surface (§19.17).
  */
-function RecordsSummarySection({ recordsFetchState, domainSlug }: RecordsSummarySectionProps) {
+function RecordsSummarySection({
+  recordsFetchState,
+  domainSlug,
+  pivotTarget,
+  onPivotTargetConsumed,
+}: RecordsSummarySectionProps) {
+  /**
+   * Arrival notice state (G7-FOLLOWUP-T1, DESIGN_SYSTEM.md §19.19.6).
+   * 'caption' = matching row found; 'no-match' = no row found; null = inactive.
+   * Text is the formatted string; duration handled by useEffect cleanup.
+   */
+  const [arrivalNotice, setArrivalNotice] = useState<{
+    kind: 'caption' | 'no-match';
+    text: string;
+    modelId: string;
+  } | null>(null);
+
+  /** Ref map from model_id to the <tr> DOM element for scrollIntoView. */
+  const rowRefs = useRef<Map<string, HTMLTableRowElement>>(new Map());
+
+  /**
+   * Consume the pivot target when it is non-null and the records side is ready.
+   * Per §19.19.6:
+   *   1. Align domain (handled by FailuresFindings main component via setDomain).
+   *   2. Locate the matching <tr> by model_id.
+   *   3. scrollIntoView.
+   *   4. Apply arrival-highlight class for 2000ms via CSS animation.
+   *   5. Render arrival caption or no-match notice for 2000ms.
+   *   6. Call onPivotTargetConsumed.
+   */
+  useEffect(() => {
+    if (pivotTarget == null || recordsFetchState.kind !== 'ready') return;
+    if (pivotTarget.domainSlug !== domainSlug) return; // domain not yet aligned
+
+    const { modelId } = pivotTarget;
+    const data = recordsFetchState.data;
+
+    // Build domainLabel from domainSlug (capitalize first letter)
+    const domainLabel = domainSlug.charAt(0).toLowerCase() + domainSlug.slice(1);
+    // modelLabel: use modelId (display name not available at this scope without full models list)
+    const modelLabel = modelId;
+
+    const row = data.by_model.find((r) => r.model_id === modelId);
+
+    if (row != null) {
+      // Found a matching row: scroll to it, apply highlight, show arrival caption.
+      const trEl = rowRefs.current.get(modelId);
+      if (trEl && typeof trEl.scrollIntoView === 'function') {
+        trEl.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      }
+      setArrivalNotice({ kind: 'caption', text: pivotToRecordsArrivalCaption(modelLabel, domainLabel), modelId }); // eslint-disable-line react-hooks/set-state-in-effect
+    } else {
+      // No matching row: show no-match notice.
+      setArrivalNotice({ kind: 'no-match', text: pivotToRecordsNoMatchNotice(modelLabel, domainLabel), modelId });
+    }
+
+    // Consume the target immediately so re-visits don't re-fire.
+    onPivotTargetConsumed?.();
+
+    // Auto-clear the notice after 2000ms (§19.19.7 duration).
+    const timer = window.setTimeout(() => {
+      setArrivalNotice(null);
+    }, 2000);
+
+    return () => {
+      window.clearTimeout(timer);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [pivotTarget, recordsFetchState]);
+
+  const setRowRef = useCallback((modelId: string, el: HTMLTableRowElement | null) => {
+    if (el) {
+      rowRefs.current.set(modelId, el);
+    } else {
+      rowRefs.current.delete(modelId);
+    }
+  }, []);
+
   if (recordsFetchState.kind === 'loading') {
     return (
       <p className="failures-findings__status failures-findings__successes-status">
@@ -791,6 +906,20 @@ function RecordsSummarySection({ recordsFetchState, domainSlug }: RecordsSummary
         {data.framing_note}
       </p>
 
+      {/* Arrival notice (G7-FOLLOWUP-T1, §19.19.6): renders for 2000ms after pivot lands.
+          'caption' = matching row found (arrival orientation).
+          'no-match' = model not in table (scoping rule explanation). */}
+      {arrivalNotice != null && arrivalNotice.kind === 'caption' && (
+        <p className="failures-findings__pivot-arrival-caption">
+          {arrivalNotice.text}
+        </p>
+      )}
+      {arrivalNotice != null && arrivalNotice.kind === 'no-match' && (
+        <p className="failures-findings__pivot-arrival-notice">
+          {arrivalNotice.text}
+        </p>
+      )}
+
       {/* Per-model table or zero-runs empty state (AC7, AC8) */}
       {data.by_model.length === 0 ? (
         /* Zero-runs first-class observation state (AC8, CR-T4 N3 carry-forward) */
@@ -828,6 +957,8 @@ function RecordsSummarySection({ recordsFetchState, domainSlug }: RecordsSummary
                   key={row.model_id}
                   row={row}
                   domainSlug={domainSlug}
+                  isHighlighted={arrivalNotice?.kind === 'caption' && arrivalNotice.modelId === row.model_id}
+                  rowRef={(el) => setRowRef(row.model_id, el)}
                 />
               ))}
             </tbody>
@@ -847,6 +978,10 @@ function RecordsSummarySection({ recordsFetchState, domainSlug }: RecordsSummary
 interface ExpandableModelRowProps {
   row: RecordsModelRow;
   domainSlug: string;
+  /** When true, apply the pivot-arrival highlight CSS class (G7-FOLLOWUP-T1, §19.19.7). */
+  isHighlighted?: boolean;
+  /** Ref callback for the data <tr> element; used for scrollIntoView on pivot (§19.19.6). */
+  rowRef?: (el: HTMLTableRowElement | null) => void;
 }
 
 /**
@@ -855,7 +990,7 @@ interface ExpandableModelRowProps {
  * in a React Fragment keyed on model_id. Fetch state is managed inline per
  * NOTE-4 / §19.17 lazy-fetch spec.
  */
-function ExpandableModelRow({ row, domainSlug }: ExpandableModelRowProps) {
+function ExpandableModelRow({ row, domainSlug, isHighlighted = false, rowRef }: ExpandableModelRowProps) {
 
   const [isExpanded, setIsExpanded] = useState(false);
   const [detailState, setDetailState] = useState<DetailFetchState>({ kind: 'idle' });
@@ -912,8 +1047,13 @@ function ExpandableModelRow({ row, domainSlug }: ExpandableModelRowProps) {
 
   return (
     <>
-      {/* Data row with 5 data cells + expand button cell (6th) */}
-      <tr className="failures-findings__successes-tr">
+      {/* Data row with 5 data cells + expand button cell (6th).
+          isHighlighted applies the pivot-arrival CSS animation class (G7-FOLLOWUP-T1, §19.19.7).
+          rowRef passes the DOM element to RecordsSummarySection for scrollIntoView (§19.19.6). */}
+      <tr
+        className={`failures-findings__successes-tr${isHighlighted ? ' failures-findings__successes-tr--pivot-arrival' : ''}`}
+        ref={rowRef}
+      >
         <td className="failures-findings__successes-td">
           <code className="failures-findings__successes-code">{row.model_id}</code>
         </td>

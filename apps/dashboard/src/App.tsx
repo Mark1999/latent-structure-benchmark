@@ -23,9 +23,17 @@ import { pathToTab, tabToPath, tabToTitle } from './lib/navRouting';
 
 type DomainSlug = 'family' | 'holidays' | 'food';
 
+/** Transient pivot-target state (G7-FOLLOWUP-T1, DESIGN_SYSTEM.md §19.19.5). Default null. */
+interface PivotTarget {
+  modelId: string;
+  domainSlug: DomainSlug;
+}
+
 export default function App() {
   const [navTab, setNavTab] = useState<NavTab>(() => pathToTab(window.location.pathname));
   const [activeDomain, setActiveDomain] = useState<DomainSlug>('family');
+  /** Transient pivot-target: set by handlePivotToRecords, cleared by FailuresFindings. */
+  const [pivotTarget, setPivotTarget] = useState<PivotTarget | null>(null);
   const [domain, setDomain] = useState<DomainExtended | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -100,6 +108,21 @@ export default function App() {
       window.history.pushState({ tab }, '', path);
     }
     document.title = tabToTitle(tab);
+  }, []);
+
+  /**
+   * Chart-to-record provenance pivot (G7-FOLLOWUP-T1, DESIGN_SYSTEM.md §19.19.5).
+   * Sets transient pivot target (modelId + activeDomain), then navigates to the
+   * Collection records tab. FailuresFindings consumes and clears the target after
+   * the arrival highlight has been applied via onPivotTargetConsumed.
+   */
+  const handlePivotToRecords = useCallback((modelId: string) => {
+    setPivotTarget({ modelId, domainSlug: activeDomain });
+    handleTabChange('collection-records');
+  }, [activeDomain, handleTabChange]);
+
+  const handlePivotTargetConsumed = useCallback(() => {
+    setPivotTarget(null);
   }, []);
 
   // Set initial document.title on mount and register popstate listener.
@@ -218,7 +241,12 @@ export default function App() {
       <>
         <NavBar activeTab={navTab} onTabChange={handleTabChange} />
         {navTab === 'methodology' && <MethodologyPage />}
-        {navTab === 'collection-records' && <FailuresFindings />}
+        {navTab === 'collection-records' && (
+          <FailuresFindings
+            pivotTarget={pivotTarget}
+            onPivotTargetConsumed={handlePivotTargetConsumed}
+          />
+        )}
         {navTab === 'data' && <DataPage />}
         {navTab === 'about' && <AboutPage />}
         {/* Footer on non-explore routes: activeDomain=null → always renders if versions present */}
@@ -266,6 +294,7 @@ export default function App() {
           lensEnabled={lensEnabled}
           onLensToggle={() => setLensEnabled((v) => !v)}
           activeDomain={activeDomain}
+          onPivotToRecords={handlePivotToRecords}
         />
       </div>
       {/* Per-domain conditional footer: renders nothing on food (not in provenance.json) */}

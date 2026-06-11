@@ -1266,6 +1266,73 @@ body {
   margin: 5px 0;
 }
 
+/* ==========================================================================
+   G7-FOLLOWUP-T1: chart-to-record pivot affordance button (§19.19.7, v0.21.0)
+   Lives in app.css because MDSPlot.tsx is not a failures-findings component.
+   All var(--...) references confirmed present in tokens.css (pitfall 15 pre-check).
+   ========================================================================== */
+
+/* Pivot affordance button rendered inside .chart-tooltip (dark-bg variant).
+   Pointer-enhancement-only per §19.19.8; pointer-events: auto overrides parent none. */
+.chart-tooltip__pivot-btn {
+  color: var(--color-background);
+  background: transparent;
+  border: var(--border-width) solid var(--color-background);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-xs);
+  padding: var(--space-1) var(--space-2);
+  font-family: var(--font-body);
+  cursor: pointer;
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-data);
+  margin-top: var(--space-2);
+  width: 100%;
+  text-align: left;
+  display: block;
+}
+
+.chart-tooltip__pivot-btn:hover {
+  background: var(--color-text-secondary);
+}
+
+.chart-tooltip__pivot-btn:focus-visible {
+  outline: 2px solid var(--color-background);
+  outline-offset: 2px;
+}
+
+/* Focus 1 header pivot button -- reuses chart-tooltip__pivot-btn base + overrides
+   for the light-bg header context. Keyboard-accessible pivot path (§19.19.8). */
+.f1-pivot-btn {
+  color: var(--color-text-primary);
+  background: transparent;
+  border: var(--border-width) solid var(--color-border);
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  padding: var(--space-2) var(--space-4);
+  font-family: var(--font-body);
+  cursor: pointer;
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-data);
+  margin: var(--space-2) 0 var(--space-4);
+  min-height: 44px;
+  display: block;
+}
+
+.f1-pivot-btn:hover {
+  background: var(--color-surface-hover);
+}
+
+.f1-pivot-btn:focus-visible {
+  outline: 2px solid var(--color-info);
+  outline-offset: 2px;
+}
+
+@media (max-width: 767px) {
+  .chart-tooltip__pivot-btn {
+    min-height: 44px;
+  }
+}
+
 /* ===== Model Map ===== */
 
 .model-map__desc {

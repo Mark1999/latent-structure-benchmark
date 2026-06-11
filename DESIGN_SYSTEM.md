@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.20.6  
+**Version:** v0.21.0  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.21.0** (chart-to-record provenance pivot, G7-FOLLOWUP-T1, 2026-06-11) adds §19.19 specifying the pivot affordance that lets a researcher click from MDSPlot tooltip or Focus 1 individual-model header to the Collection records tab, scrolled and highlighted to the matching per-model summary row for the current domain. New CSS classes: `.chart-tooltip__pivot-btn` (app.css), `@keyframes pivot-arrival-fade` (failures-findings.css), `.failures-findings__successes-tr--pivot-arrival` (failures-findings.css), `.failures-findings__pivot-arrival-caption` (failures-findings.css), `.failures-findings__pivot-arrival-notice` (failures-findings.css). No new tokens. MDSPlot tooltip affordance is pointer-enhancement-only (N4 keyboard/SR ruling); Focus 1 header affordance is the keyboard-accessible path. WCAG AA token correction: `.failures-findings__pivot-arrival-notice` uses `--color-text-caption` (#6c757d, 4.60:1 on white) NOT `--color-text-secondary` (#7f8c8d, 3.40:1 -- WCAG AA fail at 14px regular weight). Gate verdicts: CDA SME PASS-WITH-NOTES (`.claude/agent-memory/cda_sme/project_g7_followup_t1_plan_verdict.md`); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
 - **v0.20.6** (T-MDS-R1 geometry and prop pins, 2026-06-10) adds implementation requirements 9, 10, 11 to §3.3.5, pins the R1-b stroke-dasharray value, pins the R1-c triangle polygon geometry, specifies the new ociValues prop contract for MDSPlot.tsx, and corrects the em-dash-containing tooltip copy in the R1-b table entry and implementation requirements 5 and 6 to the CDA SME F3/F4/F8 approved em-dash-free versions. No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (this update, 2026-06-10); CDA SME binding strings per T-MDS-R1 SME verdict.
 - **v0.20.5** (SVG hex literal migration to design tokens, T15, 2026-06-10) adds seven new SVG chrome tokens to §1.2 (placement: after `--color-surface-hover`, before the sequential scale block). Token block: `--color-svg-grid-line` (#f0f0ec, TermMap warm-white grid lines), `--color-svg-grid-line-neutral` (#eeeeee, MDSPlot/Focus2 neutral gray grid lines; erratum 2026-06-10: the first T15 commit consolidated these onto #f0f0ec against the UI/UX ruling, corrected same day), `--color-svg-axis-caption` (#a0a098, axis label text; pre-existing WCAG fail at 11px preserved zero-delta, remediation deferred), `--color-svg-label-secondary` (#4a4a4a, model/term label text in MDS components), `--color-svg-marker-stroke` (#888888, fallback neutral stroke in FreeListCompare/PileStructure/Focus1SelfConsistencyOverview/Focus2FamilyOverview), `--color-svg-gray-branch` (#999999, cross-cluster branch in ClusterTree; consolidation ruling: #888 and #999 stay on separate tokens), `--color-svg-dot-stroke` (#ffffff, dot outline stroke in TermMap/MDSPlot/Focus2FamilySimilarity). Components updated: TermMap.tsx, MDSPlot.tsx, Focus2FamilySimilarity.tsx, SimilarityHeatmap.tsx, ClusterTree.tsx, FreeListCompare.tsx, PileStructure.tsx, Focus1RunDistribution.tsx, Focus2FamilyOverview.tsx, Focus1SelfConsistencyOverview.tsx. All values byte-identical to migrated literals: zero visual delta. New test: `__tests__/tokens-defined.test.ts` (pitfall-15 guard). Gate verdicts: CDA SME PASS (routing not required, no methodology surface); UI/UX PASS-WITH-NOTES (notes binding, see `docs/status/2026-06-10-codebase-review-fixes-verdicts.md` T15 section). Commit: `refactor(dashboard): migrate SVG hex literals to design tokens (T15)`.
 - **v0.20.3** (Per-attempt retry-transcript block, CR-T8, 2026-06-10) adds §19.18 specifying the attempts block rendered inside a failure record's expanded body when `retry_attempts` is non-empty. Layout: labeled section with framing paragraph followed by one card per attempt, each showing `attempt_index` heading (0-indexed), response verbatim in a `<pre>`, and an optional provenance list for `stop_reason` and `parse_error_message` (labeled "LSB parser-state diagnosis"). New CSS classes in `failures-findings.css`: `.failures-findings__attempts`, `.failures-findings__attempts-framing`, `.failures-findings__attempt`, `.failures-findings__attempt-heading`. WCAG AA ruling: `.failures-findings__attempt-heading` uses `--color-text-primary` (NOT `--color-text-secondary`). No new tokens. Six new vitest cases (41-46); case 40 (case 9 extended) further extended to materialise the attempts block and scan its chrome. Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T8 section); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-10-collection-records-rework-verdicts.md` T8 section).
@@ -3526,6 +3527,102 @@ All five new CSS classes use only tokens already defined in `tokens.css` as of v
 
 ---
 
+### 19.19 Chart-to-record provenance pivot (binding, G7-FOLLOWUP-T1, v0.21.0)
+
+Gate verdicts: CDA SME PASS-WITH-NOTES (`.claude/agent-memory/cda_sme/project_g7_followup_t1_plan_verdict.md`); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
+
+#### 19.19.1 Purpose and scope
+
+A researcher hovering or selecting a model on the Model Map (MDSPlot tooltip), or viewing a model in Focus 1 (individual-model header), can click an affordance that pivots the app to the Collection records tab, scrolled to and visually highlighting the matching row in the per-model summary table for the current domain. The pivot uses in-app `NavTab` state only. No URL query-state serialization (deferred to a future Permalink task per §3.8).
+
+Two surfaces only this cycle: MDSPlot tooltip and Focus 1 individual-model view header. Term Map, Heatmap, Centrality, Cluster Tree, Free Lists, Pile Structure pivot affordances are deferred.
+
+#### 19.19.2 Copy strings (CDA SME-bound, byte-identical)
+
+All four strings imported from `apps/dashboard/src/copy/failures_findings.ts`. No inline string literals in component files (N7 binding).
+
+| Constant | Type | Value |
+|---|---|---|
+| `PIVOT_TO_RECORDS_LABEL` | string | `"See the collection records for this model"` |
+| `pivotToRecordsAriaLabel(modelLabel, domainLabel)` | function | `"See the collection records for ${modelLabel} on the ${domainLabel} domain"` |
+| `pivotToRecordsArrivalCaption(modelLabel, domainLabel)` | function | `"Showing the collection records LSB produced when running the ${domainLabel} protocol with ${modelLabel} as the informant."` |
+| `pivotToRecordsNoMatchNotice(modelLabel, domainLabel)` | function | `"The Collection records tab has no successful-run summary for ${modelLabel} on the ${domainLabel} domain. The per-model summary table only lists models that produced a parseable session in this domain."` |
+
+Anti-attribution note (CDA SME G1 binding): the affordance must NOT be visually coupled to a Smith's S / Sutrop CSI / OCI / centrality numeric in a way that implies the per-model summary records explain that numeric. The button copy and aria-label MUST NOT be parameterized on any metric value. No "high-concentration" / "low-concentration" variant; the copy is invariant on R1 state, OCI value, centrality, or any other numeric.
+
+#### 19.19.3 MDSPlot tooltip placement (binding, N5)
+
+The pivot button renders AFTER the `.chart-tooltip__terms` block, preceded by a second `.chart-tooltip__sep` separator. DOM order inside `.chart-tooltip`:
+
+```
+.chart-tooltip__name
+.chart-tooltip__sub
+[R1 state divs if applicable]
+[Centrality div if applicable]
+[Position div if applicable]
+.chart-tooltip__sep    (existing separator before terms)
+.chart-tooltip__terms  (existing top terms block)
+.chart-tooltip__sep    (NEW second separator)
+button.chart-tooltip__pivot-btn  (NEW pivot affordance)
+```
+
+Renders only when the `onPivotToRecords` prop is non-null (pointer-enhancement-only; N4 ruling). Does NOT render adjacent to the Centrality numeric or OCI explainer lines (CDA SME G1 anti-coupling rule).
+
+#### 19.19.4 Focus 1 header placement (binding, N5)
+
+The pivot button renders in `Focus1SelfConsistencyOverview.tsx` between the `.f1-hint` paragraph and the `.f1-overview` div. Renders only when `selectedModelId` is non-null AND `onPivotToRecords` prop is non-null. NOT inside any `.f1-model-card`. This is the keyboard-accessible pivot path (N4 keyboard/SR ruling).
+
+#### 19.19.5 App.tsx state wiring (binding, AC1)
+
+`App.tsx` carries a single transient pivot-target state shape `{ modelId: string; domainSlug: DomainSlug } | null`. Default null. `handlePivotToRecords(modelId)` reads `activeDomain`, sets the target, then calls `handleTabChange('collection-records')`. The target is cleared by `FailuresFindings` after the highlight has been applied via the `onPivotTargetConsumed` callback.
+
+#### 19.19.6 FailuresFindings pivot-target consumption (binding, AC2)
+
+`FailuresFindings` accepts optional `pivotTarget: { modelId: string; domainSlug: DomainSlug } | null` and `onPivotTargetConsumed: () => void` props. On a non-null `pivotTarget`:
+
+1. Set internal `domain` state to `pivotTarget.domainSlug` if not already aligned.
+2. After the records summary fetch resolves to `ready`, locate the `<tr>` whose `row.model_id === pivotTarget.modelId`.
+3. Call `scrollIntoView({ block: 'center', behavior: 'smooth' })` on it.
+4. Apply `.failures-findings__successes-tr--pivot-arrival` class for 2000ms; remove after.
+5. Render the arrival caption (`.failures-findings__pivot-arrival-caption`) above the highlighted row for the same duration using `pivotToRecordsArrivalCaption(modelLabel, domainLabel)`.
+6. Call `onPivotTargetConsumed()` to clear the state.
+7. If no matching row exists, render the no-match notice (`.failures-findings__pivot-arrival-notice`) using `pivotToRecordsNoMatchNotice(modelLabel, domainLabel)` for the same duration; then call `onPivotTargetConsumed()`.
+
+Duration: 2000ms (2 seconds). The arrival caption and the no-match notice both render as siblings inside `.failures-findings__successes`, scoped to the triggered event.
+
+#### 19.19.7 CSS classes (binding, pitfall 15 pre-check complete)
+
+All new CSS classes use only tokens already defined in `tokens.css`. No new tokens.
+
+| Class | File | Key token decisions |
+|---|---|---|
+| `.chart-tooltip__pivot-btn` | `app.css` | Renders inside `.chart-tooltip` (dark-bg variant). `color: var(--color-background)` (white text on dark tooltip bg). `background: transparent`. `border: var(--border-width) solid var(--color-background)`. `border-radius: var(--border-radius-sm)`. `font-size: var(--font-size-xs)`. `padding: var(--space-1) var(--space-2)`. `font-family: var(--font-body)`. `cursor: pointer`. `font-weight: var(--font-weight-regular)`. `line-height: var(--line-height-data)`. `margin-top: var(--space-2)`. `width: 100%`. `text-align: left`. Min touch target 44px enforced by `min-height: 44px` on mobile. |
+| `@keyframes pivot-arrival-fade` | `failures-findings.css` | `from { background: var(--color-info); } to { background: transparent; }`. Uses `--color-info` (#3360a9) as the arrival highlight color, fading to transparent over the 2000ms duration via CSS animation. |
+| `.failures-findings__successes-tr--pivot-arrival` | `failures-findings.css` | `animation: pivot-arrival-fade 2000ms ease-out forwards`. Applied to the target `<tr>` element. |
+| `.failures-findings__pivot-arrival-caption` | `failures-findings.css` | Arrival caption rendered above the highlighted row. `font-size: var(--font-size-sm)`. `color: var(--color-text-primary)`. `line-height: var(--line-height-body)`. `padding: var(--space-2) var(--space-4)`. `max-width: var(--max-prose-width)`. `font-family: var(--font-body)`. `font-weight: var(--font-weight-regular)`. |
+| `.failures-findings__pivot-arrival-notice` | `failures-findings.css` | No-match notice. `font-size: var(--font-size-sm)`. `color: var(--color-text-caption)` (NOT `--color-text-secondary`; WCAG AA 4.60:1 correction per N3). `line-height: var(--line-height-body)`. `padding: var(--space-2) var(--space-4)`. `max-width: var(--max-prose-width)`. `font-family: var(--font-body)`. `font-weight: var(--font-weight-regular)`. |
+
+#### 19.19.8 Keyboard and SR interaction (binding, N4)
+
+MDSPlot tooltip affordance is pointer-enhancement-only. The Coder MUST NOT add `tabindex` to SVG circles or a keyboard-tooltip activation mechanism for this cycle. Focus 1 header affordance is the keyboard-accessible path (standard `<button>` semantics, focus ring on focus-visible using `--color-info` outline).
+
+#### 19.19.9 Mobile accessibility (binding)
+
+Mobile layout for the `.failures-findings__successes-tr--pivot-arrival` highlight must work correctly inside the `display: block` mobile scroll layout established by CR-T5. The `.chart-tooltip__pivot-btn` must meet WCAG 2.5.5 minimum 44px touch target (`min-height: 44px` on mobile via media query or always). Focus ring on `.chart-tooltip__pivot-btn:focus-visible`: `outline: 2px solid var(--color-background); outline-offset: 2px`.
+
+#### 19.19.10 Test cases (binding, G7-FOLLOWUP-T1 AC7)
+
+- Case 47: Byte-identity on all four PIVOT_TO_RECORDS_* strings/templates.
+- Case 48: `MDSPlot` with `onPivotToRecords` prop non-null renders a `.chart-tooltip__pivot-btn` inside the tooltip DOM (mouse-hover simulation).
+- Case 49: Clicking `.chart-tooltip__pivot-btn` fires `onPivotToRecords` with the correct `modelId`.
+- Case 50: `FailuresFindings` with `pivotTarget` matching a row in the summary table applies `.failures-findings__successes-tr--pivot-arrival` to that row and calls `onPivotTargetConsumed` after consuming.
+- Case 51: `FailuresFindings` with `pivotTarget` matching no row renders `.failures-findings__pivot-arrival-notice` and calls `onPivotTargetConsumed`.
+- Case 52: Chrome-isolation walk: MDSPlot tooltip pivot button text and Focus 1 pivot button text both pass zero-count assertions for `worldview`, `believes`, `thinks`, `understands`, `cooperative` (outside counterfactual), bare `refusal`.
+
+Existing MDSPlot test suite byte-untouched (R1-a/R1-b/R1-c markers, ellipse logic, label placement). Existing SimilarityHeatmap R10 CI-crosses-null treatment byte-untouched.
+
+---
+
 ## 20. Data Page visual specification (v0.16.0 — Phase 9a task 6, 2026-06-09)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md`).
@@ -3710,6 +3807,6 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.20.6. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+*End of DESIGN_SYSTEM.md v0.21.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

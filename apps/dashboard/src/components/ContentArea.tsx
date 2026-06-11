@@ -68,6 +68,8 @@ interface ContentAreaProps {
   onLensToggle?: () => void;
   /** Active domain slug (needed for Focus 1 data loading) */
   activeDomain: string;
+  /** Callback to pivot to the Collection records tab for a given model (G7-FOLLOWUP-T1). */
+  onPivotToRecords?: (modelId: string) => void;
 }
 
 export { PROVIDER_COLORS };
@@ -90,6 +92,7 @@ export function ContentArea({
   lensEnabled,
   onLensToggle,
   activeDomain,
+  onPivotToRecords,
 }: ContentAreaProps) {
   const isFocus1 = activeFocus === 'focus-1';
   const isFocus2 = activeFocus === 'focus-2';
@@ -225,6 +228,7 @@ export function ContentArea({
                 models={domain?.models ?? []}
                 selectedModelId={selectedModelId}
                 onSelectModel={handleSelectModelAndNavigate}
+                onPivotToRecords={onPivotToRecords}
               />
             )}
             {activeVizTab === 'f1-run-distribution' && (
@@ -294,6 +298,8 @@ export function ContentArea({
                     centralityScores={domain.cultural_centrality_scores ?? {}}
                     r1States={domain.display?.r1_states ?? {}}
                     ociValues={Object.fromEntries((domain.within_model_results ?? []).map(r => [r.model_id, r.oci]))}
+                    onPivotToRecords={onPivotToRecords}
+                    activeDomain={activeDomain}
                   />
                 )}
 

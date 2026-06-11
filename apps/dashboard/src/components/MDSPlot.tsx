@@ -7,6 +7,10 @@
 import { useMemo, useState, useCallback, useRef } from 'react';
 import { displayModel, displayProvider } from '../lib/familyUtils';
 import type { R1State } from '../data/types';
+import {
+  PIVOT_TO_RECORDS_LABEL,
+  pivotToRecordsAriaLabel,
+} from '../copy/failures_findings';
 
 interface MDSPlotProps {
   mdsCoordinates: Record<string, [number, number]>;
@@ -25,6 +29,14 @@ interface MDSPlotProps {
   r1States: Record<string, R1State>;
   /** OCI value per model_id -- display-only for R1-b tooltip. MUST NOT be used for classification. See DESIGN_SYSTEM.md §3.3.5 impl req 11 and A5. */
   ociValues: Record<string, number>;
+  /**
+   * Optional callback to pivot to the Collection records tab for the hovered model.
+   * When non-null, the tooltip renders a pivot affordance button (pointer-enhancement-only,
+   * per DESIGN_SYSTEM.md §19.19.8 N4 keyboard/SR ruling). See §19.19.3 for placement spec.
+   */
+  onPivotToRecords?: (modelId: string) => void;
+  /** Active domain slug -- used to build aria-label for the pivot affordance. */
+  activeDomain?: string;
 }
 
 const PROVIDER_COLORS: Record<string, string> = {
@@ -48,6 +60,8 @@ export function MDSPlot({
   centralityScores,
   r1States,
   ociValues,
+  onPivotToRecords,
+  activeDomain = '',
 }: MDSPlotProps) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [tooltip, setTooltip] = useState<{ id: string; x: number; y: number } | null>(null);
@@ -296,6 +310,30 @@ export function MDSPlot({
             <>
               <div className="chart-tooltip__sep" />
               <div className="chart-tooltip__terms">Top terms: {tooltipTerms.join(', ')}</div>
+            </>
+          )}
+          {/* Pivot affordance: pointer-enhancement-only per DESIGN_SYSTEM.md §19.19.3 / §19.19.8.
+              Renders only when onPivotToRecords is non-null. DOM placement: after .chart-tooltip__terms,
+              preceded by a second .chart-tooltip__sep separator (SME G1 anti-coupling: not adjacent
+              to Centrality or OCI explainer lines). pointer-events: auto overrides the parent
+              .chart-tooltip { pointer-events: none } CSS rule so clicks register on the button. */}
+          {onPivotToRecords != null && (
+            <>
+              <div className="chart-tooltip__sep" />
+              <button
+                className="chart-tooltip__pivot-btn"
+                style={{ pointerEvents: 'auto' }}
+                aria-label={pivotToRecordsAriaLabel(
+                  displayModel(tooltip.id),
+                  activeDomain,
+                )}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onPivotToRecords(tooltip.id);
+                }}
+              >
+                {PIVOT_TO_RECORDS_LABEL}
+              </button>
             </>
           )}
         </div>

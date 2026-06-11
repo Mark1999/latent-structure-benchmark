@@ -524,3 +524,53 @@
   font-size: var(--font-size-xs);
   color: var(--color-text-primary);
 }
+
+/* ==========================================================================
+   G7-FOLLOWUP-T1: chart-to-record pivot arrival highlight (§19.19.7, v0.21.0)
+   All rules use only tokens defined in tokens.css (Pitfall 15).
+   Duration: 2000ms (DESIGN_SYSTEM.md §19.19.6).
+   ========================================================================== */
+
+/* Keyframe: arrival highlight fades from --color-info to transparent over 2000ms. */
+@keyframes pivot-arrival-fade {
+  from {
+    background-color: var(--color-info);
+    opacity: 0.18;
+  }
+  to {
+    background-color: transparent;
+    opacity: 0;
+  }
+}
+
+/* Applied to the matching <tr> in the per-model summary table on pivot arrival. */
+.failures-findings__successes-tr--pivot-arrival {
+  animation: pivot-arrival-fade 2000ms ease-out forwards;
+}
+
+/* Arrival caption: orientation sentence rendered above the highlighted row.
+   color: --color-text-primary for WCAG AA compliance at 14px. */
+.failures-findings__pivot-arrival-caption {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-primary);
+  line-height: var(--line-height-body);
+  padding: var(--space-2) var(--space-4);
+  max-width: var(--max-prose-width);
+  font-family: var(--font-body);
+  font-weight: var(--font-weight-regular);
+  margin-bottom: var(--space-2);
+}
+
+/* No-match notice: shown when the pivot target model is not in the summary table.
+   WCAG AA correction (N3): --color-text-caption (#6c757d, ~4.60:1 on white)
+   NOT --color-text-secondary (#7f8c8d, ~3.40:1 -- fails WCAG AA at 14px regular weight). */
+.failures-findings__pivot-arrival-notice {
+  font-size: var(--font-size-sm);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-body);
+  padding: var(--space-2) var(--space-4);
+  max-width: var(--max-prose-width);
+  font-family: var(--font-body);
+  font-weight: var(--font-weight-regular);
+  margin-bottom: var(--space-2);
+}

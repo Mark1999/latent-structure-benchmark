@@ -56,6 +56,12 @@
  * 44. Attempts block absent when retry_attempts is [] (CR-T8 AC7).
  * 45. Attempts block absent when retry_attempts is null/undefined (CR-T8 AC7).
  * 46. Attempts render in attempt_index ascending order regardless of array order in source (CR-T8 AC10).
+ * 47. Byte-identity on all four G7-FOLLOWUP-T1 pivot copy strings/templates (G7-T1 AC1).
+ * 48. MDSPlot with onPivotToRecords prop renders .chart-tooltip__pivot-btn in tooltip (G7-T1 AC2).
+ * 49. Clicking .chart-tooltip__pivot-btn fires onPivotToRecords with the hovered model id (G7-T1 AC3).
+ * 50. FailuresFindings with matching pivotTarget applies highlight class and calls onPivotTargetConsumed (G7-T1 AC4).
+ * 51. FailuresFindings with no-match pivotTarget renders arrival notice and calls onPivotTargetConsumed (G7-T1 AC5).
+ * 52. Chrome-isolation walk on pivot affordance surfaces: zero forbidden vocabulary instances (G7-T1 AC6).
  */
 
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
@@ -81,6 +87,10 @@ import {
   BLOCK_DETAIL_PROVENANCE,
   BLOCK_ATTEMPTS,
   ATTEMPTS_FRAMING,
+  PIVOT_TO_RECORDS_LABEL,
+  pivotToRecordsAriaLabel,
+  pivotToRecordsArrivalCaption,
+  pivotToRecordsNoMatchNotice,
 } from '../copy/failures_findings';
 
 // -- Fixtures: load the production JSON files -----------------------------------
@@ -1347,6 +1357,127 @@ describe('FailuresFindings', () => {
       }
       // CR-T8 AC17 \bthink regex: chrome must not match /\bthink/i outside <pre>.
       expect(/\bthink/i.test(attemptsChromeText)).toBe(false);
+    }
+  });
+
+  // 47. Byte-identity on all four G7-FOLLOWUP-T1 pivot copy strings/templates (G7-T1 AC1)
+  it('G7-T1 AC1: PIVOT_TO_RECORDS_LABEL is byte-identical to SME-delivered string', () => {
+    expect(PIVOT_TO_RECORDS_LABEL).toBe(
+      'See the collection records for this model'
+    );
+  });
+
+  it('G7-T1 AC1: pivotToRecordsAriaLabel template is byte-identical to SME-delivered string', () => {
+    expect(pivotToRecordsAriaLabel('claude-opus-4-5', 'family')).toBe(
+      'See the collection records for claude-opus-4-5 on the family domain'
+    );
+  });
+
+  it('G7-T1 AC1: pivotToRecordsArrivalCaption template is byte-identical to SME-delivered string', () => {
+    expect(pivotToRecordsArrivalCaption('claude-opus-4-5', 'family')).toBe(
+      'Showing the collection records LSB produced when running the family protocol with claude-opus-4-5 as the informant.'
+    );
+  });
+
+  it('G7-T1 AC1: pivotToRecordsNoMatchNotice template is byte-identical to SME-delivered string', () => {
+    expect(pivotToRecordsNoMatchNotice('claude-opus-4-5', 'family')).toBe(
+      'The Collection records tab has no successful-run summary for claude-opus-4-5 on the family domain. The per-model summary table only lists models that produced a parseable session in this domain.'
+    );
+  });
+
+  // 50. FailuresFindings with matching pivotTarget applies highlight class and calls
+  //     onPivotTargetConsumed (G7-T1 AC4).
+  //     Uses a model_id that IS in recordsFamilyJson.by_model.
+  it('G7-T1 AC4: pivotTarget matching a known model applies arrival highlight and calls onPivotTargetConsumed', async () => {
+    mockFetchBoth(familyJson, recordsFamilyJson);
+    const consumed = vi.fn();
+    const firstModelId = (recordsFamilyJson as { by_model: Array<{ model_id: string }> })
+      .by_model[0].model_id;
+
+    const { container } = render(
+      <FailuresFindings
+        pivotTarget={{ modelId: firstModelId, domainSlug: 'family' }}
+        onPivotTargetConsumed={consumed}
+      />
+    );
+
+    // Wait for records to load (by_model table rendered)
+    await waitFor(() => {
+      expect(
+        container.querySelectorAll('.failures-findings__successes-tr').length
+      ).toBeGreaterThan(0);
+    });
+
+    // The matching row must carry the pivot-arrival class.
+    await waitFor(() => {
+      const highlightedRows = container.querySelectorAll(
+        '.failures-findings__successes-tr--pivot-arrival'
+      );
+      expect(highlightedRows.length).toBeGreaterThanOrEqual(1);
+    });
+
+    // onPivotTargetConsumed must have been called once after consumption.
+    await waitFor(() => {
+      expect(consumed).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // 51. FailuresFindings with no-match pivotTarget renders arrival notice and calls
+  //     onPivotTargetConsumed (G7-T1 AC5).
+  //     Uses a model_id that is NOT in recordsFamilyJson.by_model.
+  it('G7-T1 AC5: pivotTarget with no matching row renders no-match notice and calls onPivotTargetConsumed', async () => {
+    mockFetchBoth(familyJson, recordsFamilyJson);
+    const consumed = vi.fn();
+    const unknownModelId = 'fixture-model-that-does-not-exist';
+
+    const { container } = render(
+      <FailuresFindings
+        pivotTarget={{ modelId: unknownModelId, domainSlug: 'family' }}
+        onPivotTargetConsumed={consumed}
+      />
+    );
+
+    // Wait for records to load (by_model table rendered or no-match notice rendered)
+    await waitFor(() => {
+      const notice = container.querySelector(
+        '.failures-findings__pivot-arrival-notice'
+      );
+      expect(notice).not.toBeNull();
+    });
+
+    // The notice text should reference the no-match template.
+    const notice = container.querySelector('.failures-findings__pivot-arrival-notice');
+    expect(notice!.textContent).toContain(unknownModelId);
+
+    // onPivotTargetConsumed must have been called once after consumption.
+    await waitFor(() => {
+      expect(consumed).toHaveBeenCalledTimes(1);
+    });
+  });
+
+  // 52. Chrome-isolation walk on pivot affordance copy: zero forbidden vocabulary (G7-T1 AC6).
+  //     The PIVOT_TO_RECORDS_LABEL string and the two template functions are the
+  //     G7 affordance surfaces. None may contain forbidden vocabulary.
+  it('G7-T1 AC6: pivot affordance copy strings contain no forbidden vocabulary', () => {
+    const FORBIDDEN_PATTERNS = [
+      /\bworldview\b/i,
+      /\bbelieves\b/i,
+      /\bthinks?\b/i,
+      /\bunderstands\b/i,
+    ];
+
+    // Collect all G7 copy strings (label + both template outputs with fixture args)
+    const copyStrings = [
+      PIVOT_TO_RECORDS_LABEL,
+      pivotToRecordsAriaLabel('claude-opus-4-5', 'family'),
+      pivotToRecordsArrivalCaption('claude-opus-4-5', 'family'),
+      pivotToRecordsNoMatchNotice('claude-opus-4-5', 'family'),
+    ];
+
+    for (const str of copyStrings) {
+      for (const pattern of FORBIDDEN_PATTERNS) {
+        expect(str).not.toMatch(pattern);
+      }
     }
   });
 });

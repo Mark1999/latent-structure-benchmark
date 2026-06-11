@@ -13,8 +13,12 @@
  * CLAUDE.md §9 pitfall 8: no viz without uncertainty check.
  */
 
-import { render } from "@testing-library/react";
+import { render, fireEvent } from "@testing-library/react";
 import { MDSPlot } from "../components/MDSPlot";
+import {
+  PIVOT_TO_RECORDS_LABEL,
+  pivotToRecordsAriaLabel,
+} from "../copy/failures_findings";
 
 // ── Fixtures ──────────────────────────────────────────────────────────────────
 
@@ -441,5 +445,115 @@ describe("MDSPlot: forbidden vocabulary scan", () => {
     for (const pattern of FORBIDDEN) {
       expect(chromeText).not.toMatch(pattern);
     }
+  });
+});
+
+describe("MDSPlot: G7-FOLLOWUP-T1 chart-to-record pivot affordance", () => {
+  /**
+   * G7-T1 AC2/AC3: pivot button renders in tooltip and fires callback.
+   *
+   * These tests cover the MDSPlot half of the G7 pivot feature. The tooltip is
+   * triggered by firing a mousemove on a [data-model] SVG element. Since MDSPlot
+   * renders its SVG via dangerouslySetInnerHTML, the data-model children ARE in
+   * the jsdom DOM tree and can be targeted via querySelector.
+   *
+   * The getBoundingClientRect() returns all-zeros in jsdom; setTooltip is still
+   * called with position (12, -10) which is sufficient to show the tooltip.
+   */
+
+  // Case 48: pivot button renders in tooltip when onPivotToRecords is provided
+  it("G7-T1 AC2: tooltip renders .chart-tooltip__pivot-btn when onPivotToRecords is provided", () => {
+    const onPivot = vi.fn();
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_FULL}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+        onPivotToRecords={onPivot}
+        activeDomain="family"
+      />
+    );
+
+    // Hover over alpha's dot to show tooltip.
+    // The SVG is rendered via dangerouslySetInnerHTML; fire mousemove directly on
+    // the circle element so e.target has the data-model attribute that handleMouseMove reads.
+    const alphaEl = container.querySelector('[data-model="fixture-model-alpha"]');
+    expect(alphaEl).not.toBeNull();
+
+    // mouseMove fires on the child circle and bubbles to the SVG onMouseMove handler.
+    fireEvent.mouseMove(alphaEl!, {
+      clientX: 100,
+      clientY: 100,
+    });
+
+    // The tooltip should now be visible with the pivot button
+    const pivotBtn = container.querySelector(".chart-tooltip__pivot-btn");
+    expect(pivotBtn).not.toBeNull();
+    expect(pivotBtn!.textContent).toBe(PIVOT_TO_RECORDS_LABEL);
+    // aria-label should use pivotToRecordsAriaLabel
+    expect(pivotBtn!.getAttribute("aria-label")).toBe(
+      pivotToRecordsAriaLabel("fixture-model-alpha", "family")
+    );
+  });
+
+  // Case 48b: no pivot button when onPivotToRecords is not provided
+  it("G7-T1 AC2: tooltip does NOT render .chart-tooltip__pivot-btn when onPivotToRecords is absent", () => {
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_FULL}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+      />
+    );
+
+    const alphaEl = container.querySelector('[data-model="fixture-model-alpha"]');
+    expect(alphaEl).not.toBeNull();
+    fireEvent.mouseMove(alphaEl!, { clientX: 100, clientY: 100 });
+
+    // No pivot button should be rendered
+    expect(container.querySelector(".chart-tooltip__pivot-btn")).toBeNull();
+  });
+
+  // Case 49: clicking pivot button fires onPivotToRecords with the model id
+  it("G7-T1 AC3: clicking .chart-tooltip__pivot-btn fires onPivotToRecords with hovered model id", () => {
+    const onPivot = vi.fn();
+    const { container } = render(
+      <MDSPlot
+        mdsCoordinates={FIXTURE_COORDS}
+        mdsUncertainty={FIXTURE_UNCERTAINTY_FULL}
+        models={FIXTURE_MODELS}
+        selectedModelIds={ALL_SELECTED}
+        topTerms={FIXTURE_TOP_TERMS}
+        centralityScores={FIXTURE_CENTRALITY}
+        r1States={FIXTURE_R1_STATES_ALL_TYPICAL}
+        ociValues={FIXTURE_OCI_VALUES}
+        onPivotToRecords={onPivot}
+        activeDomain="family"
+      />
+    );
+
+    // Trigger tooltip for beta by mousing over beta's dot
+    const betaEl = container.querySelector('[data-model="fixture-model-beta"]');
+    expect(betaEl).not.toBeNull();
+    fireEvent.mouseMove(betaEl!, { clientX: 150, clientY: 150 });
+
+    // Click the pivot button
+    const pivotBtn = container.querySelector(".chart-tooltip__pivot-btn");
+    expect(pivotBtn).not.toBeNull();
+    fireEvent.click(pivotBtn!);
+
+    // Callback fires with the hovered model id
+    expect(onPivot).toHaveBeenCalledTimes(1);
+    expect(onPivot).toHaveBeenCalledWith("fixture-model-beta");
   });
 });

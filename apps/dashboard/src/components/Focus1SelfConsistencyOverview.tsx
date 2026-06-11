@@ -18,6 +18,10 @@ import {
   BOOTSTRAP_CAVEAT_TEXT,
   EMPTY_NO_FOCUS1_DATA,
 } from '../copy/focus1';
+import {
+  PIVOT_TO_RECORDS_LABEL,
+  pivotToRecordsAriaLabel,
+} from '../copy/failures_findings';
 import { PROVIDER_COLORS } from './ContentArea';
 import type { PublishedModel } from '../data/types';
 import { displayModel } from '../lib/familyUtils';
@@ -46,6 +50,12 @@ interface Focus1SelfConsistencyOverviewProps {
   models: PublishedModel[];
   selectedModelId: string | null;
   onSelectModel: (id: string) => void;
+  /**
+   * Optional callback to pivot to the Collection records tab for the selected model.
+   * This is the keyboard-accessible pivot path per DESIGN_SYSTEM.md §19.19.4 / §19.19.8.
+   * Renders between .f1-hint and .f1-overview when selectedModelId is non-null.
+   */
+  onPivotToRecords?: (modelId: string) => void;
 }
 
 export function Focus1SelfConsistencyOverview({
@@ -53,6 +63,7 @@ export function Focus1SelfConsistencyOverview({
   models,
   selectedModelId,
   onSelectModel,
+  onPivotToRecords,
 }: Focus1SelfConsistencyOverviewProps) {
   const { data, loading, error } = useFocus1Data(domainSlug);
   const [popoverOpen, setPopoverOpen] = useState<string | null>(null);
@@ -72,6 +83,23 @@ export function Focus1SelfConsistencyOverview({
     <div className="f1-container">
       <p className="f1-desc">{selfConsistencyDescription(domainSlug)}</p>
       <p className="f1-hint">Click a model card to view its run distribution.</p>
+
+      {/* Pivot affordance (G7-FOLLOWUP-T1): keyboard-accessible path per DESIGN_SYSTEM.md §19.19.4.
+          Renders between .f1-hint and .f1-overview when selectedModelId is non-null AND
+          onPivotToRecords is non-null. NOT inside any .f1-model-card (anti-coupling rule, CDA SME G1).
+          Uses the displayModel name for the aria-label (domainSlug for domain label). */}
+      {onPivotToRecords != null && selectedModelId != null && (
+        <button
+          className="chart-tooltip__pivot-btn f1-pivot-btn"
+          aria-label={pivotToRecordsAriaLabel(
+            displayModel(selectedModelId),
+            domainSlug,
+          )}
+          onClick={() => onPivotToRecords(selectedModelId)}
+        >
+          {PIVOT_TO_RECORDS_LABEL}
+        </button>
+      )}
 
       <div className="f1-overview" role="list" aria-label="Models ranked by output concentration">
         {ranked.map((modelData, idx) => {
