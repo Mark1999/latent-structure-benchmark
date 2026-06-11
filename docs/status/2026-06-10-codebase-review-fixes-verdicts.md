@@ -479,3 +479,13 @@ Output: (empty -- zero em dashes on any added line)
 CDA SME A5 advisory (preexisting MDSPlot.tsx L284 `This model's` phrase) is out of scope for G7-FOLLOWUP-T1 per CLAUDE.md §8 no-scope-creep. The phrase is not a forbidden-vocabulary violation; it is a tooltip body clause within an already-displayed div. Not touched.
 
 All four pivot copy strings are sourced from `apps/dashboard/src/copy/failures_findings.ts` and are byte-identical to the CDA SME bound strings memo. No inline string literals for UI copy in component files.
+
+---
+
+## A5 follow-up ruling: "within-model" phrase (2026-06-11)
+
+**Disposition: RATIFY, no code change.** The CDA SME's G7 advisory A5 (flagging the T-MDS-R1 R1-b tooltip phrase "within-model output concentration" as a section 1.5.4 concern) is resolved by a focused binding ruling: the section 1.5.4 ban targets noun-class transfer ("within-model consensus" / "cultural consensus" / "eigenratio" / "CCM", nouns importing RWB cultural-consensus assumptions into Register 1), not the scoping adjective. ARCHITECTURE section 4.2.0 itself heads Register 1 "Output distribution analysis (within-model)". The flagged tooltip pairs the adjective with canonical R1 nouns (output concentration, OCI, distribution) and is licit; the two cross-surface uses (DataPage section 16.2 sentence, Focus1TermStability caption) are likewise ratified, the DataPage one being itself the load-bearing cross-register guard.
+
+**Carry-forward rule for future SME reviews (the noun-class test):** banned right-hand nouns after "within-model": consensus, cultural consensus, eigenratio, CCM and synonyms. Licit right-hand nouns when scoping R1: output concentration, OCI, distribution, sampling variance, co-occurrence, runs, output, stability. Defend the noun side of the phrase; the adjective is fine.
+
+Full rationale: `.claude/agent-memory/cda_sme/project_within_model_phrase_ruling.md`. The original A5 advisory text in the G7 verdict file remains as written (historical artifact) and is superseded by this ruling.
