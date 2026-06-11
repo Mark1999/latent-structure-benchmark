@@ -1,6 +1,6 @@
 # Phase 9b Food Campaign Status (2026-06-11)
 
-**Task:** FOOD-FIX-A — mode-coherent similarity basis for mixed-mode corpora  
+**Task:** FOOD-FIX-A: mode-coherent similarity basis for mixed-mode corpora  
 **Status:** Implementation complete, pending Reviewer + Tester + Concern B re-adjudication
 
 ---

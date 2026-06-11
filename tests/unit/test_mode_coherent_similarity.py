@@ -5,9 +5,9 @@ the constant-row collapse that arises when single_pass and cross_model_consensus
 records coexist in the same corpus.
 
 Acceptance criteria addressed:
-  A6 — mixed-mode fixture reproduces collapse without filter, not with filter.
-  A7 — WARNING diagnostic names both model_ids and fires at level WARNING.
-  A8 — single-mode fixture produces byte-identical outputs with/without param.
+  A6: mixed-mode fixture reproduces collapse without filter, not with filter.
+  A7: WARNING diagnostic names both model_ids and fires at level WARNING.
+  A8: single-mode fixture produces byte-identical outputs with/without param.
 
 See: docs/status/2026-06-11-phase9b-food-campaign.md
      .claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md (round 2)
@@ -271,7 +271,7 @@ def _make_mixed_mode_corpus() -> list[InformantRecord]:
 
 
 def _make_single_mode_corpus() -> list[InformantRecord]:
-    """Three single_pass-only models — baseline for byte-identity test (A8).
+    """Three single_pass-only models: baseline for byte-identity test (A8).
 
     All records have collection_mode="single_pass". Running
     run_pipeline() with similarity_collection_mode=None and with
@@ -331,7 +331,7 @@ def test_mixed_mode_without_filter_collapses() -> None:
     """
     records = _make_mixed_mode_corpus()
 
-    # Run WITHOUT mode filter — should reproduce the collapse.
+    # Run WITHOUT mode filter: should reproduce the collapse.
     result_unfiltered = run_pipeline(
         records, analysis_version="test", n_bootstrap=5,
         similarity_collection_mode=None,
@@ -340,7 +340,7 @@ def test_mixed_mode_without_filter_collapses() -> None:
     sim = result_unfiltered.similarity_matrix
     assert _has_constant_similarity_row(sim), (
         "Expected at least one constant similarity row in the unfiltered run "
-        "(the FOOD-FIX-A collapse was not reproduced — check fixture design)."
+        "(the FOOD-FIX-A collapse was not reproduced: check fixture design)."
     )
 
 
@@ -381,7 +381,7 @@ def test_mixed_mode_with_filter_no_collapse() -> None:
     score_b = centrality["model-sp-b"]
     score_c = centrality["model-sp-c"]
     assert not (score_a == score_b == score_c), (
-        f"All three centrality scores are identical ({score_a}) — "
+        f"All three centrality scores are identical ({score_a}): "
         "bit-identical centrality artifact was not eliminated."
     )
 
