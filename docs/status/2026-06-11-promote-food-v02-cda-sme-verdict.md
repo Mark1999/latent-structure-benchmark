@@ -1,6 +1,6 @@
 # CDA SME Verdict: PROMOTE-FOOD-V02 (2026-06-11)
 
-**Task:** PROMOTE-FOOD-V02 — food domain v0.2 promotion with WEAK_CONSENSUS override  
+**Task:** PROMOTE-FOOD-V02: food domain v0.2 promotion with WEAK_CONSENSUS override  
 **SME gate:** Round 3 adjudication (food eigenratio CI straddling analysis)  
 **Verdict:** PASS-WITH-NOTES
 
