@@ -698,6 +698,63 @@ body {
   color: var(--color-text-primary);
 }
 
+/* PROMOTE-FOOD-V02: Consensus override badge (DESIGN_SYSTEM.md §23.1). */
+.content-area__override-badge {
+  display: inline-block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-1) var(--space-2);
+  line-height: var(--line-height-data);
+  margin-top: var(--space-2);
+  margin-bottom: var(--space-1);
+}
+
+/* PROMOTE-FOOD-V02: Methodology link adjacent to override badge (§23.1 U3). */
+.content-area__methodology-link {
+  display: block;
+  font-size: var(--font-size-xs);
+  color: var(--color-text-caption);
+  margin-top: var(--space-1);
+  margin-bottom: var(--space-1);
+}
+
+/* PROMOTE-FOOD-V02: CI disclosure line (DESIGN_SYSTEM.md §23.2, F3-R3-C). */
+.content-area__ci-disclosure {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-body);
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+  max-width: var(--max-prose-width);
+}
+
+/* PROMOTE-FOOD-V02: Small-n line (DESIGN_SYSTEM.md §23.2, F3-R3-D). */
+.content-area__small-n-line {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-body);
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+  max-width: var(--max-prose-width);
+}
+
+/* PROMOTE-FOOD-V02: Heatmap model-exclusion caption (DESIGN_SYSTEM.md §23.3). */
+.heatmap-exclusion-caption {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-data);
+  margin-top: var(--space-2);
+  max-width: var(--max-chart-width);
+}
+
 .chart-wrap {
   position: relative;
   background: #fdfdfc;

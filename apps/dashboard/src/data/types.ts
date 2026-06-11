@@ -231,8 +231,23 @@ export interface DomainResultPublished {
   /** Bootstrap CI for consensus score. */
   consensus_ci: [number, number];
 
-  /** Consensus classification. */
+  /** Consensus classification (auto-derived; retained for audit trail). */
   consensus_type: ConsensusType;
+
+  /**
+   * CDA-SME-mandated override for the published classification label.
+   * When non-null, this is the published label; consensus_type retains its
+   * auto-derived value for forensic purposes.
+   * Published classification = consensus_type_override ?? consensus_type.
+   * Added PROMOTE-FOOD-V02 (2026-06-11). See DATA_DICTIONARY.md v0.1.27.
+   */
+  consensus_type_override?: ConsensusType | null;
+
+  /**
+   * Human-readable rationale for consensus_type_override.
+   * Empty string when no override is set.
+   */
+  consensus_type_override_reason?: string | null;
 
   /**
    * Sutrop CSI salience ranking per model_id.

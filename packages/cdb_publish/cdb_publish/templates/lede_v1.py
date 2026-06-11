@@ -136,4 +136,20 @@ PATTERNS: dict[str, str] = {
         " Methodology page explains what deterministic output signals about"
         " model architecture."
     ),
+
+    # ----------------------------------------------------------------
+    # FOOD v0.2 WEAK_CONSENSUS with straddling CI override.
+    # F3-R3-A verbatim from CDA SME round-3 adjudication.
+    # Source: .claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md
+    # Domain-scoped per SME P8 binding: this key is NOT generalized.
+    # Each future domain with a straddling-CI override gets a fresh SME pass.
+    # Any edit to this string requires a fresh CDA SME pass per CLAUDE.md §6 R7.
+    # ----------------------------------------------------------------
+    "weak_consensus_with_straddling_ci_food_v02": (
+        "The food domain shows broad agreement across the 12-model slate. The"
+        " point estimate sits comfortably on the strong-consensus side of our"
+        " threshold, but the uncertainty band crosses it. The honest read is"
+        " that the strength of agreement is not nailed down at this collection"
+        " width."
+    ),
 }

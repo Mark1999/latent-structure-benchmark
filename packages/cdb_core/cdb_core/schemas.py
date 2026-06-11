@@ -428,6 +428,15 @@ class DomainResult(BaseModel):
                                           # supersedes the F2-T02 n<8
                                           # threshold from 2026-04-20.
     consensus_type: ConsensusType | None = None
+    # PROMOTE-FOOD-V02 (2026-06-11): SME-override fields.
+    # When consensus_type_override is set, it is the published label; the
+    # auto-derived consensus_type is retained for audit trail only.
+    # Semantic: published_label = consensus_type_override or consensus_type.
+    # Source: .claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md
+    # round 3, schema ruling (b)(i); Architect sign-off in PROMOTE-FOOD-V02
+    # plan (docs/status/2026-06-11-phase9b-food-campaign.md §7 via plan §3).
+    consensus_type_override: ConsensusType | None = None
+    consensus_type_override_reason: str = ""
     cultural_centrality_scores: dict[str, float] = {}  # model_id → score
     # Register 2 cultural-centrality CI (Remedy B, post-2026-05-28 register-error verdict).
     # Per-model 95% percentile bootstrap interval on cultural_centrality_scores.

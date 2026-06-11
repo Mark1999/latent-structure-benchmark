@@ -26650,6 +26650,8 @@
   "romney_consensus_warning": false,
   "romney_small_n_warning": false,
   "consensus_type": "STRONG_CONSENSUS",
+  "consensus_type_override": null,
+  "consensus_type_override_reason": "",
   "cultural_centrality_scores": {
     "claude-opus-4-5": 0.27071137651986404,
     "claude-opus-4-6": 0.2702242998392098,

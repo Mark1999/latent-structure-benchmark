@@ -307,6 +307,47 @@ export function MethodologyPage() {
           </p>
         </section>
 
+        {/* Food domain methodology footnotes (PROMOTE-FOOD-V02, 2026-06-11).
+            R4 binding: FOOD-FIX-A (mode-coherent basis) AND F3-R3-E (v0.2 classification
+            disclosure) co-located here. §23.1 U3: id="food-methodology-footnotes" on heading,
+            id="food-v02-footnote" on F3-R3-E paragraph. */}
+        <section
+          className="methodology-page__section"
+          aria-labelledby="food-methodology-footnotes"
+          id="food-methodology-footnotes"
+        >
+          <h2 className="methodology-page__heading">Food domain: analysis notes</h2>
+          {/* FOOD-FIX-A footnote: mode-coherent basis explanation.
+              Source: FOOD-FIX-A CDA SME verdict (.claude/agent-memory/cda_sme/project_food_fix_a_verdict.md). */}
+          <p className="methodology-page__text">
+            For the food domain at v0.2, the cross-model similarity basis uses only records
+            collected in single-pass mode. Models that contributed only cross-model-consensus-mode
+            records are excluded from the similarity matrix and MDS coordinates. This constraint
+            is applied to avoid mixing pile-sort item sources across collection modes, which
+            produces degenerate similarity rows. The result is a 12-model mode-coherent slate
+            rather than the full 13-model collection.
+          </p>
+          {/* F3-R3-E footnote: v0.2 classification disclosure (CDA SME binding, verbatim).
+              id="food-v02-footnote" for U3 deep-link from override badge.
+              Any edit requires a fresh CDA SME pass. */}
+          <p className="methodology-page__text" id="food-v02-footnote">
+            For the food domain at v0.2, the cross-model similarity basis is
+            the 12-model mode-coherent slate. One additional model
+            (meta-llama/llama-4-maverick) is in the corpus for this domain but
+            does not appear in the similarity basis because it has no single-pass
+            collection records for food. That model still contributes to its own
+            within-model output-distribution analysis and to the pooled term map.
+            The Romney CCM eigenratio is 9.48 with a 95 percent bootstrap interval
+            of [4.91, 10.34] over B=500 model-resamples. The lower interval bound
+            crosses the 5.0 strong-consensus threshold, so the classification is
+            published as weak-consensus with the indeterminacy disclosed rather
+            than published as strong-consensus with a hidden uncertainty caveat.
+            A separate open question on how to canonicalize the published
+            eigenratio against its bootstrap distribution is tracked under
+            FOOD-FIX-A2.
+          </p>
+        </section>
+
         {/* §6.3 Provenance pointer — in-app link to Data page (M1, 2026-06-10) */}
         {/* DESIGN_SYSTEM.md §6.3: internal SPA route, no target="_blank" */}
         <section className="methodology-page__section" aria-labelledby="provenance-pointer-heading">

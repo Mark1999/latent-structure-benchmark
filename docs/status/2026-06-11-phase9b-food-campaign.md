@@ -127,3 +127,41 @@ Staging round 3 (post FOOD-FIX-A): guard=PASS, 12-model mode-coherent basis, no 
 **Final adjudication (round 3, PASS-WITH-NOTES):** publish food v0.2 as WEAK_CONSENSUS via a consensus_type_override with auditable reason, per the pre-registered indeterminacy rule (point estimate strong-side, CI straddling). Five byte-identical disclosure strings (F3-R3-A..E) delivered in the SME memory; 7 Reviewer + 6 UI/UX + 3 Tester promotion checklist deltas; maverick dropped from the heatmap dimension with named disclosure; small-n warning co-located; prior v0.1 STRONG stays citable; social drafter framing note binding. Schema implication: consensus_type_override + reason fields (cdb_core change, rule 6: Architect sign-off + DATA_DICTIONARY co-update in the promotion task).
 
 **Awaiting Mark's GO/NO-GO on promotion (published-claim change).**
+
+---
+
+## 7. PROMOTE-FOOD-V02 gate trail (2026-06-11)
+
+Gate verdicts for the promotion commit:
+
+| Stage | Status | File / Reference |
+|---|---|---|
+| CDA SME round 3 | PASS-WITH-NOTES (P1-P8) | `.claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md` round 3 adjudication; full verdict: `docs/status/2026-06-11-promote-food-v02-cda-sme-verdict.md` |
+| UI/UX | PASS-WITH-NOTES (§23.1-23.3) | DESIGN_SYSTEM.md §23 amendment; full verdict: `docs/status/2026-06-11-promote-food-v02-uiux-verdict.md` |
+| Coder | COMPLETE | This commit (PROMOTE-FOOD-V02) |
+| Reviewer | PENDING | |
+| Tester | PENDING | |
+
+### Coder application of gate notes
+
+**CDA SME P1 (eigenratio CI constants):** Applied. `CI_DISCLOSURE_TEXT` and `SMALL_N_TEXT` in `apps/dashboard/src/copy/consensus_disclosure.ts` are inline constants, not computed from `domain.consensus_ci`.
+
+**CDA SME P2 (em-dash grep coverage):** Applied. All new files checked; no U+2014 in any new generated copy. Test T1h, T2 em-dash suite, and T1c byte-identity assertions enforce this mechanically.
+
+**CDA SME P3 (schema shape):** Applied. `consensus_type_override: ConsensusType | None = None` and `consensus_type_override_reason: str = ""` added to `DomainResult` in `cdb_core/schemas.py`. DATA_DICTIONARY.md v0.1.27 co-update in this commit.
+
+**CDA SME P4 (single commit):** Applied. This is one commit covering schema, data, publish, dashboard, tests, and docs per §8 exception (schema change with DATA_DICTIONARY co-update).
+
+**CDA SME P5 (maverick scoping):** Applied. Maverick excluded from `mds_coordinates`, `cultural_centrality_scores`, `similarity_matrix`, and `centrality_ci`. Maverick retained in `models` list. Heatmap exclusion caption derives excluded models from `Set(mds_coordinates.keys())` set-difference with `models`.
+
+**CDA SME P6 (F3-R3-E placement):** Applied. F3-R3-E footnote paragraph at `id="food-v02-footnote"` in `MethodologyPage.tsx`, co-located with FOOD-FIX-A footnote in the food domain analysis notes section.
+
+**CDA SME P7 (social drafter carve-out):** No social drafter changes in this commit. The food domain social manifest gate remains blocked pending Reviewer + Tester pass.
+
+**CDA SME P8 (domain-scoped pattern key):** Applied. `_select_pattern()` in `lede.py` checks both `domain_slug == "food"` and `analysis_version == "0.2"` before returning `"weak_consensus_with_straddling_ci_food_v02"`.
+
+**UI/UX §23.1 (override badge):** Applied. `.content-area__override-badge` with `var(--color-warning)` left border, methodology deep-link anchor at `href="/methodology#food-v02-footnote"`.
+
+**UI/UX §23.2 (CI/small-n lines):** Applied. `.content-area__ci-disclosure` and `.content-area__small-n-line` with `var(--color-text-caption)` at `var(--font-size-xs)`. F3-R3-C and F3-R3-D sourced from `consensus_disclosure.ts`.
+
+**UI/UX §23.3 (heatmap exclusion caption):** Applied. `.heatmap-exclusion-caption` rendered below SimilarityHeatmap in ContentArea.tsx. Visible text uses `displayModel()`; aria-label carries full `model_id`. Exclusion detection: `domain.mds_coordinates` key set vs `domain.models` set difference.

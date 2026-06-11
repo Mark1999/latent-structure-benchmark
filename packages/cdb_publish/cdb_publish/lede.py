@@ -97,6 +97,11 @@ def _select_pattern(result: DomainResult) -> str:
     """Select the pattern name for this DomainResult.
 
     Priority order:
+    0. consensus_type_override check (PROMOTE-FOOD-V02): when the result
+       has a non-None consensus_type_override AND the domain/version matches
+       food v0.2, return the domain-scoped override pattern.
+       SME P8 binding: the domain-scoped key (weak_consensus_with_straddling_ci_food_v02)
+       must NOT be generalized; each future straddling-CI domain gets a fresh SME pass.
     1. all_deterministic — overrides consensus_type when every visible
        model is R1-c. Also handles consensus_type == "DETERMINISTIC".
     2. STRONG_CONSENSUS sub-branches (Q5):
@@ -105,13 +110,27 @@ def _select_pattern(result: DomainResult) -> str:
        - homogeneous if no R1-b models
     3. WEAK_CONSENSUS, SUBCULTURAL, TURBULENT, CONTESTED — one branch each.
     """
+    # --- override check (step 0) ---
+    # For food v0.2, the SME has issued a domain-scoped pattern key.
+    # The pattern key is intentionally domain-scoped per SME P8 binding.
+    if (
+        result.consensus_type_override is not None
+        and result.domain_slug == "food"
+        and result.analysis_version == "0.2"
+    ):
+        return "weak_consensus_with_straddling_ci_food_v02"
+
     # --- all-deterministic check (also catches consensus_type="DETERMINISTIC") ---
     if result.consensus_type == "DETERMINISTIC" or _all_deterministic(result):
         return "all_deterministic"
 
+    # Use override as the effective type if set (for non-food-v0.2 cases where
+    # an override exists but no domain-scoped pattern is registered yet).
+    effective_type = result.consensus_type_override or result.consensus_type
+
     n = len(result.mds_coordinates)
 
-    if result.consensus_type == "STRONG_CONSENSUS":
+    if effective_type == "STRONG_CONSENSUS":
         n_low_oci = _count_low_oci_models(result)
         if n_low_oci > n / 2:
             return "strong_consensus_majority_low_oci"
@@ -119,16 +138,16 @@ def _select_pattern(result: DomainResult) -> str:
             return "strong_consensus_with_low_oci"
         return "strong_consensus_homogeneous"
 
-    if result.consensus_type == "WEAK_CONSENSUS":
+    if effective_type == "WEAK_CONSENSUS":
         return "weak_consensus"
 
-    if result.consensus_type == "SUBCULTURAL":
+    if effective_type == "SUBCULTURAL":
         return "subcultural"
 
-    if result.consensus_type == "TURBULENT":
+    if effective_type == "TURBULENT":
         return "turbulent"
 
-    if result.consensus_type == "CONTESTED":
+    if effective_type == "CONTESTED":
         return "contested"
 
     # consensus_type is None or an unexpected value — fall back to a
@@ -154,8 +173,10 @@ def _format_lede(
     The all_deterministic pattern has no numeric placeholders; it is
     returned verbatim (byte-identical to DESIGN_SYSTEM.md §3.3.5 item 6).
     """
-    if pattern_name == "all_deterministic":
+    if pattern_name in ("all_deterministic", "weak_consensus_with_straddling_ci_food_v02"):
         # Verbatim copy — no substitution needed.
+        # weak_consensus_with_straddling_ci_food_v02 carries the F3-R3-A string
+        # byte-identical per CDA SME binding (PROMOTE-FOOD-V02 plan §5).
         return template
 
     n = len(result.mds_coordinates)

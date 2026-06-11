@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.22.0  
+**Version:** v0.23.0  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.23.0** (PROMOTE-FOOD-V02 visual disclosure patterns, 2026-06-11) adds §23 specifying three new visual patterns required for the food v0.2 promotion: (a) §23.1 consensus-type override badge (`.content-area__override-badge`) with left-accent `--color-warning` border treatment, `--color-text-primary` text, `--color-surface` background, and methodology-page deep-link anchor; (b) §23.2 CI-disclosure line (`.content-area__ci-disclosure`) and small-n line (`.content-area__small-n-line`) both using `--color-text-caption` at `--font-size-xs`, with byte-identical F3-R3-C and F3-R3-D display strings sourced from a dedicated copy module; (c) §23.3 SimilarityHeatmap model-exclusion caption (`.heatmap-exclusion-caption`) rendered in ContentArea.tsx below the heatmap, using `displayModel()` in visible text and full `model_id` in aria-label per §18.5. No new CSS custom properties. All tokens confirmed present in `tokens.css`. WCAG AA: override badge text 12.34:1 PASS; CI-disclosure and small-n lines 4.60:1 PASS; exclusion caption 4.60:1 PASS. CDA SME PASS-WITH-NOTES (`docs/status/2026-06-11-promote-food-v02-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-11-promote-food-v02-uiux-verdict.md`).
 - **v0.22.0** (F5-T1 degenerate bootstrap ellipse converged-state treatment, 2026-06-11) adds implementation requirement 12 to §3.3.5, documenting the R1-a degenerate-bootstrap sub-state (semi_major <= 0) as the LIMIT case of a high-stability R1-a sample where the bootstrap converged on a near-point. Visual treatment: minimum-radius ellipse floor (rx=3, ry=3 px) rendered at the data point, same fill/stroke/opacity as standard R1-a ellipse, tagged data-degenerate-bootstrap="true". Dot marker: same circle as standard R1-a but additionally carries data-r1-state="typical_concentration", data-degenerate-bootstrap="true", and S2 aria-label. MDSPlot tooltip shows S1 (UI/UX-corrected) body for degenerate models. S3 disclosure threads through .term-dot aria-label in TermMap (NOT .term-ellipse, which has pointer-events=none). S4 disclosure threads through family-member inner circle in Focus2FamilySimilarity. Three components updated: MDSPlot.tsx, TermMap.tsx, Focus2FamilySimilarity.tsx. No new tokens. WCAG AA: minimum-radius ellipse uses same provider color token as standard R1-a ellipse (3:1 graphical-object contrast confirmed by existing T15 token audit). CDA SME PASS-WITH-NOTES (S1-S4 bound strings, B1-B10 binding notes; `.claude/agent-memory/cda_sme/project_f5_degenerate_ellipse_verdict.md`); UI/UX PASS-WITH-NOTES (minimum-radius option (a) selected, impl req 12 this update, S1 corrected per §3.3.5 impl req 5 removing "R1-a sample" jargon). Gate verdicts: docs/status/2026-06-10-codebase-review-fixes-verdicts.md F5 section.
 - **v0.21.1** (footnote band visual design, TM-D, 2026-06-11) adds §3.1.1(d) specifying the `.term-map-cluster-footnotes` band as a designed component with a load-bearing constant-height contract. Stylesheet file: `app.css`. CSS class `.term-map-cluster-footnotes` (ol) and `.term-map-cluster-footnotes__empty` (placeholder li modifier). Height: 48px CONSTANT (BINDING, oscillation-safety). All inline styles removed from TermMap.tsx. No new tokens. Tokens used: `--font-size-xs`, `--font-weight-regular`, `--line-height-data`, `--color-text-caption`, `--color-border`, `--color-background`, `--space-1`, `--space-6` (all confirmed present in tokens.css). WCAG AA: `--color-text-caption` (#6c757d, 4.60:1 on white, PASS at 12px regular weight). Gate verdicts: CDA SME PASS-WITH-NOTES (routing-only, docs/status/2026-06-10-termmap-layout-verdicts.md TM-D section); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
 - **v0.21.0** (chart-to-record provenance pivot, G7-FOLLOWUP-T1, 2026-06-11) adds §19.19 specifying the pivot affordance that lets a researcher click from MDSPlot tooltip or Focus 1 individual-model header to the Collection records tab, scrolled and highlighted to the matching per-model summary row for the current domain. New CSS classes: `.chart-tooltip__pivot-btn` (app.css), `@keyframes pivot-arrival-fade` (failures-findings.css), `.failures-findings__successes-tr--pivot-arrival` (failures-findings.css), `.failures-findings__pivot-arrival-caption` (failures-findings.css), `.failures-findings__pivot-arrival-notice` (failures-findings.css). No new tokens. MDSPlot tooltip affordance is pointer-enhancement-only (N4 keyboard/SR ruling); Focus 1 header affordance is the keyboard-accessible path. WCAG AA token correction: `.failures-findings__pivot-arrival-notice` uses `--color-text-caption` (#6c757d, 4.60:1 on white) NOT `--color-text-secondary` (#7f8c8d, 3.40:1 -- WCAG AA fail at 14px regular weight). Gate verdicts: CDA SME PASS-WITH-NOTES (`.claude/agent-memory/cda_sme/project_g7_followup_t1_plan_verdict.md`); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
@@ -3909,6 +3910,155 @@ The test suite (`AboutPage.test.tsx`) enforces several of these mechanically (ca
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.22.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+## 23. Consensus override badge, CI-disclosure line, and heatmap exclusion caption (v0.23.0 -- PROMOTE-FOOD-V02, 2026-06-11)
+
+Gate verdicts: CDA SME PASS-WITH-NOTES (`.claude/agent-memory/cda_sme/project_phase9b_food_guard_trip.md` round 3); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
+
+This section specifies three new visual patterns introduced by the food v0.2 promotion (PROMOTE-FOOD-V02). All three patterns render in `ContentArea.tsx` or its immediate child `SimilarityHeatmap.tsx`. No new tokens are introduced; all styling uses tokens confirmed present in `tokens.css`.
+
+### 23.1 Consensus-type override badge (binding)
+
+**When to render:** the override badge renders whenever `domain.consensus_type_override` is a non-null, non-empty string that differs from `domain.consensus_type`. In v1 this means: food domain at v0.2 where `consensus_type_override = 'WEAK_CONSENSUS'` and auto-derived `consensus_type = 'STRONG_CONSENSUS'`.
+
+**Placement (binding):** the override badge renders in `ContentArea.tsx` co-located with the existing consensus-type display surface (wherever `domain.consensus_type` or `domain.consensus_type_override ?? domain.consensus_type` is shown to the user). It MUST appear on the same visual line as or immediately below the classification label. It MUST NOT be placed in a separate section, footnote, or tooltip-only surface. Visible without user interaction (U1 binding).
+
+**CSS class (binding):** `.content-area__override-badge`
+
+**Element structure (binding):**
+```tsx
+<span className="content-area__override-badge" aria-label={`Classification override: ${domain.consensus_type_override}`}>
+  {domain.consensus_type_override ?? domain.consensus_type}
+</span>
+```
+
+The `aria-label` uses the plain string 'Classification override: WEAK_CONSENSUS' -- no jargon, no schema identifiers in the primary label.
+
+**CSS spec (binding, no new tokens):**
+```css
+.content-area__override-badge {
+  display: inline-block;
+  font-size: var(--font-size-sm);
+  font-weight: var(--font-weight-medium);
+  color: var(--color-text-primary);
+  background: var(--color-surface);
+  border: var(--border-width) solid var(--color-border);
+  border-left: 3px solid var(--color-warning);
+  border-radius: var(--border-radius-sm);
+  padding: var(--space-1) var(--space-2);
+  line-height: var(--line-height-data);
+}
+```
+
+**WCAG AA ruling (binding):**
+- Badge text uses `--color-text-primary` (#2c3e50) on `--color-surface` (#f8f9fa): contrast 12.34:1, WCAG AA PASS.
+- Left accent border `--color-warning` (#f39c12) on `--color-surface` (#f8f9fa): 2.73:1 -- below WCAG 1.4.11 3:1 standalone threshold. Acceptable because: (a) the accent is a decorative reinforcement of the text label, not the sole information carrier; (b) the badge text 'WEAK_CONSENSUS' is the primary signal; (c) the aria-label provides the classification without color dependency. No information is conveyed by the warning color alone.
+- The badge does NOT use a background color change to signal the override. Background is always `--color-surface`. Shape discrimination (left-accent border) plus text are the dual signals.
+
+**Methodology page link (U3 binding):** the badge must carry a sibling `<a>` element (one click from the badge, per U3) that navigates to the methodology page footnote section for food. Exact affordance: an `<a>` element with `href="/methodology#food-v02-footnote"` rendered immediately after the badge in the DOM. The anchor text is 'See methodology note' at `--font-size-xs`, `--color-text-caption`. The anchor carries `aria-label="See methodology footnote for food v0.2 classification"`. No `target="_blank"` (in-app SPA route per §6.3 ruling).
+
+**Food methodology footnote anchor target (binding):** `MethodologyPage.tsx` must add `id="food-v02-footnote"` to the `<p>` element that renders F3-R3-E. The heading for the food footnotes section (FOOD-FIX-A + F3-R3-E together) should carry `id="food-methodology-footnotes"` as an alternative deep-link target. Either id satisfies U3.
+
+**Pitfall 15 token pre-check (confirmed):** `--font-size-sm`, `--font-weight-medium`, `--color-text-primary`, `--color-surface`, `--color-border`, `--color-warning`, `--border-radius-sm`, `--border-width`, `--space-1`, `--space-2`, `--line-height-data`. All confirmed in `tokens.css`. No new tokens.
+
+### 23.2 CI-disclosure line and small-n line (binding)
+
+**When to render:**
+- CI-disclosure line: whenever `domain.consensus_type_override` is set. Renders adjacent to the override badge, visible without interaction (U1).
+- Small-n line: whenever `domain.romney_small_n_warning === true`. Renders below the CI-disclosure line when both are present.
+
+**Placement (binding):** both lines render in `ContentArea.tsx` immediately below the override badge in the classification cluster. They are NOT inside the badge element. They are NOT in a tooltip. They render as sibling block elements in the same visual grouping as the badge.
+
+**CSS classes (binding):**
+- `.content-area__ci-disclosure` -- for the CI-disclosure line
+- `.content-area__small-n-line` -- for the small-n line
+
+**Byte-identical display strings (binding, CDA SME F3-R3-C and F3-R3-D verbatim):**
+- `CI_DISCLOSURE_TEXT` (F3-R3-C): 'Romney CCM eigenratio 9.48, 95 percent bootstrap interval [4.91, 10.34], B=500. The interval crosses the 5.0 strong/weak threshold.'
+- `SMALL_N_TEXT` (F3-R3-D): 'The slate is 12 models, below the 15-model floor where Romney CCM eigenratios become statistically reliable. Read the classification with that floor in mind.'
+
+Both strings are exported from a dedicated copy module: `apps/dashboard/src/copy/consensus_disclosure.ts`.
+
+**Implementation note on numeric sourcing (SME P1 / STOP-#5 resolution):** the eigenratio value '9.48' and the CI bracket '[4.91, 10.34]' in CI_DISCLOSURE_TEXT are CONSTANTS in the copy module, not computed from `domain.consensus_ci` at runtime. There is no `romney_eigenratio_ci` field in the schema. These numbers are inline constants that match the SME-bound F3-R3-C string byte-for-byte. The `consensus_ci` field on `DomainResultPublished` carries the CI on the consensus *score* (different quantity). Any attempt to derive the eigenratio CI from `consensus_ci` is INCORRECT and is a stop condition that routes back to the CDA SME.
+
+**CSS spec (binding, no new tokens):**
+```css
+.content-area__ci-disclosure {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-body);
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+  max-width: var(--max-prose-width);
+}
+
+.content-area__small-n-line {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-body);
+  margin-top: var(--space-1);
+  margin-bottom: 0;
+  max-width: var(--max-prose-width);
+}
+```
+
+**WCAG AA ruling (binding):**
+- Both lines use `--color-text-caption` (#6c757d, 4.60:1 on white, WCAG AA PASS at 12px regular weight per §1.2 annotation). PASS.
+
+**Pitfall 15 token pre-check (confirmed):** `--font-size-xs`, `--font-weight-regular`, `--color-text-caption`, `--line-height-body`, `--space-1`, `--max-prose-width`. All confirmed present. No new tokens.
+
+### 23.3 SimilarityHeatmap model-exclusion caption (binding)
+
+**When to render:** whenever the current domain's similarity heatmap excludes one or more models that are in the `domain.models` array but absent from the similarity matrix. For food v0.2, this is `meta-llama/llama-4-maverick`. The component determines excluded models by computing the set difference between `domain.models.map(m => m.model_id)` and the model_ids that appear in `domain.mds_coordinates` (the mode-coherent model set).
+
+**Placement (binding):** the exclusion caption renders as a `<p>` element IMMEDIATELY BELOW the similarity heatmap chart container, inside `ContentArea.tsx` (NOT inside `SimilarityHeatmap.tsx`). It renders at the same DOM level as the existing `chart-wrap__desc` paragraph (the CI caption from §12.8). The exclusion caption is a SECOND caption paragraph, after the CI caption. It does not replace or modify the §12.8 CI caption.
+
+**CSS class (binding):** `.heatmap-exclusion-caption`
+
+**Visible text pattern (binding):** The visible text names the excluded model using `displayModel()` (§18.4 canonical transform) and gives the reason.
+
+For food v0.2 the rendered visible text is (binding, must match this exactly for food):
+'llama-4-maverick is not shown in the similarity matrix because it has no single-pass collection records for this domain.'
+
+General pattern for future domains (non-binding template):
+'[displayModel(model_id)] is not shown in the similarity matrix because [reason].'
+
+When multiple models are excluded, one sentence per model, rendered as separate `<p>` elements each with `.heatmap-exclusion-caption` class (not a comma-joined list).
+
+**aria-label on the caption `<p>` (binding, U6):**
+```tsx
+<p
+  className="heatmap-exclusion-caption"
+  aria-label={`Similarity matrix exclusion: ${model_id} is not shown because it has no single-pass collection records for this domain.`}
+>
+  {visibleText}
+</p>
+```
+
+The aria-label uses the FULL `model_id` ('meta-llama/llama-4-maverick'), not the displayModel() form, per §18.5 SimilarityHeatmap ruling (full model_id in aria-labels for cell-level SR navigation context). The visible text uses displayModel().
+
+**CSS spec (binding, no new tokens):**
+```css
+.heatmap-exclusion-caption {
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  color: var(--color-text-caption);
+  line-height: var(--line-height-data);
+  margin-top: var(--space-2);
+  max-width: var(--max-chart-width);
+}
+```
+
+**WCAG AA ruling (binding):**
+- `--color-text-caption` (#6c757d, 4.60:1 on white, WCAG AA PASS at 12px regular weight). PASS.
+
+**Pitfall 15 token pre-check (confirmed):** `--font-size-xs`, `--font-weight-regular`, `--color-text-caption`, `--line-height-data`, `--space-2`, `--max-chart-width`. All confirmed present. No new tokens.
+
+**T3 vitest test binding:** the test asserts that for a food-domain fixture with `meta-llama/llama-4-maverick` absent from the similarity matrix, a `.heatmap-exclusion-caption` element renders with visible text containing 'llama-4-maverick' (displayModel form) and an aria-label containing 'meta-llama/llama-4-maverick' (full model_id form).
+
+---
+
+*End of DESIGN_SYSTEM.md v0.23.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

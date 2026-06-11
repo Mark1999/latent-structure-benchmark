@@ -30,6 +30,8 @@ import { Focus2FamilySimilarity } from './Focus2FamilySimilarity';
 import { Focus2FamilySalience } from './Focus2FamilySalience';
 import { Focus2FamilyPiles } from './Focus2FamilyPiles';
 import type { DomainExtended } from '../data/types';
+import { displayModel } from '../lib/familyUtils';
+import { CI_DISCLOSURE_TEXT, SMALL_N_TEXT } from '../copy/consensus_disclosure';
 
 // Provider display color map
 const PROVIDER_COLORS: Record<string, string> = {
@@ -339,6 +341,28 @@ export function ContentArea({
                       models={domain.models}
                       selectedModelIds={selectedModelIds}
                     />
+                    {/*
+                      §23.3 Heatmap model-exclusion caption (PROMOTE-FOOD-V02).
+                      Excluded models = models in domain.models not in domain.mds_coordinates.
+                      One <p className="heatmap-exclusion-caption"> per excluded model.
+                      Visible text uses displayModel(); aria-label uses full model_id (§18.5).
+                      Caption renders in ContentArea.tsx, NOT inside SimilarityHeatmap.tsx.
+                    */}
+                    {(() => {
+                      const mdsIds = new Set(Object.keys(domain.mds_coordinates ?? {}));
+                      const excludedModels = domain.models.filter(
+                        (m) => !mdsIds.has(m.model_id)
+                      );
+                      return excludedModels.map((m) => (
+                        <p
+                          key={`heatmap-exclusion-${m.model_id}`}
+                          className="heatmap-exclusion-caption"
+                          aria-label={`Similarity matrix exclusion: ${m.model_id} is not shown because it has no single-pass collection records for this domain.`}
+                        >
+                          {displayModel(m.model_id)} is not shown in the similarity matrix because it has no single-pass collection records for this domain.
+                        </p>
+                      ));
+                    })()}
                   </div>
                 )}
 
@@ -385,9 +409,42 @@ export function ContentArea({
               {/* Lede column: second in DOM (chart-first mobile), grid-placed left on desktop.
                   §3.1.1(b)(iii): lede beside chart on desktop, below on mobile.
                   §21 rules + M1 six sub-points all carried forward at this new position.
-                  Single <p>, verbatim, no splitting, aria-live="polite", class="chart-lede". */}
+                  Single <p>, verbatim, no splitting, aria-live="polite", class="chart-lede".
+                  PROMOTE-FOOD-V02: override badge (§23.1), CI disclosure (§23.2), small-n (§23.2). */}
               <div className="focus3-layout__lede-col">
                 <p className="chart-lede" aria-live="polite">{domain.generated_lede}</p>
+                {/* §23.1 Override badge: visible whenever consensus_type_override differs from
+                    consensus_type. Co-located with the lede (the classification surface). */}
+                {domain.consensus_type_override != null && domain.consensus_type_override !== domain.consensus_type && (
+                  <>
+                    <span
+                      className="content-area__override-badge"
+                      aria-label={`Classification override: ${domain.consensus_type_override}`}
+                    >
+                      {domain.consensus_type_override}
+                    </span>
+                    {/* U3 methodology link: one click from badge to food-v02-footnote (§23.1) */}
+                    <a
+                      href="/methodology#food-v02-footnote"
+                      className="content-area__methodology-link"
+                      aria-label="See methodology footnote for food v0.2 classification"
+                    >
+                      See methodology note
+                    </a>
+                  </>
+                )}
+                {/* §23.2 CI disclosure line: F3-R3-C verbatim, shown when override is set. */}
+                {domain.consensus_type_override != null && (
+                  <p className="content-area__ci-disclosure">
+                    {CI_DISCLOSURE_TEXT}
+                  </p>
+                )}
+                {/* §23.2 Small-n line: F3-R3-D verbatim, shown when romney_small_n_warning is true. */}
+                {domain.romney_small_n_warning && (
+                  <p className="content-area__small-n-line">
+                    {SMALL_N_TEXT}
+                  </p>
+                )}
               </div>
             </div>
           </>
