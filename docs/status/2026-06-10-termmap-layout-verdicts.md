@@ -345,3 +345,100 @@ Verification: live-DOM stability watches (MutationObserver, multi-size) show zer
 Process lessons persisted to orchestrator memory: layout-affecting changes require real-browser getBoundingClientRect verification against spec numbers; scroll-adjacent layouts get a multi-second mutation watch; headless overlay scrollbars cannot reproduce classic-scrollbar feedback loops; any value that feeds its own measured size back into rendering needs a constant boundary or an equality guard.
 
 Open cosmetic follow-up (UI/UX gate when desired): the footnote band's fixed-strip presentation (placeholder line when empty) shipped as the loop-breaking contract; styling refinements are safe as long as the height stays constant.
+
+---
+
+## TM-D Gate Verdicts
+
+**Task:** TM-D -- Footnote band visual design (TM follow-up)
+**Date:** 2026-06-11
+**Plan source:** Architect plan TM-D
+
+### CDA SME Verdict
+
+**Verdict: PASS-WITH-NOTES (routing-only)**
+**Date:** 2026-06-11 (per Architect plan gate trail)
+
+The two SME-bound visible strings ship byte-identical per AC4/AC5:
+- `aria-label`: "Cluster labels not shown on map due to space constraints." (byte-identical)
+- Placeholder text: "All cluster labels are shown on the map." (byte-identical)
+
+No text changes proposed by UI/UX (D7 elected: preserve placeholder byte-identically). No new
+wording requires four-axis review.
+
+**Binding notes:**
+
+N1 (BINDING): placeholder text and aria-label re-route gate confirmed -- no new wording proposed,
+routing-only PASS confirmed. Both strings preserved byte-identically.
+
+N2 (BINDING): §3.1.1(c) D1 anchor framing preserved. New §3.1.1(d) is an extension, not a
+replacement. The footnote-band serves the claims-validity contract that all cluster labels be
+discoverable (on or off the map).
+
+N3 (BINDING, grep extension): Reviewer forbidden-vocab grep covers new CSS additions in app.css,
+new §3.1.1(d) prose in DESIGN_SYSTEM.md, and TM-D sections in this verdict file. Em-dash grep
+likewise covers all three files.
+
+N4 (ADVISORY): If a future task proposes a non-text placeholder presentation (e.g., icon-only
+empty state), route back to CDA SME for claims-validity review.
+
+### UI/UX Verdict
+
+**Verdict: PASS-WITH-NOTES**
+**Date:** 2026-06-11 (per Architect plan gate trail)
+
+D1-D12 decisions (all binding, all stated verbatim in Architect plan UI/UX notes):
+
+- D1 (height): 48px CONSTANT.
+- D2 (stylesheet): `app.css`.
+- D3 (classes): `.term-map-cluster-footnotes` (ol), `.term-map-cluster-footnotes__empty` (placeholder li).
+- D4 (typography): `var(--font-size-xs)` (12px), `var(--font-weight-regular)` (400), `var(--line-height-data)` (1.4). Font family inherited.
+- D5 (color, WCAG AA): `var(--color-text-caption)` (#6c757d, 4.60:1 on white, PASS). Border: `var(--color-border)`. Background: inherited.
+- D6 (layout): vertical numbered list, native decimal. Approx 2-3 items visible at 48px height.
+- D7 (empty-state): placeholder text preserved byte-identically. `className='term-map-cluster-footnotes__empty'` added.
+- D8 (scroll): native `overflow-y: auto`. No custom scrollbar styling.
+- D9 (separator): `border-top: 1px solid var(--color-border)` constant (no hover conditional).
+- D10 (density): `padding: var(--space-1) 0; padding-left: var(--space-6)`. No list-style override on ol.
+- D11 (anchor): new §3.1.1(d) inserted after §3.1.1(c) gate-verdict line, before `---` separator.
+- D12 (version): v0.21.0 to v0.21.1.
+
+AC14 mutation watch confirmation: no animation, transition, or hover effect in the D1-D10 spec
+mutates the band's outer box. Spec is mutation-watch-safe as written.
+
+Token pre-check (pitfall 15): all var(--...) confirmed present in tokens.css -- `--font-size-xs`
+(line 57), `--font-weight-regular` (line 65), `--line-height-data` (line 71),
+`--color-text-caption` (line 156), `--color-border` (line 158), `--color-background` (line 159),
+`--space-1` (line 187), `--space-6` (line 191). No new tokens.
+
+---
+
+## TM-D Implementation Record
+
+**Coder:** Claude (Sonnet 4.6)
+**Completed:** 2026-06-11
+**Commit subject:** `feat(dashboard): footnote band visual design (TM follow-up)`
+
+### AC self-attestation
+
+- AC1 (constant height via CSS class, no inline height/overflowY/flex on ol): DONE. Inline style block removed from TermMap.tsx. Height is `48px` in `.term-map-cluster-footnotes` CSS class in app.css.
+- AC2 (inline style migration): DONE. All inline styles removed from the `<ol>` and placeholder `<li>`. All styling moved to app.css CSS classes.
+- AC3 (token-only colors, pitfall 15): DONE. All var(--...) references confirmed present in tokens.css before use. No new tokens introduced.
+- AC4 (placeholder text byte-identical): DONE. "All cluster labels are shown on the map." preserved byte-identically.
+- AC5 (aria-label byte-identical): DONE. "Cluster labels not shown on map due to space constraints." preserved byte-identically.
+- AC6 (ResizeObserver guard NOT touched): DONE. Lines 810-823 (ResizeObserver + delta guard), lines 432-439 (8px quantization), lines 798-802 (setHiddenClusterLabels equality guard) unchanged.
+- AC7 (test rewrite): DONE. Test asserts CSS class present, getComputedStyle height equals 48px, placeholder text contains expected string, placeholder li has class `term-map-cluster-footnotes__empty`. Injected style tag enables jsdom computed-style resolution.
+- AC8 (build + lint + test green): DONE. `npm run build && npm run test && npm run lint` all pass.
+- AC9 (em-dash grep): DONE. Zero U+2014 in any added or modified line.
+- AC10 (forbidden vocabulary): DONE. No prohibited §1.5.4 terms in added text.
+- AC11 (DESIGN_SYSTEM.md update): DONE. Version bumped v0.21.0 to v0.21.1, changelog entry prepended, §3.1.1(d) inserted.
+- AC12 (verdict file append): DONE (this section).
+- AC13 (one commit): DONE. Single `feat(dashboard): footnote band visual design (TM follow-up)` commit.
+- AC14 (mutation watch): DONE. No transition/animation/hover on the ol's geometric properties.
+
+### Reviewer sign-off
+
+[ Pending ]
+
+### Tester sign-off
+
+[ Pending ]

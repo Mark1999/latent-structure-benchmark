@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.21.0  
+**Version:** v0.21.1  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.21.1** (footnote band visual design, TM-D, 2026-06-11) adds §3.1.1(d) specifying the `.term-map-cluster-footnotes` band as a designed component with a load-bearing constant-height contract. Stylesheet file: `app.css`. CSS class `.term-map-cluster-footnotes` (ol) and `.term-map-cluster-footnotes__empty` (placeholder li modifier). Height: 48px CONSTANT (BINDING, oscillation-safety). All inline styles removed from TermMap.tsx. No new tokens. Tokens used: `--font-size-xs`, `--font-weight-regular`, `--line-height-data`, `--color-text-caption`, `--color-border`, `--color-background`, `--space-1`, `--space-6` (all confirmed present in tokens.css). WCAG AA: `--color-text-caption` (#6c757d, 4.60:1 on white, PASS at 12px regular weight). Gate verdicts: CDA SME PASS-WITH-NOTES (routing-only, docs/status/2026-06-10-termmap-layout-verdicts.md TM-D section); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
 - **v0.21.0** (chart-to-record provenance pivot, G7-FOLLOWUP-T1, 2026-06-11) adds §19.19 specifying the pivot affordance that lets a researcher click from MDSPlot tooltip or Focus 1 individual-model header to the Collection records tab, scrolled and highlighted to the matching per-model summary row for the current domain. New CSS classes: `.chart-tooltip__pivot-btn` (app.css), `@keyframes pivot-arrival-fade` (failures-findings.css), `.failures-findings__successes-tr--pivot-arrival` (failures-findings.css), `.failures-findings__pivot-arrival-caption` (failures-findings.css), `.failures-findings__pivot-arrival-notice` (failures-findings.css). No new tokens. MDSPlot tooltip affordance is pointer-enhancement-only (N4 keyboard/SR ruling); Focus 1 header affordance is the keyboard-accessible path. WCAG AA token correction: `.failures-findings__pivot-arrival-notice` uses `--color-text-caption` (#6c757d, 4.60:1 on white) NOT `--color-text-secondary` (#7f8c8d, 3.40:1 -- WCAG AA fail at 14px regular weight). Gate verdicts: CDA SME PASS-WITH-NOTES (`.claude/agent-memory/cda_sme/project_g7_followup_t1_plan_verdict.md`); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
 - **v0.20.6** (T-MDS-R1 geometry and prop pins, 2026-06-10) adds implementation requirements 9, 10, 11 to §3.3.5, pins the R1-b stroke-dasharray value, pins the R1-c triangle polygon geometry, specifies the new ociValues prop contract for MDSPlot.tsx, and corrects the em-dash-containing tooltip copy in the R1-b table entry and implementation requirements 5 and 6 to the CDA SME F3/F4/F8 approved em-dash-free versions. No new tokens. Gate verdict: UI/UX PASS-WITH-NOTES (this update, 2026-06-10); CDA SME binding strings per T-MDS-R1 SME verdict.
 - **v0.20.5** (SVG hex literal migration to design tokens, T15, 2026-06-10) adds seven new SVG chrome tokens to §1.2 (placement: after `--color-surface-hover`, before the sequential scale block). Token block: `--color-svg-grid-line` (#f0f0ec, TermMap warm-white grid lines), `--color-svg-grid-line-neutral` (#eeeeee, MDSPlot/Focus2 neutral gray grid lines; erratum 2026-06-10: the first T15 commit consolidated these onto #f0f0ec against the UI/UX ruling, corrected same day), `--color-svg-axis-caption` (#a0a098, axis label text; pre-existing WCAG fail at 11px preserved zero-delta, remediation deferred), `--color-svg-label-secondary` (#4a4a4a, model/term label text in MDS components), `--color-svg-marker-stroke` (#888888, fallback neutral stroke in FreeListCompare/PileStructure/Focus1SelfConsistencyOverview/Focus2FamilyOverview), `--color-svg-gray-branch` (#999999, cross-cluster branch in ClusterTree; consolidation ruling: #888 and #999 stay on separate tokens), `--color-svg-dot-stroke` (#ffffff, dot outline stroke in TermMap/MDSPlot/Focus2FamilySimilarity). Components updated: TermMap.tsx, MDSPlot.tsx, Focus2FamilySimilarity.tsx, SimilarityHeatmap.tsx, ClusterTree.tsx, FreeListCompare.tsx, PileStructure.tsx, Focus1RunDistribution.tsx, Focus2FamilyOverview.tsx, Focus1SelfConsistencyOverview.tsx. All values byte-identical to migrated literals: zero visual delta. New test: `__tests__/tokens-defined.test.ts` (pitfall-15 guard). Gate verdicts: CDA SME PASS (routing not required, no methodology surface); UI/UX PASS-WITH-NOTES (notes binding, see `docs/status/2026-06-10-codebase-review-fixes-verdicts.md` T15 section). Commit: `refactor(dashboard): migrate SVG hex literals to design tokens (T15)`.
@@ -562,6 +563,104 @@ without conflict.
 
 Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES
 (`docs/status/2026-06-10-termmap-layout-verdicts.md`, TM-C section).
+
+#### (d) Footnote band visual design -- .term-map-cluster-footnotes (BINDING, TM-D, 2026-06-11)
+
+The `.term-map-cluster-footnotes` band is a designed component with a load-bearing constant-height
+contract. It renders below the Term Map chart area when `showClusterLabels` is true, displaying
+the fallback list of cluster labels that could not be placed on the map (the D1 election from
+§3.1.1(c)). Its constant height is the geometric break in the render-feedback oscillation
+documented in the 2026-06-10 post-deploy hotfix trail (commits 1ac0b7b, aed6206, aaaba0b). Any
+design that allows item count, hover state, label length, empty state, or scroll position to change
+the band's rendered height re-introduces the footnote-to-chart feedback loop and is REJECTED.
+
+**Stylesheet file (binding):** `app.css` (placement: with all other `.term-map-*` class
+definitions, after `.term-map-stress` block).
+
+**CSS classes (binding):**
+- `.term-map-cluster-footnotes` -- the `<ol>` element
+- `.term-map-cluster-footnotes__empty` -- modifier on the placeholder `<li>` (empty-state)
+
+**Constant-height contract (BINDING -- do not parameterize on content):**
+
+The band height is a compile-time CONSTANT: `height: 48px`. This value is the shipped constant
+from the 2026-06-10 hotfix trail and is confirmed stable. Item count is not a CSS input. The
+following are PROHIBITED on `.term-map-cluster-footnotes`: `vh`, `%`, `calc()` involving children,
+`auto`, `min-content`, `max-content`, `fit-content` for the `height` property; any `:hover` rule
+that changes `height`, `min-height`, `max-height`, `padding`, `border`, or `margin` on the `<ol>`;
+any `transition` targeting any geometric property on the `<ol>`. Any design that parameterizes
+height on content re-introduces the oscillation failure mode.
+
+**Full CSS spec for `.term-map-cluster-footnotes` (binding):**
+```css
+.term-map-cluster-footnotes {
+  height: 48px;
+  overflow-y: auto;
+  flex: none;
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-1);
+  padding: var(--space-1) 0;
+  padding-left: var(--space-6);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-data);
+  color: var(--color-text-caption);
+}
+```
+
+**Full CSS spec for `.term-map-cluster-footnotes__empty` (binding):**
+```css
+.term-map-cluster-footnotes__empty {
+  list-style: none;
+  margin-left: calc(-1 * var(--space-6));
+  padding-left: 0;
+  font-style: italic;
+}
+```
+
+**Inline style removal (binding):** The `style={{ height: '48px', overflowY: 'auto', flex: 'none',
+... }}` object on the `<ol>` in TermMap.tsx and the `style={{ listStyle: 'none', marginLeft:
+'-20px' }}` on the placeholder `<li>` are removed in their entirety. All styling moves to the CSS
+classes above.
+
+**Empty-state presentation (binding, CDA SME routing-only PASS):** The placeholder `<li>` text is
+preserved byte-identically: 'All cluster labels are shown on the map.' The `<li>` receives
+`className='term-map-cluster-footnotes__empty'`.
+
+**aria-label (binding, byte-identical):** `aria-label='Cluster labels not shown on map due to
+space constraints.'`
+
+**Typography (binding):** `var(--font-size-xs)` (12px), `var(--font-weight-regular)` (400),
+`var(--line-height-data)` (1.4).
+
+**Color (binding, WCAG AA):** `var(--color-text-caption)` (#6c757d, 4.60:1 on white at 12px
+regular weight, WCAG AA PASS). Top border: `var(--color-border)`. Background:
+`var(--color-background)` (inherited).
+
+**Separator (binding):** top border `1px solid var(--color-border)` on the `<ol>` (constant, not
+`:hover` conditional).
+
+**Scroll affordance:** native `overflow-y: auto`. No custom scrollbar styling.
+
+**Mutation watch (AC14 binding):** no animation, transition, or hover effect on this component may
+mutate the band's outer box. Internal scroll position changes are fine. Any `:hover` or `:focus`
+rule MUST target only `<li>` inner content (color/opacity), never geometric properties of the
+`<ol>`.
+
+**Token pre-check (pitfall 15, confirmed):** All `var(--...)` references above are confirmed
+present in `apps/dashboard/src/styles/tokens.css`: `--font-size-xs` (line 57),
+`--font-weight-regular` (line 65), `--line-height-data` (line 71), `--color-text-caption`
+(line 156), `--color-border` (line 158), `--color-background` (line 159), `--space-1` (line 187),
+`--space-6` (line 191). No new tokens introduced.
+
+**Loop-breaking history reference:** see `docs/status/2026-06-10-termmap-layout-verdicts.md`
+post-deploy hotfix trail for the originating oscillation incident. The ResizeObserver equality
+guard (TermMap.tsx lines 810-823), the 8px quantization (lines 432-439), and the
+`setHiddenClusterLabels` equality guard (lines 798-802) are independent loop-breakers that MUST
+NOT be removed or weakened.
+
+Gate verdicts: CDA SME PASS-WITH-NOTES (routing-only); UI/UX PASS-WITH-NOTES
+(`docs/status/2026-06-10-termmap-layout-verdicts.md`, TM-D section).
 
 ---
 

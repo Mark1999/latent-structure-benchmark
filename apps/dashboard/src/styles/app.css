@@ -1087,6 +1087,40 @@ body {
   font-weight: var(--font-weight-medium);
 }
 
+/* §3.1.1(d) Footnote band -- .term-map-cluster-footnotes (BINDING, TM-D, 2026-06-11)
+ *
+ * Height is a compile-time CONSTANT: 48px. Item count is NOT a CSS input.
+ * Do not parameterize height on content -- any dynamic-height design
+ * re-introduces the footnote-to-chart feedback loop (render oscillation).
+ * See DESIGN_SYSTEM.md §3.1.1(d) and docs/status/2026-06-10-termmap-layout-verdicts.md
+ * post-deploy hotfix trail for the originating incident.
+ *
+ * PROHIBITED on this element: height:auto/min-content/max-content/fit-content/vh/%;
+ * :hover rules that change height/min-height/max-height/padding/border/margin on ol;
+ * transition targeting any geometric property on the ol.
+ */
+.term-map-cluster-footnotes {
+  height: 48px;
+  overflow-y: auto;
+  flex: none;
+  border-top: 1px solid var(--color-border);
+  margin-top: var(--space-1);
+  padding: var(--space-1) 0;
+  padding-left: var(--space-6);
+  font-size: var(--font-size-xs);
+  font-weight: var(--font-weight-regular);
+  line-height: var(--line-height-data);
+  color: var(--color-text-caption);
+}
+
+/* Empty-state placeholder -- list-style removed, indentation reset, italic */
+.term-map-cluster-footnotes__empty {
+  list-style: none;
+  margin-left: calc(-1 * var(--space-6));
+  padding-left: 0;
+  font-style: italic;
+}
+
 /* §17.5 (Stage 1): keyboard zoom buttons — exactly as specified in UI/UX §17.5 draft */
 .term-map-controls__zoom-btn {
   font-family: var(--font-body);

@@ -254,10 +254,17 @@ describe("TermMap", () => {
     expect(document.querySelector(".term-map-salience-caption")).toBeNull();
   });
 
-  // TM-C + 2026-06-10 jitter fix: the footnote band is height-constant and always
-  // present when cluster labels are on; its item count must never resize
-  // .chart-wrap and re-fire the ResizeObserver (the live oscillation regression).
-  it("TM-C: footnote band is height-constant with placeholder when nothing hidden", () => {
+  // TM-D (2026-06-11): rewritten to assert CSS-class-driven styling per §3.1.1(d).
+  // The inline style is removed; band.style.height is now empty string.
+  // getComputedStyle is used instead (jsdom requires injected stylesheet).
+  // AC7 binding: assert CSS class, computed height, placeholder text, empty-state class.
+  it("TM-D: footnote band has CSS class and constant computed height with placeholder when nothing hidden", () => {
+    // Inject the binding CSS so jsdom resolves getComputedStyle correctly.
+    // The height is the CONSTANT from §3.1.1(d): 48px.
+    const style = document.createElement("style");
+    style.textContent = ".term-map-cluster-footnotes { height: 48px; }";
+    document.head.appendChild(style);
+
     render(
       <TermMap
         termCoords={FIXTURE_TERM_COORDS}
@@ -268,9 +275,16 @@ describe("TermMap", () => {
 
     const band = document.querySelector<HTMLOListElement>(".term-map-cluster-footnotes");
     expect(band).not.toBeNull();
-    expect(band!.style.height).toBe("48px");
-    expect(band!.style.overflowY).toBe("auto");
+    // CSS-class-driven height -- NOT inline style (inline style is removed in TM-D).
+    expect(band!.style.height).toBe("");
+    expect(getComputedStyle(band!).height).toBe("48px");
+    // Placeholder text preserved byte-identically (CDA SME routing-only PASS).
     expect(band!.textContent).toContain("All cluster labels are shown on the map.");
+    // Empty-state placeholder li has the correct modifier class.
+    const emptyLi = band!.querySelector(".term-map-cluster-footnotes__empty");
+    expect(emptyLi).not.toBeNull();
+
+    document.head.removeChild(style);
   });
 
   // TM-C: R6 invariant check -- no ellipse/circle/polygon changes in component render

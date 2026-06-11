@@ -1435,21 +1435,11 @@ export function TermMap({
         <ol
           className="term-map-cluster-footnotes"
           aria-label="Cluster labels not shown on map due to space constraints."
-          style={{
-            fontSize: 'var(--font-size-xs)',
-            color: 'var(--color-text-caption)',
-            margin: '4px 0 0 0',
-            paddingLeft: '20px',
-            lineHeight: '1.5',
-            height: '48px',
-            overflowY: 'auto',
-            flex: 'none',
-          }}
         >
           {hiddenClusterLabels.length > 0 ? (
             hiddenClusterLabels.map((label) => <li key={label}>{label}</li>)
           ) : (
-            <li style={{ listStyle: 'none', marginLeft: '-20px' }}>
+            <li className="term-map-cluster-footnotes__empty">
               All cluster labels are shown on the map.
             </li>
           )}
