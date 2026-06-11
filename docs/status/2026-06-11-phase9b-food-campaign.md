@@ -186,3 +186,13 @@ Gate verdicts for the promotion commit:
 - Same as above: only `similarity_model_ids` added. generated_at and generated_lede unchanged.
 
 **One commit per §8 exception** (schema + DATA_DICTIONARY co-update). Family and holidays results untouched on disk. Legacy fallback branch in the new vitest invariant keeps them green.
+
+---
+
+## 9. FOOD-V02-FIX-SIMIDS gate trail
+
+| Stage | Status | File / Reference |
+|---|---|---|
+| UI/UX | PASS (pixel-identity invariant confirmed) | `docs/status/2026-06-11-food-v02-fix-simids-uiux-verdict.md` |
+| Coder | COMPLETE | FOOD-V02-FIX-SIMIDS commit (cherry-picked from worktree-wf_fe2a2da4-51a-4) |
+| Reviewer | PENDING | |
