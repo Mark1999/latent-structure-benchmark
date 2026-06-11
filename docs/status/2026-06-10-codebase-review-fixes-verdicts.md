@@ -464,7 +464,7 @@ Note: the ContentArea.tsx and ContentArea's pre-existing lines are not checked a
 
 **Em-dash grep on added lines:**
 
-Command: `git diff -- DESIGN_SYSTEM.md apps/dashboard/src/App.tsx apps/dashboard/src/__tests__/FailuresFindings.test.tsx apps/dashboard/src/__tests__/MDSPlot.test.tsx apps/dashboard/src/components/ContentArea.tsx apps/dashboard/src/components/FailuresFindings.tsx apps/dashboard/src/components/Focus1SelfConsistencyOverview.tsx apps/dashboard/src/components/MDSPlot.tsx apps/dashboard/src/copy/failures_findings.ts apps/dashboard/src/styles/app.css apps/dashboard/src/styles/failures-findings.css | grep '^+' | grep $'—'`
+Command: `git diff -- DESIGN_SYSTEM.md apps/dashboard/src/App.tsx apps/dashboard/src/__tests__/FailuresFindings.test.tsx apps/dashboard/src/__tests__/MDSPlot.test.tsx apps/dashboard/src/components/ContentArea.tsx apps/dashboard/src/components/FailuresFindings.tsx apps/dashboard/src/components/Focus1SelfConsistencyOverview.tsx apps/dashboard/src/components/MDSPlot.tsx apps/dashboard/src/copy/failures_findings.ts apps/dashboard/src/styles/app.css apps/dashboard/src/styles/failures-findings.css | grep '^+' | grep $': '`
 
 Output: (empty -- zero em dashes on any added line)
 
