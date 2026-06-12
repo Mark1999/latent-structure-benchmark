@@ -251,3 +251,14 @@ LSB's detection, `scripts/collect.py`'s per-model boundary handler, records the 
 - `tests/unit/test_collect_campaign_id.py`: new; 6 fixture-based tests for BUG 2
 - `tests/unit/test_collect_failure_record.py`: new; 3 fixture-based tests for BUG 3
 - `docs/status/2026-06-11-phase9b-food-campaign.md`: this section appended
+
+---
+
+## Cross-domain CI verification (Mark's request, 2026-06-12)
+
+Same model-resample bootstrap (B=500, seed 20260612) applied read-only to the published family and holidays matrices:
+- family (15 models): eigenratio 19.143, CI95 [9.612, 23.504]. Does not cross 5.0. STRONG stands, uncertainty-honest.
+- holidays (14 models): eigenratio 39.283, CI95 [15.610, 47.387]. Does not cross 5.0. STRONG stands, uncertainty-honest.
+- food (12 models, for comparison): 9.481, CI95 [4.908, 10.338]. Crosses. Published WEAK with disclosure.
+
+Conclusion: food's indeterminacy is domain-specific, not method-induced. Publishing the family/holidays CI values on the dashboard is deferred to their next natural re-baseline once FOOD-FIX-A2 lands the romney_eigenratio_ci schema field (option: extend A2 scope to backfill all domains' CIs from their published matrices; Architect's call at A2 planning).
