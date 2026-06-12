@@ -121,7 +121,12 @@ def _load_registry() -> dict[str, ModelRef]:
 
 
 def _load_collected_model_ids(jsonl_path: Path) -> set[str]:
-    """Return the set of model_ids already collected in informants.jsonl."""
+    """Return the set of model_ids already collected in informants.jsonl.
+
+    Used for --list-models status display only. Returns model_id strings
+    so the registry-status column renders a simple collected/NEW flag.
+    For skip decisions, use _load_collected_model_domain_pairs() instead.
+    """
     ids: set[str] = set()
     if not jsonl_path.exists():
         return ids
@@ -138,6 +143,35 @@ def _load_collected_model_ids(jsonl_path: Path) -> set[str]:
             if mid:
                 ids.add(mid)
     return ids
+
+
+def _load_collected_model_domain_pairs(jsonl_path: Path) -> set[tuple[str, str]]:
+    """Return (model_id, domain_slug) pairs already present in informants.jsonl.
+
+    Used by --skip-collected for domain-aware skip decisions. A model that
+    has records for domain A is not skipped for domain B. 2-tuple key is
+    used per SME advisory D1: AC7 already encodes the cross-mode collision
+    semantic (a food record with any collection_mode satisfies the skip for
+    food), so the simpler 2-tuple is correct and the 3-tuple would contradict
+    AC7. Choice documented in commit body.
+    """
+    pairs: set[tuple[str, str]] = set()
+    if not jsonl_path.exists():
+        return pairs
+    with open(jsonl_path, encoding="utf-8") as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            try:
+                record = json.loads(line)
+            except json.JSONDecodeError:
+                continue
+            mid = record.get("model_id", "")
+            dom = record.get("domain_slug", "")
+            if mid and dom:
+                pairs.add((mid, dom))
+    return pairs
 
 
 MODEL_REGISTRY = _load_registry()
@@ -241,6 +275,7 @@ async def collect_two_pass(
     output_path: Path,
     *,
     prompt_version: str = "v1",
+    campaign_id: str | None = None,
 ) -> int:
     """Two-pass collection: free lists → consensus → pile sorts."""
     domain = load_domain(domain_slug)
@@ -260,6 +295,7 @@ async def collect_two_pass(
             n_free_lists=n_free_lists,
             n_pile_sorts=n_pile_sorts,
             prompt_version=prompt_version,
+            campaign_id=campaign_id,
         )
     except PartialSessionError as e:
         print(f"ERROR: {e.cause}", file=sys.stderr)
@@ -310,6 +346,7 @@ async def collect_cross_model(
     output_path: Path,
     *,
     prompt_version: str = "v1",
+    campaign_id: str | None = None,
 ) -> int:
     """Cross-model consensus collection.
 
@@ -373,15 +410,25 @@ async def collect_cross_model(
                 consensus_items=consensus_items,
                 n_pile_sorts=n_pile_sorts,
                 prompt_version=prompt_version,
+                campaign_id=campaign_id,
             )
         except Exception as e:
             print(f"    ERROR: {e}", file=sys.stderr)
             logger.exception(
-                "Cross-model sort failed for %s", adapter.model.model_id,
+                "The adapter raised an exception during cross-model sort for %s",
+                adapter.model.model_id,
             )
+            # LSB records the provider-transport event at the per-model boundary.
+            # failure_scope="per_model" distinguishes model-level transport events
+            # (the adapter raised before any pile-sort step completed) from
+            # per-step failures written by run_cross_model_sort internally.
+            # This is an LSB-side detection of a provider-transport event, not
+            # an attribution of output or behavior to the model itself.
             append_failure(e, {
                 "model_id": adapter.model.model_id,
-                "domain": domain_slug, "mode": "cross_model_consensus",
+                "domain": domain_slug,
+                "mode": "cross_model_consensus",
+                "failure_scope": "per_model",
             }, FAILURES_JSONL)
             continue
 
@@ -406,6 +453,7 @@ async def collect_baseline(
     output_path: Path,
     *,
     prompt_version: str = "v1",
+    campaign_id: str | None = None,
 ) -> int:
     """Baseline collection: sort human baseline items."""
     domain = load_domain(domain_slug)
@@ -424,6 +472,7 @@ async def collect_baseline(
             baseline_id=baseline_id,
             n_sorts=n_sorts,
             prompt_version=prompt_version,
+            campaign_id=campaign_id,
         )
     except PartialSessionError as e:
         print(f"ERROR: {e.cause}", file=sys.stderr)
@@ -530,7 +579,7 @@ def main() -> int:
         "§4.1.3: 0.7 free_list, 0.3 pile_sort, 0.3 interview). When set, the "
         "same value is used for all three steps. Used by the shakedown "
         "determinism cell (--temperature 0.0) per docs/SHAKEDOWN_PROTOCOL.md "
-        "§4. Applies only to --mode single_pass in this PR; other modes use "
+        "§4. Applies only to --mode single_pass; other modes use "
         "the hardcoded defaults.",
     )
     parser.add_argument(
@@ -540,7 +589,7 @@ def main() -> int:
         "at collection time. The canonical use is the shakedown non-canonical "
         "labeling per docs/SHAKEDOWN_PROTOCOL.md §2 (e.g., --campaign-id "
         "shakedown-20260420). Phase 4a canonical runs leave this unset. "
-        "Applies only to --mode single_pass in this PR.",
+        "Applies to all collection modes.",
     )
 
     args = parser.parse_args()
@@ -567,14 +616,17 @@ def main() -> int:
         return 1
 
     if args.list_models:
-        collected = _load_collected_model_ids(args.output)
+        # _load_collected_model_ids is used here for display only (collected/NEW).
+        # It returns model_id strings, not (model_id, domain) pairs, which is
+        # appropriate for the registry listing view.
+        collected_ids = _load_collected_model_ids(args.output)
         # Deduplicate — some models are indexed under two keys
         seen: set[str] = set()
         for mid, ref in MODEL_REGISTRY.items():
             if ref.model_id in seen:
                 continue
             seen.add(ref.model_id)
-            is_collected = ref.model_id in collected
+            is_collected = ref.model_id in collected_ids
             status = "collected" if is_collected else "NEW"
             print(f"  {mid:55s} {ref.family:10s} {ref.collection_method:15s} {status}")
         return 0
@@ -595,16 +647,6 @@ def main() -> int:
                 available.append(mid)
         print(f"Available: {', '.join(available)}", file=sys.stderr)
         return 1
-
-    # Skip already-collected models if requested
-    if args.skip_collected:
-        collected = _load_collected_model_ids(args.output)
-        if model_ref.model_id in collected:
-            print(
-                f"Skipping {model_ref.model_id} — already collected. "
-                "Use without --skip-collected to re-run.",
-            )
-            return 0
 
     domain = load_domain(args.domain)
 
@@ -635,7 +677,12 @@ def main() -> int:
 
     if args.mode == "cross_model":
         model_ids = args.models or list(MODEL_REGISTRY.keys())
-        collected = _load_collected_model_ids(args.output) if args.skip_collected else set()
+        # Domain-aware skip set: (model_id, domain_slug) tuples. A model with
+        # records for a different domain is not skipped for the current domain.
+        collected_pairs = (
+            _load_collected_model_domain_pairs(args.output) if args.skip_collected
+            else set()
+        )
         adapters = []
         seen_refs: set[str] = set()
         for mid in model_ids:
@@ -647,16 +694,30 @@ def main() -> int:
             if ref.model_id in seen_refs:
                 continue
             seen_refs.add(ref.model_id)
-            if args.skip_collected and ref.model_id in collected:
-                print(f"  Skipping {ref.model_id} — already collected")
+            if args.skip_collected and (ref.model_id, args.domain) in collected_pairs:
+                print(f"  Skipping {ref.model_id} (already collected for {args.domain})")
                 continue
             adapters.append(_create_adapter(ref))
         result = asyncio.run(collect_cross_model(
             adapters, args.domain, args.pile_sorts, args.output,
             prompt_version=args.prompt_version,
+            campaign_id=args.campaign_id,
         ))
     else:
         adapter = _create_adapter(model_ref)
+
+        # Domain-aware skip for single-model modes. The cross_model branch handles
+        # its own per-model skip above; this guard applies only to single-model modes
+        # (single_pass, two_pass, baseline) where model_ref is a single target.
+        if args.skip_collected:
+            collected_pairs = _load_collected_model_domain_pairs(args.output)
+            if (model_ref.model_id, args.domain) in collected_pairs:
+                print(
+                    f"Skipping {model_ref.model_id} for {args.domain}: already collected. "
+                    "Use without --skip-collected to re-run.",
+                )
+                return 0
+
         if args.mode == "single_pass":
             result = asyncio.run(collect_single_pass(
                 adapter, args.domain, args.runs, args.output,
@@ -668,11 +729,13 @@ def main() -> int:
             result = asyncio.run(collect_two_pass(
                 adapter, args.domain, args.free_lists, args.pile_sorts, args.output,
                 prompt_version=args.prompt_version,
+                campaign_id=args.campaign_id,
             ))
         elif args.mode == "baseline":
             result = asyncio.run(collect_baseline(
                 adapter, args.domain, args.baseline, args.pile_sorts, args.output,
                 prompt_version=args.prompt_version,
+                campaign_id=args.campaign_id,
             ))
         else:
             return 1

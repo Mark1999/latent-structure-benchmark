@@ -409,6 +409,7 @@ async def run_two_pass(
     *,
     prompt_version: str = "v1",
     system_prompt: str = "",
+    campaign_id: str | None = None,
 ) -> list[InformantRecord]:
     """Run two-pass CDA protocol: free lists → consensus → pile sorts.
 
@@ -417,6 +418,10 @@ async def run_two_pass(
 
     This is the standard CDA methodology (Borgatti): all pile sorts use the
     same item list, enabling clean cross-run aggregation.
+
+    Args:
+        campaign_id: Optional campaign identifier written into qa_notes on
+            every record per docs/SHAKEDOWN_PROTOCOL.md §2.
 
     Returns:
         List of InformantRecords (n_free_lists + n_pile_sorts total).
@@ -462,6 +467,7 @@ async def run_two_pass(
             collection_mode="two_pass",
             prompt_version=prompt_version,
             system_prompt=system_prompt,
+            campaign_id=campaign_id,
         )
         all_informant_records.append(record)
 
@@ -578,6 +584,7 @@ async def run_two_pass(
             system_prompt=system_prompt,
             truncation_type="elbow",
             truncation_n=elbow_k,
+            campaign_id=campaign_id,
         )
         pile_sort_records.append(record)
 
@@ -592,6 +599,7 @@ async def run_cross_model_sort(
     *,
     prompt_version: str = "v1",
     system_prompt: str = "",
+    campaign_id: str | None = None,
 ) -> list[InformantRecord]:
     """Run pile sorts on a cross-model consensus item list.
 
@@ -602,6 +610,10 @@ async def run_cross_model_sort(
     The consensus_items should come from compute_cross_model_consensus()
     + find_salience_elbow() — computed externally so the caller controls
     which records are pooled.
+
+    Args:
+        campaign_id: Optional campaign identifier written into qa_notes on
+            every record per docs/SHAKEDOWN_PROTOCOL.md §2.
 
     Returns:
         List of n_pile_sorts InformantRecords with
@@ -638,6 +650,7 @@ async def run_cross_model_sort(
             collection_mode="cross_model_consensus",
             prompt_version=prompt_version,
             system_prompt=system_prompt,
+            campaign_id=campaign_id,
         )
         records.append(record)
 
@@ -653,11 +666,16 @@ async def run_baseline_sort(
     *,
     prompt_version: str = "v1",
     system_prompt: str = "",
+    campaign_id: str | None = None,
 ) -> list[InformantRecord]:
     """Run pile sorts on a provided baseline item list.
 
     The model sorts items from a human baseline (e.g., Romney 1996) to
     enable direct model-to-human structural comparison.
+
+    Args:
+        campaign_id: Optional campaign identifier written into qa_notes on
+            every record per docs/SHAKEDOWN_PROTOCOL.md §2.
 
     Returns:
         List of n_sorts InformantRecords with collection_mode="baseline_items".
@@ -743,6 +761,7 @@ async def run_baseline_sort(
             collection_mode="baseline_items",
             prompt_version=prompt_version,
             system_prompt=system_prompt,
+            campaign_id=campaign_id,
         )
         records.append(record)
 

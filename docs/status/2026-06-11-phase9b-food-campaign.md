@@ -211,3 +211,43 @@ Food v0.2 is LIVE. Step-5 verification on cogstructurelab.com (Playwright, real 
 - Screenshot: screenshots/food-v02-live.png (local).
 
 Campaign fast-follows queued: FOOD-FIX-A2 (eigenratio canonicalization + eigenratio-CI schema field), collector bug batch (skip-collected semantics, campaign_id regression, http_error failure records, lsb_inspect field read), runbook step-2 mode correction. Social announcement awaits Mark in the admin console under the SME's binding framing.
+
+---
+
+## COLLECTOR-BUGS fix trail (2026-06-12)
+
+**Task ID:** COLLECTOR-BUGS
+**Status:** COMPLETE (one commit, pending Reviewer + Tester verdicts)
+
+### BUG 1: --skip-collected domain-aware scoping
+
+**Root cause:** `_load_collected_model_ids()` returned `set[str]` (model_id only), so any model with a record for any domain was skipped for all domains. The early skip guard in main() also fired before the cross_model branch, making `--skip-collected --mode cross_model` a no-op.
+
+**Fix:** Added `_load_collected_model_domain_pairs()` returning `set[tuple[str, str]]` (model_id, domain_slug). The 2-tuple key is used per CDA SME advisory D1: AC7 encodes the cross-mode collision semantic (any record for a domain satisfies the skip, regardless of collection_mode), so the simpler 2-tuple is correct and the 3-tuple would contradict AC7. The early single-model skip guard moved inside the `else` branch (single-model modes only). The cross_model branch uses the domain-aware set keyed on `(ref.model_id, args.domain)`. `_load_collected_model_ids()` is retained for `--list-models` display (model-only status column).
+
+### BUG 2: --campaign-id threading
+
+**Root cause:** `run_two_pass`, `run_cross_model_sort`, `run_baseline_sort` did not accept `campaign_id`, so records written via those paths never received the `campaign_id=<value>` tag in `qa_notes`. The CLI only threaded `args.campaign_id` to the `single_pass` dispatch site.
+
+**Fix:** All three runner functions gain `campaign_id: str | None = None` kwarg and pass it to every `_assemble_record(...)` call within their body. `collect_two_pass`, `collect_cross_model`, and `collect_baseline` in scripts/collect.py gain the same kwarg and pass it to the runner. All four dispatch sites in `main()` now pass `args.campaign_id`. Help text restriction "Applies only to --mode single_pass" replaced with "Applies to all collection modes." No backfill of historical records (fix-forward per CLAUDE.md §9 pitfall 10).
+
+### BUG 3: transport-failure records at the per-model boundary
+
+**Root cause:** The existing `collect_cross_model` `except Exception` handler already called `append_failure(...)`, so failure records did land. The defects were: (a) the `context` dict lacked `failure_scope`, making model-level transport events indistinguishable from per-step failures, and (b) the log message used language that could imply model behavior attribution.
+
+**Fix:** Added `"failure_scope": "per_model"` to the context dict in the `collect_cross_model` `except Exception` handler (CDA SME C2: preferred key name over `model_level=True`). Updated the logger.exception call to "The adapter raised an exception during cross-model sort for %s" (CDA SME C1: no model-attribution language). No new categorical fields; no cdb_core schema changes; the `http_error` enum in `DeclineInterview.originating_outcome_class` is unchanged.
+
+LSB's detection, `scripts/collect.py`'s per-model boundary handler, records the provider-transport event in `data/raw/failures.jsonl`. The failure record captures what LSB's detection observed (the adapter raised). The model output did not arrive; no `response_verbatim` is written (CDA SME C4). This record is a provider-transport event, not a model output event, and does not belong in any downstream decline-interview pipeline that classifies model outputs (CDA SME C3 four-noun sentence: LSB's detection of a provider-transport event does not constitute a model output classification for the decline-interview pipeline).
+
+### VERIFICATION 4: lsb_inspect.py field reads
+
+**Disposition: not-a-bug.** `scripts/lsb_inspect.py` L120-121 reads `freelist.parsed_items` and `pile_sort.parsed_piles` correctly using `fl.get("parsed_items")` and `ps.get("parsed_piles")`. Cross-model records carry a placeholder freelist with `parsed_items=[]`, so `fl=0` accurately reflects the placeholder semantic, not a misread of a legacy field. No code change required.
+
+### Files changed
+
+- `scripts/collect.py`: BUG 1 (new `_load_collected_model_domain_pairs`, domain-aware skip guards), BUG 2 (campaign_id kwarg on collect_two_pass / collect_cross_model / collect_baseline, all four dispatch sites, help text), BUG 3 (failure_scope context key, attribution-clean log message)
+- `packages/cdb_collect/cdb_collect/runner.py`: BUG 2 (campaign_id kwarg on run_two_pass / run_cross_model_sort / run_baseline_sort, threaded to all _assemble_record calls)
+- `tests/unit/test_collect_skip_collected.py`: new; 10 fixture-based tests for BUG 1
+- `tests/unit/test_collect_campaign_id.py`: new; 6 fixture-based tests for BUG 2
+- `tests/unit/test_collect_failure_record.py`: new; 3 fixture-based tests for BUG 3
+- `docs/status/2026-06-11-phase9b-food-campaign.md`: this section appended
