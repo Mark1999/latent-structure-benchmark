@@ -262,3 +262,11 @@ Same model-resample bootstrap (B=500, seed 20260612) applied read-only to the pu
 - food (12 models, for comparison): 9.481, CI95 [4.908, 10.338]. Crosses. Published WEAK with disclosure.
 
 Conclusion: food's indeterminacy is domain-specific, not method-induced. Publishing the family/holidays CI values on the dashboard is deferred to their next natural re-baseline once FOOD-FIX-A2 lands the romney_eigenratio_ci schema field (DECIDED by Mark 2026-06-12: A2 scope EXTENDED to publish all three domains CIs; the A2 dispatch carries this).
+
+---
+
+## FOOD-FIX-A2 disposition: DISCARDED (Mark, 2026-06-12)
+
+The A2 work (eigenratio CI schema fields and publication) never shipped: the orchestrator's recompute check caught the published-field-vs-disclosure-string contradiction pre-push, the SME's follow-up ruling exposed that the estimator design itself had been iterated by agents, and Mark ruled the episode out of bounds. The parked branch was deleted on Mark's instruction. The computed reference intervals (family [9.612, 23.504], holidays [15.610, 47.387], food [4.908, 10.338] point-estimate basis / [5.077, 10.985] mean-matrix basis, all B=500 with recorded seeds) remain on record in this document only. Any future uncertainty-band publication requires a Mark-written or line-approved specification per CLAUDE.md rule 15 (the math freeze), which this episode originated. The live site is unaffected: food v0.2 stands as promoted (WEAK_CONSENSUS with disclosure).
+
+Campaign fully closed. No open items.
