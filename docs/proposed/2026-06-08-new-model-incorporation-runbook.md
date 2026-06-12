@@ -72,16 +72,41 @@ won't appear in `--scan` until that dict is extended (Step 0).
 Run the elicitation protocol for the new model across each active domain. Collection is
 provider-parallel, so a full slate-cell is single-digit hours, not days.
 ```bash
-# Cross-model pile-sort/free-list collection for ONE new model on ONE domain:
-uv run python scripts/collect.py --domain family --mode cross_model \
-    --models <model_id> --pile-sorts 10 --runs 10 --skip-collected \
+# single_pass collection for ONE new model on ONE domain:
+uv run python scripts/collect.py --domain family --mode single_pass \
+    --model <model_id> --runs N --skip-collected \
     --campaign-id new-model-<model_id>-<yyyymmdd>
 # Repeat for holidays and food (and any other active domain).
 # Dry-run first to see the plan without spending:
-uv run python scripts/collect.py --domain family --mode cross_model \
-    --models <model_id> --dry-run
+uv run python scripts/collect.py --domain family --mode single_pass \
+    --model <model_id> --dry-run
 ```
-- `--skip-collected` makes the run idempotent (won't re-collect cells already in the JSONL).
+
+### Which collection mode
+
+**`single_pass` is the correct mode for slate incorporation.** Every record in the
+current promoted slate used `single_pass`. In this mode, one session does the free-list,
+pile-sort, and pile-interview on the model's own items, producing the per-model item
+vocabulary that the cross-model analysis requires. Use `single_pass` when adding a new
+model to a domain.
+
+**`cross_model_consensus` is a supplement, not a substitute.** It sorts a shared item
+deck derived from the full slate's existing free-lists, which means it can only run
+meaningfully AFTER `single_pass` data for the new model already exists and has been
+incorporated. Records produced by `cross_model_consensus` have a different shape from
+`single_pass` records: their free-lists carry a placeholder (`parsed_items=[]`) because
+the items were supplied externally, not elicited from the model. That placeholder cannot
+enter the consensus free-list basis. Running `cross_model_consensus` alone for slate
+incorporation produces records with empty free-lists that are silently excluded from the
+similarity basis. See the 2026-06-11 food campaign incident in
+`docs/status/2026-06-11-phase9b-food-campaign.md` for the concrete failure this caused
+and `docs/GLOSSARY.md` "Collection mode" for the canonical one-liner.
+
+- `--skip-collected` is idempotent: the dedupe key is `(model_id, domain_slug)`. A
+  record for the current model in the current `--domain` causes that model to be skipped
+  for this run. Records in OTHER domains do not skip this domain. (Prior to commit
+  `0c1d9b0` the key was bare `model_id`, which caused cross-domain false-skips; the fix
+  is already in place.)
 - Output appends to `data/raw/informants.jsonl` (**append-only** — never edit prior lines;
   the CI append-only check + the active `check_informants_append_only` PreToolUse hook
   enforce this).
@@ -91,10 +116,11 @@ uv run python scripts/collect.py --domain family --mode cross_model \
 - Sanity-check what landed: `uv run python scripts/lsb_inspect.py --model <model_id> --domain family`
   (and `--failed` to see any refusals).
 
-**Set N intentionally.** Default `--runs/--pile-sorts 10`. The saturation analysis
-(ARCHITECTURE §4.2.7) set operational N at the empirical knee + 20%; match the N the
-existing slate used for that domain so the new model is comparable. If unsure, this is a
-CDA SME question, not an operator guess.
+**Set N intentionally.** The saturation analysis (ARCHITECTURE §4.2.7) set operational
+N at the empirical knee + 20%; match the domain's existing per-model `--runs` count for
+that domain so the new model is comparable. Do not assume a default-N value: check what
+N the existing slate used for the target domain and match it. If unsure, this is a CDA
+SME question, not an operator guess.
 
 ---
 
@@ -114,6 +140,12 @@ uv run python scripts/rebaseline_corpus.py --smoke
 - Writes staging results to `out/rebaseline/<domain>/<version>.json` and a provenance
   manifest `out/rebaseline/baseline_manifest.json` (numpy/scipy/python/git-commit/platform).
 - **Does NOT overwrite `data/results/` or the live dashboard.** Promotion is Step 5.
+
+Note: `rebaseline_corpus.py` DOMAIN_CONFIG carries a `similarity_collection_mode` key
+per domain (set to `"single_pass"` for food per FOOD-FIX-A); any stray
+`cross_model_consensus` records are basis-excluded before the similarity matrix is
+computed, so they cannot contaminate the cross-model measures even if they are present
+in the corpus.
 
 ### The six threshold guards (the human-in-the-loop reason)
 `rebaseline_corpus.py` compares the new staged result against the prior published value and
