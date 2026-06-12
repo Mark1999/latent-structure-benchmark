@@ -261,4 +261,4 @@ Same model-resample bootstrap (B=500, seed 20260612) applied read-only to the pu
 - holidays (14 models): eigenratio 39.283, CI95 [15.610, 47.387]. Does not cross 5.0. STRONG stands, uncertainty-honest.
 - food (12 models, for comparison): 9.481, CI95 [4.908, 10.338]. Crosses. Published WEAK with disclosure.
 
-Conclusion: food's indeterminacy is domain-specific, not method-induced. Publishing the family/holidays CI values on the dashboard is deferred to their next natural re-baseline once FOOD-FIX-A2 lands the romney_eigenratio_ci schema field (option: extend A2 scope to backfill all domains' CIs from their published matrices; Architect's call at A2 planning).
+Conclusion: food's indeterminacy is domain-specific, not method-induced. Publishing the family/holidays CI values on the dashboard is deferred to their next natural re-baseline once FOOD-FIX-A2 lands the romney_eigenratio_ci schema field (DECIDED by Mark 2026-06-12: A2 scope EXTENDED to publish all three domains CIs; the A2 dispatch carries this).
