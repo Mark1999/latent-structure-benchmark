@@ -249,6 +249,12 @@ def test_cross_model_transport_failure_appended_to_failures_jsonl(tmp_path: Path
     assert ctx["failure_scope"] == "per_model", (
         "context must contain failure_scope='per_model' per CDA SME C2"
     )
+    # SME C4 / AC27: response_verbatim must be absent when the adapter raised
+    # before any response arrived (absence-is-signal; jsonl.py omits field when None)
+    assert "response_verbatim" not in entry, (
+        "response_verbatim must be absent from the cross_model failure record "
+        "when no response arrived (CDA SME C4 / AC27)"
+    )
 
 
 def test_cross_model_continues_past_failed_model(tmp_path: Path):

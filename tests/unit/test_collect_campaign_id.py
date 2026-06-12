@@ -214,3 +214,61 @@ def test_collect_cross_model_campaign_id_flows_to_records(tmp_path: Path):
     assert "campaign_id" in sig.parameters, (
         "collect_cross_model must accept campaign_id keyword argument"
     )
+
+
+# ── collect_two_pass and collect_baseline signature checks (AC17/AC19) ─
+
+
+def test_collect_two_pass_accepts_campaign_id():
+    """collect_two_pass must accept campaign_id keyword argument (BUG 2 AC17).
+
+    AC17 specifies records produced via the two_pass dispatch path carry
+    campaign_id. The dispatch site in main() passes args.campaign_id to
+    collect_two_pass, which forwards it to run_two_pass. The function
+    signature must expose the parameter for that threading to work.
+    """
+    import inspect
+
+    from scripts.collect import collect_two_pass as _fn
+    sig = inspect.signature(_fn)
+    assert "campaign_id" in sig.parameters, (
+        "collect_two_pass must accept campaign_id keyword argument (BUG 2 AC17)"
+    )
+
+
+def test_collect_baseline_accepts_campaign_id():
+    """collect_baseline must accept campaign_id keyword argument (BUG 2 AC19).
+
+    AC19 specifies records produced via the baseline dispatch path carry
+    campaign_id. The dispatch site in main() passes args.campaign_id to
+    collect_baseline, which forwards it to run_baseline_sort.
+    """
+    import inspect
+
+    from scripts.collect import collect_baseline as _fn
+    sig = inspect.signature(_fn)
+    assert "campaign_id" in sig.parameters, (
+        "collect_baseline must accept campaign_id keyword argument (BUG 2 AC19)"
+    )
+
+
+def test_run_baseline_sort_no_campaign_id_no_tag_in_notes():
+    """Without campaign_id, run_baseline_sort records have no campaign_id tag (AC20).
+
+    AC20: when campaign_id is not supplied, campaign_id=None is passed and
+    no 'campaign_id=None' tag appears in the record's qa_notes.
+    """
+    items = ["apple", "bread", "cheese", "egg", "fish"]
+    records = asyncio.run(
+        run_baseline_sort(
+            _mock_adapter(), _domain(),
+            items=items,
+            baseline_id="test_baseline",
+            n_sorts=1,
+        )
+    )
+    for rec in records:
+        assert "campaign_id=" not in rec.qa_notes, (
+            f"qa_notes must not contain campaign_id tag when not supplied, "
+            f"got: {rec.qa_notes!r}"
+        )
