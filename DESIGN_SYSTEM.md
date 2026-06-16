@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.23.0  
+**Version:** v0.24.0  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.24.0** (OBSERVATORY-RENAME public copy pass, 2026-06-16) renames the instrument from "the Latent Structure Benchmark" to "the Cognitive Structure Observatory" in public dashboard copy. NavBar brand span changes from `/ LSB` to `/ Observatory` (Option B, UI/UX N7 ruling); no CSS, class, or token changes. Copy substitutions in MethodologyPage.tsx (intro, what-if sentence, LSB-runs line, generic-benchmark line, benchmark-can-show line), AboutPage.tsx (paragraph 6 subject and disclaim sentence), and DataPage.tsx (N3 renewal note in Section D). AboutPage.test.tsx updated in lockstep with prose (N2 binding). Adds §24 documenting the NavBar brand treatment. Updates §22.1 positioning sentence ("benchmark" to "Observatory"). FROZEN: minted bundle name, Zenodo DOI, B2/HF/GitHub URLs, SHA256, CITATION_FIRST_LINE, failures_findings.ts LSB pipeline-actor tokens. No new tokens, no new CSS classes, no new components. Gate verdicts: CDA SME PASS-WITH-NOTES (docs/status/2026-06-12-observatory-rename-verdicts.md); UI/UX PASS-WITH-NOTES (docs/status/2026-06-12-observatory-rename-verdicts.md).
 - **v0.23.0** (PROMOTE-FOOD-V02 visual disclosure patterns, 2026-06-11) adds §23 specifying three new visual patterns required for the food v0.2 promotion: (a) §23.1 consensus-type override badge (`.content-area__override-badge`) with left-accent `--color-warning` border treatment, `--color-text-primary` text, `--color-surface` background, and methodology-page deep-link anchor; (b) §23.2 CI-disclosure line (`.content-area__ci-disclosure`) and small-n line (`.content-area__small-n-line`) both using `--color-text-caption` at `--font-size-xs`, with byte-identical F3-R3-C and F3-R3-D display strings sourced from a dedicated copy module; (c) §23.3 SimilarityHeatmap model-exclusion caption (`.heatmap-exclusion-caption`) rendered in ContentArea.tsx below the heatmap, using `displayModel()` in visible text and full `model_id` in aria-label per §18.5. No new CSS custom properties. All tokens confirmed present in `tokens.css`. WCAG AA: override badge text 12.34:1 PASS; CI-disclosure and small-n lines 4.60:1 PASS; exclusion caption 4.60:1 PASS. CDA SME PASS-WITH-NOTES (`docs/status/2026-06-11-promote-food-v02-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-11-promote-food-v02-uiux-verdict.md`).
 - **v0.22.0** (F5-T1 degenerate bootstrap ellipse converged-state treatment, 2026-06-11) adds implementation requirement 12 to §3.3.5, documenting the R1-a degenerate-bootstrap sub-state (semi_major <= 0) as the LIMIT case of a high-stability R1-a sample where the bootstrap converged on a near-point. Visual treatment: minimum-radius ellipse floor (rx=3, ry=3 px) rendered at the data point, same fill/stroke/opacity as standard R1-a ellipse, tagged data-degenerate-bootstrap="true". Dot marker: same circle as standard R1-a but additionally carries data-r1-state="typical_concentration", data-degenerate-bootstrap="true", and S2 aria-label. MDSPlot tooltip shows S1 (UI/UX-corrected) body for degenerate models. S3 disclosure threads through .term-dot aria-label in TermMap (NOT .term-ellipse, which has pointer-events=none). S4 disclosure threads through family-member inner circle in Focus2FamilySimilarity. Three components updated: MDSPlot.tsx, TermMap.tsx, Focus2FamilySimilarity.tsx. No new tokens. WCAG AA: minimum-radius ellipse uses same provider color token as standard R1-a ellipse (3:1 graphical-object contrast confirmed by existing T15 token audit). CDA SME PASS-WITH-NOTES (S1-S4 bound strings, B1-B10 binding notes; `.claude/agent-memory/cda_sme/project_f5_degenerate_ellipse_verdict.md`); UI/UX PASS-WITH-NOTES (minimum-radius option (a) selected, impl req 12 this update, S1 corrected per §3.3.5 impl req 5 removing "R1-a sample" jargon). Gate verdicts: docs/status/2026-06-10-codebase-review-fixes-verdicts.md F5 section.
 - **v0.21.1** (footnote band visual design, TM-D, 2026-06-11) adds §3.1.1(d) specifying the `.term-map-cluster-footnotes` band as a designed component with a load-bearing constant-height contract. Stylesheet file: `app.css`. CSS class `.term-map-cluster-footnotes` (ol) and `.term-map-cluster-footnotes__empty` (placeholder li modifier). Height: 48px CONSTANT (BINDING, oscillation-safety). All inline styles removed from TermMap.tsx. No new tokens. Tokens used: `--font-size-xs`, `--font-weight-regular`, `--line-height-data`, `--color-text-caption`, `--color-border`, `--color-background`, `--space-1`, `--space-6` (all confirmed present in tokens.css). WCAG AA: `--color-text-caption` (#6c757d, 4.60:1 on white, PASS at 12px regular weight). Gate verdicts: CDA SME PASS-WITH-NOTES (routing-only, docs/status/2026-06-10-termmap-layout-verdicts.md TM-D section); UI/UX PASS-WITH-NOTES (this update, 2026-06-11).
@@ -3857,7 +3858,7 @@ Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES (both: `docs/statu
 
 The About page is a demonstration piece: it establishes authorship, perspective, and professional context for the benchmark. It is NOT a portfolio page, services page, consulting offering, or contact page.
 
-**NavBar positioning constraint (binding).** "About" is the rightmost (fifth) tab. It uses the same `.nav__tab` class as every other tab: no bolding, no badging, no color accent, no visual distinction. The benchmark and data presentation remain primary; the About entry is present but must not dominate the nav. Any future Coder who wants to visually distinguish the About tab must route to UI/UX before adding any class-name divergence.
+**NavBar positioning constraint (binding).** "About" is the rightmost (fifth) tab. It uses the same `.nav__tab` class as every other tab: no bolding, no badging, no color accent, no visual distinction. The Observatory and data presentation remain primary; the About entry is present but must not dominate the nav. Any future Coder who wants to visually distinguish the About tab must route to UI/UX before adding any class-name divergence.
 
 **No sales or contact affordances (binding).** The page must not contain: a "hire me" CTA, a "Contact" section or link, a "Services" or "Consulting" heading, a contact form, a `mailto:` link, a LinkedIn or social link, a list of testimonials, a "Recent clients" or "Selected work" section, a portrait or photo, a CV download link, or any sales or availability language. These constraints match the content of the Mark-authored source text; nothing analogous should be invented. If a future need for any of these surfaces, route to a new plan cycle through the Architect.
 
@@ -4059,6 +4060,40 @@ The aria-label uses the FULL `model_id` ('meta-llama/llama-4-maverick'), not the
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.23.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+## 24. NavBar brand treatment (v0.24.0, OBSERVATORY-RENAME, 2026-06-16)
+
+Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES (both: `docs/status/2026-06-12-observatory-rename-verdicts.md`).
+
+### 24.1 Brand span copy (binding)
+
+The `.nav__brand` element in `NavBar.tsx` uses a two-part structure: the umbrella brand name followed by a `<span>` with the instrument name. As of v0.24.0 the instrument name is `/ Observatory`.
+
+```tsx
+<div className="nav__brand">
+  Cognitive Structure Lab <span>/ Observatory</span>
+</div>
+```
+
+No CSS, class, or token changes accompany this update. The `.nav__brand` element and the inner `<span>` use pre-existing styles. The Lab name ("Cognitive Structure Lab") is the umbrella brand and does not change. The span text reflects the current instrument name and must be updated if the instrument is renamed again.
+
+### 24.2 Source comment (binding)
+
+The NavBar.tsx header comment's positioning-constraint line must read in lockstep with the brand span. After this rename pass the binding source comment text is:
+
+> Observatory and data presentation remain primary; About must not dominate the nav.
+
+Any future rename that changes the brand span MUST update this comment in the same commit (N7 ruling).
+
+### 24.3 What is frozen (binding)
+
+The following are NOT changed by the NavBar brand update and must not be silently changed by a future rename pass without explicit Architect sign-off:
+- CSS class names: `.nav__brand`, `.nav__tab`, `.nav__tab--active`, `.nav__right`
+- The NavTab union type and its string literals in `NavBar.tsx`
+- The `FAILURES_TAB_LABEL` import and its runtime value
+- Any aria attributes or roles on the `<nav>` element
+
+---
+
+*End of DESIGN_SYSTEM.md v0.24.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

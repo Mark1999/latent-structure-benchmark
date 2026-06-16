@@ -77,6 +77,9 @@ Zenodo. https://doi.org/10.5281/zenodo.20293554`}</code></pre>
             </a>
             {' '}archives this release and is the canonical citation target.
           </p>
+          <p className="data-page__text">
+            The project is now the Cognitive Structure Observatory; the next bundle version will adopt the new name. The v1 citation above is the minted bundle name and remains the canonical citation for v1.
+          </p>
         </section>
 
         {/* ── Section A: Header — CDA SME binding: full 3-sentence framing block ── */}

@@ -6,7 +6,7 @@
  *   [Explore] [Methodology] [Collection records] [Data] [About]
  *
  * "About" is rightmost (least prominent) per §22.1 positioning constraint.
- * Benchmark and data remain primary; About must not dominate the nav.
+ * Observatory and data presentation remain primary; About must not dominate the nav.
  */
 
 import { FAILURES_TAB_LABEL } from '../copy/failures_findings';
@@ -22,7 +22,7 @@ export function NavBar({ activeTab, onTabChange }: NavBarProps) {
   return (
     <nav className="nav" role="navigation" aria-label="Site navigation">
       <div className="nav__brand">
-        Cognitive Structure Lab <span>/ LSB</span>
+        Cognitive Structure Lab <span>/ Observatory</span>
       </div>
       <div className="nav__right">
         <button

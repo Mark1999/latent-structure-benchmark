@@ -29,7 +29,7 @@ export function AboutPage() {
           (CDA SME verdict: register-clean; parallel to MethodologyPage.tsx Section 6
           scare-quoted repudiation pattern.)
 
-          Occurrence 2 (paragraph 6): "The benchmark does not claim that models have
+          Occurrence 2 (paragraph 6): "The Observatory does not claim that models have
           beliefs, intentions, lived experience, or culture in the human sense."
           This is the canonical §1.5 cite-to-disclaim move: the disclaimer sentence
           explicitly repudiates cognition attribution. It must not be flagged by the
@@ -57,7 +57,7 @@ export function AboutPage() {
             CogStructureLab is an attempt to bring those threads together.
           </p>
           <p className="methodology-page__text">
-            The Latent Structure Benchmark applies cultural-domain methods to language models. It asks a practical question: when frontier models are prompted to list and sort terms from everyday domains, what structures appear in their outputs? The benchmark does not claim that models have beliefs, intentions, lived experience, or culture in the human sense. It measures output structure. Any claim beyond that has to be made carefully.
+            The Cognitive Structure Observatory applies cultural-domain methods to language models. It asks a practical question: when frontier models are prompted to list and sort terms from everyday domains, what structures appear in their outputs? The Observatory does not claim that models have beliefs, intentions, lived experience, or culture in the human sense. It measures output structure. Any claim beyond that has to be made carefully.
           </p>
           <p className="methodology-page__text">
             That distinction matters. AI systems are increasingly used in settings where cultural, social, and institutional meaning is not background noise. It is the work itself. A model&rsquo;s way of grouping concepts can shape how it summarizes risk, frames identity, interprets conflict, ranks relevance, or misses what a human expert would notice. Technical performance alone does not answer those questions.

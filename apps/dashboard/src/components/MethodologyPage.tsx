@@ -22,14 +22,14 @@ export function MethodologyPage() {
         <section className="methodology-page__section" aria-labelledby="what-is-this-heading">
           <h2 id="what-is-this-heading" className="methodology-page__heading">What is this, really?</h2>
           <p className="methodology-page__text">
-            The Latent Structure Benchmark takes a method built for cultural informants, people with lived
+            The Cognitive Structure Observatory takes a method built for cultural informants, people with lived
             experience of the world they describe, and points it at systems that encode culture without
             experiencing any of it. That mismatch is not a flaw to hide or a caveat to get to later. It is
             the finding. What comes out when you hand an interview protocol to something that is not an
             informant is the whole object of study here.
           </p>
           <p className="methodology-page__text">
-            Put another way, the Latent Structure Benchmark is a what-if exercise.
+            Put another way, the Cognitive Structure Observatory is a what-if exercise.
           </p>
           <p className="methodology-page__text">
             What happens if we take a decades-old cognitive anthropology method I have used in field studies
@@ -111,7 +111,7 @@ export function MethodologyPage() {
             start with Weller and Romney. It is short, practical, and this site stands on it.
           </p>
           <p className="methodology-page__text">
-            LSB runs a version of that protocol on language models, one prompt at a time.
+            The Observatory runs a version of that protocol on language models, one prompt at a time.
           </p>
           <p className="methodology-page__text">
             A model is asked to produce a free-list of terms. It is then asked to sort terms into piles and
@@ -224,14 +224,14 @@ export function MethodologyPage() {
         <section className="methodology-page__section" aria-labelledby="what-this-does-not-measure-heading">
           <h2 id="what-this-does-not-measure-heading" className="methodology-page__heading">What this does not measure</h2>
           <p className="methodology-page__text">
-            This benchmark does not measure belief, intent, consciousness, preference, or inner experience.
+            This instrument does not measure belief, intent, consciousness, preference, or inner experience.
           </p>
           <p className="methodology-page__text">
             When two models sort family terms in similar ways, it is tempting to say they &ldquo;see family&rdquo; the
             same way. Do not do that. Or at least know that you are guessing.
           </p>
           <p className="methodology-page__text">
-            A pattern can be real without meaning what you first think it means. The benchmark can show
+            A pattern can be real without meaning what you first think it means. The Observatory can show
             structure in model output. It cannot tell you that the model understands, values, or experiences
             that structure.
           </p>

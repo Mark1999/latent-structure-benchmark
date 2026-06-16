@@ -70,7 +70,7 @@ describe('AboutPage', () => {
     render(<AboutPage />);
     const disclaim = screen.getByText((content) =>
       content.includes(
-        'The benchmark does not claim that models have beliefs, intentions, lived experience, or culture in the human sense.'
+        'The Observatory does not claim that models have beliefs, intentions, lived experience, or culture in the human sense.'
       )
     );
     expect(disclaim).toBeInTheDocument();
@@ -88,7 +88,7 @@ describe('AboutPage', () => {
     // Remove paragraph 6: contains the canonical disclaim sentence (occurrence 2)
     const disclaimP = allP.find((p) =>
       p.textContent?.includes(
-        'The benchmark does not claim that models have beliefs'
+        'The Observatory does not claim that models have beliefs'
       )
     );
     if (disclaimP) disclaimP.remove();
@@ -124,6 +124,20 @@ describe('AboutPage', () => {
   it('does not render a <form> element', () => {
     const { container } = render(<AboutPage />);
     expect(container.querySelector('form')).toBeNull();
+  });
+
+  // 8a. [OBSERVATORY-RENAME] "Cognitive Structure Observatory" appears as the
+  //     instrument name in AboutPage prose; "Latent Structure Benchmark" must
+  //     not appear (frozen bundle name lives on DataPage only).
+  //     Gate: docs/status/2026-06-12-observatory-rename-verdicts.md
+  it('[OBSERVATORY-RENAME] renders "Cognitive Structure Observatory" as instrument name', () => {
+    const { container } = render(<AboutPage />);
+    expect(container.textContent).toMatch(/Cognitive Structure Observatory/);
+  });
+
+  it('[OBSERVATORY-RENAME] does not render "Latent Structure Benchmark" in About prose', () => {
+    const { container } = render(<AboutPage />);
+    expect(container.textContent).not.toMatch(/Latent Structure Benchmark/);
   });
 
 });
@@ -174,6 +188,18 @@ describe('NavBar: About tab integration (M2)', () => {
     fireEvent.click(aboutBtn);
     expect(onTabChange).toHaveBeenCalledWith('about');
     expect(onTabChange).toHaveBeenCalledTimes(1);
+  });
+
+  // 10. [OBSERVATORY-RENAME] NavBar brand inner span renders "/ Observatory"
+  //     (UI/UX N7 Option B: brand = "Cognitive Structure Lab / Observatory").
+  //     Gate: docs/status/2026-06-12-observatory-rename-verdicts.md
+  it('[OBSERVATORY-RENAME] NavBar brand span renders "/ Observatory"', () => {
+    const { container } = render(<NavBar activeTab="explore" onTabChange={() => {}} />);
+    const brand = container.querySelector('.nav__brand');
+    expect(brand).not.toBeNull();
+    const innerSpan = brand!.querySelector('span');
+    expect(innerSpan).not.toBeNull();
+    expect(innerSpan!.textContent).toBe('/ Observatory');
   });
 
 });

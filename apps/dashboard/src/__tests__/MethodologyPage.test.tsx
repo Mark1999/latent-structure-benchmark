@@ -141,4 +141,18 @@ describe('MethodologyPage', () => {
     ).toBeNull();
   });
 
+  // 13. [OBSERVATORY-RENAME] "Cognitive Structure Observatory" appears as instrument
+  //     name in the page text; "Latent Structure Benchmark" must not appear as the
+  //     instrument name (frozen bundle name lives on DataPage only).
+  //     Gate: docs/status/2026-06-12-observatory-rename-verdicts.md
+  it('[OBSERVATORY-RENAME] renders "Cognitive Structure Observatory" as instrument name', () => {
+    const { container } = render(<MethodologyPage />);
+    expect(container.textContent).toMatch(/Cognitive Structure Observatory/);
+  });
+
+  it('[OBSERVATORY-RENAME] does not render "Latent Structure Benchmark" as instrument name', () => {
+    const { container } = render(<MethodologyPage />);
+    expect(container.textContent).not.toMatch(/Latent Structure Benchmark/);
+  });
+
 });
