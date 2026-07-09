@@ -13,6 +13,11 @@ wheels/
 # Environment
 .env
 
+# Eden Brain MCP mount: names the hub's tailnet address; kept out of the remote
+# (create per-checkout; see ecosystem repo EDEN-BRAIN.md). Token comes from the
+# EDEN_BRAIN_TOKEN_LSB env var, never from this file.
+.mcp.json
+
 # Data — raw and processed are git-ignored; results and grounding are tracked
 data/raw/
 data/processed/
