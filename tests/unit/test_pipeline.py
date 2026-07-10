@@ -416,17 +416,21 @@ def test_centrality_zero_model_degenerate():
 
 
 def test_load_records_from_jsonl(tmp_path: Path):
+    # Synthetic records use minimal data that does not satisfy all QA checks
+    # (e.g. 4 parsed_items < MIN_FREELIST_ITEMS=10). Use qa_only=False to test
+    # loading and domain-filter behavior without the QA recomputation pass.
+    # QA recomputation behavior is covered by test_pipeline_load_records_recompute.py.
     records = _synthetic_records()
     jsonl = tmp_path / "informants.jsonl"
     with open(jsonl, "w") as f:
         for rec in records:
             f.write(rec.model_dump_json() + "\n")
 
-    loaded = load_records(jsonl, "family")
+    loaded = load_records(jsonl, "family", qa_only=False)
     assert len(loaded) == 6
 
     # Filter by domain
-    loaded_other = load_records(jsonl, "holidays")
+    loaded_other = load_records(jsonl, "holidays", qa_only=False)
     assert len(loaded_other) == 0
 
 

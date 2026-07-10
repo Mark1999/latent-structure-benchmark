@@ -190,17 +190,28 @@ def load_records(
 ) -> list[InformantRecord]:
     """Load InformantRecords for a domain from the JSONL file.
 
+    Under qa_only=True, corpus inclusion is determined by recomputing QA
+    against the current scripts.qa_check rules (records-as-data, rules-as-code,
+    per CDA SME 2026-07-10 N5). Persisted qa_passed is retained as an audit
+    artifact but is NOT the authoritative filter under qa_only=True.
+
+    The count of records whose persisted qa_passed diverges from the recomputed
+    value is logged at INFO once per call, in both directions
+    (persisted-True-now-False and persisted-False-now-True).
+
     Args:
         jsonl_path: Path to informants.jsonl.
         domain_slug: Filter to this domain.
-        qa_only: If True, skip records with qa_passed=False.
+        qa_only: If True, filter to records that pass the current QA rules
+            (recomputed, not persisted).
         collection_mode: If set, filter to this collection mode only
             (e.g., "cross_model_consensus" for comparable cross-model data).
 
     Returns:
         List of validated InformantRecord objects.
     """
-    records = []
+    # Pass 1: read all domain records, unfiltered by qa_passed.
+    all_domain_records: list[InformantRecord] = []
     with open(jsonl_path, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
@@ -209,12 +220,53 @@ def load_records(
             data = json.loads(line)
             if data.get("domain_slug") != domain_slug:
                 continue
-            if qa_only and not data.get("qa_passed", False):
-                continue
             if collection_mode and data.get("collection_mode") != collection_mode:
                 continue
-            records.append(InformantRecord(**data))
-    return records
+            all_domain_records.append(InformantRecord(**data))
+
+    if not qa_only:
+        return all_domain_records
+
+    # Pass 2: recompute QA using current qa_check rules.
+    # Function-scope import mirrors runner.py:281 including ModuleNotFoundError
+    # sys.path fallback (scripts/ is on sys.path in pytest but not in installed
+    # package context).
+    try:
+        from scripts.qa_check import run_record_checks  # noqa: PLC0415
+    except ModuleNotFoundError:
+        import sys as _sys  # noqa: PLC0415
+        from pathlib import Path as _Path  # noqa: PLC0415
+        _project_root = str(_Path(__file__).resolve().parents[3])
+        if _project_root not in _sys.path:
+            _sys.path.insert(0, _project_root)
+        from scripts.qa_check import run_record_checks  # noqa: PLC0415
+
+    passing: list[InformantRecord] = []
+    n_false_now_true = 0
+    n_true_now_false = 0
+
+    for record in all_domain_records:
+        failures = run_record_checks(record, all_domain_records)
+        recomputed_pass = len(failures) == 0
+        if record.qa_passed and not recomputed_pass:
+            n_true_now_false += 1
+        elif not record.qa_passed and recomputed_pass:
+            n_false_now_true += 1
+        if recomputed_pass:
+            passing.append(record)
+
+    if n_false_now_true > 0 or n_true_now_false > 0:
+        logger.info(
+            "load_records [%s]: QA divergence -- "
+            "persisted-True-now-False: %d, persisted-False-now-True: %d. "
+            "Corpus inclusion determined by recomputed QA (records-as-data, "
+            "rules-as-code, CDA SME 2026-07-10 N5).",
+            domain_slug,
+            n_true_now_false,
+            n_false_now_true,
+        )
+
+    return passing
 
 
 def group_by_model(
