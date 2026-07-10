@@ -878,3 +878,86 @@ def test_check_record_does_not_route_check_9_through_post_to_slack(
         "check_record must not call post_to_slack (requests.post) "
         "for a check-9 infrastructure condition"
     )
+
+
+# ─── Gap coverage: dense+reasoning branch composition ────────────────────────
+# N9 (addendum) states that the two class-conditioning branches in Check 6
+# compose additively and orthogonally: N2 subtracts reasoning tokens first,
+# then N9 applies the denser expected chars-per-token. Check 5 is unaffected
+# by the dense class; only thoughts_token_count > 0 controls the ceiling.
+# The tests below exercise claude-opus-4-8 (the second dense-roster model)
+# with thoughts_token_count > 0 to verify no accidental cross-branch
+# interference between the dense and reasoning paths.
+
+def _dense_reasoning_freelist(
+    *,
+    output_tokens: int,
+    thoughts: int,
+    latency_ms: int,
+) -> FreelistRecord:
+    """FreelistRecord with a 160-char response, dense+reasoning token shape."""
+    rv = (
+        "1. mother\n2. father\n3. sister\n4. brother\n5. aunt\n"
+        "6. uncle\n7. grandmother\n8. grandfather\n9. cousin\n10. niece\n"
+        "11. nephew\n12. son\n13. daughter\n14. wife\n15. husband"
+    )
+    assert len(rv) == 160
+    return FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim=rv,
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=output_tokens,
+        thoughts_token_count=thoughts,
+        latency_ms=latency_ms,
+        stop_reason="end_turn",
+        parsed_items=[f"item{i}" for i in range(15)],
+        parsed_raw_order=[f"item{i}" for i in range(15)],
+    )
+
+
+def test_check5_dense_class_reasoning_uses_reasoning_ceiling():
+    """Check 5 uses MAX_LATENCY_MS_REASONING for claude-opus-4-8 with thoughts > 0.
+
+    The dense class has no special handling in Check 5; the reasoning ceiling
+    applies solely because thoughts_token_count > 0 (N1). A latency between the
+    base ceiling (60_000 ms) and the reasoning ceiling (600_000 ms) must PASS.
+
+    Without the reasoning branch: 300_000 > MAX_LATENCY_MS=60_000 -> FAIL.
+    With the reasoning branch: 300_000 < MAX_LATENCY_MS_REASONING=600_000 -> PASS.
+    Verifies dense-class routing does not interfere with the Check 5 ceiling.
+    """
+    fl = _dense_reasoning_freelist(output_tokens=5091, thoughts=5000, latency_ms=300_000)
+    record = _record(freelist=fl, model_id="claude-opus-4-8")
+    assert check_5_latency(record) is None
+
+
+def test_check6_claude_opus_48_dense_and_reasoning_compose():
+    """N2 and N9 compose correctly for claude-opus-4-8 (dense + reasoning).
+
+    N2: visible_tokens = 5091 - 5000 = 91.
+    N9: expected_dense = 160 / 1.75 = 91.43.
+    ratio = |91 - 91.43| / 91.43 = 0.005 -> within TOKEN_TOLERANCE=1.0 -> PASS.
+
+    Without N2: actual=5091, expected_dense=91.43 -> ratio=54.7 -> FAIL.
+    Without N9: visible=91, expected_std=160/4=40 -> ratio=1.275 -> FAIL.
+    Only the composition of both branches produces PASS.
+    """
+    fl = _dense_reasoning_freelist(output_tokens=5091, thoughts=5000, latency_ms=257_000)
+    record = _record(freelist=fl, model_id="claude-opus-4-8")
+    assert check_6_token_consistency(record) is None
+
+
+def test_check6_claude_opus_48_dense_reasoning_genuine_fail_still_fails():
+    """A claude-opus-4-8 record whose visible tokens deviate beyond tolerance fails.
+
+    visible_tokens = 5300 - 5000 = 300; expected_dense = 160/1.75 = 91.43.
+    ratio = |300 - 91.43| / 91.43 = 2.28 -> exceeds TOKEN_TOLERANCE=1.0 -> FAIL.
+    Confirms the composed branches still catch genuine data-quality failures.
+    """
+    fl = _dense_reasoning_freelist(output_tokens=5300, thoughts=5000, latency_ms=257_000)
+    record = _record(freelist=fl, model_id="claude-opus-4-8")
+    failure = check_6_token_consistency(record)
+    assert failure is not None
+    assert failure.check_num == 6

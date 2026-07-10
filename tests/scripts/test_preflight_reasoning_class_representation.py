@@ -16,6 +16,8 @@ No real API calls.
 from __future__ import annotations
 
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import patch
 
 from scripts.preflight_reasoning_class_representation import (
     detect_dense_tokenizer_candidates,
@@ -136,3 +138,107 @@ def test_n11_warning_does_not_affect_exit_code():
     """
     result = main(["--domains", "test_n11", "--jsonl", _FIXTURE_JSONL])
     assert result == 0
+
+
+# ─── Gap coverage: N11 threshold boundary semantics ──────────────────────────
+# The N11 detector uses strict inequalities: warn when median < 2.5 OR > 3.0.
+# At exactly 2.5 or 3.0, the model is within the pre-Claude-5 cluster and
+# must NOT trigger a warning. The existing tests only cover median ~2.16 (below
+# 2.5) and ~2.91 (clearly in range), leaving the exact boundary untested.
+#
+# Records are constructed via SimpleNamespace so no JSONL write or Pydantic
+# parse is needed; detect_dense_tokenizer_candidates uses getattr() throughout.
+
+
+def _boundary_record(
+    model_id: str,
+    rv_len: int,
+    output_tokens: int,
+    run_index: int = 0,
+) -> object:
+    """Minimal record object compatible with detect_dense_tokenizer_candidates."""
+    fl = SimpleNamespace(response_verbatim="x" * rv_len, output_tokens=output_tokens)
+    return SimpleNamespace(model_id=model_id, run_index=run_index, freelist=fl)
+
+
+def test_n11_exactly_at_lower_threshold_not_warned():
+    """Median chars/token = exactly 2.5 is NOT warned (condition is strictly < 2.5).
+
+    Two records: rv_len=160, output_tokens=64 -> 160/64 = 2.5 exactly.
+    Median of [2.5, 2.5] = 2.5. Since 2.5 < 2.5 is False and 2.5 > 3.0 is False,
+    no warning is emitted.
+    """
+    records = [
+        _boundary_record("test/at-lower-boundary", rv_len=160, output_tokens=64, run_index=0),
+        _boundary_record("test/at-lower-boundary", rv_len=160, output_tokens=64, run_index=1),
+    ]
+    with patch(
+        "scripts.preflight_reasoning_class_representation.load_records",
+        return_value=records,
+    ):
+        warnings = detect_dense_tokenizer_candidates(Path("fake.jsonl"), ["test_boundary"])
+
+    warned_ids = {mid for mid, _ in warnings}
+    assert "test/at-lower-boundary" not in warned_ids
+
+
+def test_n11_just_below_lower_threshold_is_warned():
+    """Median chars/token just below 2.5 DOES trigger N11 warning.
+
+    Two records: rv_len=160, output_tokens=65 -> 160/65 = 2.4615...
+    Median = 2.4615 < 2.5 -> warning emitted.
+    Confirms the strict-less-than semantics are active.
+    """
+    records = [
+        _boundary_record("test/sub-lower-bound", rv_len=160, output_tokens=65, run_index=0),
+        _boundary_record("test/sub-lower-bound", rv_len=160, output_tokens=65, run_index=1),
+    ]
+    with patch(
+        "scripts.preflight_reasoning_class_representation.load_records",
+        return_value=records,
+    ):
+        warnings = detect_dense_tokenizer_candidates(Path("fake.jsonl"), ["test_boundary"])
+
+    warned_ids = {mid for mid, _ in warnings}
+    assert "test/sub-lower-bound" in warned_ids
+
+
+def test_n11_exactly_at_upper_threshold_not_warned():
+    """Median chars/token = exactly 3.0 is NOT warned (condition is strictly > 3.0).
+
+    Two records: rv_len=150, output_tokens=50 -> 150/50 = 3.0 exactly.
+    Median of [3.0, 3.0] = 3.0. Since 3.0 > 3.0 is False, no warning is emitted.
+    """
+    records = [
+        _boundary_record("test/at-upper-boundary", rv_len=150, output_tokens=50, run_index=0),
+        _boundary_record("test/at-upper-boundary", rv_len=150, output_tokens=50, run_index=1),
+    ]
+    with patch(
+        "scripts.preflight_reasoning_class_representation.load_records",
+        return_value=records,
+    ):
+        warnings = detect_dense_tokenizer_candidates(Path("fake.jsonl"), ["test_boundary"])
+
+    warned_ids = {mid for mid, _ in warnings}
+    assert "test/at-upper-boundary" not in warned_ids
+
+
+def test_n11_just_above_upper_threshold_is_warned():
+    """Median chars/token just above 3.0 DOES trigger N11 warning.
+
+    Two records: rv_len=151, output_tokens=50 -> 151/50 = 3.02.
+    Median = 3.02 > 3.0 -> warning emitted.
+    Confirms the strict-greater-than semantics are active.
+    """
+    records = [
+        _boundary_record("test/above-upper-bound", rv_len=151, output_tokens=50, run_index=0),
+        _boundary_record("test/above-upper-bound", rv_len=151, output_tokens=50, run_index=1),
+    ]
+    with patch(
+        "scripts.preflight_reasoning_class_representation.load_records",
+        return_value=records,
+    ):
+        warnings = detect_dense_tokenizer_candidates(Path("fake.jsonl"), ["test_boundary"])
+
+    warned_ids = {mid for mid, _ in warnings}
+    assert "test/above-upper-bound" in warned_ids

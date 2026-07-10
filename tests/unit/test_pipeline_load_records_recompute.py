@@ -18,8 +18,11 @@ No real API calls.
 
 from __future__ import annotations
 
+import json
 import logging
+import tempfile
 from pathlib import Path
+from unittest.mock import patch
 
 import pytest
 from cdb_analyze.pipeline import load_records
@@ -149,3 +152,59 @@ def test_divergence_logged_both_directions(caplog: pytest.LogCaptureFixture):
     log_text = " ".join(caplog.messages)
     assert "persisted-True-now-False: 1" in log_text
     assert "persisted-False-now-True: 4" in log_text
+
+
+# ─── Gap coverage: zero-record domain, exception propagation, malformed JSONL ──
+
+
+def test_qa_only_true_zero_record_domain():
+    """load_records with qa_only=True on a domain with no records returns [] without error.
+
+    The divergence-log condition (n_false_now_true > 0 or n_true_now_false > 0)
+    is False when all_domain_records is empty, so no log is emitted and the
+    function returns an empty list cleanly. Only qa_only=False was previously
+    tested for empty domains (test_qa_only_false_domain_filter).
+    """
+    records = load_records(_FIXTURE_JSONL, "nonexistent_domain", qa_only=True)
+    assert records == []
+
+
+def test_run_record_checks_exception_propagates_from_load_records():
+    """When run_record_checks raises mid-list, load_records propagates the exception.
+
+    No silent-skip behaviour: the implementation has no try/except around the
+    run_record_checks call, so any exception fails the entire load_records call
+    loudly. This documents the current posture and would catch accidental
+    silent-skip if error handling were added without a matching test update.
+
+    Patch target: scripts.qa_check.run_record_checks. load_records imports the
+    function at call time via 'from scripts.qa_check import run_record_checks',
+    which resolves against the module dict, so the patch is visible to the
+    function-scope import.
+    """
+    with (
+        patch("scripts.qa_check.run_record_checks", side_effect=RuntimeError("boom")),
+        pytest.raises(RuntimeError, match="boom"),
+    ):
+        load_records(_FIXTURE_JSONL, "family", qa_only=True)
+
+
+def test_malformed_jsonl_raises_json_decode_error():
+    """A malformed JSONL line in the data file causes load_records to raise.
+
+    json.loads raises json.JSONDecodeError for invalid JSON; load_records has no
+    try/except around the parsing call and propagates the exception. The test
+    documents this fail-loudly posture and exercises both qa_only=True and
+    qa_only=False (malformed JSON is hit in Pass 1, before the qa_only branch).
+    """
+    with tempfile.NamedTemporaryFile(
+        mode="w", suffix=".jsonl", delete=False, encoding="utf-8"
+    ) as f:
+        f.write("this is not valid json\n")
+        tmp_path = Path(f.name)
+
+    try:
+        with pytest.raises(json.JSONDecodeError):
+            load_records(tmp_path, "family", qa_only=False)
+    finally:
+        tmp_path.unlink(missing_ok=True)
