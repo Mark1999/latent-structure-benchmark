@@ -76,7 +76,7 @@
       "records": 9
     },
     {
-      "model_id": "anthropic/claude-sonnet-5",
+      "model_id": "claude-sonnet-5",
       "family": "claude",
       "origin": "us",
       "open_weights": false,
@@ -91,7 +91,7 @@
       "records": 0
     },
     {
-      "model_id": "anthropic/claude-fable-5",
+      "model_id": "claude-fable-5",
       "family": "claude",
       "origin": "us",
       "open_weights": false,
@@ -106,7 +106,7 @@
       "records": 0
     },
     {
-      "model_id": "anthropic/claude-opus-4.8",
+      "model_id": "claude-opus-4-8",
       "family": "claude",
       "origin": "us",
       "open_weights": false,
