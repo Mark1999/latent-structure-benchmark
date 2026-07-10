@@ -48,12 +48,40 @@ MIN_UNIQUENESS_RATIO = 0.15
 # See docs/status/2026-04-20-shakedown-findings.md §5.
 MAX_LATENCY_MS = 60_000
 
+# Check 5: Class-conditioned reasoning ceiling (class-conditioned per CDA SME
+# 2026-07-10 N1; do not raise the base threshold, see N7).
+# When a step reports thoughts_token_count > 0 the provider's response time
+# reflects inference-time reasoning, not a hang. Use the extended ceiling for
+# those steps only; the base MAX_LATENCY_MS ceiling stands for all other steps.
+MAX_LATENCY_MS_REASONING = 600_000
+
 # Check 6: Output token consistency tolerance (±100%)
 # The chars/4 heuristic is rough — real tokenizers produce 1.3-1.8x more
 # tokens than chars/4 on short words, numbered lists, and line-heavy output.
 # This check catches gross misreporting (3x+ deviation), not precise counts.
 # Validated against 6 real Claude Opus runs across free-list and interview steps.
 TOKEN_TOLERANCE = 1.0
+
+# Check 6: Dense-tokenizer class (CDA SME 2026-07-10 addendum N8).
+# Campaign new-model-refresh-2026h2-a-20260710 measured freelist medians of
+# ~1.69 chars/token (claude-sonnet-5) and ~1.84 chars/token (claude-opus-4-8),
+# vs 2.5-2.7 chars/token for the pre-Claude-5 cohort. At ~1.7 chars/token the
+# chars/4 heuristic under-estimates output_tokens by ~2.35x, breaching TOKEN_TOLERANCE
+# on well-formed responses. The SME ruling class-conditions the expected ratio
+# for this class; the midpoint 1.75 is used as the class constant.
+EXPECTED_CHARS_PER_TOKEN_DENSE: float = 1.75
+
+# Dense-tokenizer model_id roster (curator-maintained, CDA SME 2026-07-10 N8).
+# NOTE: wave-3 records store BARE model ids (verified by scanning
+# data/raw/informants.jsonl for campaign new-model-refresh-2026h2-a-20260710;
+# InformantRecord.model_id fields are "claude-opus-4-8" and "claude-sonnet-5"
+# without any provider prefix). The addendum text mentions anthropic/-prefixed
+# strings but instructs verifying against records; the bare ids are used here.
+# See docs/status/2026-07-10-batchA-reasoning-qa-cda-sme-verdict.md addendum N8.
+DENSE_TOKENIZER_MODEL_IDS: frozenset[str] = frozenset({
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+})
 
 # Check 9: Maximum age of logs/backup.log before a missed backup is flagged.
 # 48 hours gives a full daily-backup cycle plus a one-day grace window for
@@ -191,7 +219,12 @@ def check_4_pilesort_symmetric(record: InformantRecord) -> QAFailure | None:
 
 
 def check_5_latency(record: InformantRecord) -> QAFailure | None:
-    """Latency < MAX_LATENCY_MS per step. Skips placeholder steps."""
+    """Latency < MAX_LATENCY_MS per step (MAX_LATENCY_MS_REASONING for reasoning steps).
+
+    When a step reports thoughts_token_count > 0 the provider response time
+    includes inference-time thinking; the extended ceiling applies. All other
+    steps use the base MAX_LATENCY_MS ceiling (CDA SME 2026-07-10 N1, N7).
+    """
     steps: list[tuple[str, _StepRecord]] = [
         ("freelist", record.freelist),
         ("pile_sort", record.pile_sort),
@@ -200,16 +233,40 @@ def check_5_latency(record: InformantRecord) -> QAFailure | None:
     for name, step in steps:
         if step.stop_reason == "not_collected":
             continue
-        if step.latency_ms > MAX_LATENCY_MS:
+        ceiling = MAX_LATENCY_MS_REASONING if step.thoughts_token_count > 0 else MAX_LATENCY_MS
+        if step.latency_ms > ceiling:
             return QAFailure(
                 5, f"{name} latency too high",
-                f"< {MAX_LATENCY_MS}ms", f"{step.latency_ms}ms",
+                f"< {ceiling}ms", f"{step.latency_ms}ms",
             )
     return None
 
 
 def check_6_token_consistency(record: InformantRecord) -> QAFailure | None:
-    """Output tokens within ±10% of len(response_verbatim)/4. Skips placeholders."""
+    """Output tokens within ±100% of len(response_verbatim) / chars_per_token.
+
+    Two orthogonal class-conditioning branches apply independently and compose:
+
+    N2 (reasoning-class): when step.thoughts_token_count > 0, compare
+    visible_tokens = output_tokens - thoughts_token_count against expected.
+    Skip when visible_tokens <= 0 (CDA SME 2026-07-10 N2).
+
+    N9 (dense-tokenizer class): when record.model_id is in
+    DENSE_TOKENIZER_MODEL_IDS, use EXPECTED_CHARS_PER_TOKEN_DENSE (1.75)
+    instead of 4 as the divisor. Tolerance band TOKEN_TOLERANCE unchanged
+    (CDA SME 2026-07-10 addendum N9).
+
+    A record that qualifies for both branches applies both corrections
+    simultaneously: visible_tokens is computed first (N2), then expected
+    uses the dense-class divisor (N9).
+    """
+    # Determine expected chars-per-token divisor for this record (N9).
+    chars_per_token = (
+        EXPECTED_CHARS_PER_TOKEN_DENSE
+        if record.model_id in DENSE_TOKENIZER_MODEL_IDS
+        else 4.0
+    )
+
     steps: list[tuple[str, _StepRecord]] = [
         ("freelist", record.freelist),
         ("pile_sort", record.pile_sort),
@@ -221,8 +278,17 @@ def check_6_token_consistency(record: InformantRecord) -> QAFailure | None:
         if not step.response_verbatim or step.output_tokens == 0:
             continue
 
-        expected = len(step.response_verbatim) / 4
-        actual = step.output_tokens
+        # N2: reasoning branch -- use visible tokens for reasoning steps.
+        if step.thoughts_token_count > 0:
+            visible_tokens = step.output_tokens - step.thoughts_token_count
+            if visible_tokens <= 0:
+                continue
+            actual = visible_tokens
+        else:
+            actual = step.output_tokens
+
+        # N9: dense-tokenizer branch adjusts the expected divisor.
+        expected = len(step.response_verbatim) / chars_per_token
         if expected > 0 and abs(actual - expected) / expected > TOKEN_TOLERANCE:
             return QAFailure(
                 6, f"{name} output token count inconsistent",

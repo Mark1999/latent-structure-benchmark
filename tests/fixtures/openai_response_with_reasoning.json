@@ -1,0 +1,28 @@
+{
+  "id": "chatcmpl-reasoning-test-001",
+  "object": "chat.completion",
+  "created": 1752192000,
+  "model": "gpt-5.5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Aunt",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 87,
+    "completion_tokens": 3050,
+    "total_tokens": 3137,
+    "completion_tokens_details": {
+      "reasoning_tokens": 3000,
+      "accepted_prediction_tokens": 0,
+      "rejected_prediction_tokens": 0
+    }
+  },
+  "system_fingerprint": "fp_gpt55_20260710"
+}

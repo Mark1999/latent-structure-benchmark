@@ -14,7 +14,10 @@ from cdb_core import FreelistRecord, InformantRecord, InterviewRecord, PileSortR
 # Import the check functions directly
 import scripts.qa_check as _qa_check_module
 from scripts.qa_check import (
+    DENSE_TOKENIZER_MODEL_IDS,
     MAX_BACKUP_AGE_HOURS,
+    MAX_LATENCY_MS,
+    MAX_LATENCY_MS_REASONING,
     check_1_freelist_count,
     check_2_freelist_uniqueness,
     check_3_pilesort_binary,
@@ -237,7 +240,7 @@ def test_check5_skips_placeholder_steps():
 
 
 def test_check_5_passes_at_45s_latency():
-    """45 000 ms is within the new 60 000 ms ceiling — must pass.
+    """45 000 ms is within the new 60 000 ms ceiling -- must pass.
 
     Added 2026-04-21: ceiling raised from 30s to 60s (F2-T08). Gemini and
     DeepSeek 200-item pile-sort prompts legitimately take 30-45 seconds under
@@ -247,11 +250,294 @@ def test_check_5_passes_at_45s_latency():
     assert check_5_latency(record) is None
 
 
+# T1: Class-conditioned reasoning ceiling (CDA SME 2026-07-10 N1).
+
+def _reasoning_freelist(latency_ms: int, thoughts_token_count: int = 5000) -> FreelistRecord:
+    """FreelistRecord with thoughts_token_count > 0 (reasoning class)."""
+    items = [f"item{i}" for i in range(15)]
+    response_text = "1. " + "\n2. ".join(items)
+    # visible_tokens = output_tokens - thoughts_token_count; keep visible near expected
+    output_tokens = thoughts_token_count + max(1, round(len(response_text) / 4))
+    return FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim=response_text,
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=output_tokens,
+        thoughts_token_count=thoughts_token_count,
+        latency_ms=latency_ms,
+        stop_reason="end_turn",
+        parsed_items=items,
+        parsed_raw_order=items,
+    )
+
+
+def test_check5_non_reasoning_fails_at_base_ceiling_plus_one():
+    """Non-reasoning step at MAX_LATENCY_MS + 1 ms fails (base ceiling unchanged)."""
+    record = _record(freelist=_freelist(latency_ms=MAX_LATENCY_MS + 1))
+    failure = check_5_latency(record)
+    assert failure is not None
+    assert failure.check_num == 5
+    assert str(MAX_LATENCY_MS) in failure.threshold
+
+
+def test_check5_reasoning_passes_at_300k():
+    """Reasoning step at 300 000 ms passes under the reasoning ceiling (600 000 ms)."""
+    record = _record(freelist=_reasoning_freelist(latency_ms=300_000))
+    assert check_5_latency(record) is None
+
+
+def test_check5_reasoning_fails_at_700k():
+    """Reasoning step at 700 000 ms fails (above the reasoning ceiling of 600 000 ms)."""
+    record = _record(freelist=_reasoning_freelist(latency_ms=700_000))
+    failure = check_5_latency(record)
+    assert failure is not None
+    assert failure.check_num == 5
+    assert str(MAX_LATENCY_MS_REASONING) in failure.threshold
+
+
+def test_check5_per_step_ceiling_branches():
+    """Each step branches independently: non-reasoning step with high latency fails
+    even when the freelist step is a reasoning step that passes."""
+    from cdb_core import InterviewRecord
+    # freelist: reasoning, 200k ms -> PASS
+    fl = _reasoning_freelist(latency_ms=200_000)
+    # interview: non-reasoning, 61k ms -> FAIL (> MAX_LATENCY_MS)
+    iv = InterviewRecord(
+        prompt_verbatim="test",
+        prompt_version="v1",
+        response_verbatim="label",
+        response_object_json={},
+        input_tokens=10,
+        output_tokens=1,
+        thoughts_token_count=0,
+        latency_ms=MAX_LATENCY_MS + 1000,
+        stop_reason="end_turn",
+        parsed_pile_labels=["label"],
+    )
+    record = _record(freelist=fl)
+    # Swap interview into the record by rebuilding it
+    record = record.model_copy(update={"interview": iv})
+    failure = check_5_latency(record)
+    assert failure is not None
+    assert failure.check_num == 5
+    assert "interview" in failure.description
+
 
 # ─── Check 6: Token consistency ──────────────────────────────────────
 
 def test_check6_skips_placeholder():
     record = _record()
+    assert check_6_token_consistency(record) is None
+
+
+# T2: Reasoning-aware Check 6 arithmetic (CDA SME 2026-07-10 N2).
+
+def test_check6_non_reasoning_behavior_unchanged():
+    """Non-reasoning step with output_tokens far from expected still fails."""
+    items = [f"item{i}" for i in range(15)]
+    response_text = "1. " + "\n2. ".join(items)
+    # Deliberately set output_tokens 3x the expected value -> ratio > TOKEN_TOLERANCE
+    expected = len(response_text) / 4
+    fl = FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim=response_text,
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=int(expected * 4),  # 4x expected -> ratio=3 > 1.0
+        thoughts_token_count=0,
+        latency_ms=500,
+        stop_reason="end_turn",
+        parsed_items=items,
+        parsed_raw_order=items,
+    )
+    record = _record(freelist=fl)
+    failure = check_6_token_consistency(record)
+    assert failure is not None
+    assert failure.check_num == 6
+
+
+def test_check6_reasoning_visible_tokens_match_expected():
+    """Reasoning step with visible_tokens close to expected/4 passes Check 6.
+
+    Batch-A fixture shape: thoughts=5000, output=5040, visible=40.
+    response_verbatim ~160 chars -> expected~40 -> ratio=0 -> PASS.
+    """
+    response_text = (
+        "1. mother\n2. father\n3. sister\n4. brother\n5. aunt\n"
+        "6. uncle\n7. grandmother\n8. grandfather\n9. cousin\n10. niece\n"
+        "11. nephew\n12. son\n13. daughter\n14. wife\n15. husband"
+    )
+    assert len(response_text) == 160  # expected=40.0 tokens
+    fl = FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim=response_text,
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=5040,   # thoughts=5000, visible=40 -> matches expected
+        thoughts_token_count=5000,
+        latency_ms=500,
+        stop_reason="end_turn",
+        parsed_items=response_text.splitlines(),
+        parsed_raw_order=response_text.splitlines(),
+    )
+    record = _record(freelist=fl)
+    assert check_6_token_consistency(record) is None
+
+
+def test_check6_reasoning_visible_tokens_skipped_when_zero():
+    """When output_tokens == thoughts_token_count, visible_tokens=0 -> skip (not fail)."""
+    fl = FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim="some visible content here",
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=5000,
+        thoughts_token_count=5000,  # visible = 0
+        latency_ms=500,
+        stop_reason="end_turn",
+        parsed_items=[f"item{i}" for i in range(15)],
+        parsed_raw_order=[f"item{i}" for i in range(15)],
+    )
+    record = _record(freelist=fl)
+    assert check_6_token_consistency(record) is None
+
+
+def test_check6_reasoning_large_output_mismatch_fails_on_visible():
+    """Reasoning step where visible_tokens is far from expected/4 fails.
+
+    This verifies the arithmetic uses visible_tokens, not output_tokens.
+    """
+    fl = FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim="short",  # expected = 5/4 = 1.25
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=5100,   # thoughts=5000, visible=100 -> expected=1.25 -> ratio=79 -> FAIL
+        thoughts_token_count=5000,
+        latency_ms=500,
+        stop_reason="end_turn",
+        parsed_items=[f"item{i}" for i in range(15)],
+        parsed_raw_order=[f"item{i}" for i in range(15)],
+    )
+    record = _record(freelist=fl)
+    failure = check_6_token_consistency(record)
+    assert failure is not None
+    assert failure.check_num == 6
+
+
+# T8: Dense-tokenizer Check 6 branch (CDA SME 2026-07-10 addendum N8/N9).
+
+def test_dense_tokenizer_model_ids_bare_strings():
+    """DENSE_TOKENIZER_MODEL_IDS contains bare model_ids (no provider prefix).
+
+    Verified against wave-3 InformantRecord.model_id fields (addendum N8).
+    """
+    assert "claude-opus-4-8" in DENSE_TOKENIZER_MODEL_IDS
+    assert "claude-sonnet-5" in DENSE_TOKENIZER_MODEL_IDS
+    # No provider-prefixed form in the set.
+    assert "anthropic/claude-opus-4-8" not in DENSE_TOKENIZER_MODEL_IDS
+    assert "anthropic/claude-sonnet-5" not in DENSE_TOKENIZER_MODEL_IDS
+
+
+def _dense_freelist(output_tokens: int, thoughts: int = 0, latency_ms: int = 500) -> FreelistRecord:
+    """FreelistRecord with a 160-char response for dense-tokenizer arithmetic tests."""
+    rv = (
+        "1. mother\n2. father\n3. sister\n4. brother\n5. aunt\n"
+        "6. uncle\n7. grandmother\n8. grandfather\n9. cousin\n10. niece\n"
+        "11. nephew\n12. son\n13. daughter\n14. wife\n15. husband"
+    )
+    assert len(rv) == 160  # expected_dense = 160/1.75 = 91.43
+    items = [f"item{i}" for i in range(15)]
+    return FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim=rv,
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=output_tokens,
+        thoughts_token_count=thoughts,
+        latency_ms=latency_ms,
+        stop_reason="end_turn",
+        parsed_items=items,
+        parsed_raw_order=items,
+    )
+
+
+def _dense_record(model_id: str, **fl_kwargs: object) -> object:
+    """InformantRecord for a dense-tokenizer model."""
+    fl = _dense_freelist(**fl_kwargs)  # type: ignore[arg-type]
+    return _record(freelist=fl, model_id=model_id)
+
+
+def test_check6_dense_pass_at_1_7_chars_per_token():
+    """Dense-tokenizer model at ~1.7 chars/token passes Check 6 under the N9 branch.
+
+    160-char response / 1.75 -> expected=91.43. output_tokens=91 -> ratio=0.005 -> PASS.
+    Under the old chars/4 heuristic: expected=40, ratio=1.275 -> FAIL.
+    """
+    record = _dense_record("claude-sonnet-5", output_tokens=91)
+    assert check_6_token_consistency(record) is None
+
+
+def test_check6_dense_fails_without_branch():
+    """The same record (output=91) would fail Check 6 on a non-dense model.
+
+    This verifies the N9 branch is responsible for the PASS, not the tolerance band.
+    """
+    # Same freelist, non-dense model_id: expected=40, ratio=1.275 > 1.0 -> FAIL
+    record = _dense_record("test/non-dense-model", output_tokens=91)
+    failure = check_6_token_consistency(record)
+    assert failure is not None
+    assert failure.check_num == 6
+
+
+def test_check6_dense_and_reasoning_compose():
+    """Dense (N9) and reasoning (N2) branches compose for a record that is both.
+
+    visible_tokens = 5091 - 5000 = 91; expected_dense = 160/1.75 = 91.43.
+    ratio = |91 - 91.43| / 91.43 = 0.005 -> PASS.
+    """
+    record = _dense_record("claude-sonnet-5", output_tokens=5091, thoughts=5000, latency_ms=257_000)
+    assert check_6_token_consistency(record) is None
+
+
+def test_check6_dense_expected_shows_dense_divisor_in_failure():
+    """When a dense record genuinely fails Check 6, the threshold uses the dense expected."""
+    # 160 chars / 1.75 = 91.43 expected. output=300 -> ratio=|300-91.43|/91.43=2.28 -> FAIL
+    record = _dense_record("claude-sonnet-5", output_tokens=300)
+    failure = check_6_token_consistency(record)
+    assert failure is not None
+    assert failure.check_num == 6
+    # The threshold references the dense expected (~91), not the standard (~40).
+    assert "91" in failure.threshold
+
+
+def test_check6_non_dense_unchanged():
+    """Non-dense models still use the chars/4 heuristic; N9 does not affect them."""
+    items = [f"item{i}" for i in range(15)]
+    response_text = "1. " + "\n2. ".join(items)
+    expected = len(response_text) / 4
+    output_tokens = int(expected)  # Exactly at expected -> ratio=0 -> PASS
+    fl = FreelistRecord(
+        prompt_verbatim="test prompt",
+        prompt_version="v1",
+        response_verbatim=response_text,
+        response_object_json={},
+        input_tokens=50,
+        output_tokens=output_tokens,
+        thoughts_token_count=0,
+        latency_ms=500,
+        stop_reason="end_turn",
+        parsed_items=items,
+        parsed_raw_order=items,
+    )
+    record = _record(freelist=fl)  # model_id="claude-opus-4-6" (non-dense)
     assert check_6_token_consistency(record) is None
 
 

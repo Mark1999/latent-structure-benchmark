@@ -236,6 +236,13 @@ class OpenAICompatAdapter:
         usage = data.get("usage", {})
         input_tokens = usage.get("prompt_tokens", 0)
         output_tokens = usage.get("completion_tokens", 0)
+        # Reasoning token count: OpenAI surfaces this as
+        # usage.completion_tokens_details.reasoning_tokens for reasoning-capable
+        # models (e.g. o-series, gpt-5.5). Default to 0 when the path is absent
+        # (non-reasoning models or providers that omit the field).
+        # Mirrors the same extraction in adapters/openrouter.py.
+        completion_details = usage.get("completion_tokens_details") or {}
+        thoughts_token_count = completion_details.get("reasoning_tokens") or 0
 
         raw_response = _scrub_response(data)
 
@@ -245,6 +252,7 @@ class OpenAICompatAdapter:
             latency_ms=latency_ms,
             input_tokens=input_tokens,
             output_tokens=output_tokens,
+            thoughts_token_count=thoughts_token_count,
             provider_request_id=data.get("id", ""),
             model_version_returned=data.get("model", self.model.model_id),
             stop_reason=choice.get("finish_reason") or "unknown",
