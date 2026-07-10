@@ -92,6 +92,39 @@ def _placeholder_freelist() -> tuple[FreelistRecord, AdapterResult]:
     return record, result
 
 
+# Verbatim N3 text from CDA SME verdict 2026-07-10.
+# Emitted when any step has thoughts_token_count > 0 (cross-step condition).
+# docs/status/2026-07-10-batchA-reasoning-qa-cda-sme-verdict.md
+_REASONING_CLASS_NOTE = (
+    "Reasoning-class informant: provider records reasoning tokens "
+    "(thoughts_token_count) separately from visible output tokens, and "
+    "per-step inference latency reflects inference-time reasoning. QA Check 5 "
+    "latency ceiling is class-conditioned to 600s and QA Check 6 token "
+    "consistency is computed on visible tokens (output_tokens minus "
+    "thoughts_token_count) for this record."
+)
+
+# Verbatim N10 text from CDA SME verdict 2026-07-10 addendum.
+# Emitted when adapter.model.model_id is in _DENSE_TOKENIZER_MODEL_IDS.
+# docs/status/2026-07-10-batchA-reasoning-qa-cda-sme-verdict.md addendum N10.
+_DENSE_TOKENIZER_NOTE = (
+    "Dense-tokenizer informant: this model uses a tokenizer producing "
+    "approximately 1.7 to 1.85 characters per output token in "
+    "campaign-measured freelist output, compared with 2.5 to 2.7 for the "
+    "pre-Claude-5 informant cohort. QA Check 6 expected-token arithmetic is "
+    "class-conditioned to the denser ratio for this record."
+)
+
+# Dense-tokenizer model_id roster mirroring DENSE_TOKENIZER_MODEL_IDS in
+# scripts/qa_check.py. Keep both in sync when adding new models.
+# Bare model_ids per wave-3 record inspection (addendum N8); see qa_check.py
+# for the verification comment.
+_DENSE_TOKENIZER_MODEL_IDS: frozenset[str] = frozenset({
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+})
+
+
 def _assemble_record(
     adapter: ModelAdapter,
     domain: Domain,
@@ -212,6 +245,31 @@ def _assemble_record(
     if freelist_result.forced_default_note:
         note_parts = [p for p in (capacity_note_value, freelist_result.forced_default_note) if p]
         capacity_note_value = "; ".join(note_parts)
+
+    # Reasoning-class disclosure note (cross-step condition, CDA SME 2026-07-10 N3).
+    # When any step has thoughts_token_count > 0, the QA ceilings are
+    # class-conditioned; disclose this in capacity_note so downstream
+    # consumers understand the record's classification.
+    reasoning_class_applies = any(
+        s.thoughts_token_count > 0
+        for s in (freelist_record, pilesort_record, interview_record)
+    )
+    if reasoning_class_applies:
+        note_parts = [p for p in (capacity_note_value, _REASONING_CLASS_NOTE) if p]
+        capacity_note_value = "; ".join(note_parts)
+
+    # Dense-tokenizer class disclosure note (CDA SME 2026-07-10 addendum N10).
+    # When the record's model is in the dense-tokenizer class, disclose the
+    # class-conditioned QA arithmetic. When both N3 (reasoning) and N10 (dense)
+    # apply, the two notes are separated by two newlines, not "; ", so each
+    # disclosure remains independently readable (addendum N10 instruction).
+    if adapter.model.model_id in _DENSE_TOKENIZER_MODEL_IDS:
+        if reasoning_class_applies:
+            # Both class notes present: separate with two newlines.
+            capacity_note_value = capacity_note_value + "\n\n" + _DENSE_TOKENIZER_NOTE
+        else:
+            note_parts = [p for p in (capacity_note_value, _DENSE_TOKENIZER_NOTE) if p]
+            capacity_note_value = "; ".join(note_parts)
 
     # context_window_exceeded on the freelist overrides the caller-supplied
     # truncation_type, because the provider cut the response short before the
