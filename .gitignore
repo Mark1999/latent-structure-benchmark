@@ -18,10 +18,10 @@ wheels/
 # EDEN_BRAIN_TOKEN_LSB env var, never from this file.
 .mcp.json
 
-# Eden Brain reporter onboarding kit (dropped in by Mark, 2026-07-10): the
-# reporter's default URL names the hub's tailnet address, so the kit stays out
-# of the public remote like .mcp.json above. Deployed copy lives at
-# ~/brain-report/ on this host per REPORT-TO-EDEN.md.
+# Eden Brain reporter onboarding kit (in ops/brain/; unanchored patterns match
+# it there): the reporter's default URL names the hub's tailnet address, so the
+# kit stays out of the public remote like .mcp.json above. Deployed copy lives
+# at ~/brain-report/ on this host per ops/brain/REPORT-TO-EDEN.md.
 REPORT-TO-EDEN.md
 report_to_brain.py
 report-to-brain.service
