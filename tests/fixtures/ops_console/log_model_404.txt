@@ -1,0 +1,3 @@
+=== 2026-07-10T10:00:00Z LANE bad-model / family runs=3 ===
+ERROR: 404 model not found: bad-model-alias does not exist
+=== exit 1 ===
