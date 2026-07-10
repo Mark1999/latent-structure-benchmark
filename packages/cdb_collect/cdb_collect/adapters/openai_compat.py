@@ -48,6 +48,26 @@ _RETRYABLE_STATUS = {429, 500, 502, 503, 504}
 # in this adapter continue to accept ``max_tokens`` as of 2026-04-20;
 # if a future provider migration forces the same rename, flip the
 # entry here rather than patching the payload-construction path.
+
+# Models keyed on the post-prefix-strip API model name that reject the
+# protocol-specified temperature parameter. OpenAI returns:
+#   "Only the default (1) value is supported" when temperature != 1 is sent,
+#   and similarly rejects top_p.
+# Collect at provider-forced default temperature with full per-record disclosure.
+# Gate: CDA SME PASS-WITH-NOTES 2026-07-10 N1
+# (docs/status/2026-07-10-batchA-gpt55-temperature-cda-sme-verdict.md)
+# Forward precedent: binding note N5 covers additional future restrictions.
+FORCED_DEFAULT_SAMPLING: frozenset[str] = frozenset({"gpt-5.5"})
+
+# Verbatim capacity_note appended to every InformantRecord for forced-default
+# informants. This exact string is required by CDA SME 2026-07-10 N1.
+_FORCED_DEFAULT_NOTE = (
+    "Provider (OpenAI) forces temperature to default 1.0 for this model, "
+    "so the 0.3 pile-sort and interview temperatures could not be applied. "
+    "top_p is likewise not accepted. Sampling regime is hotter than the "
+    "LSB protocol on pile_sort and interview steps."
+)
+
 PROVIDER_CONFIGS: dict[str, dict] = {
     "openai_api": {
         "base_url": "https://api.openai.com/v1/chat/completions",
@@ -166,12 +186,18 @@ class OpenAICompatAdapter:
         start = time.monotonic()
 
         _max_tokens = 4096  # see phase4a-adapter-fix-verdict.md in docs/status/
+        _forced_default = self._api_model in FORCED_DEFAULT_SAMPLING
         payload: dict = {
             "model": self._api_model,
             self._max_tokens_param: _max_tokens,
-            "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
+        # Omit "temperature" entirely for models that reject it and force their
+        # own default (e.g. gpt-5.5: "Only the default (1) value is supported").
+        # top_p is also never sent for these models.
+        # CDA SME 2026-07-10 N1 authorises collection under provider-forced default.
+        if not _forced_default:
+            payload["temperature"] = temperature
 
         if json_schema is not None:
             payload["response_format"] = {
@@ -224,6 +250,8 @@ class OpenAICompatAdapter:
             stop_reason=choice.get("finish_reason") or "unknown",
             thinking_text=thinking_text,
             max_tokens_used=_max_tokens,
+            effective_temperature=1.0 if _forced_default else None,
+            forced_default_note=_FORCED_DEFAULT_NOTE if _forced_default else "",
         )
 
 

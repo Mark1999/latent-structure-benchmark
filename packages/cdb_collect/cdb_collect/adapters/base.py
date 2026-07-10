@@ -46,6 +46,16 @@ class AdapterResult:
     # test fixtures that do not set this field.
     # See docs/DATA_DICTIONARY.md §1.1 max_tokens editorial note.
     max_tokens_used: int = 4096
+    # Provider-forced default sampling: set by an adapter when a model rejects
+    # the protocol-specified temperature and forces its own default value.
+    # effective_temperature: the actual temperature that applied to this call.
+    #   None means the requested temperature was accepted by the provider.
+    # forced_default_note: verbatim text to append to InformantRecord.capacity_note.
+    #   Empty string means no forced default applied.
+    # See docs/status/2026-07-10-batchA-gpt55-temperature-cda-sme-verdict.md N1
+    # and CDA SME 2026-07-10 N5 (forward precedent).
+    effective_temperature: float | None = None
+    forced_default_note: str = ""
 
 
 class ModelAdapter(Protocol):

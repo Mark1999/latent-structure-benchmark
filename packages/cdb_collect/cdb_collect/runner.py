@@ -142,6 +142,12 @@ def _assemble_record(
         temp_interview = 0.3
         record_temperature = 0.7  # the dominant step's temp
 
+    # When the adapter signals a provider-forced effective temperature (e.g.
+    # gpt-5.5 forces temperature=1.0), override the record's temperature with
+    # the actual value in effect. CDA SME 2026-07-10 N1 requires full disclosure.
+    if freelist_result.effective_temperature is not None:
+        record_temperature = freelist_result.effective_temperature
+
     request_params = {
         "model_id": adapter.model.model_id,
         "domain_slug": domain.slug,
@@ -198,6 +204,14 @@ def _assemble_record(
         capacity_note_value = "context window exceeded at step(s): " + ", ".join(steps_hit)
     else:
         capacity_note_value = ""
+
+    # Append provider-forced-default sampling note from the adapter when present.
+    # The note is set by the adapter (e.g. openai_compat for gpt-5.5) and
+    # propagated here via AdapterResult.forced_default_note so the runner
+    # does not need to know model names. CDA SME 2026-07-10 N1.
+    if freelist_result.forced_default_note:
+        note_parts = [p for p in (capacity_note_value, freelist_result.forced_default_note) if p]
+        capacity_note_value = "; ".join(note_parts)
 
     # context_window_exceeded on the freelist overrides the caller-supplied
     # truncation_type, because the provider cut the response short before the

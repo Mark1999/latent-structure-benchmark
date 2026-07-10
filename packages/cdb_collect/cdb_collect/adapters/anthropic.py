@@ -21,6 +21,27 @@ _DEFAULT_MAX_CONCURRENT = 3
 _MAX_RETRIES = 5
 _BASE_DELAY_S = 1.0
 
+# Claude 5-family models for which Anthropic has deprecated the temperature
+# parameter entirely. The API returns HTTP 400 "temperature is deprecated for
+# this model" when temperature is sent. Keyed on model_id as it appears in
+# ModelRef (no prefix stripping for this adapter).
+# Live probe 2026-07-10: claude-fable-5, claude-opus-4-8, claude-sonnet-5.
+# Gate: CDA SME PASS-WITH-NOTES 2026-07-10 N1/N5
+# (docs/status/2026-07-10-batchA-gpt55-temperature-cda-sme-verdict.md)
+FORCED_DEFAULT_SAMPLING: frozenset[str] = frozenset({
+    "claude-fable-5",
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+})
+
+# Verbatim capacity_note appended to every InformantRecord for these models.
+# CDA SME 2026-07-10 N1/N5 requires disclosure at every surface.
+_FORCED_DEFAULT_NOTE = (
+    "provider forces temperature=1.0 (temperature deprecated for this model); "
+    "sampling hotter than protocol on pile_sort and interview "
+    "(CDA SME 2026-07-10, N1/N5)"
+)
+
 
 class AnthropicAdapter:
     """Adapter for the Anthropic Messages API.
@@ -94,12 +115,18 @@ class AnthropicAdapter:
         start = time.monotonic()
 
         _max_tokens = 4096  # see docs/status/2026-04-22-phase4a-adapter-fix-verdict.md
+        _forced_default = self.model.model_id in FORCED_DEFAULT_SAMPLING
         kwargs: dict = {
             "model": self.model.model_id,
             "max_tokens": _max_tokens,
-            "temperature": temperature,
             "messages": [{"role": "user", "content": prompt}],
         }
+        # Omit "temperature" for models where Anthropic has deprecated the
+        # parameter. Sending it returns HTTP 400 "temperature is deprecated
+        # for this model". Provider default (1.0) applies silently.
+        # CDA SME 2026-07-10 N1/N5 authorises collection with disclosure.
+        if not _forced_default:
+            kwargs["temperature"] = temperature
 
         response = await self._client.messages.create(**kwargs)
 
@@ -130,6 +157,8 @@ class AnthropicAdapter:
             stop_reason=response.stop_reason or "unknown",
             thinking_text=thinking_text,
             max_tokens_used=_max_tokens,
+            effective_temperature=1.0 if _forced_default else None,
+            forced_default_note=_FORCED_DEFAULT_NOTE if _forced_default else "",
         )
 
 

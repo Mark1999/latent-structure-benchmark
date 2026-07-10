@@ -1,0 +1,23 @@
+{
+  "id": "chatcmpl-gpt55abc123",
+  "object": "chat.completion",
+  "created": 1752192000,
+  "model": "gpt-5.5",
+  "choices": [
+    {
+      "index": 0,
+      "message": {
+        "role": "assistant",
+        "content": "1. Mother\n2. Father\n3. Sister\n4. Brother\n5. Grandmother\n6. Grandfather\n7. Aunt\n8. Uncle\n9. Cousin\n10. Niece\n11. Nephew\n12. Daughter\n13. Son\n14. Wife\n15. Husband\n16. Mother-in-law\n17. Father-in-law\n18. Sister-in-law\n19. Brother-in-law\n20. Stepfather",
+        "refusal": null
+      },
+      "finish_reason": "stop"
+    }
+  ],
+  "usage": {
+    "prompt_tokens": 87,
+    "completion_tokens": 152,
+    "total_tokens": 239
+  },
+  "system_fingerprint": "fp_gpt55_20260710"
+}
