@@ -19,6 +19,10 @@
   <a href="{{ url_for('admin.queue_view', state='published') }}">Published</a>
   <span class="nav-sep">|</span>
   <a href="{{ url_for('admin.queue_view', state='failed') }}">Failed</a>
+  <span class="nav-sep">|</span>
+  <a href="{{ url_for('ops.campaigns_new') }}">New Campaign</a>
+  <span class="nav-sep">|</span>
+  <a href="{{ url_for('ops.qa_panel') }}">QA</a>
 </nav>
 <main>
   {% block content %}{% endblock %}

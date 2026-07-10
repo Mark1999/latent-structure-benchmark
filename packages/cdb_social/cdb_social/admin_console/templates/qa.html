@@ -1,0 +1,103 @@
+{% extends "base.html" %}
+{% block title %}QA Panel | LSB Ops Console{% endblock %}
+{% block content %}
+<h1>QA Panel</h1>
+
+<p>
+  Runs <code>run_record_checks</code> (checks 1-8) on informants.jsonl.
+  Divergence boundary: persisted = qa_passed at collection time;
+  recomputed = current run_record_checks rules.
+</p>
+
+<section>
+  <h2>Check failure histogram</h2>
+  {% if histogram_rows %}
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Model</th>
+        <th scope="col">Check</th>
+        <th scope="col">Failure count</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in histogram_rows %}
+      <tr>
+        <td><code>{{ row.model_id }}</code></td>
+        <td>Check {{ row.check_num }}</td>
+        <td>{{ row.count }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No failures found (or informants.jsonl is empty).</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Divergence table</h2>
+  <p class="field-note">
+    Persisted = qa_passed at collection time.
+    Recomputed = current run_record_checks rules.
+    Only records where the two disagree appear below.
+  </p>
+  {% if divergence_rows %}
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">informant_id</th>
+        <th scope="col">Model</th>
+        <th scope="col">Domain</th>
+        <th scope="col">Persisted</th>
+        <th scope="col">Recomputed (failing checks)</th>
+        <th scope="col">Error</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in divergence_rows %}
+      <tr>
+        <td><code>{{ row.informant_id }}</code></td>
+        <td><code>{{ row.model_id }}</code></td>
+        <td><code>{{ row.domain_slug }}</code></td>
+        <td>{{ "pass" if row.persisted_passed else "fail" }}</td>
+        <td>
+          {% if row.recomputed_check_nums %}
+            {% for n in row.recomputed_check_nums | sort %}C{{ n }}{% if not loop.last %}, {% endif %}{% endfor %}
+          {% else %}
+            pass
+          {% endif %}
+        </td>
+        <td>
+          {% if row.error %}
+          <details class="bug-note">
+            <summary>error</summary>
+            <span>{{ row.error }}</span>
+          </details>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No divergence found between persisted and recomputed results.</p>
+  {% endif %}
+</section>
+
+<section>
+  <h2>Dispatch templates</h2>
+  <p class="field-note">
+    Copy-ready Markdown blocks pre-filled with numeric evidence.
+    No dispatch mechanism; copy and paste into your preferred channel.
+  </p>
+  {% for tmpl in templates %}
+  <article>
+    <h3>{{ tmpl.title }}</h3>
+    <a href="{{ url_for('ops.dispatch_template_view', title=tmpl.title) }}" class="btn">
+      View / copy
+    </a>
+  </article>
+  {% endfor %}
+</section>
+{% endblock %}

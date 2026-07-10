@@ -33,7 +33,9 @@ def create_app() -> Flask:
     app.config["SECRET_KEY"] = secrets.token_hex(32)
 
     from cdb_social.admin_console.routes import bp  # noqa: PLC0415
+    from cdb_social.admin_console.routes_ops import ops_bp  # noqa: PLC0415
 
     app.register_blueprint(bp)
+    app.register_blueprint(ops_bp)
 
     return app

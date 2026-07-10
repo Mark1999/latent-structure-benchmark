@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+{% block title %}Campaign Plan | LSB Ops Console{% endblock %}
+{% block content %}
+<h1>Campaign Plan</h1>
+
+{% if new_domain_notice %}
+  <div class="validation-error" role="alert">
+    <h2>Tier 1 gate required for new domain</h2>
+    <p>
+      The domain <strong>{{ new_domain }}</strong> is not in the existing
+      domain YAML list. Adding a new domain requires Tier 1 processing:
+      prompt drafting, CDA SME review, and domain YAML creation before
+      collection can begin.
+    </p>
+    <p>Launch is not available for new domains.</p>
+    <p>Return to the form to select an existing domain.</p>
+  </div>
+  <a href="{{ url_for('ops.campaigns_new') }}" class="btn">Back to New Campaign</a>
+
+{% elif error %}
+  <div class="validation-error" role="alert">
+    <p>{{ error }}</p>
+  </div>
+  <a href="{{ url_for('ops.campaigns_new') }}" class="btn">Back</a>
+
+{% elif plan %}
+  <p>
+    Campaign will run
+    <strong>{{ plan.runs_per_cell }}</strong> runs per cell across
+    <strong>{{ plan.models | length }}</strong> model(s) and
+    <strong>{{ plan.domain_slugs | length }}</strong> domain(s).
+  </p>
+
+  {% set cells_with_work = plan.cells | selectattr("needed", "gt", 0) | list %}
+  {% if cells_with_work %}
+  <p><strong>{{ cells_with_work | length }}</strong> cell(s) need work.</p>
+  {% else %}
+  <p>All cells are already complete. No lanes will be launched.</p>
+  {% endif %}
+
+  <table>
+    <caption>Shortfall plan (cells where needed = 0 are already complete)</caption>
+    <thead>
+      <tr>
+        <th scope="col">Model</th>
+        <th scope="col">Domain</th>
+        <th scope="col">Passed</th>
+        <th scope="col">Needed</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for cell in plan.cells %}
+      <tr>
+        <td><code>{{ cell.model_id }}</code></td>
+        <td><code>{{ cell.domain_slug }}</code></td>
+        <td>{{ cell.passed }}</td>
+        <td>{{ cell.needed }}</td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+
+  {% if plan_text %}
+  <details>
+    <summary>Plan text (resume-plan.txt format)</summary>
+    <pre><code>{{ plan_text }}</code></pre>
+  </details>
+  {% endif %}
+
+  <form method="POST" action="{{ url_for('ops.campaigns_launch') }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    {% for slug in plan.domain_slugs %}
+    <input type="hidden" name="domain_slugs" value="{{ slug }}">
+    {% endfor %}
+    {% for model in plan.models %}
+    <input type="hidden" name="model_ids" value="{{ model.model_id }}">
+    {% endfor %}
+    <input type="hidden" name="runs_per_cell" value="{{ plan.runs_per_cell }}">
+    <button type="submit" class="btn btn-confirm">Launch campaign</button>
+    <a href="{{ url_for('ops.campaigns_new') }}" class="btn">Back</a>
+  </form>
+
+{% else %}
+  <p>No plan computed.</p>
+  <a href="{{ url_for('ops.campaigns_new') }}" class="btn">Back</a>
+{% endif %}
+{% endblock %}

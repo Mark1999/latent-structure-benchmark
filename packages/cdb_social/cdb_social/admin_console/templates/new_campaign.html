@@ -1,0 +1,65 @@
+{% extends "base.html" %}
+{% block title %}New Campaign | LSB Ops Console{% endblock %}
+{% block content %}
+<h1>New Campaign</h1>
+
+<p>Select existing domains and models to compute a shortfall plan. Entering a new
+domain name below shows the Tier 1 notice and prevents launching.</p>
+
+<form method="POST" action="{{ url_for('ops.campaigns_plan') }}" novalidate>
+  <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+
+  <fieldset>
+    <legend>Existing domains (select one or more)</legend>
+    {% if domains %}
+      {% for domain in domains %}
+      <label>
+        <input type="checkbox" name="domain_slugs" value="{{ domain.slug }}">
+        {{ domain.display_name }} <code>{{ domain.slug }}</code>
+      </label><br>
+      {% endfor %}
+    {% else %}
+      <p class="field-note">No domain YAML files found in the domains directory.</p>
+    {% endif %}
+  </fieldset>
+
+  <fieldset>
+    <legend>New domain (Tier 1 gate required)</legend>
+    <label for="new_domain">Free-text domain slug</label>
+    <input type="text" id="new_domain" name="new_domain"
+           placeholder="e.g. weather"
+           aria-describedby="new_domain_note">
+    <p id="new_domain_note" class="field-note">
+      Entering a value here triggers the Tier 1 prompt-drafting notice and
+      prevents launching. Leave blank to plan against existing domains.
+    </p>
+  </fieldset>
+
+  <fieldset>
+    <legend>Models (select one or more)</legend>
+    {% if models %}
+      {% for model in models %}
+      <label>
+        <input type="checkbox" name="model_ids" value="{{ model.model_id }}">
+        {{ model.display_name }}
+        (<code>{{ model.model_id }}</code>, {{ model.records }} records)
+      </label><br>
+      {% endfor %}
+    {% else %}
+      <p class="field-note">No models found in the registry.</p>
+    {% endif %}
+  </fieldset>
+
+  <div>
+    <label for="runs_per_cell">Runs per cell (target passing runs per model/domain)</label><br>
+    <input type="number" id="runs_per_cell" name="runs_per_cell"
+           value="{{ runs_per_cell_default }}" min="1" max="50"
+           aria-describedby="runs_note">
+    <p id="runs_note" class="field-note">
+      The planner computes needed = max(0, runs_per_cell - already_passed).
+    </p>
+  </div>
+
+  <button type="submit" class="btn">Dry-run plan</button>
+</form>
+{% endblock %}

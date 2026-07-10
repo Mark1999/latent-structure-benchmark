@@ -1,0 +1,152 @@
+{% extends "base.html" %}
+{% block title %}Live Board: {{ campaign_id }} | LSB Ops Console{% endblock %}
+{% block content %}
+<h1>Live Board</h1>
+<p>Campaign: <code>{{ campaign_id }}</code></p>
+
+{% if nothing_to_do %}
+<div class="validation-error" role="alert">
+  <p>All cells were already complete. No lanes were launched.</p>
+</div>
+{% endif %}
+
+{% if resume_nothing_to_do %}
+<div class="validation-error" role="alert">
+  <p>Resume: all cells are complete under current rules. No lanes launched.</p>
+</div>
+{% endif %}
+
+{% if stop_notice %}
+<div class="validation-error" role="alert">
+  <p>{{ stop_notice }}</p>
+</div>
+{% endif %}
+
+{% if not model_ids %}
+<p>No plan data found for this campaign.</p>
+<a href="{{ url_for('ops.campaigns_new') }}" class="btn">New Campaign</a>
+
+{% else %}
+
+<section>
+  <h2>Progress matrix</h2>
+  <p>Counts from informants.jsonl: passed / failed. In-flight = lane is currently running.</p>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Model</th>
+        {% for domain in domain_slugs %}
+        <th scope="col">{{ domain }}</th>
+        {% endfor %}
+      </tr>
+    </thead>
+    <tbody>
+      {% for model_id in model_ids %}
+      <tr>
+        <th scope="row"><code>{{ model_id }}</code></th>
+        {% for domain in domain_slugs %}
+        {% set cell = matrix.get(model_id, {}).get(domain) %}
+        <td>
+          {% if cell %}
+            <span title="passed">{{ cell.passed }}</span> /
+            <span title="failed">{{ cell.failed }}</span>
+            {% if cell.in_flight %}
+            <span class="field-note">(running)</span>
+            {% endif %}
+          {% else %}
+            0 / 0
+          {% endif %}
+        </td>
+        {% endfor %}
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+
+<section>
+  <h2>Lane status</h2>
+  {% if lanes %}
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Model</th>
+        <th scope="col">PID</th>
+        <th scope="col">Status</th>
+        <th scope="col">Log</th>
+        <th scope="col">Actions</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for lane in lanes %}
+      <tr>
+        <td><code>{{ lane.model_id }}</code></td>
+        <td>{{ lane.pid if lane.pid else "none" }}</td>
+        <td><code>{{ lane.status }}</code></td>
+        <td>
+          <a href="{{ url_for('ops.lane_tail', campaign_id=campaign_id, safe_model=lane.safe_model) }}">
+            tail
+          </a>
+        </td>
+        <td>
+          {% if lane.status == "running" %}
+          <form method="POST"
+                action="{{ url_for('ops.lane_stop', campaign_id=campaign_id, safe_model=lane.safe_model) }}"
+                style="display:inline">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+            <button type="submit" class="btn btn-destructive">Stop</button>
+          </form>
+          {% else %}
+          <span class="field-note">{{ lane.status }}</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+  {% else %}
+  <p>No lane pidfiles found. Lanes may not have started yet, or this campaign was
+  launched before the live board was available.</p>
+  {% endif %}
+</section>
+
+{% if alert_rows %}
+<section>
+  <h2>Alerts</h2>
+  <table>
+    <thead>
+      <tr>
+        <th scope="col">Lane</th>
+        <th scope="col">Signature</th>
+        <th scope="col">Source</th>
+        <th scope="col">Evidence</th>
+      </tr>
+    </thead>
+    <tbody>
+      {% for row in alert_rows %}
+      <tr>
+        <td><code>{{ row.lane.model_id }}</code></td>
+        <td>{{ row.hit.label }}</td>
+        <td>{{ row.hit.source }}</td>
+        <td><code>{{ row.hit.evidence }}</code></td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</section>
+{% endif %}
+
+<section>
+  <h2>Resume</h2>
+  <p>Recomputes the shortfall using the current informants.jsonl and launches a new
+  campaign covering only the cells that are still incomplete.</p>
+  <form method="POST" action="{{ url_for('ops.live_resume', campaign_id=campaign_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
+    <button type="submit" class="btn">Resume (launch missing cells)</button>
+  </form>
+</section>
+
+{% endif %}
+
+<p><a href="{{ url_for('ops.campaigns_new') }}" class="btn">New Campaign</a></p>
+{% endblock %}

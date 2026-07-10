@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Log Tail: {{ safe_model }} | LSB Ops Console{% endblock %}
+{% block content %}
+<h1>Log tail</h1>
+<p>
+  Campaign: <code>{{ campaign_id }}</code>,
+  lane: <code>{{ safe_model }}</code>
+  (last 8 KiB)
+</p>
+
+<p>
+  <a href="{{ url_for('ops.live_board', campaign_id=campaign_id) }}" class="btn">
+    Back to live board
+  </a>
+</p>
+
+<pre style="background:#f8f8f8;border:1px solid #ccc;padding:0.8em;overflow-x:auto;
+            white-space:pre-wrap;word-break:break-word;font-size:0.85em;
+            max-height:600px;overflow-y:auto;"><code>{{ tail_text }}</code></pre>
+
+<p>
+  <a href="{{ url_for('ops.lane_tail', campaign_id=campaign_id, safe_model=safe_model) }}"
+     class="btn">Reload</a>
+  <a href="{{ url_for('ops.live_board', campaign_id=campaign_id) }}" class="btn">
+    Back to live board
+  </a>
+</p>
+{% endblock %}
