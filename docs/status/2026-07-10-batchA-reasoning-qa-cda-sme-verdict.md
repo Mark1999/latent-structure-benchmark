@@ -75,3 +75,36 @@ If a record qualifies for both the N3 reasoning-class note and the N10 dense-tok
 **N14, no-relaxation guard.** Do not raise `TOKEN_TOLERANCE` above 1.0 anywhere in this fix. If a future dense-tokenizer informant sits far enough from 1.75 that the 100 percent band cannot accommodate it, add a fresh constant, do not stretch this one. The class-conditioning discipline is what preserves the check's discriminating power against the failure modes it exists to catch.
 
 Rule 15 remains not implicated: this is deterministic collection-QA calibration on record-level fields, not analysis math.
+
+## Addendum, 2026-07-11, corpus-build re-QA reference-set scope
+
+**Verdict:** PASS-WITH-NOTES on the proposed fix.
+
+### Scorecard
+
+| Axis | Result |
+|---|---|
+| Axis 1, protocol validity | PASS |
+| Axis 2, analytical validity | PASS-WITH-NOTES |
+| Axis 3, claims validity | PASS |
+| Axis 4, audience translation | PASS |
+| Register compliance | N/A |
+| Vocabulary compliance | PASS |
+
+### Ruling
+
+Correct read of N5's intent. Per-record checks (context-free arithmetic on latency, tokens, counts, label match) recompute freely. Reference-set-dependent checks do not; recomputing them against a growing corpus makes qa_passed non-monotonic and order-dependent, which is the instability N13 forbids and which mass-dropped 9 family and 7 holidays informants in the staged rebaseline. The alternative (specifying a correct reference set at corpus-build time) is rejected: any post-hoc reference set is arbitrary, and only the collection-time cohort is the one the check was designed against.
+
+### Binding notes, continuing from N14
+
+**N15, reference-set partition.** Partition qa_check.py checks into per-record (context-free) versus reference-dependent. Per-record recompute from record fields alone. Reference-dependent inherit the collection-time persisted verdict without re-evaluation. Check 2 (freelist cross-run uniqueness) is currently the sole reference-dependent check; any future check whose result varies with the reference set joins the inherited-verdict list. Document the partition in each check's docstring.
+
+**N16, monotonicity guard.** Before promotion, count records whose qa_passed transitioned persisted-True to now-False under corpus-build re-QA. Nonzero fails the build, not just logs. Reference-dependent leakage into the per-record path is the sole legitimate cause. The 4.5-hour 2026-07-11 run showed the audit log alone is insufficient; the mechanical build-failing guard is what N6 needed.
+
+**N17, slate membership decoupled from QA.** For the Architect: yes, explicitly. QA answers record fitness for analysis; slate composition answers publication membership. Conflating them means QA-rule changes silently redefine the published slate and slate decisions leak into QA arithmetic. Add an approved-slate filter at rebaseline time reading a curator-maintained list of (model_id, domain, release) tuples. The qwen/qwen3.6-plus recovery becomes Mark's slate decision, not an arithmetic side effect.
+
+**N18, N13 clarified.** N13's recoverability clause applies to per-record checks under N15. Wave-3 dense-tokenizer records recover unchanged. The 361 flipped family records were an unintended side effect of over-broad re-QA scope, not the N13 recovery target.
+
+**N19, collection-time Check 2 unchanged.** Check 2 continues firing at collection time against the then-current cohort. This ruling constrains only the corpus-build re-QA path, not the primary collection-QA gate.
+
+Rule 15 not implicated: partitioning existing checks by reference-set dependency is deterministic scope discipline on collection QA, not analysis math.
