@@ -1,15 +1,15 @@
-"""Tests for the N15 re-QA logic in pipeline.load_records (R1).
+"""Tests for the N15/N16 re-QA logic in pipeline.load_records (R1/R2).
 
-CDA SME 2026-07-10 N5 / 2026-07-11 N15:
+CDA SME 2026-07-10 N5 / 2026-07-11 N15/N16:
   - Per-record checks (1/3/4/5/6/7/8) recompute from record fields alone.
   - Check 2 (reference-set-dependent) is disabled by passing [record] as the
     reference set; its len(same_runs) < 2 self-guard fires.
   - Persisted-False records include iff per-record pass AND no Check-2 signature
     in qa_notes (bare percentage matching f"{ratio:.1%}" runner.py format).
-  - Persisted-True records include iff per-record pass; exclusions are counted
-    and logged (they feed the R2/N16 monotonicity guard, next task).
+  - Persisted-True records include iff per-record pass; exclusion triggers N16
+    monotonicity guard (RuntimeError).
 
-Uses tests/fixtures/reasoning_class/informants.jsonl (15 records after R1
+Uses tests/fixtures/reasoning_class/informants.jsonl (17 records after R1/R2
 fixture additions):
 
   Family domain (7 records):
@@ -24,7 +24,12 @@ fixture additions):
 
   test_guard_1 domain (1 record):
     r05: test_guard_1, qa_passed=True, 5 items (Check 1 fails)
-         -> excluded (excluded-feeding-guard; guard itself lands in R2)
+         -> N16 RuntimeError (excluded-feeding-guard, 1-model case)
+
+  test_guard_2 domain (2 records):
+    r17: test_guard_2, model test/borderline-e2, qa_passed=True, 5 items
+    r18: test_guard_2, model test/borderline-f, qa_passed=True, 5 items
+         -> N16 RuntimeError (excluded-feeding-guard, 2-model case)
 
 No real API calls.
 """
@@ -163,6 +168,67 @@ def test_r1_family_domain_count():
     """
     records = load_records(_FIXTURE_JSONL, "family", qa_only=True)
     assert len(records) == 5
+
+
+# ─── R2: N16 monotonicity guard ───────────────────────────────────────────────
+
+
+def test_r2_guard_raises_1_model_case():
+    """N16 monotonicity guard: RuntimeError for 1 persisted-True record failing re-QA.
+
+    test_guard_1 domain has r05: qa_passed=True, model=test/borderline-e, 5 items.
+    Check 1 fires (5 < MIN_FREELIST_ITEMS=10). Persisted-True-now-False -> guard raises.
+    Error message must name the model and record count.
+    """
+    with pytest.raises(RuntimeError) as exc_info:
+        load_records(_FIXTURE_JSONL, "test_guard_1", qa_only=True)
+    msg = str(exc_info.value)
+    assert "N16 monotonicity guard" in msg
+    assert "test/borderline-e" in msg
+    assert "1 record(s)" in msg
+
+
+def test_r2_guard_raises_2_model_case():
+    """N16 monotonicity guard: RuntimeError enumerates 2 models on 2-model drop.
+
+    test_guard_2 domain has r17 (test/borderline-e2, 5 items, True) and
+    r18 (test/borderline-f, 5 items, True). Both fail Check 1. Error message
+    must name both models.
+    """
+    with pytest.raises(RuntimeError) as exc_info:
+        load_records(_FIXTURE_JSONL, "test_guard_2", qa_only=True)
+    msg = str(exc_info.value)
+    assert "N16 monotonicity guard" in msg
+    assert "test/borderline-e2" in msg
+    assert "test/borderline-f" in msg
+
+
+def test_r2_guard_silent_at_zero_drops():
+    """N16 monotonicity guard: no RuntimeError when no persisted-True record fails.
+
+    Family domain (after r05 moved out): r01 is persisted-True and passes all
+    per-record checks. No drops -> no exception.
+    """
+    records = load_records(_FIXTURE_JSONL, "family", qa_only=True)
+    assert len(records) == 5  # No exception raised
+
+
+def test_r2_guard_recoveries_never_trigger():
+    """N16 monotonicity guard: recoveries (persisted-False-now-True) never raise.
+
+    Family domain has 4 recovered records (r02, r04, r08, r09). Recoveries
+    are logged at INFO only; they must NOT trigger RuntimeError.
+    """
+    records = load_records(_FIXTURE_JSONL, "family", qa_only=True)
+    # If RuntimeError were raised, the assert would never be reached.
+    recovered_ids = {
+        "rc-fix-r02-reasoning-batchA",
+        "rc-fix-r04-reasoning-eq-tokens",
+        "rc-fix-r08-dense-sonnet5",
+        "rc-fix-r09-dense-and-reasoning",
+    }
+    ids = {r.informant_id for r in records}
+    assert recovered_ids.issubset(ids)
 
 
 # ─── R1: reference-set independence ───────────────────────────────────────────

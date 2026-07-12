@@ -239,7 +239,9 @@ def load_records(
 
     Persisted-True records: included iff per-record checks pass. A persisted-True
     record that fails per-record re-QA indicates a QA rule change that retro-
-    actively disqualifies an accepted record; the count is logged at INFO.
+    actively disqualifies an accepted record. This feeds the R2 monotonicity
+    guard (CDA SME N16) which raises RuntimeError after the loop to prevent
+    silent drops.
 
     Recoveries (persisted-False-now-True without Check-2 signature) are logged
     at INFO and never raise. Check-2-signature exclusions are logged separately.
@@ -254,6 +256,11 @@ def load_records(
 
     Returns:
         List of validated InformantRecord objects.
+
+    Raises:
+        RuntimeError: (N16 monotonicity guard) when any persisted-True record
+            fails per-record re-QA. The error message enumerates per-model
+            drop counts. Re-route to the Architect and CDA SME.
     """
     # Pass 1: read all domain records, unfiltered by qa_passed.
     all_domain_records: list[InformantRecord] = []
@@ -290,6 +297,8 @@ def load_records(
     n_false_now_true = 0
     n_true_now_false = 0
     n_check2_sig_excluded = 0
+    # Per-model drop counts for the N16 monotonicity guard error message.
+    n_true_now_false_by_model: dict[str, int] = {}
 
     for record in all_domain_records:
         # Single-record reference set disables Check 2's cross-run comparison
@@ -305,8 +314,11 @@ def load_records(
                 passing.append(record)
             else:
                 # Persisted-True-now-False: QA rule change retroactively drops
-                # an accepted record. Counted and logged below.
+                # an accepted record. Feeds the N16 monotonicity guard.
                 n_true_now_false += 1
+                n_true_now_false_by_model[record.model_id] = (
+                    n_true_now_false_by_model.get(record.model_id, 0) + 1
+                )
         else:
             # Persisted-False path: recover iff per-record checks pass AND
             # qa_notes does not carry a Check-2 failure signature.
@@ -342,6 +354,23 @@ def load_records(
             domain_slug,
             n_true_now_false,
             n_false_now_true,
+        )
+
+    # N16 monotonicity guard: persisted-True-now-False must be zero.
+    # A nonzero count means a QA rule change dropped previously accepted records.
+    # This is not a Coder-resolvable event; re-route to Architect and CDA SME.
+    if n_true_now_false_by_model:
+        summary_parts = [
+            f"  {mid}: {cnt} record(s)"
+            for mid, cnt in sorted(n_true_now_false_by_model.items())
+        ]
+        raise RuntimeError(
+            f"load_records [{domain_slug}]: N16 monotonicity guard -- "
+            f"{n_true_now_false} persisted-True record(s) failed per-record "
+            f"re-QA. Per-model drops:\n"
+            + "\n".join(summary_parts)
+            + "\nRe-route to the Architect and CDA SME. "
+            "See CDA SME N16 (2026-07-11-reQA-remediation-architect-plan.md)."
         )
 
     return passing
