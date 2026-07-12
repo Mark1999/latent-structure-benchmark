@@ -1,4 +1,4 @@
-"""Tests for rebaseline_corpus.py DOMAIN_CONFIG structure (R3).
+"""Tests for rebaseline_corpus.py DOMAIN_CONFIG structure (R3/R4).
 
 Verifies the invariants stated in the runbook and enforced by N17:
 
@@ -7,6 +7,8 @@ Verifies the invariants stated in the runbook and enforced by N17:
     (single-mode legacy slates; no filter needed)
   - DOMAIN_ORDER is ["family", "holidays", "food"] (family is the pilot gate)
   - Every entry in DOMAIN_CONFIG has the required keys including approved_slate
+  - new_version bumped: family=0.4, holidays=0.4, food=0.3 (N17 runbook gap)
+  - prior_version unchanged: family=0.3, holidays=0.3, food=0.2 (guard still loads prior)
   - approved_slate frozensets contain the published basis + batch A additions,
     and exclude claude-fable-5, qwen/qwen3.6-plus, z-ai/glm-5.1
   - Empty approved_slate is a no-op (all QA-passed records included)
@@ -85,6 +87,45 @@ def test_domain_order_entries_all_in_domain_config() -> None:
         assert domain in DOMAIN_CONFIG, (
             f"DOMAIN_ORDER lists {domain!r} but it has no DOMAIN_CONFIG entry"
         )
+
+
+# ─── R4: version bumps ────────────────────────────────────────────────────────
+
+
+def test_family_new_version_is_0_4() -> None:
+    """family new_version must be 0.4 (N17 runbook gap bump)."""
+    from scripts.rebaseline_corpus import DOMAIN_CONFIG
+
+    assert DOMAIN_CONFIG["family"]["new_version"] == "0.4", (
+        "family new_version must be '0.4' to avoid collision with published 0.3"
+    )
+
+
+def test_holidays_new_version_is_0_4() -> None:
+    """holidays new_version must be 0.4 (N17 runbook gap bump)."""
+    from scripts.rebaseline_corpus import DOMAIN_CONFIG
+
+    assert DOMAIN_CONFIG["holidays"]["new_version"] == "0.4", (
+        "holidays new_version must be '0.4' to avoid collision with published 0.3"
+    )
+
+
+def test_food_new_version_is_0_3() -> None:
+    """food new_version must be 0.3 (N17 runbook gap bump)."""
+    from scripts.rebaseline_corpus import DOMAIN_CONFIG
+
+    assert DOMAIN_CONFIG["food"]["new_version"] == "0.3", (
+        "food new_version must be '0.3' to avoid collision with published 0.2"
+    )
+
+
+def test_prior_versions_unchanged() -> None:
+    """prior_version must remain at published values (guard still loads prior)."""
+    from scripts.rebaseline_corpus import DOMAIN_CONFIG
+
+    assert DOMAIN_CONFIG["family"]["prior_version"] == "0.3"
+    assert DOMAIN_CONFIG["holidays"]["prior_version"] == "0.3"
+    assert DOMAIN_CONFIG["food"]["prior_version"] == "0.2"
 
 
 # ─── R3: approved_slate structure ─────────────────────────────────────────────

@@ -99,6 +99,12 @@ MANIFEST_PATH = STAGING_ROOT / "baseline_manifest.json"
 #     QA verdict, 2026-07-10).
 #   Pending Mark's decision (one-line add when approved):
 #     qwen/qwen3.6-plus, z-ai/glm-5.1.
+#
+# Version bump (runbook gap, N17 companion): new_version increments so
+# staging output paths do not collide with citable published versions.
+# Prior published versions are loaded by the threshold guard for comparison.
+# Commit body notes the runbook Step 3 DOMAIN_CONFIG-bump gap as a separate
+# docs task.
 _BATCH_A_ADDITIONS: frozenset[str] = frozenset({
     "claude-opus-4-8",
     "claude-sonnet-5",
@@ -112,7 +118,7 @@ _BATCH_A_ADDITIONS: frozenset[str] = frozenset({
 DOMAIN_CONFIG: dict[str, dict] = {
     "family": {
         "prior_version": "0.3",
-        "new_version": "0.3",
+        "new_version": "0.4",  # bumped: N17 runbook gap; prior 0.3 still loaded for guard
         "similarity_collection_mode": None,
         # Published basis: data/results/family/0.3.json cultural_centrality_scores
         # (15 models, verified 2026-07-11) + batch A (7 models).
@@ -137,7 +143,7 @@ DOMAIN_CONFIG: dict[str, dict] = {
     },
     "holidays": {
         "prior_version": "0.3",
-        "new_version": "0.3",
+        "new_version": "0.4",  # bumped: N17 runbook gap; prior 0.3 still loaded for guard
         "similarity_collection_mode": None,
         # Published basis: data/results/holidays/0.3.json cultural_centrality_scores
         # (14 models, no microsoft/phi-4, verified 2026-07-11) + batch A (7 models).
@@ -161,7 +167,7 @@ DOMAIN_CONFIG: dict[str, dict] = {
     },
     "food": {
         "prior_version": "0.2",
-        "new_version": "0.2",
+        "new_version": "0.3",  # bumped: N17 runbook gap; prior 0.2 still loaded for guard
         "similarity_collection_mode": "single_pass",
         # Published basis: data/results/food/0.2.json cultural_centrality_scores
         # (12 models, no meta-llama, no microsoft/phi-4, no x-ai/grok-4.20,
