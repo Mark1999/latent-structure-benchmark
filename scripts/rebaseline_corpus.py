@@ -73,28 +73,114 @@ LOG_PATH = STAGING_ROOT / "rebaseline.log"
 MANIFEST_PATH = STAGING_ROOT / "baseline_manifest.json"
 
 # Domain -> (prior published version, analysis version for the new output,
-#           similarity_collection_mode for run_pipeline()).
+#           similarity_collection_mode for run_pipeline(),
+#           approved_slate frozenset for publication-membership filter).
 # family and holidays are single-mode legacy slates (single_pass only); no
 # mode filter needed. food is a mixed-mode domain (single_pass + cross_model
 # consensus records coexist in the corpus after 2026-06-11 campaign widening);
 # similarity_collection_mode="single_pass" is required to keep the per-model
 # mat.items coherent across the slate. See FOOD-FIX-A in
 # docs/status/2026-06-11-phase9b-food-campaign.md.
+#
+# approved_slate (N17, CDA SME 2026-07-11): curator-maintained frozenset of
+# model_ids approved for publication in this rebaseline. QA answers record
+# fitness; the slate answers publication membership. Conflating them means
+# QA-rule changes silently redefine the published slate. An empty frozenset
+# is a no-op (all QA-passed records included). Add one model_id per line
+# when approving a new informant for promotion.
+#
+# Slate composition per domain:
+#   Published basis keys: from data/results/<domain>/<prior_version>.json
+#                         cultural_centrality_scores (verified 2026-07-11).
+#   Batch A additions (seven): claude-opus-4-8, claude-sonnet-5,
+#     openai/gpt-5.5, deepseek/deepseek-v4-pro, z-ai/glm-5.2,
+#     google/gemini-3.5-flash, x-ai/grok-4.3.
+#   Excluded from slate: claude-fable-5 (CDA SME R1/R2 from the batch A
+#     QA verdict, 2026-07-10).
+#   Pending Mark's decision (one-line add when approved):
+#     qwen/qwen3.6-plus, z-ai/glm-5.1.
+_BATCH_A_ADDITIONS: frozenset[str] = frozenset({
+    "claude-opus-4-8",
+    "claude-sonnet-5",
+    "openai/gpt-5.5",
+    "deepseek/deepseek-v4-pro",
+    "z-ai/glm-5.2",
+    "google/gemini-3.5-flash",
+    "x-ai/grok-4.3",
+})
+
 DOMAIN_CONFIG: dict[str, dict] = {
-    "family":   {
+    "family": {
         "prior_version": "0.3",
         "new_version": "0.3",
         "similarity_collection_mode": None,
+        # Published basis: data/results/family/0.3.json cultural_centrality_scores
+        # (15 models, verified 2026-07-11) + batch A (7 models).
+        "approved_slate": frozenset({
+            "claude-opus-4-5",
+            "claude-opus-4-6",
+            "claude-sonnet-4-6",
+            "deepseek/deepseek-v3.2",
+            "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro",
+            "meta-llama/llama-4-maverick",
+            "microsoft/phi-4",
+            "mistralai/mistral-large-2512",
+            "mistralai/mistral-small-2603",
+            "openai/gpt-5.2",
+            "openai/gpt-5.4",
+            "openai/gpt-5.4-mini",
+            "x-ai/grok-4",
+            "x-ai/grok-4.20",
+        }) | _BATCH_A_ADDITIONS,
+        # Pending Mark's decision: qwen/qwen3.6-plus, z-ai/glm-5.1
     },
     "holidays": {
         "prior_version": "0.3",
         "new_version": "0.3",
         "similarity_collection_mode": None,
+        # Published basis: data/results/holidays/0.3.json cultural_centrality_scores
+        # (14 models, no microsoft/phi-4, verified 2026-07-11) + batch A (7 models).
+        "approved_slate": frozenset({
+            "claude-opus-4-5",
+            "claude-opus-4-6",
+            "claude-sonnet-4-6",
+            "deepseek/deepseek-v3.2",
+            "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro",
+            "meta-llama/llama-4-maverick",
+            "mistralai/mistral-large-2512",
+            "mistralai/mistral-small-2603",
+            "openai/gpt-5.2",
+            "openai/gpt-5.4",
+            "openai/gpt-5.4-mini",
+            "x-ai/grok-4",
+            "x-ai/grok-4.20",
+        }) | _BATCH_A_ADDITIONS,
+        # Pending Mark's decision: qwen/qwen3.6-plus, z-ai/glm-5.1
     },
     "food": {
         "prior_version": "0.2",
         "new_version": "0.2",
         "similarity_collection_mode": "single_pass",
+        # Published basis: data/results/food/0.2.json cultural_centrality_scores
+        # (12 models, no meta-llama, no microsoft/phi-4, no x-ai/grok-4.20,
+        #  verified 2026-07-11) + batch A (7 models).
+        "approved_slate": frozenset({
+            "claude-opus-4-5",
+            "claude-opus-4-6",
+            "claude-sonnet-4-6",
+            "deepseek/deepseek-v3.2",
+            "google/gemini-2.5-flash",
+            "google/gemini-2.5-pro",
+            "mistralai/mistral-large-2512",
+            "mistralai/mistral-small-2603",
+            "openai/gpt-5.2",
+            "openai/gpt-5.4",
+            "openai/gpt-5.4-mini",
+            "x-ai/grok-4",
+        }) | _BATCH_A_ADDITIONS,
+        # Pending Mark's decision: qwen/qwen3.6-plus, z-ai/glm-5.1
     },
 }
 DOMAIN_ORDER = ["family", "holidays", "food"]
@@ -495,13 +581,45 @@ def rebaseline_domain(
     # Late imports — keep module importable without uv environment active
     from cdb_analyze.pipeline import load_records, run_pipeline, write_result  # noqa: PLC0415
 
-    # Load records
+    # Load records (per-record re-QA with N15 partition; N16 guard fires if
+    # any persisted-True record fails per-record re-QA).
     records = load_records(DEFAULT_JSONL, domain)
     if not records:
         msg = f"No QA-passed records found for domain '{domain}' in {DEFAULT_JSONL}"
         raise RuntimeError(msg)
 
     logger.info("[%s] Loaded %d records", domain, len(records))
+
+    # N17 approved-slate filter: restrict corpus to curator-approved model_ids.
+    # QA answers record fitness; the slate answers publication membership.
+    # An empty approved_slate is a no-op (all QA-passed records included).
+    approved_slate: frozenset[str] = cfg.get("approved_slate", frozenset())
+    if approved_slate:
+        pre_slate_count = len(records)
+        dropped_by_model: dict[str, int] = {}
+        for r in records:
+            if r.model_id not in approved_slate:
+                dropped_by_model[r.model_id] = dropped_by_model.get(r.model_id, 0) + 1
+        records = [r for r in records if r.model_id in approved_slate]
+        post_slate_count = len(records)
+        n_dropped = pre_slate_count - post_slate_count
+        if n_dropped > 0:
+            for model_id, cnt in sorted(dropped_by_model.items()):
+                logger.info(
+                    "[%s] Slate filter: excluded %d record(s) for model %r "
+                    "(not in approved_slate; add to DOMAIN_CONFIG to include).",
+                    domain, cnt, model_id,
+                )
+            logger.info(
+                "[%s] Slate filter: %d -> %d records (%d excluded across %d model(s)).",
+                domain, pre_slate_count, post_slate_count,
+                n_dropped, len(dropped_by_model),
+            )
+        else:
+            logger.info(
+                "[%s] Slate filter: all %d records are in approved_slate.",
+                domain, post_slate_count,
+            )
 
     # Run analysis pipeline into staging dir
     logger.info("[%s] Running pipeline (bootstrap_B=%d)...", domain, bootstrap_B)
