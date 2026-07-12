@@ -4,6 +4,23 @@ See ARCHITECTURE.md §4.1.6.
 
 Pure stdlib + requests (Slack webhook) + pydantic. No async, no LLM calls.
 Hardcoded thresholds at the top with comments explaining each one.
+
+Partition (CDA SME N15, 2026-07-11):
+
+Check 2 (freelist cross-run uniqueness) is a REFERENCE-SET-DEPENDENT check.
+Its result varies with the set of records passed as all_records; re-evaluating
+it at corpus-build time against a different reference set than the one used at
+collection time produces non-monotonic, order-dependent qa_passed transitions.
+Check 2 therefore inherits the collection-time persisted verdict at corpus-build
+time and is NOT re-evaluated by pipeline.load_records.
+
+Checks 1, 3, 4, 5, 6, 7, 8 are PER-RECORD checks. They operate solely on
+the fields of the individual InformantRecord being evaluated, with no
+dependence on the broader set of records in the corpus. These checks recompute
+freely at corpus-build time against the current (recalibrated) thresholds.
+
+Any future check whose result varies with the reference set must be documented
+here and added to the inherited-verdict list in pipeline.load_records.
 """
 
 from __future__ import annotations
@@ -135,7 +152,11 @@ class QAFailure:
 
 
 def check_1_freelist_count(record: InformantRecord) -> QAFailure | None:
-    """Free-list item count >= MIN_FREELIST_ITEMS. Skips if free list not collected."""
+    """Per-record check (CDA SME N15): free-list item count >= MIN_FREELIST_ITEMS.
+
+    Context-free: result depends only on this record's fields. Safe to
+    recompute at corpus-build time. Skips if free list not collected.
+    """
     # In two-pass/baseline modes, pile-sort-phase records have placeholder free lists
     if record.freelist.stop_reason == "not_collected":
         return None
@@ -152,7 +173,15 @@ def check_2_freelist_uniqueness(
     record: InformantRecord,
     all_records: list[InformantRecord],
 ) -> QAFailure | None:
-    """Cross-run uniqueness >= MIN_UNIQUENESS_RATIO.
+    """Reference-set-dependent check (CDA SME N15): cross-run uniqueness >= MIN_UNIQUENESS_RATIO.
+
+    Result varies with all_records (the reference set). Re-evaluating this check
+    at corpus-build time against a different cohort than the collection-time cohort
+    produces non-monotonic qa_passed transitions. pipeline.load_records therefore
+    disables this check by passing a single-record reference set ([record]), which
+    triggers the len(same_runs) < 2 self-guard below. The collection-time persisted
+    verdict is inherited for records whose qa_notes carry a Check-2 failure signature
+    (a bare percentage, e.g. "12.5%").
 
     Requires >= 2 runs for the same (model, domain) to be meaningful.
     Single-run passes with a note.
@@ -185,7 +214,11 @@ def check_2_freelist_uniqueness(
 
 
 def check_3_pilesort_binary(record: InformantRecord) -> QAFailure | None:
-    """Pile-sort matrix must be binary. Skips if not collected."""
+    """Per-record check (CDA SME N15): pile-sort matrix must be binary.
+
+    Context-free: result depends only on this record's fields. Safe to
+    recompute at corpus-build time. Skips if not collected.
+    """
     matrix = record.pile_sort.parsed_matrix
     if not matrix:
         return None  # Placeholder — not collected yet
@@ -201,7 +234,11 @@ def check_3_pilesort_binary(record: InformantRecord) -> QAFailure | None:
 
 
 def check_4_pilesort_symmetric(record: InformantRecord) -> QAFailure | None:
-    """Pile-sort matrix must be symmetric. Skips if not collected."""
+    """Per-record check (CDA SME N15): pile-sort matrix must be symmetric.
+
+    Context-free: result depends only on this record's fields. Safe to
+    recompute at corpus-build time. Skips if not collected.
+    """
     matrix = record.pile_sort.parsed_matrix
     if not matrix:
         return None  # Placeholder — not collected yet
@@ -219,11 +256,14 @@ def check_4_pilesort_symmetric(record: InformantRecord) -> QAFailure | None:
 
 
 def check_5_latency(record: InformantRecord) -> QAFailure | None:
-    """Latency < MAX_LATENCY_MS per step (MAX_LATENCY_MS_REASONING for reasoning steps).
+    """Per-record check (CDA SME N15): latency < ceiling per step.
 
-    When a step reports thoughts_token_count > 0 the provider response time
-    includes inference-time thinking; the extended ceiling applies. All other
-    steps use the base MAX_LATENCY_MS ceiling (CDA SME 2026-07-10 N1, N7).
+    Context-free: result depends only on this record's fields. Safe to
+    recompute at corpus-build time.
+
+    Uses MAX_LATENCY_MS_REASONING when a step reports thoughts_token_count > 0
+    (inference-time thinking); base MAX_LATENCY_MS ceiling otherwise.
+    See CDA SME 2026-07-10 N1, N7.
     """
     steps: list[tuple[str, _StepRecord]] = [
         ("freelist", record.freelist),
@@ -243,7 +283,12 @@ def check_5_latency(record: InformantRecord) -> QAFailure | None:
 
 
 def check_6_token_consistency(record: InformantRecord) -> QAFailure | None:
-    """Output tokens within ±100% of len(response_verbatim) / chars_per_token.
+    """Per-record check (CDA SME N15): output tokens within ±100% of expected.
+
+    Context-free: result depends only on this record's fields. Safe to
+    recompute at corpus-build time.
+
+    Output tokens within ±100% of len(response_verbatim) / chars_per_token.
 
     Two orthogonal class-conditioning branches apply independently and compose:
 
@@ -299,7 +344,11 @@ def check_6_token_consistency(record: InformantRecord) -> QAFailure | None:
 
 
 def check_7_provider_request_id(record: InformantRecord) -> QAFailure | None:
-    """Provider request ID must be non-empty."""
+    """Per-record check (CDA SME N15): provider request ID must be non-empty.
+
+    Context-free: result depends only on this record's fields. Safe to
+    recompute at corpus-build time.
+    """
     if not record.provider_request_id:
         return QAFailure(
             7, "Provider request ID is empty",
@@ -309,7 +358,12 @@ def check_7_provider_request_id(record: InformantRecord) -> QAFailure | None:
 
 
 def check_8_label_count_match(record: InformantRecord) -> QAFailure | None:
-    """Pile-interview label count must equal pile count.
+    """Per-record check (CDA SME N15): pile-interview label count must equal pile count.
+
+    Context-free: result depends only on this record's fields. Safe to
+    recompute at corpus-build time.
+
+    Pile-interview label count must equal pile count.
 
     Infers the mismatch from len(parsed_pile_labels) != len(parsed_piles).
     Skips when either step was not collected (placeholder mode). This is

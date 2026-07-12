@@ -181,6 +181,34 @@ def _is_finite_float(v: float) -> bool:
     return not (np.isnan(v) or np.isinf(v))
 
 
+def _has_check2_signature(qa_notes: str) -> bool:
+    """Return True if qa_notes contains a Check 2 failure signature.
+
+    Check 2's f.actual is formatted as f"{ratio:.1%}" (e.g. "12.5%") by
+    runner.py (L350: failure_notes = "; ".join(f.actual for f in failures)).
+    A Check 2 failure therefore appears as a standalone "XX.X%" segment
+    when qa_notes is split on ";".
+
+    Per-record checks 1/3/4/5/6/7/8 never write a bare percentage:
+      Check 1: str(count)                       -> "5"
+      Check 3: f"found {cell}"                  -> "found 2"
+      Check 4: f"{m[i][j]} != {m[j][i]}"        -> "0 != 1"
+      Check 5: f"{latency_ms}ms"                -> "257000ms"
+      Check 6: str(actual)                      -> "100"
+      Check 7: "empty"
+      Check 8: f"label_count_mismatch:{n}/{m}"  -> "label_count_mismatch:5/4"
+
+    Verified against scripts/qa_check.py check functions and runner.py L350.
+    The ":.1%" format always produces exactly one decimal digit (e.g. "12.5%",
+    "8.0%", "100.0%"); the regex r"\\d+\\.\\d+%" matches all forms.
+    """
+    import re  # noqa: PLC0415
+    return any(
+        re.fullmatch(r"\d+\.\d+%", segment.strip())
+        for segment in qa_notes.split(";")
+    )
+
+
 def load_records(
     jsonl_path: Path,
     domain_slug: str,
@@ -190,20 +218,37 @@ def load_records(
 ) -> list[InformantRecord]:
     """Load InformantRecords for a domain from the JSONL file.
 
-    Under qa_only=True, corpus inclusion is determined by recomputing QA
-    against the current scripts.qa_check rules (records-as-data, rules-as-code,
-    per CDA SME 2026-07-10 N5). Persisted qa_passed is retained as an audit
-    artifact but is NOT the authoritative filter under qa_only=True.
+    Under qa_only=True, corpus inclusion uses a two-path predicate that
+    respects the N15 partition between per-record and reference-set-dependent
+    checks (CDA SME 2026-07-11):
 
-    The count of records whose persisted qa_passed diverges from the recomputed
-    value is logged at INFO once per call, in both directions
-    (persisted-True-now-False and persisted-False-now-True).
+    Per-record checks (1/3/4/5/6/7/8) are recomputed from record fields alone
+    using run_record_checks(record, [record]). Passing a single-record reference
+    set mechanically disables Check 2 (its len(same_runs) < 2 self-guard fires),
+    ensuring reference-set independence regardless of how many records are in
+    the domain.
+
+    Persisted-False records: included iff per-record checks pass AND
+    _has_check2_signature(qa_notes) is False. The Check-2 signature guard
+    preserves the collection-time verdict for records whose qa_notes contain
+    a bare-percentage segment (the f.actual format of Check 2's QAFailure,
+    e.g. "12.5%"), which indicates Check 2 was a contributing failure reason
+    at collection time. Re-evaluating Check 2 against the corpus-build cohort
+    would be arbitrary; inheriting the persisted verdict is the conservative
+    choice (CDA SME N15/N18).
+
+    Persisted-True records: included iff per-record checks pass. A persisted-True
+    record that fails per-record re-QA indicates a QA rule change that retro-
+    actively disqualifies an accepted record; the count is logged at INFO.
+
+    Recoveries (persisted-False-now-True without Check-2 signature) are logged
+    at INFO and never raise. Check-2-signature exclusions are logged separately.
 
     Args:
         jsonl_path: Path to informants.jsonl.
         domain_slug: Filter to this domain.
-        qa_only: If True, filter to records that pass the current QA rules
-            (recomputed, not persisted).
+        qa_only: If True, apply the two-path per-record re-QA predicate.
+            If False, return all domain records regardless of QA state.
         collection_mode: If set, filter to this collection mode only
             (e.g., "cross_model_consensus" for comparable cross-model data).
 
@@ -227,7 +272,7 @@ def load_records(
     if not qa_only:
         return all_domain_records
 
-    # Pass 2: recompute QA using current qa_check rules.
+    # Pass 2: recompute QA using current per-record checks (N15 partition).
     # Function-scope import mirrors runner.py:281 including ModuleNotFoundError
     # sys.path fallback (scripts/ is on sys.path in pytest but not in installed
     # package context).
@@ -244,17 +289,50 @@ def load_records(
     passing: list[InformantRecord] = []
     n_false_now_true = 0
     n_true_now_false = 0
+    n_check2_sig_excluded = 0
 
     for record in all_domain_records:
-        failures = run_record_checks(record, all_domain_records)
-        recomputed_pass = len(failures) == 0
-        if record.qa_passed and not recomputed_pass:
-            n_true_now_false += 1
-        elif not record.qa_passed and recomputed_pass:
-            n_false_now_true += 1
-        if recomputed_pass:
-            passing.append(record)
+        # Single-record reference set disables Check 2's cross-run comparison
+        # (len(same_runs) == 1 < 2; self-guard fires). Check 2 is reference-
+        # set-dependent (N15); re-evaluating it against the corpus-build cohort
+        # would produce non-monotonic transitions (the 2026-07-11 mass-drop).
+        failures = run_record_checks(record, [record])
+        per_record_pass = len(failures) == 0
 
+        if record.qa_passed:
+            # Persisted-True path: include iff per-record checks still pass.
+            if per_record_pass:
+                passing.append(record)
+            else:
+                # Persisted-True-now-False: QA rule change retroactively drops
+                # an accepted record. Counted and logged below.
+                n_true_now_false += 1
+        else:
+            # Persisted-False path: recover iff per-record checks pass AND
+            # qa_notes does not carry a Check-2 failure signature.
+            if per_record_pass:
+                if _has_check2_signature(record.qa_notes):
+                    # Check-2 was a contributing reason at collection time.
+                    # Inherit the persisted verdict rather than re-evaluating
+                    # against an arbitrary corpus-build cohort (N15/N18).
+                    n_check2_sig_excluded += 1
+                else:
+                    # Clean per-record recovery (N5/N13 path).
+                    n_false_now_true += 1
+                    passing.append(record)
+            # else: persisted-False, per-record still fails -> stays excluded.
+
+    # Log Check-2-signature exclusions (separate from QA divergence).
+    if n_check2_sig_excluded > 0:
+        logger.info(
+            "load_records [%s]: %d persisted-False record(s) have per-record "
+            "checks now passing but carry a Check-2 signature in qa_notes; "
+            "inheriting persisted verdict (N15 reference-set boundary).",
+            domain_slug,
+            n_check2_sig_excluded,
+        )
+
+    # Log QA divergence (per-record path, both directions).
     if n_false_now_true > 0 or n_true_now_false > 0:
         logger.info(
             "load_records [%s]: QA divergence -- "
