@@ -1,3 +1,4 @@
+- [BATCH-A-PROMOTION 2026-07-13](project_batchA_promotion_verdict.md) — PASS-WITH-NOTES; food v0.3 override WEAK_CONSENSUS (F3-V3-A/B/C/E); BA-QA-FN + BA-FABLE-FRAMING + BA-PROV + BA-TERMMAP-COUNTS; F3-R3-D dormant
 - [BATCH-A-FABLE5-REFUSAL 2026-07-10](project_batchA_fable5_refusal_verdict.md) — 22/23 refusal; exclude from R2 basis all 3 domains; decline-interview capped at 1/domain; 5 load-bearing nouns bound
 - [REASONING-QA-CALIBRATION 2026-07-10](project_reasoning_qa_calibration_verdict.md) — batch A: Check 5/6 class-conditioned on thoughts_token_count>0 (N1-N7) + Check 6 dense-tokenizer branch on DENSE_TOKENIZER_MODEL_IDS with expected=len/1.75 (N8-N14 addendum, wave-3 claude-opus-4-8/sonnet-5)
 - [OBSERVATORY-RENAME 2026-06-15](project_observatory_rename_verdict.md) — LSB->Cognitive Structure Observatory public rename; 7 N-notes; frozen strings byte-identical
