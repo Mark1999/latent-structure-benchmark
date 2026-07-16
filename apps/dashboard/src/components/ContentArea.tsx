@@ -31,7 +31,7 @@ import { Focus2FamilySalience } from './Focus2FamilySalience';
 import { Focus2FamilyPiles } from './Focus2FamilyPiles';
 import type { DomainExtended } from '../data/types';
 import { displayModel } from '../lib/familyUtils';
-import { CI_DISCLOSURE_TEXT, SMALL_N_TEXT } from '../copy/consensus_disclosure';
+import { CI_DISCLOSURE_TEXT_V03, SMALL_N_TEXT } from '../copy/consensus_disclosure';
 
 // Provider display color map
 const PROVIDER_COLORS: Record<string, string> = {
@@ -424,20 +424,20 @@ export function ContentArea({
                     >
                       {domain.consensus_type_override}
                     </span>
-                    {/* U3 methodology link: one click from badge to food-v02-footnote (§23.1) */}
+                    {/* U3 methodology link: one click from badge to food-v03-footnote (§23.1, updated batch A) */}
                     <a
-                      href="/methodology#food-v02-footnote"
+                      href="/methodology#food-v03-footnote"
                       className="content-area__methodology-link"
-                      aria-label="See methodology footnote for food v0.2 classification"
+                      aria-label="See methodology footnote for food v0.3 classification"
                     >
                       See methodology note
                     </a>
                   </>
                 )}
-                {/* §23.2 CI disclosure line: F3-R3-C verbatim, shown when override is set. */}
+                {/* §23.2 CI disclosure line: F3-V3-C verbatim (_V03), shown when override is set. */}
                 {domain.consensus_type_override != null && (
                   <p className="content-area__ci-disclosure">
-                    {CI_DISCLOSURE_TEXT}
+                    {CI_DISCLOSURE_TEXT_V03}
                   </p>
                 )}
                 {/* §23.2 Small-n line: F3-R3-D verbatim, shown when romney_small_n_warning is true. */}

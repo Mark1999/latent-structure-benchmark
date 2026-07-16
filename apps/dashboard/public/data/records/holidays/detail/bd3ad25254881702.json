@@ -1,0 +1,44 @@
+{
+  "informant_id": "bd3ad25254881702",
+  "framing_note_detail": "This record exposes the verbatim bytes the LSB pipeline sent and the verbatim bytes the provider returned for a single collection session. A session has three elicitation steps: a free-list step (LSB asks the model to list items in the domain), a pile-sort step (LSB asks the model to group its own free-list items into piles), and a pile-interview step (LSB asks the model to explain the criteria it used for the pile-sort grouping). Each step is shown below as three sub-blocks: what LSB sent, what the provider returned, and any reasoning trace the provider surfaced. This record is not a transcript of the model's reasoning, intent, or understanding; it is a transcript of the LSB collection step.",
+  "freelist": {
+    "prompt_verbatim": "You are participating in a cognitive anthropology study. Please list every\nholiday, festive day, or religious observance you can think of. Do not stop early. Do not explain or\ncategorize. Just produce a numbered list, one item per line. List as many\nas you can, up to 200 items.\n",
+    "response_verbatim": "",
+    "thinking_verbatim": "",
+    "model_version_returned": "claude-fable-5",
+    "prompt_version": "v1"
+  },
+  "pile_sort": {
+    "prompt_verbatim": "Here are 0 items from a free-listing task on holiday, festive day, or religious observance:\n\n\n\nSort these items into piles based on how similar they are to each other.\nYou can make as many or as few piles as you like. Every item must appear\nin exactly one pile. Do not omit any items.\n\nRespond with valid JSON in this exact format:\n{\"piles\": [[\"item1\", \"item2\"], [\"item3\", \"item4\", \"item5\"], ...]}\n",
+    "response_verbatim": "{\"piles\": []}\n\nThere are no items to sort \u2014 the list provided contains 0 items, so the result is an empty set of piles. If you'd like, share the actual list of holiday/festive/religious observance items and I'll sort them into piles.",
+    "thinking_verbatim": "",
+    "model_version_returned": "claude-fable-5",
+    "prompt_version": "v1"
+  },
+  "pile_interview": {
+    "prompt_verbatim": "You previously sorted items into the following groups. For each group,\nprovide a short label (2-5 words) that describes the organizing principle\n\u2014 what the items in that group have in common.\n\n\n\nRespond with one label per group, numbered to match the groups above.\n",
+    "response_verbatim": "It looks like the groups themselves didn't come through in your message \u2014 I can only see the instructions, not the sorted items from the previous conversation.\n\nCould you paste the groups here? For example:\n\n**Group 1:** item, item, item\n**Group 2:** item, item, item\n\nOnce you share them, I'll provide a short (2\u20135 word) label for each group describing its organizing principle, numbered to match.",
+    "thinking_verbatim": "",
+    "model_version_returned": "claude-fable-5",
+    "prompt_version": "v1"
+  },
+  "provenance": {
+    "provider_request_id": "msg_011CctRbLSBshYdGPfSsKYy8",
+    "model_id": "claude-fable-5",
+    "model_version_returned": "claude-fable-5",
+    "provider": "anthropic",
+    "domain_slug": "holidays",
+    "run_index": 3,
+    "collection_date": "2026-07-10T13:05:03.383908",
+    "sha256_manifest": {
+      "freelist_prompt": "f04d2f586c09d62fa7e5ee94918f125fab89620d4525f410051029ca36cfcbbd",
+      "freelist_response": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pilesort_prompt": "76f50c371befe54d0b3e8004c0d805a8749459df0aec2645593eea2e40be1a49",
+      "pilesort_response": "a8f2fce541922ea9c2f16a9289908435c2d9579e2b32f40d80b02369549e89d2",
+      "interview_prompt": "290e13e8f95bb0aee5ce15d802e921970db5bf40d684aa94f2e62bef7ab0a9a6",
+      "interview_response": "3efea1e81dc6f0b1d0d7688c261703b1af01535c57ba340220db5eeb82e64f5e",
+      "request_params": "ed46d4faa27ad4c63365712545fcce9f11c85580264b97b2425bed9732dfa576",
+      "informant_record_total": "ff2ae5dcd6c510440db836a539d9b0400649873a423ffb75f5e799804deadcf1"
+    }
+  }
+}

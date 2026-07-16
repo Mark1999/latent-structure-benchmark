@@ -1,0 +1,44 @@
+{
+  "informant_id": "7963ab156240eee4",
+  "framing_note_detail": "This record exposes the verbatim bytes the LSB pipeline sent and the verbatim bytes the provider returned for a single collection session. A session has three elicitation steps: a free-list step (LSB asks the model to list items in the domain), a pile-sort step (LSB asks the model to group its own free-list items into piles), and a pile-interview step (LSB asks the model to explain the criteria it used for the pile-sort grouping). Each step is shown below as three sub-blocks: what LSB sent, what the provider returned, and any reasoning trace the provider surfaced. This record is not a transcript of the model's reasoning, intent, or understanding; it is a transcript of the LSB collection step.",
+  "freelist": {
+    "prompt_verbatim": "",
+    "response_verbatim": "",
+    "thinking_verbatim": "",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "prompt_version": "v1"
+  },
+  "pile_sort": {
+    "prompt_verbatim": "Here are 12 items from a free-listing task on type of food or dish:\n\n- sushi\n- ramen\n- pizza\n- pho\n- paella\n- falafel\n- hummus\n- croissant\n- biryani\n- risotto\n- lasagna\n- burrito\n\nSort these items into piles based on how similar they are to each other.\nYou can make as many or as few piles as you like. Every item must appear\nin exactly one pile. Do not omit any items.\n\nRespond with valid JSON in this exact format:\n{\"piles\": [[\"item1\", \"item2\"], [\"item3\", \"item4\", \"item5\"], ...]}\n",
+    "response_verbatim": "To sort these items into piles based on their similarity, let's first examine the list and identify any patterns or common themes among the items.\n\n1. **Identify Cuisine or Dish Type**: The first step is to look for items that belong to the same cuisine or are similar in type. For example, dishes that are noodle-based, rice-based, or specific ethnic cuisines.\n\n2. **Group Similar Items**: \n   - \"sushi\" and \"ramen\" are both Japanese dishes.\n   - \"pho\" is a Vietnamese noodle soup.\n   - \"paella\", \"risotto\", and \"biryani\" are all rice-based dishes from different cuisines (Spanish, Italian, and Indian/Pakistani, respectively).\n   - \"pizza\", \"lasagna\" are Italian dishes, with \"pizza\" being a specific type of flatbread and \"lasagna\" a pasta dish.\n   - \"falafel\" and \"hummus\" are both Middle Eastern dishes, with \"falafel\" being a fried ball made from chickpeas or fava beans and \"hummus\" a dip made from chickpeas.\n   - \"croissant\" is a French pastry.\n   - \"burrito\" is a Mexican dish.\n\n3. **Categorize Based on Similarity**:\n   - Japanese dishes: \"sushi\", \"ramen\"\n   - Southeast Asian noodle soups: \"pho\"\n   - Rice-based dishes: \"paella\", \"risotto\", \"biryani\"\n   - Italian dishes: \"pizza\", \"lasagna\"\n   - Middle Eastern dishes: \"falafel\", \"hummus\"\n   - French pastry: \"croissant\"\n   - Mexican dishes: \"burrito\"\n\n4. **Consider Further Grouping or Splitting**:\n   - While \"sushi\" and \"ramen\" are both Japanese, they represent different categories of dishes (raw fish vs. noodle soup). However, they can be grouped together due to their shared Japanese origin.\n   - \"pho\" is Vietnamese and, while it's a noodle soup like \"ramen\", it might be considered distinct due to its different origin.\n   - The rice-based dishes (\"paella\", \"risotto\", \"biryani\") come from different cuisines but share a common base ingredient.\n   - \"pizza\" and \"lasagna\" are both Italian but are quite different in terms of preparation and type (flatbread vs. layered pasta).\n\n5. **Final Grouping**:\n   - One possible grouping could be based on the cuisine or geographical origin:\n     - Japanese: [\"sushi\", \"ramen\"]\n     - Vietnamese: [\"pho\"]\n     - Rice-based dishes from various cuisines: [\"paella\", \"risotto\", \"biryani\"]\n     - Italian: [\"pizza\", \"lasagna\"]\n     - Middle Eastern: [\"falafel\", \"hummus\"]\n     - French: [\"croissant\"]\n     - Mexican: [\"burrito\"]\n\nLet's directly group them into piles based on the above analysis and then convert it into the required JSON format.\n\nThe piles are:\n- [\"sushi\", \"ramen\"]\n- [\"pho\"]\n- [\"paella\", \"risotto\", \"biryani\"]\n- [\"pizza\", \"lasagna\"]\n- [\"falafel\", \"hummus\"]\n- [\"croissant\"]\n- [\"burrito\"]\n\nIn JSON format, this is represented as:\n{\"piles\": [[\"sushi\", \"ramen\"], [\"pho\"], [\"paella\", \"risotto\", \"biryani\"], [\"pizza\", \"lasagna\"], [\"falafel\", \"hummus\"], [\"croissant\"], [\"burrito\"]]}",
+    "thinking_verbatim": "",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "prompt_version": "v1"
+  },
+  "pile_interview": {
+    "prompt_verbatim": "You previously sorted items into the following groups. For each group,\nprovide a short label (2-5 words) that describes the organizing principle\n\u2014 what the items in that group have in common.\n\nGroup 1: sushi, ramen\nGroup 2: pho\nGroup 3: paella, risotto, biryani\nGroup 4: pizza, lasagna\nGroup 5: falafel, hummus\nGroup 6: croissant\nGroup 7: burrito\n\nRespond with one label per group, numbered to match the groups above.\n",
+    "response_verbatim": "1. Japanese noodle/rice dishes\n2. Vietnamese noodle soup\n3. Rice-based international dishes\n4. Italian baked pasta\n5. Middle Eastern street food\n6. French pastry\n7. Mexican wrapped dish \n\nLet me simplify some of the labels to better fit the 2-5 word limit:\n\n1. Japanese cuisine\n2. Vietnamese noodle soup\n3. International rice dishes\n4. Italian pasta bake\n5. Middle Eastern snacks\n6. French pastry\n7. Mexican wrap",
+    "thinking_verbatim": "",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "prompt_version": "v1"
+  },
+  "provenance": {
+    "provider_request_id": "gen-1781188252-NtaM1oWHKL37pxyaEhRL",
+    "model_id": "meta-llama/llama-4-maverick",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "provider": "openrouter",
+    "domain_slug": "food",
+    "run_index": 4,
+    "collection_date": "2026-06-11T14:31:06.256085",
+    "sha256_manifest": {
+      "freelist_prompt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "freelist_response": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pilesort_prompt": "6c2a9b6fd070b3b954e7f35d45c3669f944089dfc73f08e20152a8047c11a8ee",
+      "pilesort_response": "812607782648bd51a9f96387645bf91951a1334d595e6afb63238e1039244384",
+      "interview_prompt": "14b31abc056195a6e6ff7fd4472a7e30ce20b0f13056fc00f300c144d9b5b37b",
+      "interview_response": "c5ffa57f4ece6d0fe058285747ae14c41864c2c496d05202f6a6c600e7ec10e6",
+      "request_params": "4e06adc4b0e1f8b19b7fa5721ba1ba0087567bfbae469f6fd4d9369231fd341f",
+      "informant_record_total": "66eb11db92e3bbe814a810696d5a7388f1d13d04f7e71ad2360ff60c802debb2"
+    }
+  }
+}

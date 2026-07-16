@@ -212,6 +212,28 @@ export function MethodologyPage() {
           </p>
         </section>
 
+        {/* §6.1 section 5a, Informant-class QA calibration (BA-QA-FN, 2026-07-13).
+            Placement: UI/UX ruling 1. Text: CDA SME ruling D verbatim. */}
+        <section className="methodology-page__section" aria-labelledby="informant-class-qa-calibration-heading">
+          <h2 id="informant-class-qa-calibration-heading" className="methodology-page__heading">Informant-class QA calibration</h2>
+          <p className="methodology-page__text">
+            Two informant classes trigger class-conditioned handling in our
+            corpus-QA arithmetic. Reasoning-model informants report inference-time
+            reasoning tokens separately from visible output tokens; the latency
+            ceiling is class-conditioned to accommodate the deliberation window, and
+            the token-consistency check subtracts reasoning tokens before comparing
+            visible output against character length. Dense-tokenizer informants use
+            tokenizers that produce more tokens per character than the earlier
+            cohort; the same token-consistency check uses a denser expected
+            characters-per-token ratio for these records. Both branches are properties
+            of the informant class, not leniencies: the discriminating power of the
+            check on the non-class majority is preserved and a category error against
+            the class is removed. QA answers whether a record is fit for analysis;
+            the approved slate, curated separately, answers which models the
+            published basis includes.
+          </p>
+        </section>
+
         {/* §6.1 section 6 — What this does not measure */}
         {/*
           CITE-TO-DISCLAIM: The phrase "see family" below appears in scare-quotes
@@ -324,7 +346,7 @@ export function MethodologyPage() {
             collected in single-pass mode. Models that contributed only cross-model-consensus-mode
             records are excluded from the similarity matrix and MDS coordinates. This constraint
             is applied to avoid mixing pile-sort item sources across collection modes, which
-            produces degenerate similarity rows. The result is a 12-model mode-coherent slate
+            produces degenerate similarity rows. The result is a 12-model (at v0.2) mode-coherent slate
             rather than the full 13-model collection.
           </p>
           {/* F3-R3-E footnote: v0.2 classification disclosure (CDA SME binding, verbatim).
@@ -345,6 +367,38 @@ export function MethodologyPage() {
             A separate open question on how to canonicalize the published
             eigenratio against its bootstrap distribution is tracked under
             FOOD-FIX-A2.
+          </p>
+          {/* F3-V3-E footnote: v0.3 classification disclosure (CDA SME binding, verbatim).
+              id="food-v03-footnote" for U3 deep-link from override badge (ContentArea).
+              F3-R3-E (id="food-v02-footnote") retained above for citation stability.
+              Any edit requires a fresh CDA SME pass.
+              Source: docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md ruling B.
+              Correction per mechanical verification (2026-07-13): off-slate models do not
+              contribute to within-model or term-map outputs at v0.3 (N17 slate filter runs
+              before pipeline). */}
+          <p className="methodology-page__text" id="food-v03-footnote">
+            For the food domain at v0.3, the cross-model similarity basis is the
+            19-model approved slate. Two additional models present in the domain
+            corpus are outside the v0.3 approved slate: meta-llama/llama-4-maverick,
+            which was outside the v0.2 mode-coherent similarity basis and is not
+            on the v0.3 curator-maintained slate, and claude-fable-5, which is
+            excluded from the batch A slate across all three domains under a
+            separate ruling on provider deployment-side output filtering. At v0.3
+            the approved-slate filter is applied to the record set before the
+            analysis pipeline runs, so records from off-slate models do not enter
+            the similarity basis, the model-level analyses, or the pooled term
+            map for this domain; the raw records remain in the corpus and are
+            visible on the collection-records and failures surfaces. This is a
+            scope change from v0.2, where only the similarity basis was
+            mode-filtered. The Romney CCM eigenratio is 5.44 with a 95 percent
+            bootstrap interval of [2.75, 10.25] over B=500 model-resamples. The
+            point estimate sits just above the 5.0 strong-consensus threshold,
+            the median bootstrap replicate sits below it, and 66 percent of
+            replicates fall below the threshold. The classification is therefore
+            published as weak-consensus with the indeterminacy disclosed rather
+            than as strong-consensus with a hidden uncertainty caveat. A separate
+            open question on how to canonicalize the published eigenratio against
+            its bootstrap distribution remains tracked under FOOD-FIX-A2.
           </p>
         </section>
 

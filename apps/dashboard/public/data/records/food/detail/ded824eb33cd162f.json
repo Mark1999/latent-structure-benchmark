@@ -1,0 +1,44 @@
+{
+  "informant_id": "ded824eb33cd162f",
+  "framing_note_detail": "This record exposes the verbatim bytes the LSB pipeline sent and the verbatim bytes the provider returned for a single collection session. A session has three elicitation steps: a free-list step (LSB asks the model to list items in the domain), a pile-sort step (LSB asks the model to group its own free-list items into piles), and a pile-interview step (LSB asks the model to explain the criteria it used for the pile-sort grouping). Each step is shown below as three sub-blocks: what LSB sent, what the provider returned, and any reasoning trace the provider surfaced. This record is not a transcript of the model's reasoning, intent, or understanding; it is a transcript of the LSB collection step.",
+  "freelist": {
+    "prompt_verbatim": "",
+    "response_verbatim": "",
+    "thinking_verbatim": "",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "prompt_version": "v1"
+  },
+  "pile_sort": {
+    "prompt_verbatim": "Here are 12 items from a free-listing task on type of food or dish:\n\n- sushi\n- ramen\n- pizza\n- pho\n- paella\n- falafel\n- hummus\n- croissant\n- biryani\n- risotto\n- lasagna\n- burrito\n\nSort these items into piles based on how similar they are to each other.\nYou can make as many or as few piles as you like. Every item must appear\nin exactly one pile. Do not omit any items.\n\nRespond with valid JSON in this exact format:\n{\"piles\": [[\"item1\", \"item2\"], [\"item3\", \"item4\", \"item5\"], ...]}\n",
+    "response_verbatim": "To sort these items into piles based on their similarity, we need to analyze the characteristics of each dish. The dishes listed are diverse and come from different cuisines around the world. Let's examine them:\n\n1. **Cuisine Origin**: Many dishes can be grouped by their cuisine of origin. For example, dishes from Italian, Japanese, Mexican, Indian, Middle Eastern, and Vietnamese cuisines are represented.\n\n2. **Dish Type**: Dishes can also be categorized based on their type, such as noodle dishes, rice dishes, pastries, or layered dishes.\n\nLet's start grouping:\n\n- **Japanese dishes**: sushi, ramen\n- **Italian dishes**: pizza, risotto, lasagna\n- **Dishes centered around rice or grains**: paella (Spanish, rice-based), biryani (Indian/Pakistani, rice-based)\n- **Dishes from the Middle East**: falafel, hummus\n- **Dishes from other international cuisines**: pho (Vietnamese, noodle soup), burrito (Mexican)\n\nUpon closer inspection, we can see that some categories can be merged or further divided based on the type of dish or cuisine. For instance, \"ramen\" and \"pho\" are both noodle soups, and \"sushi,\" \"biryani,\" \"risotto,\" and \"paella\" are all centered around a specific staple ingredient (rice or grains). \"Pizza,\" \"lasagna,\" and \"burrito\" can be seen as dishes that involve wrapping or layering ingredients.\n\nLet's group them based on these observations:\n\n1. **Noodle/Rice Bowls and Soups**: ramen, pho\n2. **Rice-based Dishes**: sushi, paella, biryani, risotto\n3. **Layered/Wrapped Dishes**: pizza, lasagna, burrito\n4. **Middle Eastern Dishes**: falafel, hummus\n5. **Pastry**: croissant\n\nThis grouping seems reasonable as it categorizes dishes based on their culinary characteristics or geographical origins. Now, let's format the response as requested:\n\n{\"piles\": [[\"ramen\", \"pho\"], [\"sushi\", \"paella\", \"biryani\", \"risotto\"], [\"pizza\", \"lasagna\", \"burrito\"], [\"falafel\", \"hummus\"], [\"croissant\"]]}",
+    "thinking_verbatim": "",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "prompt_version": "v1"
+  },
+  "pile_interview": {
+    "prompt_verbatim": "You previously sorted items into the following groups. For each group,\nprovide a short label (2-5 words) that describes the organizing principle\n\u2014 what the items in that group have in common.\n\nGroup 1: ramen, pho\nGroup 2: sushi, paella, biryani, risotto\nGroup 3: pizza, lasagna, burrito\nGroup 4: falafel, hummus\nGroup 5: croissant\n\nRespond with one label per group, numbered to match the groups above.\n",
+    "response_verbatim": "1. Noodle Soups\n2. Rice Dishes\n3. Stuffed Flatbreads/Wraps\n4. Middle Eastern Snacks\n5. Flaky Pastry",
+    "thinking_verbatim": "",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "prompt_version": "v1"
+  },
+  "provenance": {
+    "provider_request_id": "gen-1781188194-vrzfgTczf2kFH2qOLYWr",
+    "model_id": "meta-llama/llama-4-maverick",
+    "model_version_returned": "meta-llama/llama-4-maverick-17b-128e-instruct",
+    "provider": "openrouter",
+    "domain_slug": "food",
+    "run_index": 0,
+    "collection_date": "2026-06-11T14:30:00.161022",
+    "sha256_manifest": {
+      "freelist_prompt": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "freelist_response": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+      "pilesort_prompt": "6c2a9b6fd070b3b954e7f35d45c3669f944089dfc73f08e20152a8047c11a8ee",
+      "pilesort_response": "6bd5d614ad049935feb4985334bac45187a63596d0d6d7570652bd8c11c43d01",
+      "interview_prompt": "51ec1e978fd645885eb616566faf4eea460ed5d124ef97a9d5e20624f58fb5e9",
+      "interview_response": "6ac427e410af1b646087088e08f3f0141b32dce5e1963340b7bcb84a44033cfd",
+      "request_params": "a947b55d8e8234b6bdc9cc15f2cc225ce89bfdd3778d364d2e9bdf2dfb6bba4b",
+      "informant_record_total": "a0b9a3d16990c3a01814c104fc1b9409f23cfe2725a7ab7dcec74a5c12d9b9f8"
+    }
+  }
+}

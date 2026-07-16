@@ -433,6 +433,37 @@ export const BLOCK_DETAIL_PROVENANCE_NOTE =
   "and the provider-returned model-version string. They are properties of the LSB pipeline run, " +
   "not of the model's intent.";
 
+// ===== Fable-5 behavioral-context disclosure (batch A promotion, 2026-07-13) =====
+// Two constants bound by CDA SME batch A promotion verdict ruling E
+// (docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md).
+// Both render as p.failures-findings__impact paragraphs via FableDisclosureNote.
+// Conditional on model_id === 'claude-fable-5' in fetched data (§19.20).
+// Do NOT paraphrase. Byte-identity assertion in FailuresFindings.test.tsx enforces this.
+
+/**
+ * BA-FABLE-FRAMING (binding, CDA SME verbatim, batch A promotion 2026-07-13).
+ * Framing sentence preceding FABLE_DISCLOSURE_BOUND on each placement.
+ * Avoids agentic attribution; load-bearing noun is "mechanism".
+ */
+export const FABLE_DISCLOSURE_FRAMING =
+  "The claude-fable-5 counts shown on this panel are a product of the mechanism described immediately below.";
+
+/**
+ * 2026-07-10 (d) bound string (CDA SME verbatim, Fable disposition verdict).
+ * Source: docs/status/2026-07-10-batchA-fable5-refusal-cda-sme-verdict.md ruling (d).
+ * Cited in batch A promotion verdict ruling E.
+ * Follows FABLE_DISCLOSURE_FRAMING on all six placements (failures + records
+ * surfaces for family, holidays, and food).
+ */
+export const FABLE_DISCLOSURE_BOUND =
+  "The provider's deployment-side output filter returned empty content" +
+  " (stop_reason=refusal) for 22 of 23 free-list elicitation attempts on" +
+  " claude-fable-5 in batch A. Under identical prompts collected the same hour," +
+  " claude-opus-4-8 and claude-sonnet-5 completed the same elicitations with zero" +
+  " refusals. The pattern is a property of claude-fable-5's deployment configuration," +
+  " not of its training corpus, and does not license any claim about" +
+  " claude-fable-5's categorical structure for family or holidays.";
+
 // ===== Chart-to-record provenance pivot (G7-FOLLOWUP-T1, 2026-06-11) =====
 // All four constants below are byte-identical to the CDA SME bound strings
 // delivered in .claude/agent-memory/cda_sme/project_g7_followup_t1_sme_bound_strings.md.

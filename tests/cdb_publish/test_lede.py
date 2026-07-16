@@ -3,7 +3,7 @@
 No real API calls. All tests use fixtures from data/results/ or
 synthetic DomainResult objects. See CLAUDE.md §6 R9.
 
-Test plan (12 tests):
+Test plan (15 tests):
   1. Real-corpus family (STRONG_CONSENSUS, all R1-a) → homogeneous pattern
   2. Real-corpus holidays (STRONG_CONSENSUS, 2 R1-b) → with_low_oci pattern
   3. Synthetic STRONG_CONSENSUS majority-R1-b → majority_low_oci pattern
@@ -16,6 +16,10 @@ Test plan (12 tests):
   10. Vocabulary discipline: no §1.5.4 / T9 / T14 forbidden phrases across all patterns
   11. Determinism: same fixture → byte-identical output on two calls
   12. No-LLM-imports: lede.py source text does not import forbidden libraries
+  13. (Gap-fill) WEAK_CONSENSUS with R1-b models → still routes to weak_consensus
+  14. (Gap-fill) n_low_oci=1 singular count in with_low_oci pattern
+  15. Real-corpus food v0.3 (consensus_type_override set) → F3-V3-A verbatim lede
+      (CDA SME ruling B, batch A, docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md)
 
 See docs/status/2026-05-09-phase5-architect-plan.md §4 T2 and
 CDA SME plan-level verdict Q1–Q5.
@@ -732,4 +736,50 @@ def test_strong_consensus_with_low_oci_singular_count() -> None:
     )
     assert "confidence ellipse" in lede, (
         f"Expected 'confidence ellipse' in with_low_oci lede; got: {lede!r}"
+    )
+
+
+# ---------------------------------------------------------------------------
+# Test 15 — Real corpus: food v0.3 (WEAK_CONSENSUS override, F3-V3-A verbatim)
+# ---------------------------------------------------------------------------
+
+# F3-V3-A verbatim binding string (CDA SME ruling B, batch A, 2026-07-13).
+# ANY edit requires a fresh CDA SME pass.
+_F3_V3_A = (
+    "The food domain sits at the boundary between shared categorical structure"
+    " and weaker agreement. The point estimate is on the strong-consensus side of"
+    " our threshold by a hair, but most bootstrap replicates land below it and"
+    " the interval crosses. The honest read is that strong agreement is not"
+    " established at this collection width."
+)
+
+
+def test_food_v03_weak_consensus_override_generates_f3_v3_a() -> None:
+    """Food v0.3 with consensus_type_override set → byte-identical F3-V3-A lede.
+
+    The food v0.3 result carries consensus_type_override = "WEAK_CONSENSUS"
+    (CDA SME ruling A, batch A) and analysis_version = "0.3". The lede
+    selector matches the weak_consensus_with_straddling_ci_food_v03 pattern
+    and the _format_lede verbatim guard produces F3-V3-A byte-identical.
+
+    Gate: docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md ruling B.
+    """
+    food_v03_path = _RESULTS_DIR / "food" / "0.3.json"
+    result = DomainResult.model_validate_json(food_v03_path.read_text(encoding="utf-8"))
+
+    # Verify preconditions
+    assert result.domain_slug == "food", f"Expected domain_slug='food'; got {result.domain_slug!r}"
+    assert result.analysis_version == "0.3", (
+        f"Expected analysis_version='0.3'; got {result.analysis_version!r}"
+    )
+    assert result.consensus_type_override is not None, (
+        "Expected consensus_type_override to be set on food v0.3 result; got None"
+    )
+
+    lede = generate_lede(result)
+
+    assert lede == _F3_V3_A, (
+        f"Food v0.3 lede is not byte-identical to F3-V3-A.\n"
+        f"Expected: {_F3_V3_A!r}\n"
+        f"Got:      {lede!r}"
     )

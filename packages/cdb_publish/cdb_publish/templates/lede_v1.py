@@ -152,4 +152,20 @@ PATTERNS: dict[str, str] = {
         " that the strength of agreement is not nailed down at this collection"
         " width."
     ),
+
+    # ----------------------------------------------------------------
+    # FOOD v0.3 WEAK_CONSENSUS with straddling CI override.
+    # F3-V3-A verbatim from CDA SME batch A promotion verdict 2026-07-13.
+    # Source: docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md
+    # Domain-scoped per SME P8 binding: this key is NOT generalized.
+    # Successor to weak_consensus_with_straddling_ci_food_v02 for the v0.3 slate.
+    # Any edit to this string requires a fresh CDA SME pass per CLAUDE.md §6 R7.
+    # ----------------------------------------------------------------
+    "weak_consensus_with_straddling_ci_food_v03": (
+        "The food domain sits at the boundary between shared categorical structure"
+        " and weaker agreement. The point estimate is on the strong-consensus side of"
+        " our threshold by a hair, but most bootstrap replicates land below it and"
+        " the interval crosses. The honest read is that strong agreement is not"
+        " established at this collection width."
+    ),
 }

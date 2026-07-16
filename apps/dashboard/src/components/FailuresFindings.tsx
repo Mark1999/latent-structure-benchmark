@@ -40,6 +40,8 @@ import {
   IMPACT_PARAGRAPH_FAILURES,
   IMPACT_PARAGRAPH_FOLLOWUPS,
   TAXONOMY_BLOCK,
+  FABLE_DISCLOSURE_FRAMING,
+  FABLE_DISCLOSURE_BOUND,
   SECTION_HEADING,
   BADGE_FAILURE,
   BADGE_DECLINE,
@@ -163,6 +165,25 @@ function isDeclineInterviewRecord(r: FailuresRecord): r is DeclineInterviewRecor
 /** Format a collection_date ISO string as YYYY-MM-DD. */
 function formatDate(isoDate: string): string {
   return isoDate.slice(0, 10);
+}
+
+// ===== Behavioral-context disclosure component (DESIGN_SYSTEM.md §19.20) =====
+
+/**
+ * FableDisclosureNote renders a two-paragraph behavioral-context disclosure
+ * when claude-fable-5 data is present on the failures or records surface.
+ * Both paragraphs use className="failures-findings__impact".
+ * Source: CDA SME ruling E (bound string 2026-07-10 (d)) / UI/UX ruling 3.
+ * Strings are FABLE_DISCLOSURE_FRAMING (BA-FABLE-FRAMING) and
+ * FABLE_DISCLOSURE_BOUND from failures_findings.ts.
+ */
+function FableDisclosureNote() {
+  return (
+    <>
+      <p className="failures-findings__impact">{FABLE_DISCLOSURE_FRAMING}</p>
+      <p className="failures-findings__impact">{FABLE_DISCLOSURE_BOUND}</p>
+    </>
+  );
 }
 
 // ===== Attempts block sub-component (CR-T8, §19.18) =====
@@ -602,6 +623,12 @@ export function FailuresFindings({
               ) : null;
             })()}
 
+            {/* Fable behavioral-context disclosure (DESIGN_SYSTEM.md §19.20, UI/UX ruling 3).
+                Renders after counts caption, before records list, when claude-fable-5 is present. */}
+            {data.records.some(r => r.model_id === 'claude-fable-5') && (
+              <FableDisclosureNote />
+            )}
+
             {/* Records list or empty state */}
             {data.n_records === 0 ? (
               /* Empty state (T10 S2 verbatim / AC9) — first-class, not a defect */
@@ -918,6 +945,12 @@ function RecordsSummarySection({
         <p className="failures-findings__pivot-arrival-notice">
           {arrivalNotice.text}
         </p>
+      )}
+
+      {/* Fable behavioral-context disclosure (DESIGN_SYSTEM.md §19.20, UI/UX ruling 3).
+          Renders before the summary table when claude-fable-5 is present in by_model. */}
+      {data.by_model.some(r => r.model_id === 'claude-fable-5') && (
+        <FableDisclosureNote />
       )}
 
       {/* Per-model table or zero-runs empty state (AC7, AC8) */}

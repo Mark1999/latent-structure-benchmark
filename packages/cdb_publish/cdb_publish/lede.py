@@ -111,14 +111,22 @@ def _select_pattern(result: DomainResult) -> str:
     3. WEAK_CONSENSUS, SUBCULTURAL, TURBULENT, CONTESTED — one branch each.
     """
     # --- override check (step 0) ---
-    # For food v0.2, the SME has issued a domain-scoped pattern key.
-    # The pattern key is intentionally domain-scoped per SME P8 binding.
+    # For food v0.2 and v0.3, the SME has issued domain-scoped pattern keys.
+    # The pattern keys are intentionally domain-scoped per SME P8 binding.
+    # Batch A promotion (2026-07-13) adds the v0.3 check alongside v0.2.
     if (
         result.consensus_type_override is not None
         and result.domain_slug == "food"
         and result.analysis_version == "0.2"
     ):
         return "weak_consensus_with_straddling_ci_food_v02"
+
+    if (
+        result.consensus_type_override is not None
+        and result.domain_slug == "food"
+        and result.analysis_version == "0.3"
+    ):
+        return "weak_consensus_with_straddling_ci_food_v03"
 
     # --- all-deterministic check (also catches consensus_type="DETERMINISTIC") ---
     if result.consensus_type == "DETERMINISTIC" or _all_deterministic(result):
@@ -173,10 +181,16 @@ def _format_lede(
     The all_deterministic pattern has no numeric placeholders; it is
     returned verbatim (byte-identical to DESIGN_SYSTEM.md §3.3.5 item 6).
     """
-    if pattern_name in ("all_deterministic", "weak_consensus_with_straddling_ci_food_v02"):
+    if pattern_name in (
+        "all_deterministic",
+        "weak_consensus_with_straddling_ci_food_v02",
+        "weak_consensus_with_straddling_ci_food_v03",
+    ):
         # Verbatim copy — no substitution needed.
-        # weak_consensus_with_straddling_ci_food_v02 carries the F3-R3-A string
-        # byte-identical per CDA SME binding (PROMOTE-FOOD-V02 plan §5).
+        # weak_consensus_with_straddling_ci_food_v02 carries F3-R3-A byte-identical
+        # per CDA SME binding (PROMOTE-FOOD-V02 plan §5).
+        # weak_consensus_with_straddling_ci_food_v03 carries F3-V3-A byte-identical
+        # per CDA SME batch A promotion verdict 2026-07-13.
         return template
 
     n = len(result.mds_coordinates)

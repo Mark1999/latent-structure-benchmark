@@ -73,6 +73,8 @@ import {
   IMPACT_PARAGRAPH_FAILURES,
   IMPACT_PARAGRAPH_FOLLOWUPS,
   TAXONOMY_BLOCK,
+  FABLE_DISCLOSURE_FRAMING,
+  FABLE_DISCLOSURE_BOUND,
   RECORDS_SECTION_HEADING,
   RECORDS_FETCH_FAILED_TEXT,
   countsCaptionText,
@@ -101,6 +103,22 @@ import familyJson from '../../public/data/failures/family.json';
 import foodJson from '../../public/data/failures/food.json';
 import recordsFamilyJson from '../../public/data/records/family.json';
 import recordsFoodJson from '../../public/data/records/food.json';
+
+/**
+ * Synthetic empty-food fixture: n_records=0, no failure records.
+ * Used by tests that assert empty-state behavior (EMPTY_CAPTION, zero <details>).
+ * Replace direct foodJson usage in empty-state tests because the production
+ * food.json now has records from the batch A campaign.
+ */
+const syntheticEmptyFoodJson = {
+  domain_slug: 'food',
+  generated_at: '2026-01-01T00:00:00.000Z',
+  n_records: 0,
+  n_failure_records: 0,
+  n_decline_interview_records: 0,
+  framing_note: foodJson.framing_note,
+  records: [],
+};
 
 // -- Fetch mock helpers ---------------------------------------------------------
 
@@ -297,11 +315,11 @@ describe('FailuresFindings', () => {
   });
 
   // 8. Empty state (food): verbatim EMPTY_CAPTION + zero <details> (AC9 / plan §8 case 8)
-  // Serves food fixture as the initial family fetch so the component immediately
-  // enters the empty-state branch (n_records === 0).
+  // Uses syntheticEmptyFoodJson (n_records=0) because the production food.json
+  // now has records from batch A; empty-state behavior is asserted via the synthetic fixture.
   it('empty state: EMPTY_CAPTION verbatim and zero <details> elements (food fixture)', async () => {
-    // Queue foodJson for the failures fetch, recordsFoodJson for records.
-    mockFetchBoth(foodJson, recordsFoodJson);
+    // Queue syntheticEmptyFoodJson for the failures fetch, recordsFoodJson for records.
+    mockFetchBoth(syntheticEmptyFoodJson, recordsFoodJson);
     const { container } = render(<FailuresFindings />);
 
     await waitFor(() => {
@@ -387,8 +405,9 @@ describe('FailuresFindings', () => {
   });
 
   // 12. Empty-state path (food) also renders the impact paragraph (CR-T1 AC3 / AC7)
+  // Uses syntheticEmptyFoodJson (n_records=0); production food.json has records now.
   it('empty state (food fixture): IMPACT_PARAGRAPH_FAILURES renders (CR-T1 AC3)', async () => {
-    mockFetchBoth(foodJson, recordsFoodJson);
+    mockFetchBoth(syntheticEmptyFoodJson, recordsFoodJson);
     render(<FailuresFindings />);
     await waitFor(() => {
       expect(screen.getByText(IMPACT_PARAGRAPH_FAILURES)).toBeInTheDocument();
@@ -416,9 +435,9 @@ describe('FailuresFindings', () => {
   });
 
   // 15. Follow-up impact paragraph does NOT render when no decline_interview records present (CR-T2 AC6)
-  // food fixture has n_records === 0 so no decline_interview records exist.
+  // syntheticEmptyFoodJson has n_records=0 so no decline_interview records exist.
   it('IMPACT_PARAGRAPH_FOLLOWUPS absent when no decline_interview records present (CR-T2 AC6)', async () => {
-    mockFetchBoth(foodJson, recordsFoodJson);
+    mockFetchBoth(syntheticEmptyFoodJson, recordsFoodJson);
     render(<FailuresFindings />);
     await waitFor(() => {
       expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
@@ -465,8 +484,9 @@ describe('FailuresFindings', () => {
   });
 
   // 18. Taxonomy block renders in the food empty-state path (n_records === 0) (CR-T3 AC5)
+  // syntheticEmptyFoodJson has n_records=0; production food.json has records now.
   it('taxonomy block heading renders in food empty-state path (CR-T3 AC5)', async () => {
-    mockFetchBoth(foodJson, recordsFoodJson);
+    mockFetchBoth(syntheticEmptyFoodJson, recordsFoodJson);
     render(<FailuresFindings />);
     await waitFor(() => {
       expect(screen.getByText(EMPTY_CAPTION)).toBeInTheDocument();
@@ -506,8 +526,9 @@ describe('FailuresFindings', () => {
     });
   });
 
-  // 22. All 17 family model_id values render as <code> elements in row order (CR-T5 AC13)
-  it('all 17 family model_id values render in <code> elements in by_model order (CR-T5 case 22)', async () => {
+  // 22. All family model_id values render as <code> elements in row order (CR-T5 AC13)
+  // Count is dynamically read from the fixture (was 17 before batch A; now 25).
+  it('all family model_id values render in <code> elements in by_model order (CR-T5 case 22)', async () => {
     mockFetchBoth(familyJson, recordsFamilyJson);
     const { container } = render(<FailuresFindings />);
     await waitFor(() => {
@@ -522,9 +543,9 @@ describe('FailuresFindings', () => {
     const codeEls = Array.from(tableSection!.querySelectorAll('table code'));
     const codeTexts = codeEls.map((el) => el.textContent ?? '');
 
-    // Verify all 17 model_id values appear (in order by checking first occurrence)
+    // Verify all model_id values appear (count driven by fixture, not hardcoded)
     const expectedModelIds = recordsFamilyJson.by_model.map((row) => row.model_id);
-    expect(expectedModelIds.length).toBe(17);
+    expect(expectedModelIds.length).toBeGreaterThan(0);
 
     // Each model_id must appear in a <code> element
     for (const modelId of expectedModelIds) {
@@ -536,8 +557,8 @@ describe('FailuresFindings', () => {
     // Find <code> elements that match model_ids (first code per row = model_id).
     // We check by filtering codes that are exact model_id matches.
     const modelIdCodes = codeTexts.filter((t) => expectedModelIds.includes(t));
-    // Should have at least 17 entries (some model_ids may also appear as model_version_returned)
-    expect(modelIdCodes.length).toBeGreaterThanOrEqual(17);
+    // Should have at least as many entries as there are models
+    expect(modelIdCodes.length).toBeGreaterThanOrEqual(expectedModelIds.length);
   });
 
   // 23. Zero-runs first-class state under by_model: [] fixture (CR-T5 AC8 / AC13)
@@ -601,8 +622,9 @@ describe('FailuresFindings', () => {
   });
 
   // 26. Records section renders BELOW EMPTY_CAPTION in DOM order (food fixture) (CR-T5 AC13)
+  // syntheticEmptyFoodJson has n_records=0 so EMPTY_CAPTION renders; records section must follow.
   it('records section renders below EMPTY_CAPTION in DOM order (CR-T5 case 26 / AC5)', async () => {
-    mockFetchBoth(foodJson, recordsFoodJson);
+    mockFetchBoth(syntheticEmptyFoodJson, recordsFoodJson);
     const { container } = render(<FailuresFindings />);
 
     await waitFor(() => {
@@ -669,10 +691,10 @@ describe('FailuresFindings', () => {
   });
 
   // 29. Counts caption cell (n_records === 0, parsed > 0): S-clause-only (CR-T6 AC5/AC7 + N3 cell 3)
-  // foodJson: n_records=0. recordsFoodJson: n_informants=45 > 0.
+  // syntheticEmptyFoodJson: n_records=0. recordsFoodJson: n_informants > 0.
   // Caption must render with only the S clause.
   it('S-clause-only caption when n_records === 0 and parsed > 0 (CR-T6 case 29 / N3 cell 3)', async () => {
-    mockFetchBoth(foodJson, recordsFoodJson);
+    mockFetchBoth(syntheticEmptyFoodJson, recordsFoodJson);
     render(<FailuresFindings />);
     await waitFor(() => {
       // Wait for records side to resolve
@@ -680,9 +702,9 @@ describe('FailuresFindings', () => {
     });
 
     const expectedCaption = countsCaptionText(
-      foodJson.n_records,
-      foodJson.n_failure_records,
-      foodJson.n_decline_interview_records,
+      syntheticEmptyFoodJson.n_records,
+      syntheticEmptyFoodJson.n_failure_records,
+      syntheticEmptyFoodJson.n_decline_interview_records,
       recordsFoodJson.n_informants,
     );
     // S-clause-only template: "{S} parsed primary-step responses."
@@ -728,7 +750,7 @@ describe('FailuresFindings', () => {
   });
 
   // 31. Counts caption cell (n_records === 0, parsed === 0): caption paragraph NOT in DOM (CR-T6 N10 BINDING)
-  // foodJson: n_records=0. Mocked records with n_informants=0 and by_model:[].
+  // syntheticEmptyFoodJson: n_records=0. Mocked records with n_informants=0 and by_model:[].
   it('caption paragraph absent when both n_records === 0 and parsed === 0 (CR-T6 case 31 / N3 cell 4 / N10)', async () => {
     const zeroRecords = {
       domain_slug: 'food',
@@ -737,7 +759,7 @@ describe('FailuresFindings', () => {
       by_model: [],
       framing_note: recordsFamilyJson.framing_note,
     };
-    mockFetchBoth(foodJson, zeroRecords);
+    mockFetchBoth(syntheticEmptyFoodJson, zeroRecords);
     const { container } = render(<FailuresFindings />);
     await waitFor(() => {
       // Wait for both sides to resolve
@@ -809,7 +831,7 @@ describe('FailuresFindings', () => {
       expect.anything(),
     );
 
-    // Switch to food
+    // Switch to food, use syntheticEmptyFoodJson so EMPTY_CAPTION triggers
     fetchSpy.mockImplementation((url: RequestInfo | URL) => {
       const urlStr = typeof url === 'string' ? url : url.toString();
       if (urlStr.includes('/data/records/')) {
@@ -820,7 +842,7 @@ describe('FailuresFindings', () => {
       }
       return Promise.resolve({
         ok: true,
-        json: async () => foodJson,
+        json: async () => syntheticEmptyFoodJson,
       } as Response);
     });
 
@@ -1479,6 +1501,68 @@ describe('FailuresFindings', () => {
         expect(str).not.toMatch(pattern);
       }
     }
+  });
+
+  // 53. FableDisclosureNote renders on failures surface and records surface when
+  //     claude-fable-5 is present in fetched data. (DESIGN_SYSTEM.md §19.20, batch A)
+  it('case 53: FableDisclosureNote renders FABLE_DISCLOSURE_FRAMING and FABLE_DISCLOSURE_BOUND when claude-fable-5 in failures data', async () => {
+    // Minimal failures fixture containing a claude-fable-5 failure record
+    const fableFailuresFile = {
+      domain_slug: 'family',
+      framing_note: 'fixture framing note for fable test',
+      n_records: 1,
+      n_failure_records: 1,
+      n_decline_interview_records: 0,
+      records: [{
+        record_type: 'failure',
+        model_id: 'claude-fable-5',
+        collection_date: '2026-07-13T00:00:00Z',
+        error_type: 'refusal',
+        error_message: 'stop_reason=refusal',
+        run_index: 0,
+        originating_outcome_class: null,
+        retry_attempts: null,
+      }],
+    };
+    // Minimal records summary with claude-fable-5 in by_model
+    const fableRecordsSummary = {
+      domain_slug: 'family',
+      generated_at: '2026-07-13T00:00:00Z',
+      n_informants: 1,
+      framing_note: 'fixture framing note for fable records test',
+      by_model: [{
+        model_id: 'claude-fable-5',
+        provider: 'anthropic',
+        n_runs: 1,
+        n_qa_passed: 0,
+        model_version_returned: 'claude-fable-5-fixture',
+        model_version_returned_count: 1,
+      }],
+    };
+    mockFetchBoth(fableFailuresFile, fableRecordsSummary);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      // failures surface: FableDisclosureNote renders two .failures-findings__impact paragraphs
+      // (in addition to the pre-existing IMPACT_PARAGRAPH_FAILURES paragraph, which is a third)
+      const impacts = container.querySelectorAll('p.failures-findings__impact');
+      const texts = Array.from(impacts).map((el) => el.textContent ?? '');
+      expect(texts).toContain(FABLE_DISCLOSURE_FRAMING);
+      expect(texts).toContain(FABLE_DISCLOSURE_BOUND);
+    });
+  });
+
+  // 54. FableDisclosureNote absent when claude-fable-5 is NOT in failures or records data.
+  it('case 54: FableDisclosureNote absent when claude-fable-5 not in failures data', async () => {
+    // familyJson (production fixture) predates batch A and contains no claude-fable-5 records
+    mockFetchBoth(familyJson, recordsFamilyJson);
+    const { container } = render(<FailuresFindings />);
+    await waitFor(() => {
+      // All .failures-findings__impact paragraphs that render should NOT contain fable strings
+      const impacts = container.querySelectorAll('p.failures-findings__impact');
+      const texts = Array.from(impacts).map((el) => el.textContent ?? '');
+      expect(texts).not.toContain(FABLE_DISCLOSURE_FRAMING);
+      expect(texts).not.toContain(FABLE_DISCLOSURE_BOUND);
+    });
   });
 });
 

@@ -1,7 +1,7 @@
 # Latent Structure Benchmark (LSB) — Design System & UI Specification
 
 **Document name:** DESIGN_SYSTEM.md  
-**Version:** v0.24.0  
+**Version:** v0.25.0  
 **Status:** Draft -- for review by Mark and Opus Architect agent  
 **Audience:** UI/UX Agent, Coder agent, Reviewer agent, Mark  
 **Companion docs:** `ARCHITECTURE.md` (v0.7+), `CLAUDE.md`
@@ -9,6 +9,7 @@
 **This document is binding on all frontend work.** The Reviewer agent must reject any component that contradicts it. The UI/UX agent owns this document and must be consulted before any visual decision is made by the Coder agent.
 
 **Changelog:**
+- **v0.25.0** (Batch A promotion copy pass, 2026-07-13) adds §25 documenting the batch A promotion copy patterns. Updates §6.1 (methodology page section inventory gains "Informant-class QA calibration" between sections 5 and 6). Adds §19.20 (behavioral-context disclosure note pattern, FableDisclosureNote component). Amends §23.2 (adds _V{NN} versioning convention for consensus_disclosure.ts constants). Adds §23.4 (versioned methodology footnote anchors). No new tokens. No new CSS classes (Fable disclosure reuses .failures-findings__impact; QA footnote reuses .methodology-page__text). All tokens confirmed present in tokens.css. WCAG AA: .failures-findings__impact via --color-text-primary (~7:1 PASS); .methodology-page__text confirmed compliant. Gate verdicts: CDA SME PASS-WITH-NOTES (docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md); UI/UX PASS-WITH-NOTES (docs/status/2026-07-13-batchA-promotion-uiux-verdict.md).
 - **v0.24.0** (OBSERVATORY-RENAME public copy pass, 2026-06-16) renames the instrument from "the Latent Structure Benchmark" to "the Cognitive Structure Observatory" in public dashboard copy. NavBar brand span changes from `/ LSB` to `/ Observatory` (Option B, UI/UX N7 ruling); no CSS, class, or token changes. Copy substitutions in MethodologyPage.tsx (intro, what-if sentence, LSB-runs line, generic-benchmark line, benchmark-can-show line), AboutPage.tsx (paragraph 6 subject and disclaim sentence), and DataPage.tsx (N3 renewal note in Section D). AboutPage.test.tsx updated in lockstep with prose (N2 binding). Adds §24 documenting the NavBar brand treatment. Updates §22.1 positioning sentence ("benchmark" to "Observatory"). FROZEN: minted bundle name, Zenodo DOI, B2/HF/GitHub URLs, SHA256, CITATION_FIRST_LINE, failures_findings.ts LSB pipeline-actor tokens. No new tokens, no new CSS classes, no new components. Gate verdicts: CDA SME PASS-WITH-NOTES (docs/status/2026-06-12-observatory-rename-verdicts.md); UI/UX PASS-WITH-NOTES (docs/status/2026-06-12-observatory-rename-verdicts.md).
 - **v0.23.0** (PROMOTE-FOOD-V02 visual disclosure patterns, 2026-06-11) adds §23 specifying three new visual patterns required for the food v0.2 promotion: (a) §23.1 consensus-type override badge (`.content-area__override-badge`) with left-accent `--color-warning` border treatment, `--color-text-primary` text, `--color-surface` background, and methodology-page deep-link anchor; (b) §23.2 CI-disclosure line (`.content-area__ci-disclosure`) and small-n line (`.content-area__small-n-line`) both using `--color-text-caption` at `--font-size-xs`, with byte-identical F3-R3-C and F3-R3-D display strings sourced from a dedicated copy module; (c) §23.3 SimilarityHeatmap model-exclusion caption (`.heatmap-exclusion-caption`) rendered in ContentArea.tsx below the heatmap, using `displayModel()` in visible text and full `model_id` in aria-label per §18.5. No new CSS custom properties. All tokens confirmed present in `tokens.css`. WCAG AA: override badge text 12.34:1 PASS; CI-disclosure and small-n lines 4.60:1 PASS; exclusion caption 4.60:1 PASS. CDA SME PASS-WITH-NOTES (`docs/status/2026-06-11-promote-food-v02-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-11-promote-food-v02-uiux-verdict.md`).
 - **v0.22.0** (F5-T1 degenerate bootstrap ellipse converged-state treatment, 2026-06-11) adds implementation requirement 12 to §3.3.5, documenting the R1-a degenerate-bootstrap sub-state (semi_major <= 0) as the LIMIT case of a high-stability R1-a sample where the bootstrap converged on a near-point. Visual treatment: minimum-radius ellipse floor (rx=3, ry=3 px) rendered at the data point, same fill/stroke/opacity as standard R1-a ellipse, tagged data-degenerate-bootstrap="true". Dot marker: same circle as standard R1-a but additionally carries data-r1-state="typical_concentration", data-degenerate-bootstrap="true", and S2 aria-label. MDSPlot tooltip shows S1 (UI/UX-corrected) body for degenerate models. S3 disclosure threads through .term-dot aria-label in TermMap (NOT .term-ellipse, which has pointer-events=none). S4 disclosure threads through family-member inner circle in Focus2FamilySimilarity. Three components updated: MDSPlot.tsx, TermMap.tsx, Focus2FamilySimilarity.tsx. No new tokens. WCAG AA: minimum-radius ellipse uses same provider color token as standard R1-a ellipse (3:1 graphical-object contrast confirmed by existing T15 token audit). CDA SME PASS-WITH-NOTES (S1-S4 bound strings, B1-B10 binding notes; `.claude/agent-memory/cda_sme/project_f5_degenerate_ellipse_verdict.md`); UI/UX PASS-WITH-NOTES (minimum-radius option (a) selected, impl req 12 this update, S1 corrected per §3.3.5 impl req 5 removing "R1-a sample" jargon). Gate verdicts: docs/status/2026-06-10-codebase-review-fixes-verdicts.md F5 section.
@@ -927,6 +928,14 @@ The methodology page is a first-class deliverable, not an afterthought. It is wr
      categorize, in a way that's reproducible, comparable across models, and
      trackable across time." (Quotable; source: `ARCHITECTURE.md` §1.5)
    — "The mismatch is the finding" framing (`ARCHITECTURE.md` §1.5.2 / §1.5.6)
+
+5a. Informant-class QA calibration (BA-QA-FN, 2026-07-13)
+   - Standalone section between "Uncertainty and failure" and "What this does not measure"
+   - Markup: section aria-labelledby="informant-class-qa-calibration-heading", h2
+     id="informant-class-qa-calibration-heading" className="methodology-page__heading",
+     BA-QA-FN verbatim in one p.methodology-page__text
+   - Text bound by CDA SME ruling D (docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md)
+   - No new CSS classes or tokens; reuses .methodology-page__section and .methodology-page__text
 
 6. Known limitations
    — English-only v1
@@ -3727,6 +3736,31 @@ Existing MDSPlot test suite byte-untouched (R1-a/R1-b/R1-c markers, ellipse logi
 
 ---
 
+### 19.20 Behavioral-context disclosure note (FableDisclosureNote) (binding, batch A, 2026-07-13)
+
+**Purpose:** When a collection batch includes a model whose records reflect a provider deployment-side behavioral configuration rather than the model's training corpus pattern, a two-paragraph disclosure note must be visible on first render of any panel where that model's row appears, above the row, without requiring user interaction.
+
+**Trigger:** model_id equality check against fetched data (no hardcoded domain name). Condition on failures surface: `data.records.some(r => r.model_id === 'claude-fable-5')`. Condition on records surface: `data.by_model.some(r => r.model_id === 'claude-fable-5')`. When the condition is false, the component renders nothing.
+
+**Component:** `FableDisclosureNote` (functional, no props). Renders two paragraphs using `.failures-findings__impact` on each. Framing sentence first (FABLE_DISCLOSURE_FRAMING), bound string second (FABLE_DISCLOSURE_BOUND).
+
+**Placement (binding):**
+- Failures surface: immediately before the failures records list (or before the empty-state paragraph when `n_records === 0`), after the counts caption paragraph.
+- Records surface: immediately before the per-model summary table (or the zero-runs empty-state paragraph), after the `framing_note` paragraph and any arrival notice.
+- Visible on first render without scroll.
+
+**CSS:** reuses `.failures-findings__impact` (existing class, tokens confirmed present). No new classes, no new tokens.
+
+**Copy module:** `apps/dashboard/src/copy/failures_findings.ts` exports `FABLE_DISCLOSURE_FRAMING` (BA-FABLE-FRAMING verbatim) and `FABLE_DISCLOSURE_BOUND` (2026-07-10 (d) bound string verbatim). Both are bound by CDA SME ruling E (docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md). Any edit requires a fresh CDA SME pass.
+
+**WCAG AA (confirmed):** `.failures-findings__impact` uses `--color-text-primary` (~7:1 on white). PASS.
+
+**Vitest tests:** at least one case asserting both paragraphs render when the fixture includes claude-fable-5 in data.records / data.by_model; at least one case asserting neither paragraph renders when claude-fable-5 is absent.
+
+**Gate verdicts:** CDA SME ruling E (docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md); UI/UX ruling 3 (docs/status/2026-07-13-batchA-promotion-uiux-verdict.md).
+
+---
+
 ## 20. Data Page visual specification (v0.16.0 — Phase 9a task 6, 2026-06-09)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-cda-sme-verdict.md`); UI/UX PASS-WITH-NOTES (`docs/status/2026-06-08-phase9a-data-tab-ui-ux-verdict.md`).
@@ -3973,11 +4007,14 @@ The `aria-label` uses the plain string 'Classification override: WEAK_CONSENSUS'
 - `.content-area__ci-disclosure` -- for the CI-disclosure line
 - `.content-area__small-n-line` -- for the small-n line
 
-**Byte-identical display strings (binding, CDA SME F3-R3-C and F3-R3-D verbatim):**
-- `CI_DISCLOSURE_TEXT` (F3-R3-C): 'Romney CCM eigenratio 9.48, 95 percent bootstrap interval [4.91, 10.34], B=500. The interval crosses the 5.0 strong/weak threshold.'
-- `SMALL_N_TEXT` (F3-R3-D): 'The slate is 12 models, below the 15-model floor where Romney CCM eigenratios become statistically reliable. Read the classification with that floor in mind.'
+**_V{NN} versioning convention (added v0.25.0, binding):** Constants in `consensus_disclosure.ts` that carry bound CI-disclosure strings use a `_V{NN}` suffix to version them independently of `SMALL_N_TEXT` (which is not versioned). Prior versioned constants are retained verbatim for citation stability: any citation to a prior string (e.g., in a paper citing F3-R3-C) must continue to resolve to the same bytes. `ContentArea.tsx` always imports the highest-version constant in active use. Tests assert byte-identity per versioned constant independently. The rename from the bare `CI_DISCLOSURE_TEXT` name to `CI_DISCLOSURE_TEXT_V02` is a one-time historical rename at v0.25.0 to establish the pattern; `CI_DISCLOSURE_TEXT_V02` is byte-identical to the prior `CI_DISCLOSURE_TEXT` and no downstream behavior changes.
 
-Both strings are exported from a dedicated copy module: `apps/dashboard/src/copy/consensus_disclosure.ts`.
+**Byte-identical display strings (binding, CDA SME verbatim):**
+- `CI_DISCLOSURE_TEXT_V02` (F3-R3-C, food v0.2): 'Romney CCM eigenratio 9.48, 95 percent bootstrap interval [4.91, 10.34], B=500. The interval crosses the 5.0 strong/weak threshold.'
+- `CI_DISCLOSURE_TEXT_V03` (F3-V3-C, food v0.3): 'Romney CCM eigenratio 5.44, 95 percent bootstrap interval [2.75, 10.25], B=500. The interval crosses the 5.0 strong/weak threshold and the median replicate sits below it.'
+- `SMALL_N_TEXT` (F3-R3-D, dormant post-promotion): 'The slate is 12 models, below the 15-model floor where Romney CCM eigenratios become statistically reliable. Read the classification with that floor in mind.'
+
+All strings exported from `apps/dashboard/src/copy/consensus_disclosure.ts`. ContentArea.tsx imports `CI_DISCLOSURE_TEXT_V03` for active food override-badge surfaces.
 
 **Implementation note on numeric sourcing (SME P1 / STOP-#5 resolution):** the eigenratio value '9.48' and the CI bracket '[4.91, 10.34]' in CI_DISCLOSURE_TEXT are CONSTANTS in the copy module, not computed from `domain.consensus_ci` at runtime. There is no `romney_eigenratio_ci` field in the schema. These numbers are inline constants that match the SME-bound F3-R3-C string byte-for-byte. The `consensus_ci` field on `DomainResultPublished` carries the CI on the consensus *score* (different quantity). Any attempt to derive the eigenratio CI from `consensus_ci` is INCORRECT and is a stop condition that routes back to the CDA SME.
 
@@ -4060,6 +4097,25 @@ The aria-label uses the FULL `model_id` ('meta-llama/llama-4-maverick'), not the
 
 ---
 
+### 23.4 Versioned methodology footnote anchors (binding, batch A, 2026-07-13)
+
+Each food-domain analysis version that publishes a straddling-CI classification has its own methodology footnote paragraph on `MethodologyPage.tsx`, with a unique `id` anchor for deep-linking from the override badge.
+
+**Anchor naming convention (binding):** `id="food-v{NN}-footnote"` where `{NN}` is the two-digit analysis version string (e.g., `"02"` for v0.2, `"03"` for v0.3).
+
+**Prior-version paragraphs are never removed (binding):** once a paragraph with `id="food-v{NN}-footnote"` is published, it remains in the DOM verbatim for citation stability. Any citation to `/methodology#food-v{NN}-footnote` must continue to resolve.
+
+**Badge deep-link always targets the current-version anchor (binding):** when a new analysis version supersedes the prior one, `ContentArea.tsx` updates the `href` on the methodology deep-link from the prior anchor to the current-version anchor. The prior anchor paragraph is retained below it.
+
+**Paragraph order in `food-methodology-footnotes` section:**
+1. FOOD-FIX-A mode-coherent basis paragraph (scoped with "(at v0.2)" in final sentence)
+2. `id="food-v02-footnote"` -- F3-R3-E verbatim (retained for citation stability)
+3. `id="food-v03-footnote"` -- F3-V3-E verbatim (current, CDA SME ruling B, 2026-07-13)
+
+**Gate verdicts:** UI/UX ruling 2 (docs/status/2026-07-13-batchA-promotion-uiux-verdict.md); CDA SME ruling B (docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md).
+
+---
+
 ## 24. NavBar brand treatment (v0.24.0, OBSERVATORY-RENAME, 2026-06-16)
 
 Gate verdicts: CDA SME PASS-WITH-NOTES; UI/UX PASS-WITH-NOTES (both: `docs/status/2026-06-12-observatory-rename-verdicts.md`).
@@ -4094,6 +4150,39 @@ The following are NOT changed by the NavBar brand update and must not be silentl
 
 ---
 
-*End of DESIGN_SYSTEM.md v0.24.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
+## 25. Batch A promotion copy patterns (v0.25.0, 2026-07-13)
+
+Gate verdicts: CDA SME PASS-WITH-NOTES (docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md); UI/UX PASS-WITH-NOTES (docs/status/2026-07-13-batchA-promotion-uiux-verdict.md).
+
+### 25.1 Summary
+
+The batch A (new-model-refresh-2026h2-a-20260710) promotion introduces bound copy strings across five surface areas. All strings are byte-identical to the CDA SME verdict bound text. No new tokens, no new CSS classes.
+
+### 25.2 Bound strings inventory (batch A)
+
+| ID | Surface | Source | Constant / anchor |
+|---|---|---|---|
+| F3-V3-A | Food v0.3 domain lede | SME ruling B | `lede_v1.py` pattern `weak_consensus_with_straddling_ci_food_v03` |
+| F3-V3-B | Food v0.3 override reason | SME ruling B | `data/results/food/0.3.json` `consensus_type_override_reason` |
+| F3-V3-C | Food v0.3 CI disclosure | SME ruling B | `CI_DISCLOSURE_TEXT_V03` in `consensus_disclosure.ts` |
+| F3-V3-E | Food v0.3 methodology footnote | SME ruling B | `id="food-v03-footnote"` in `MethodologyPage.tsx` |
+| BA-QA-FN | Methodology QA calibration | SME ruling D | `id="informant-class-qa-calibration-heading"` section in `MethodologyPage.tsx` |
+| BA-FABLE-FRAMING | Fable disclosure framing | SME ruling E | `FABLE_DISCLOSURE_FRAMING` in `failures_findings.ts` |
+| FABLE_DISCLOSURE_BOUND | Fable disclosure body | SME ruling E (2026-07-10 (d)) | `FABLE_DISCLOSURE_BOUND` in `failures_findings.ts` |
+| BA-PROV | Data provenance paragraph | SME ruling F | `data-provenance-heading` section in `DataPage.tsx` |
+| BA-TERMMAP-COUNTS | Term-map model counts | SME ruling G | `term-mds-heading` second sentence in `DataPage.tsx` |
+
+### 25.3 What is frozen (binding)
+
+- Bound string text is frozen by the CDA SME verdict. Any edit requires a fresh CDA SME pass.
+- `CI_DISCLOSURE_TEXT_V02` is retained byte-identical for citation stability (F3-R3-C source).
+- `SMALL_N_TEXT` is retained byte-identical and dormant (F3-R3-D; all three live domains post-promotion clear the 15-model floor; future domains or filtered subsets below n=15 will activate it).
+- The food v0.2 methodology footnote paragraph (`id="food-v02-footnote"`, F3-R3-E) is retained for citation stability.
+- The frozen lede-template shape (Phase 5 Q1-Q11) is not changed by this pass.
+- The analysis math is governed by rule 15 and is not changed by this pass.
+
+---
+
+*End of DESIGN_SYSTEM.md v0.25.0. This document is a living specification. Update it before building any new component that requires a visual decision not covered here.*
 
 *Binding rule: no visual decision is made by the Coder agent alone. If DESIGN_SYSTEM.md does not cover a case, the UI/UX agent resolves it before the Coder proceeds.*

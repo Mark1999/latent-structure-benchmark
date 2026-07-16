@@ -26,7 +26,8 @@
 import { render } from "@testing-library/react";
 import { ContentArea } from "../components/ContentArea";
 import { MethodologyPage } from "../components/MethodologyPage";
-import { CI_DISCLOSURE_TEXT, SMALL_N_TEXT } from "../copy/consensus_disclosure";
+import { CI_DISCLOSURE_TEXT_V02, CI_DISCLOSURE_TEXT_V03, SMALL_N_TEXT } from "../copy/consensus_disclosure";
+import { FABLE_DISCLOSURE_FRAMING, FABLE_DISCLOSURE_BOUND } from "../copy/failures_findings";
 import type { DomainExtended, PublishedModel } from "../data/types";
 
 // ---------------------------------------------------------------------------
@@ -73,6 +74,44 @@ const F3_R3_E =
   " A separate open question on how to canonicalize the published" +
   " eigenratio against its bootstrap distribution is tracked under" +
   " FOOD-FIX-A2.";
+
+// ---------------------------------------------------------------------------
+// F3-V3 binding strings (CDA SME adjudication batch A, 2026-07-13).
+// ANY edit to these constants requires a fresh CDA SME pass.
+// Source: docs/status/2026-07-13-batchA-promotion-cda-sme-verdict.md ruling B.
+// ---------------------------------------------------------------------------
+
+/** F3-V3-C: food v0.3 eigenratio CI disclosure line. */
+const F3_V3_C =
+  "Romney CCM eigenratio 5.44, 95 percent bootstrap interval [2.75, 10.25], B=500. The interval crosses the 5.0 strong/weak threshold and the median replicate sits below it.";
+
+/**
+ * F3-V3-E: food v0.3 methodology footnote. Must match MethodologyPage id="food-v03-footnote"
+ * paragraph text content verbatim (after whitespace normalization).
+ */
+const F3_V3_E =
+  "For the food domain at v0.3, the cross-model similarity basis is the" +
+  " 19-model approved slate. Two additional models present in the domain" +
+  " corpus are outside the v0.3 approved slate: meta-llama/llama-4-maverick," +
+  " which was outside the v0.2 mode-coherent similarity basis and is not" +
+  " on the v0.3 curator-maintained slate, and claude-fable-5, which is" +
+  " excluded from the batch A slate across all three domains under a" +
+  " separate ruling on provider deployment-side output filtering. At v0.3" +
+  " the approved-slate filter is applied to the record set before the" +
+  " analysis pipeline runs, so records from off-slate models do not enter" +
+  " the similarity basis, the model-level analyses, or the pooled term" +
+  " map for this domain; the raw records remain in the corpus and are" +
+  " visible on the collection-records and failures surfaces. This is a" +
+  " scope change from v0.2, where only the similarity basis was" +
+  " mode-filtered. The Romney CCM eigenratio is 5.44 with a 95 percent" +
+  " bootstrap interval of [2.75, 10.25] over B=500 model-resamples. The" +
+  " point estimate sits just above the 5.0 strong-consensus threshold," +
+  " the median bootstrap replicate sits below it, and 66 percent of" +
+  " replicates fall below the threshold. The classification is therefore" +
+  " published as weak-consensus with the indeterminacy disclosed rather" +
+  " than as strong-consensus with a hidden uncertainty caveat. A separate" +
+  " open question on how to canonicalize the published eigenratio against" +
+  " its bootstrap distribution remains tracked under FOOD-FIX-A2.";
 
 // ---------------------------------------------------------------------------
 // Minimal fixture helper for ContentArea
@@ -155,9 +194,14 @@ const BASE_PROPS = {
 // ---------------------------------------------------------------------------
 
 describe("PROMOTE-FOOD-V02 T2: F3-R3 binding string byte-identity", () => {
-  // ---- T2a: CI_DISCLOSURE_TEXT constant ----
-  it("T2a: CI_DISCLOSURE_TEXT module constant is byte-identical to F3-R3-C", () => {
-    expect(CI_DISCLOSURE_TEXT).toBe(F3_R3_C);
+  // ---- T2a: CI_DISCLOSURE_TEXT_V02 constant (food v0.2, retained for citation stability) ----
+  it("T2a: CI_DISCLOSURE_TEXT_V02 module constant is byte-identical to F3-R3-C (food v0.2)", () => {
+    expect(CI_DISCLOSURE_TEXT_V02).toBe(F3_R3_C);
+  });
+
+  // ---- T2a-v3: CI_DISCLOSURE_TEXT_V03 constant (food v0.3 active surface) ----
+  it("T2a-v3: CI_DISCLOSURE_TEXT_V03 module constant is byte-identical to F3-V3-C (food v0.3)", () => {
+    expect(CI_DISCLOSURE_TEXT_V03).toBe(F3_V3_C);
   });
 
   // ---- T2b: SMALL_N_TEXT constant ----
@@ -178,8 +222,9 @@ describe("PROMOTE-FOOD-V02 T2: F3-R3 binding string byte-identity", () => {
     expect(lede!.textContent).toBe(F3_R3_A);
   });
 
-  // ---- T2d: F3-R3-C rendered as CI disclosure paragraph ----
-  it("T2d: ContentArea renders CI disclosure line verbatim (F3-R3-C) when override is set", () => {
+  // ---- T2d: F3-V3-C (CI_DISCLOSURE_TEXT_V03) rendered as CI disclosure paragraph ----
+  // ContentArea.tsx now imports CI_DISCLOSURE_TEXT_V03 for all active override surfaces.
+  it("T2d: ContentArea renders CI disclosure line verbatim (F3-V3-C / CI_DISCLOSURE_TEXT_V03) when override is set", () => {
     render(
       <ContentArea
         {...BASE_PROPS}
@@ -188,7 +233,7 @@ describe("PROMOTE-FOOD-V02 T2: F3-R3 binding string byte-identity", () => {
     );
     const disclosure = document.querySelector("p.content-area__ci-disclosure");
     expect(disclosure).not.toBeNull();
-    expect(disclosure!.textContent).toBe(F3_R3_C);
+    expect(disclosure!.textContent).toBe(F3_V3_C);
   });
 
   // ---- T2e: F3-R3-D rendered as small-n warning paragraph ----
@@ -212,6 +257,17 @@ describe("PROMOTE-FOOD-V02 T2: F3-R3 binding string byte-identity", () => {
     // Compare normalized (collapse whitespace to handle possible wrapping)
     const actual = footnote!.textContent?.replace(/\s+/g, " ").trim() ?? "";
     const expected = F3_R3_E.replace(/\s+/g, " ").trim();
+    expect(actual).toBe(expected);
+  });
+
+  // ---- T2f-v3: F3-V3-E rendered in MethodologyPage food-v03-footnote ----
+  it("T2f-v3: MethodologyPage renders food-v03-footnote paragraph byte-identical to F3-V3-E", () => {
+    render(<MethodologyPage />);
+    const footnote = document.getElementById("food-v03-footnote");
+    expect(footnote).not.toBeNull();
+    // Compare normalized (collapse whitespace to handle possible wrapping)
+    const actual = footnote!.textContent?.replace(/\s+/g, " ").trim() ?? "";
+    const expected = F3_V3_E.replace(/\s+/g, " ").trim();
     expect(actual).toBe(expected);
   });
 
@@ -270,15 +326,19 @@ describe("PROMOTE-FOOD-V02 T2: F3-R3 binding string byte-identity", () => {
 // T2 (em-dash guard): no U+2014 in any of the five binding strings
 // ---------------------------------------------------------------------------
 
-describe("PROMOTE-FOOD-V02 T2: em-dash absence across binding strings (CLAUDE.md hard rule)", () => {
+describe("PROMOTE-FOOD-V02/V03 T2: em-dash absence across binding strings (CLAUDE.md hard rule)", () => {
   const EM_DASH = "—";
 
   it("F3-R3-A contains no em-dash", () => {
     expect(F3_R3_A).not.toContain(EM_DASH);
   });
 
-  it("F3-R3-C (CI_DISCLOSURE_TEXT) contains no em-dash", () => {
-    expect(CI_DISCLOSURE_TEXT).not.toContain(EM_DASH);
+  it("F3-R3-C (CI_DISCLOSURE_TEXT_V02) contains no em-dash", () => {
+    expect(CI_DISCLOSURE_TEXT_V02).not.toContain(EM_DASH);
+  });
+
+  it("F3-V3-C (CI_DISCLOSURE_TEXT_V03) contains no em-dash", () => {
+    expect(CI_DISCLOSURE_TEXT_V03).not.toContain(EM_DASH);
   });
 
   it("F3-R3-D (SMALL_N_TEXT) contains no em-dash", () => {
@@ -287,6 +347,18 @@ describe("PROMOTE-FOOD-V02 T2: em-dash absence across binding strings (CLAUDE.md
 
   it("F3-R3-E contains no em-dash", () => {
     expect(F3_R3_E).not.toContain(EM_DASH);
+  });
+
+  it("F3-V3-E contains no em-dash", () => {
+    expect(F3_V3_E).not.toContain(EM_DASH);
+  });
+
+  it("FABLE_DISCLOSURE_FRAMING contains no em-dash", () => {
+    expect(FABLE_DISCLOSURE_FRAMING).not.toContain(EM_DASH);
+  });
+
+  it("FABLE_DISCLOSURE_BOUND contains no em-dash", () => {
+    expect(FABLE_DISCLOSURE_BOUND).not.toContain(EM_DASH);
   });
 });
 
@@ -382,5 +454,61 @@ describe("PROMOTE-FOOD-V02 T3: heatmap maverick-drop disclosure (DESIGN_SYSTEM.m
     );
     const captions = document.querySelectorAll("p.heatmap-exclusion-caption");
     expect(captions.length).toBe(2);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T4: FableDisclosureNote byte-identity coverage (batch A, DESIGN_SYSTEM.md §19.20)
+// ---------------------------------------------------------------------------
+
+describe("Batch A T4: FableDisclosureNote constant byte-identity (DESIGN_SYSTEM.md §19.20)", () => {
+  /** BA-FABLE-FRAMING (binding, CDA SME ruling E). */
+  const BA_FABLE_FRAMING =
+    "The claude-fable-5 counts shown on this panel are a product of the" +
+    " mechanism described immediately below.";
+
+  /** Fable-5 bound string (binding, 2026-07-10 (d), CDA SME ruling E). */
+  const FABLE_BOUND =
+    "The provider's deployment-side output filter returned empty content" +
+    " (stop_reason=refusal) for 22 of 23 free-list elicitation attempts on" +
+    " claude-fable-5 in batch A. Under identical prompts collected the same hour," +
+    " claude-opus-4-8 and claude-sonnet-5 completed the same elicitations with zero" +
+    " refusals. The pattern is a property of claude-fable-5's deployment configuration," +
+    " not of its training corpus, and does not license any claim about" +
+    " claude-fable-5's categorical structure for family or holidays.";
+
+  it("T4a: FABLE_DISCLOSURE_FRAMING is byte-identical to BA-FABLE-FRAMING bound string", () => {
+    expect(FABLE_DISCLOSURE_FRAMING).toBe(BA_FABLE_FRAMING);
+  });
+
+  it("T4b: FABLE_DISCLOSURE_BOUND is byte-identical to 2026-07-10 (d) bound string", () => {
+    expect(FABLE_DISCLOSURE_BOUND).toBe(FABLE_BOUND);
+  });
+});
+
+// ---------------------------------------------------------------------------
+// T5: BA-QA-FN methodology section coverage (batch A, DESIGN_SYSTEM.md §6.1)
+// ---------------------------------------------------------------------------
+
+describe("Batch A T5: BA-QA-FN methodology section (DESIGN_SYSTEM.md §6.1)", () => {
+  it("T5a: MethodologyPage renders Informant-class QA calibration section heading", () => {
+    render(<MethodologyPage />);
+    const heading = document.getElementById("informant-class-qa-calibration-heading");
+    expect(heading).not.toBeNull();
+    expect(heading!.textContent).toBe("Informant-class QA calibration");
+  });
+
+  it("T5b: BA-QA-FN paragraph contains 'reasoning-model informants' and 'dense-tokenizer informants'", () => {
+    const { container } = render(<MethodologyPage />);
+    const text = container.textContent ?? "";
+    expect(text).toMatch(/reasoning-model informants/i);
+    expect(text).toMatch(/dense-tokenizer informants/i);
+  });
+
+  it("T5c: BA-QA-FN paragraph contains 'approved slate' cross-reference sentence", () => {
+    const { container } = render(<MethodologyPage />);
+    const text = container.textContent ?? "";
+    expect(text).toContain("QA answers whether a record is fit for analysis");
+    expect(text).toContain("the approved slate, curated separately, answers which models the published basis includes");
   });
 });

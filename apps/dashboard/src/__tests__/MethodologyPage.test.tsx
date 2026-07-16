@@ -155,4 +155,32 @@ describe('MethodologyPage', () => {
     expect(container.textContent).not.toMatch(/Latent Structure Benchmark/);
   });
 
+  // 14. BA-QA-FN section heading renders (batch A, 2026-07-13, DESIGN_SYSTEM.md §6.1)
+  it('renders "Informant-class QA calibration" section heading (BA-QA-FN, DESIGN_SYSTEM.md §6.1)', () => {
+    render(<MethodologyPage />);
+    expect(
+      screen.getByRole('heading', { level: 2, name: 'Informant-class QA calibration' })
+    ).toBeInTheDocument();
+  });
+
+  // 15. BA-QA-FN text: distinctive phrase from the bound paragraph renders
+  it('renders BA-QA-FN text with "reasoning-model informants" and "dense-tokenizer informants"', () => {
+    const { container } = render(<MethodologyPage />);
+    const text = container.textContent ?? '';
+    expect(text).toMatch(/reasoning-model informants/i);
+    expect(text).toMatch(/dense-tokenizer informants/i);
+  });
+
+  // 16. food-v03-footnote paragraph renders (F3-V3-E anchor, batch A, DESIGN_SYSTEM.md §23.4)
+  it('renders food-v03-footnote paragraph with id="food-v03-footnote"', () => {
+    render(<MethodologyPage />);
+    const footnote = document.getElementById('food-v03-footnote');
+    expect(footnote).not.toBeNull();
+    const text = footnote!.textContent?.replace(/\s+/g, ' ').trim() ?? '';
+    // Verify the distinctive v0.3-specific numbers and claims appear
+    expect(text).toMatch(/19-model approved slate/);
+    expect(text).toMatch(/5\.44/);
+    expect(text).toMatch(/\[2\.75, 10\.25\]/);
+  });
+
 });
