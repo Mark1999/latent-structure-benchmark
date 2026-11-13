@@ -45,7 +45,7 @@ License files at repo root: `LICENSE` (Apache 2.0), `LICENSE-DATA` (CC-BY-4.0), 
 ## Quick links
 
 - **Dashboard:** [cogstructurelab.com](https://cogstructurelab.com)
-- **Methodology page:** [cogstructurelab.com/methodology](https://cogstructurelab.com/methodology) — full methodology page is in preparation; for the binding framing language (corpus lens, what LSB measures, what it does not), see [`ARCHITECTURE.md`](ARCHITECTURE.md) §1.5
+- **Methodology page:** [cogstructurelab.com/methodology](https://cogstructurelab.com/methodology), live. The binding framing language (corpus lens, what LSB measures, what it does not) is in [`ARCHITECTURE.md`](ARCHITECTURE.md) §1.5.
 - **Open data bundle:** [HuggingFace](https://huggingface.co/datasets/AILLM1999/latent-structure-benchmark) and DOI-minted on [Zenodo](https://doi.org/10.5281/zenodo.20293554) (see Citation below)
 - **Architecture:** [`ARCHITECTURE.md`](ARCHITECTURE.md)
 - **Data dictionary:** [`docs/DATA_DICTIONARY.md`](docs/DATA_DICTIONARY.md)

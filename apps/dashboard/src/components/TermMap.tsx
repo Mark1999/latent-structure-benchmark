@@ -1474,7 +1474,7 @@ export function TermMap({
       >
         <span>
           {liveCoords !== null && liveStress !== null
-            ? `Kruskal's stress: ${liveStress.toFixed(3)} · Lower = better fit`
+            ? `Kruskal's stress: ${liveStress.toFixed(3)} · Lower = better fit · Above 0.20, trust the groupings more than the exact distances`
             : 'Stress: computed at analysis time'}
           {' '}
           <span style={{ color: 'var(--color-text-caption)', fontSize: 'var(--font-size-xs)' }}>
